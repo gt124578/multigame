@@ -1,0 +1,30 @@
+<!doctype html><meta charset="utf-8"><title>Sprites</title>
+<style>body{background:#58ac50;margin:8px;font:12px sans-serif}canvas{image-rendering:pixelated;margin:4px;vertical-align:top}</style>
+<div id=g></div>
+<script type=module>
+import { personSheet, LOOKS } from '../gfx/people.js';
+import { TileAtlas, treeSprite, propSprite, cliffTexture, cliffLipTexture, caveMouthSprite } from '../gfx/tiletex.js';
+import { facadeTexture, roofTexture } from '../gfx/buildtex.js';
+import { GR } from '../engine/world.js';
+const g = document.getElementById('g');
+const add = (c, s = 3) => { c.style.width = c.width * s + 'px'; c.style.height = c.height * s + 'px'; g.append(c); };
+for (const k of Object.keys(LOOKS)) add(personSheet(k), 2);
+g.append(document.createElement('br'));
+for (const k of ['tree', 'pine', 'snowpine', 'palm', 'deadtree']) add(treeSprite(k), 3);
+for (const k of ['rock', 'bush', 'sign', 'fence', 'lamp', 'pot', 'statue', 'mailbox', 'boulder', 'crystal', 'barrel', 'crate', 'bench', 'item', 'tallgrass', 'stalag']) add(propSprite(k), 3);
+add(cliffTexture('grass'), 3); add(cliffLipTexture('grass'), 3); add(caveMouthSprite(), 3);
+g.append(document.createElement('br'));
+const A = new TileAtlas();
+const nb = () => GR.GRASS;
+for (const gr of Object.values(GR)) A.ground(gr, 1, 2, nb);
+for (let m = 0; m < 16; m++) A.ground(GR.PATH, 0, 0, (dx, dy) => (m & 1 && dy === -1) || (m & 2 && dx === 1) || (m & 4 && dy === 1) || (m & 8 && dx === -1) ? GR.GRASS : GR.PATH);
+for (let m = 0; m < 16; m++) A.ground(GR.WATER, 0, 0, (dx, dy) => (m & 1 && dy === -1) || (m & 2 && dx === 1) || (m & 4 && dy === 1) || (m & 8 && dx === -1) ? GR.GRASS : GR.WATER);
+const crop = document.createElement('canvas'); crop.width = 18 * 24; crop.height = 18 * 4; crop.getContext('2d').drawImage(A.c, 0, 0); add(crop, 3);
+g.append(document.createElement('br'));
+add(facadeTexture({ kind: 'center', w: 7, d: 5, h: 2.4, door: 1, doorX: 3 }), 3);
+add(facadeTexture({ kind: 'shop', w: 6, d: 5, h: 2.4, door: 1, doorX: 3 }), 3);
+add(facadeTexture({ kind: 'gym', w: 9, d: 6, h: 3, door: 1, doorX: 4, roof: '#8c7c6a' }), 3);
+add(facadeTexture({ kind: 'house', w: 5, d: 4, h: 2.4, door: 1, doorX: 2, x: 1, y: 2 }), 3);
+add(roofTexture({ kind: 'house', roof: '#c85040' }, 80, 40, true), 3);
+document.title = 'ok';
+</script>

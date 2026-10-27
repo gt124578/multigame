@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><title>Galerie</title>
+<style>body{background:#e8e4d8;margin:8px;font:12px sans-serif}.g{display:flex;flex-wrap:wrap;gap:6px}.c{background:#fff;padding:4px;text-align:center}canvas{image-rendering:pixelated;width:128px;height:128px}canvas.s{width:64px;height:64px}</style>
+<div class=g id=g></div>
+<script type=module>
+import { SPECIES_LIST } from '../engine/species.js';
+import { drawCreature } from '../gfx/creatures.js';
+const q = new URLSearchParams(location.search), only = q.get('only');
+for (const s of SPECIES_LIST) {
+  if (only && !only.split(',').includes(s.id)) continue;
+  const d = document.createElement('div'); d.className = 'c';
+  const f = drawCreature(s.sp, 'front'), b = drawCreature(s.sp, 'back'), i = drawCreature(s.sp, 'front', 32);
+  i.className = 's';
+  d.append(f, b, i, document.createElement('br'), s.num + ' ' + s.name);
+  document.getElementById('g').append(d);
+}
+document.title = 'ok';
+</script>

@@ -1,0 +1,22 @@
+<!doctype html><meta charset="utf-8"><title>Vue</title>
+<style>body{background:#111;margin:0}canvas{image-rendering:pixelated;width:512px;height:384px;display:block}</style>
+<script type="importmap">{ "imports": { "three": "../../shared/vendor/three/three.module.min.js" } }</script>
+<canvas id=c width=256 height=192></canvas>
+<script type=module>
+import * as THREE from 'three';
+import { buildWorld } from '../engine/region.js';
+import { buildInterior, buildCave } from '../engine/interiors.js';
+import { WorldView } from '../view/world3d.js';
+const q = new URLSearchParams(location.search);
+const r = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: false });
+r.setPixelRatio(1); r.setSize(256, 192, false);
+const W = buildWorld();
+let M = W;
+if (q.get('int')) { const id = q.get('int'); M = W.interiors[id] ? buildInterior(W.interiors[id]) : buildCave(id); }
+const V = new WorldView(r); V.load(M);
+const x = +(q.get('x') ?? 117), y = +(q.get('y') ?? 179);
+const a = V.addActor('p', { look: 'hero', x, y, dir: 'down' });
+for (const n of M.npcs) if (Math.abs(n.x - x) < 14 && Math.abs(n.y - y) < 10) V.addActor(n.id, { look: n.look, x: n.x, y: n.y, dir: n.dir, creature: n.creature });
+V.update(0.016, x + 0.5, y + 0.5); V.render();
+document.title = 'ok';
+</script>
