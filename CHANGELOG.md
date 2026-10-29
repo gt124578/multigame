@@ -1,5 +1,8 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.21 — 30 octobre 2026
+- Add files via upload (Gabe)
+
 ## 3.20 — 30 octobre 2026
 - Add files via upload (Gabe)
 
