@@ -22,12 +22,15 @@ const DEBUG = new URLSearchParams(location.search).has('debug');
 
 /* ---------------------------------------------------------------- réseau */
 const H = window.HubBridge || { embedded: false, info: { role: 'solo', myId: 0, hostId: 0, settings: {} }, players: [], readyMap: {}, on() {}, send() {}, signalReady() {}, exit() {}, report() {} };
+// L'horloge de la partie est celle du premier hôte : offset vaut 0 chez lui, et un invité qui reprend la partie
+// garde son décalage, pour que les échéances (intro, fin de trou, minuteur) et les obstacles restent à l'heure.
 const NET = {
-  role: 'solo', myId: 0, hostId: 0, offset: 0, rtt: 999,
+  role: 'solo', myId: 0, hostId: 0, offset: 0, rtt: 999, resync: false,
   get isHost() { return this.role !== 'guest'; },
-  hostNow() { return nowMs() + (this.role === 'guest' ? this.offset : 0); },
+  hostNow() { return nowMs() + this.offset; },
   toHost(m) { if (this.role === 'guest') H.send('host', m); else onMsg(this.myId, m, true); },
-  all(m) { if (this.role === 'host') H.send('all', m); },
+  // vol : flux continu (positions, visée), sauté si la connexion sature au lieu de s'empiler
+  all(m, vol) { if (this.role === 'host') H.send('all', m, vol ? { volatile: true } : undefined); },
 };
 const kT = () => NET.hostNow() / 1000;   // temps des obstacles (secondes, horloge de l'hôte)
 const PALETTE = ['#ff4b2b', '#2b8cff', '#ffc531', '#2fbf71', '#b45cff', '#ff5fa2', '#1fc7c1', '#ff8a1f'];
@@ -48,6 +51,10 @@ let G = {
   players: [], holeList: [0, 1, 2, 3, 4, 5], hi: 0, scores: {}, strokes: {}, done: {}, balls: {}, order: [], turn: null, turnEnds: 0, phaseEnds: 0, shot: null, last: null,
 };
 const capOf = (par) => Math.max(7, par + 4);
+/** Parcours de 18 trous (le Marathon) : il fait à lui seul une partie complète */
+const isLong = (c) => c.holes.length >= 18;
+/** Survol du trou au départ : plus long sur les très longs trous */
+const introMs = (h) => (h && h.routeLen > 70 ? Math.min(7200, 3600 + (h.routeLen - 70) * 22) : 3600);
 
 /* ---------------------------------------------------------------- parcours chargé */
 let COURSE = null, HOLES = [], R = null;
@@ -92,12 +99,15 @@ function hostSetLobby(patch) {
 function hostStart() {
   G.players = lobbyPlayers();
   const c = courseById(G.course);
-  if (G.opts.holes === 'eighteen') {
-    const k = COURSES.findIndex((q) => q.id === c.id);
+  if (G.opts.holes === 'eighteen' && !isLong(c)) {
+    // Grand Tour : ce parcours et les deux suivants (parmi ceux de 6 trous)
+    const tour = COURSES.filter((q) => !isLong(q)), k = tour.findIndex((q) => q.id === c.id);
     G.holeList = [];
-    for (let j = 0; j < 3; j++) { const cc = COURSES[(k + j) % COURSES.length]; cc.holes.forEach((_, i) => G.holeList.push([cc.id, i])); }
+    for (let j = 0; j < 3; j++) { const cc = tour[(k + j) % tour.length]; cc.holes.forEach((_, i) => G.holeList.push([cc.id, i])); }
   } else {
-    const idx = G.opts.holes === 'first' ? [0, 1, 2] : G.opts.holes === 'last' ? [3, 4, 5] : c.holes.map((_, i) => i);
+    // aller (première moitié) ou retour (seconde moitié), sinon tout le parcours
+    const n = c.holes.length, half = Math.floor(n / 2), all = c.holes.map((_, i) => i);
+    const idx = G.opts.holes === 'first' ? all.slice(0, half) : G.opts.holes === 'last' ? all.slice(half) : all;
     G.holeList = idx.map((i) => [c.id, i]);
   }
   G.scores = {}; for (const p of G.players) G.scores[p.id] = G.holeList.map(() => null);
@@ -106,19 +116,23 @@ function hostStart() {
 }
 function hostStartHole(i) {
   G.hi = i; ensureCourse(entry(i)[0]);
-  G.phase = 'intro'; G.phaseEnds = NET.hostNow() + 3800; G.shot = null; G.turn = null;
   const h = holeNow();
+  G.phase = 'intro'; G.phaseEnds = NET.hostNow() + introMs(h) + 200; G.shot = null; G.turn = null;
   G.strokes = {}; G.done = {}; G.balls = {};
-  for (const p of G.players) { G.strokes[p.id] = 0; G.done[p.id] = false; G.balls[p.id] = { p: h.tee.slice(), inPlay: false }; }
+  const here = new Set(humans().map((q) => K(q.id)));
+  for (const p of G.players) { G.strokes[p.id] = 0; G.done[p.id] = p.bot || here.has(p.id) ? false : 'left'; G.balls[p.id] = { p: h.tee.slice(), inPlay: false }; }
   // honneur : le meilleur score du trou précédent joue en premier
   const order = G.players.map((p) => p.id);
   if (i > 0) order.sort((a, b) => (G.scores[a][i - 1] ?? 99) - (G.scores[b][i - 1] ?? 99));
   G.order = order;
   commit();
 }
+const AWAY_TURN_MS = 12000;   // joueur en coupure : son tour passe vite, même en temps libre
+const isAway = (pid) => (H.players || []).some((q) => K(q.id) === K(pid) && q.away);
 function hostBeginTurn(pid) {
   G.turn = pid; G.shot = null; G.turnEnds = G.opts.timer ? NET.hostNow() + G.opts.timer * 1000 : 0;
   const p = G.players.find((q) => q.id === pid);
+  if (p && !p.bot && isAway(pid)) G.turnEnds = Math.min(G.turnEnds || Infinity, NET.hostNow() + AWAY_TURN_MS);
   if (p && p.bot) botStart(p);
   commit();
 }
@@ -130,7 +144,9 @@ function hostNextTurn() {
   hostBeginTurn(active[0]);
 }
 function hostEndHole() {
-  for (const p of G.players) G.scores[p.id][G.hi] = G.strokes[p.id];
+  // parti sans finir le trou : le maximum, pour qu'un départ ne vaille pas un 0
+  const h = holeNow();
+  for (const p of G.players) G.scores[p.id][G.hi] = G.done[p.id] === 'left' && h ? Math.max(G.strokes[p.id], capOf(h.par) + 1) : G.strokes[p.id];
   G.phase = 'holeEnd'; G.phaseEnds = NET.hostNow() + 5200; G.turn = null; G.shot = null;
   commit();
 }
@@ -198,8 +214,9 @@ function botStart(p) {
 function botTick() {
   if (!BOT) return;
   if (G.phase !== 'play' || G.turn !== BOT.pid || G.shot) { BOT = null; return; }
-  const t0 = nowMs();
-  while (!BOT.plan && nowMs() - t0 < 9) { const r = BOT.gen.next(); if (r.done) BOT.plan = r.value; }
+  // très long trou : chaque essai simule un long roulé, le bot réfléchit un peu plus par image pour ne pas faire attendre
+  const t0 = nowMs(), hb = holeNow(), budget = hb && hb.routeLen > 70 ? 13 : 9;
+  while (!BOT.plan && nowMs() - t0 < budget) { const r = BOT.gen.next(); if (r.done) BOT.plan = r.value; }
   const left = BOT.T0 - kT();
   // visée visible par tous pendant la dernière seconde
   if (BOT.plan && left < 1.1) {
@@ -256,7 +273,7 @@ function simTick(dt) {
     for (const b of SIM.balls) if (b.awake || b.oob || b.holed) SIM.moved.add(b.id);
     const m = { t: 'bs', i: SIM.id, T: +SIM.t.toFixed(3), b: SIM.balls.filter((b) => SIM.moved.has(b.id)).map((b) => [b.id, +b.p[0].toFixed(3), +b.p[1].toFixed(3), +b.p[2].toFixed(3), b.holed ? 1 : b.oob ? 2 : 0]), e: SIM.ev };
     SIM.ev = [];
-    if (NET.role === 'host') NET.all(m); else if (NET.role === 'guest') H.send('host', m);
+    if (NET.role === 'host') NET.all(m, true); else if (NET.role === 'guest') H.send('host', m, { volatile: true });
   }
   if (!moving) {
     SIM.done = true;
@@ -276,20 +293,25 @@ const STREAM = { id: 0, buf: [], lastArr: 0 };   // positions reçues pendant un
 function onMsg(from, m, local) {
   if (!m || typeof m !== 'object') return;
   if (NET.role !== 'guest') {
+    // Le salon renvoie à l'hôte ce qu'il diffuse à tous : ses propres messages reviennent ici. Les relayer de
+    // nouveau relançait la boucle sans fin (visée de l'hôte, coups de l'hôte et des bots) : des milliers de
+    // messages par seconde, jusqu'à saturer sa connexion et le faire décrocher. Ce qui vient de lui passe par `local`.
+    if (!local && K(from) === K(NET.myId)) return;
     switch (m.t) {
-      case 'ping': H.send(from, { t: 'pong', c: m.c, h: nowMs() }); return;
-      case 'hello': H.send(from, { t: 'st', s: G, now: nowMs() }); return;
+      case 'ping': H.send(from, { t: 'pong', c: m.c, h: NET.hostNow() }); return;
+      case 'hello': H.send(from, { t: 'st', s: G, now: NET.hostNow() }); return;
       case 'shoot': { if (local) return; hostShoot(from, m); return; }
-      case 'bs': if (G.shot && from === G.shot.owner && m.i === G.shot.id) { H.send('all', m); if (!local) onStream(m); } return;
+      case 'bs': if (G.shot && from === G.shot.owner && m.i === G.shot.id && !local) { H.send('all', m, { volatile: true }); onStream(m); } return;
       case 'rest': hostRest(from, m); return;
-      case 'aim': if (G.turn === K(from)) { const a = { ...m, pid: K(from) }; H.send('all', a); onAim(a); } return;
+      case 'aim': if (G.turn === K(from) && !local) { const a = { ...m, pid: K(from) }; H.send('all', a, a.on ? { volatile: true } : undefined); onAim(a); } return;
     }
     return;
   }
   if (from !== NET.hostId) return;
   switch (m.t) {
-    case 'pong': { const now = nowMs(), rtt = now - m.c; if (rtt < NET.rtt * 1.5 || rtt < 120) { NET.rtt = Math.min(rtt, NET.rtt * 0.8 + rtt * 0.2); NET.offset = m.h + rtt / 2 - now; } break; }
-    case 'st': if (m.s && m.s.n >= G.n) { G = m.s; onState(G); } break;
+    case 'pong': { const now = nowMs(), rtt = now - m.c; if (NET.resyncClock || rtt < NET.rtt * 1.5 || rtt < 120) { NET.resyncClock = false; NET.rtt = Math.min(rtt, NET.rtt * 0.8 + rtt * 0.2); NET.offset = m.h + rtt / 2 - now; } break; }
+    // après un changement d'hôte, le premier état du nouvel hôte est pris quel que soit son numéro
+    case 'st': if (m.s && (m.s.n >= G.n || NET.resync)) { NET.resync = false; G = m.s; onState(G); } break;
     case 'bs': if ((!SIM || SIM.id !== m.i) && G.shot && m.i === G.shot.id) onStream(m); break;
     case 'aim': onAim(m); break;
   }
@@ -305,8 +327,9 @@ function onStream(m) {
 const AIM = { pid: null, yaw: 0, power: 0, on: false, at: 0 };
 function onAim(m) { if (m.pid === ME() && !String(m.pid).startsWith('b')) return; Object.assign(AIM, { pid: m.pid, yaw: m.yaw, power: m.power, on: m.on, at: nowMs() }); }
 function sendAim(a) {
-  if (NET.role === 'host' || NET.role === 'solo') { NET.all({ t: 'aim', ...a }); onAim(a); }
-  else H.send('host', { t: 'aim', yaw: a.yaw, power: a.power, on: a.on });
+  // la visée en cours est un flux (volatil) ; la fin de visée (on: false) doit arriver, elle part normalement
+  if (NET.role === 'host' || NET.role === 'solo') { NET.all({ t: 'aim', ...a }, a.on); onAim(a); }
+  else H.send('host', { t: 'aim', yaw: a.yaw, power: a.power, on: a.on }, a.on ? { volatile: true } : undefined);
 }
 
 /* ================================================================ RÉACTIONS À L'ÉTAT */
@@ -474,6 +497,16 @@ function camYawToRoute(p) {
   if (Math.hypot(dx, dz) < 0.5) { const c = h.cup; return Math.atan2(c[0] - p[0], c[2] - p[2]); }
   return Math.atan2(dx, dz);
 }
+/** Point du parcours à la distance s (en mètres, à plat) depuis le départ */
+function routeAt(h, s) {
+  const r = h.route;
+  if (!h._cum) { h._cum = [0]; for (let i = 1; i < r.length; i++) h._cum.push(h._cum[i - 1] + Math.hypot(r[i][0] - r[i - 1][0], r[i][2] - r[i - 1][2])); }
+  const C = h._cum; s = clamp(s, 0, C[C.length - 1]);
+  let lo = 0, hi = C.length - 1;
+  while (lo < hi - 1) { const m = (lo + hi) >> 1; if (C[m] <= s) lo = m; else hi = m; }
+  const t = C[hi] > C[lo] ? (s - C[lo]) / (C[hi] - C[lo]) : 0, a = r[lo], b = r[hi];
+  return new THREE.Vector3(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t);
+}
 function shake(a) { CAM.shake = Math.max(CAM.shake, a); }
 function updateCamera(dt) {
   const cam = R.camera, h = holeNow(); if (!h) return;
@@ -482,14 +515,20 @@ function updateCamera(dt) {
   // spectateur : suit le regard du joueur qui vise s'il ne touche pas la souris
   if (AIM.on && AIM.pid === G.turn && G.turn !== ME() && nowMs() - CAM.lastInput > 2500 && nowMs() - AIM.at < 1500) CAM.yaw += angDiff(AIM.yaw, CAM.yaw) * Math.min(1, dt * 4);
   if (CAM.mode === 'intro') {
-    const u = clamp((nowMs() - CAM.introStart) / 3600, 0, 1), e = u * u * (3 - 2 * u);
+    const u = clamp((nowMs() - CAM.introStart) / introMs(h), 0, 1), e = u * u * (3 - 2 * u);
     const cup = new THREE.Vector3(...h.cup), tee = new THREE.Vector3(...h.tee);
     const yawT = camYawToRoute(h.tee);
     const fwd = new THREE.Vector3(Math.sin(yawT), 0, Math.cos(yawT));
     const p0 = cup.clone().add(new THREE.Vector3(3, 7, 3)), p1 = tee.clone().addScaledVector(fwd, -5).add(new THREE.Vector3(0, 2.6, 0));
-    const look = cup.clone().lerp(tee.clone().addScaledVector(fwd, 2), e);
+    let look = cup.clone().lerp(tee.clone().addScaledVector(fwd, 2), e), pos = p0.lerp(p1, e);
+    if (h.routeLen > 70) {
+      // très long trou : on remonte le parcours du trou jusqu'au départ, en regardant vers l'arrivée, puis on se pose derrière la balle
+      const s = h.routeLen * (1 - e), k = clamp((u - 0.86) / 0.14, 0, 1), kk = k * k * (3 - 2 * k);
+      const fly = routeAt(h, s - 9).add(new THREE.Vector3(0, 6.5, 0)), aim = routeAt(h, s + 7);
+      pos = fly.lerp(p1, kk); look = aim.lerp(tee.clone().addScaledVector(fwd, 2), kk);
+    }
     cam.up.set(0, 1, 0); CAM.roll = 0; CAM.flipSign = 1;
-    cam.position.copy(p0.lerp(p1, e)); cam.lookAt(look);
+    cam.position.copy(pos); cam.lookAt(look);
     CAM.cur.copy(tee); CAM.yaw = yawT; CAM.pitch = 0.42;
     if (u >= 1 && G.phase !== 'intro') CAM.mode = 'follow';
     return;
@@ -720,9 +759,11 @@ const UI = {
         <i class="diff" title="Difficulté">${[1, 2, 3].map((k) => `<em class="${k <= c.diff ? 'on' : ''}"></em>`).join('')}<small>${['', 'Classique', 'Normal', 'Difficile'][c.diff]}</small></i></div>
       </button>`).join('');
     $('cards').querySelectorAll('.card').forEach((b) => b.onclick = () => { sfx.click(); hostSetLobby({ course: b.dataset.c }); });
-    const opt = (key, label, vals) => `<div class="opt"><span>${label}</span><div class="seg">${vals.map(([v, l]) => `<button data-k="${key}" data-v="${v}" class="${String(G.opts[key]) === String(v) ? 'sel' : ''}" ${host ? '' : 'disabled'}>${l}</button>`).join('')}</div></div>`;
-    const nh = humans().length;
-    $('opts').innerHTML = opt('holes', 'Trous', [['all', 'Les 6'], ['first', '1 à 3'], ['last', '4 à 6'], ['eighteen', '18 (3 parcours)']])
+    const opt = (key, label, vals, cur = G.opts[key]) => `<div class="opt"><span>${label}</span><div class="seg">${vals.map(([v, l]) => `<button data-k="${key}" data-v="${v}" class="${String(cur) === String(v) ? 'sel' : ''}" ${host ? '' : 'disabled'}>${l}</button>`).join('')}</div></div>`;
+    const nh = humans().length, cc = courseById(G.course);
+    // le Marathon fait déjà 18 trous : aller, retour ou les 18 (le Grand Tour de 3 parcours ne le concerne pas)
+    const holeOpts = isLong(cc) ? [['all', 'Les 18'], ['first', '1 à 9'], ['last', '10 à 18']] : [['all', 'Les 6'], ['first', '1 à 3'], ['last', '4 à 6'], ['eighteen', '18 (3 parcours)']];
+    $('opts').innerHTML = opt('holes', 'Trous', holeOpts, isLong(cc) && G.opts.holes === 'eighteen' ? 'all' : G.opts.holes)
       + opt('bots', 'Bots', [0, 1, 2, 3].filter((n) => n + nh <= 6).map((n) => [n, n ? String(n) : 'Aucun']))
       + (G.opts.bots ? opt('level', 'Niveau des bots', [['facile', 'Facile'], ['normal', 'Normal'], ['expert', 'Expert']]) : '')
       + opt('collide', 'Les balles se touchent', [[true, 'Oui'], [false, 'Non']])
@@ -860,6 +901,7 @@ function showLoading(on, name) { $('loading').classList.toggle('hidden', !on); i
 
 /* illustrations des cartes postales de parcours (SVG) */
 const ART = {
+  marathon: `<svg viewBox="0 0 200 120"><defs><linearGradient id="ms" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a7fd6"/><stop offset=".6" stop-color="#93c3ee"/><stop offset="1" stop-color="#ffe2b8"/></linearGradient></defs><rect width="200" height="120" fill="url(#ms)"/><circle cx="150" cy="40" r="12" fill="#fff1c8"/><path d="M0 62 Q40 50 80 58 T160 54 T200 56 V120 H0Z" fill="#7fb35a"/><path d="M0 76 Q50 64 100 72 T200 68 V120 H0Z" fill="#5d9a42"/><path d="M14 118 C 40 96, 150 100, 120 84 S 60 76, 96 68 S 150 64, 132 60" fill="none" stroke="#d8cbb0" stroke-width="9" stroke-linecap="round"/><path d="M14 118 C 40 96, 150 100, 120 84 S 60 76, 96 68 S 150 64, 132 60" fill="none" stroke="#3f9c4c" stroke-width="5" stroke-linecap="round"/><path d="M132 60 V44" stroke="#fff" stroke-width="1.4"/><path d="M132 44 l9 3 -9 3z" fill="#ff7a1a"/><g fill="#2f7a33"><circle cx="30" cy="70" r="6"/><circle cx="170" cy="66" r="5"/><circle cx="60" cy="96" r="7"/></g><g transform="translate(160 92)"><rect x="-14" y="-9" width="28" height="18" rx="3" fill="#f7f1df" stroke="#5a3d24" stroke-width="1.5"/><text x="0" y="5" text-anchor="middle" font-family="Bowlby One, sans-serif" font-size="12" fill="#1d2b4f">18</text></g></svg>`,
   park: `<svg viewBox="0 0 200 120"><rect width="200" height="120" fill="#8cc6f5"/><circle cx="160" cy="26" r="14" fill="#fff3b0"/><rect y="70" width="200" height="50" fill="#5daa3c"/><path d="M20 98 Q100 74 180 92 L180 104 Q100 88 20 110Z" fill="#2f9a4c" stroke="#d9cfc2" stroke-width="4"/><circle cx="150" cy="93" r="4" fill="#111"/><path d="M150 93 V64" stroke="#fff" stroke-width="2"/><path d="M150 64 l16 5 -16 5z" fill="#e8433b"/><g transform="translate(46 44)"><rect x="-12" y="8" width="24" height="26" fill="#f4f1e8"/><path d="M-14 8 L0 -6 L14 8Z" fill="#c8322c"/><g stroke="#7a5534" stroke-width="4"><path d="M0 4 L0 -22M0 4 L0 30M0 4 L-26 4M0 4 L26 4"/></g></g><circle cx="80" cy="60" r="10" fill="#4ea845"/><rect x="78" y="64" width="4" height="10" fill="#6b4a2b"/></svg>`,
   pirate: `<svg viewBox="0 0 200 120"><defs><linearGradient id="ps" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2a6e"/><stop offset=".6" stop-color="#d9668f"/><stop offset="1" stop-color="#ffc07a"/></linearGradient></defs><rect width="200" height="120" fill="url(#ps)"/><circle cx="60" cy="74" r="18" fill="#ffd27a"/><rect y="74" width="200" height="46" fill="#1b6f88"/><path d="M0 84 h200 M20 92 h60 M110 96 h70" stroke="#ffd9a0" stroke-width="2" opacity=".6"/><ellipse cx="150" cy="80" rx="34" ry="8" fill="#e9d39c"/><path d="M148 78 q-4 -24 6 -36" stroke="#7a5c3a" stroke-width="4" fill="none"/><path d="M154 42 q-16 -2 -24 8 M154 42 q14 -6 24 4 M154 42 q-6 -12 -18 -14 M154 42 q10 -12 22 -10" stroke="#2f8a35" stroke-width="5" fill="none"/><path d="M20 80 h70 l-8 12 h-54z" fill="#5a3a20"/><path d="M50 80 V44 M50 46 l16 16 h-16z" stroke="#4a3220" stroke-width="3" fill="#f2e6c8"/></svg>`,
   zen: `<svg viewBox="0 0 200 120"><defs><linearGradient id="zs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#191b46"/><stop offset=".55" stop-color="#7a4d86"/><stop offset="1" stop-color="#f3a27a"/></linearGradient></defs><rect width="200" height="120" fill="url(#zs)"/><rect y="84" width="200" height="36" fill="#3b5a2c"/><path d="M30 92 Q100 56 170 92" stroke="#d22f2a" stroke-width="6" fill="none"/><path d="M40 90 v10 M70 76 v18 M100 70 v20 M130 76 v18 M160 90 v10" stroke="#d22f2a" stroke-width="3"/><ellipse cx="100" cy="102" rx="60" ry="8" fill="#1d5a6a"/><g transform="translate(36 40)"><rect x="-3" y="10" width="6" height="40" fill="#5a3d24"/><circle cx="0" cy="8" r="16" fill="#ffb7d0"/><circle cx="12" cy="16" r="10" fill="#ff9ec2"/></g><g transform="translate(166 62)"><rect x="-6" y="6" width="12" height="14" fill="#8f8a82"/><rect x="-5" y="-4" width="10" height="10" fill="#ffd38a"/><path d="M-10 -4 L0 -12 L10 -4Z" fill="#8f8a82"/></g><circle cx="172" cy="56" r="14" fill="#ffb050" opacity=".25"/></svg>`,
@@ -877,18 +919,39 @@ function bootNet(onReady) {
     NET.role = H.embedded ? info.role : 'solo'; NET.myId = H.embedded ? info.myId : 0; NET.hostId = info.hostId ?? 0;
     H.on('msg', (from, m) => onMsg(from, m, false));
     H.on('roster', () => {
-      const was = NET.role; NET.hostId = H.info.hostId;
+      const was = NET.role, oldHost = NET.hostId; NET.hostId = H.info.hostId;
       if (H.embedded && H.info.role === 'host' && was === 'guest') {   // l'hôte est parti : je reprends la partie
         NET.role = 'host'; UI.toast('Tu es maintenant l\'hôte');
-        if (G.shot) { const s = G.shot; G.strokes[s.pid] = Math.max(0, G.strokes[s.pid] - 1); G.shot = null; SIM = null; }
+        // l'horloge de la partie continue (NET.offset gardé) ; un numéro d'état bien plus grand passe chez tous les invités
+        G.n += 1000;
+        if (G.shot) { const s = G.shot; G.strokes[s.pid] = Math.max(0, G.strokes[s.pid] - 1); G.shot = null; }
+        SIM = null; pendingShot = null; BOT = null; STREAM.id = 0; STREAM.buf = [];
         if (G.phase === 'play' && G.turn) hostBeginTurn(G.turn); else commit();
+      } else if (NET.role === 'guest' && oldHost !== NET.hostId) {
+        // nouvel hôte : on accepte son état même s'il a raté le dernier, et on se recale sur son horloge
+        NET.resync = true; NET.resyncClock = true; NET.rtt = 999;
+        H.send('host', { t: 'hello' }); H.send('host', { t: 'ping', c: nowMs() });
       }
       if (NET.role === 'host') {
         const ids = new Set(humans().map((h) => K(h.id)));
         if (G.phase === 'lobby') { G.players = lobbyPlayers(); commit(); }
         else {
           let changed = false;
-          for (const p of G.players.slice()) if (!p.bot && !ids.has(p.id)) { G.done[p.id] = G.done[p.id] || 'left'; changed = true; if (G.shot && G.shot.owner === Number(p.id)) { G.strokes[G.shot.pid]--; G.shot = null; } if (G.turn === p.id) { hostNextTurn(); changed = false; } }
+          for (const p of G.players.slice()) {
+            if (p.bot) continue;
+            if (!ids.has(p.id)) {
+              if (G.done[p.id] === 'left') continue;
+              if (!G.done[p.id]) G.done[p.id] = 'left';
+              changed = true;
+              if (G.shot && K(G.shot.owner) === p.id) { G.strokes[G.shot.pid] = Math.max(0, G.strokes[G.shot.pid] - 1); G.shot = null; }
+              if (G.turn === p.id && !G.shot) { hostNextTurn(); changed = false; }
+            } else if (G.done[p.id] === 'left' && G.phase !== 'over') {
+              // revenu (coupure, ou ancien hôte qui rejoint le nouveau) : il reprend le trou là où il l'avait laissé
+              G.done[p.id] = false; changed = true;
+            }
+          }
+          // celui qui a la main vient de couper : son tour ne bloque pas les autres
+          if (G.phase === 'play' && G.turn && !G.shot && isAway(G.turn) && (!G.turnEnds || G.turnEnds > NET.hostNow() + AWAY_TURN_MS)) { G.turnEnds = NET.hostNow() + AWAY_TURN_MS; changed = true; }
           if (changed) commit();
         }
       }
@@ -936,7 +999,8 @@ function boot() {
   bootNet(() => {
     if (NET.isHost) { G.players = lobbyPlayers(); commit(); }
     else UI.show('lobby');
-    if (NET.role === 'guest') setInterval(() => H.send('host', { t: 'ping', c: nowMs() }), 2000);
+    // invités : recalage d'horloge sur l'hôte (s'arrête tout seul si l'on devient hôte)
+    setInterval(() => { if (NET.role === 'guest') H.send('host', { t: 'ping', c: nowMs() }); }, 2000);
     requestAnimationFrame(frame);
   });
   if (DEBUG) window.__golf = { get G() { return G; }, R, NET, INPUT, TOUCHDEV, BV: ballsVisual, hostStart, doShoot, goHole: (i) => hostStartHole(i), CAM, get SIM() { return SIM; }, HOLES: () => HOLES };

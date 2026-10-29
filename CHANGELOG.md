@@ -1,5 +1,15 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.18 — 29 octobre 2026
+- **Mini-Golf Party** — Nouveau parcours « Le Marathon » : 18 trous géants, de 110 à plus de 300 m chacun (par 99), qui enchaînent toutes les épreuves des autres parcours.
+  - Cinq épingles qui grimpent au col, une grande descente glacée, des sauts, trois loopings, deux tunnels aimantés, un pont suspendu, des marteaux, une spirale de 300 m qui descend vers le trou…
+  - Partie de 18 trous, ou de 9 (l'aller ou le retour). Le survol du départ remonte tout le trou, et les ombres restent nettes autour de ta balle même au bout de la carte.
+- **Mini-Golf Party** — Fini les déconnexions de l'hôte en pleine partie : quand l'hôte visait, tirait ou faisait jouer un bot, ses propres messages lui revenaient et repartaient en boucle, des milliers de fois par seconde, jusqu'à saturer sa connexion.
+  - La balle qui roule et la visée des autres passent en flux léger : si la connexion sature, une image est sautée au lieu de tout ralentir.
+  - Si l'hôte part quand même, le nouvel hôte reprend la partie à la même heure : l'intro du trou, la pause entre deux trous, le minuteur et les obstacles ne se figent plus.
+  - Un joueur parti ne fait plus attendre les autres à chaque trou, et ne marque plus 0 sur les trous qu'il n'a pas joués. S'il revient (l'ancien hôte compris), il reprend le trou en cours.
+  - Le tour d'un joueur en coupure passe au bout de 12 secondes, même en temps libre.
+
 ## 3.17 — 28 octobre 2026
 - **Birdie Party** — Nouveau parcours « Les Géants » : 18 trous immenses, de 600 m à plus d'un kilomètre (par 6 à 8), à travers la campagne, la mer, la montagne et le désert.
   - Un double dogleg de 1,1 km, un archipel à traverser d'île en île, une crique à porter, un torrent qui coupe deux fois la vallée, deux canyons dans le désert…

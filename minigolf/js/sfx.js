@@ -85,7 +85,7 @@ export function ambience(theme) {
   lfo.start();
   ambTimer = setInterval(() => {
     if (!ctx || muted()) return;
-    if (theme === 'park' && Math.random() < 0.5) { const b = 2200 + Math.random() * 1500; for (let i = 0; i < 2 + (Math.random() * 3 | 0); i++) tone('sine', b, b * 1.25, 0.07, 0.03, i * 0.11); }
+    if ((theme === 'park' || theme === 'marathon') && Math.random() < 0.5) { const b = 2200 + Math.random() * 1500; for (let i = 0; i < 2 + (Math.random() * 3 | 0); i++) tone('sine', b, b * 1.25, 0.07, 0.03, i * 0.11); }
     if (theme === 'zen' && Math.random() < 0.35) { const n = [523, 587, 659, 784, 880, 1047][(Math.random() * 6) | 0]; tone('sine', n, n, 2.2, 0.035); tone('sine', n * 2.76, n * 2.76, 1.2, 0.01); }
     if (theme === 'pirate' && Math.random() < 0.2) { tone('sine', 1800, 1300, 0.25, 0.02); tone('sine', 1700, 1200, 0.3, 0.02, 0.3); }
     if (theme === 'forge' && Math.random() < 0.3) { noise(0.3, 0.06, 'highpass', 3000, 6000); tone('triangle', 70, 60, 0.6, 0.06); }

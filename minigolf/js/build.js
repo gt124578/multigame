@@ -37,6 +37,7 @@ class Path {
     this.wh = o.wh ?? 0.3; this.wt = o.wt ?? 0.2; this.wl = o.walls !== false; this.wr = o.walls !== false;
     this.roofOn = false; this.roofMat = null; this.noFloor = false; this.base = o.base ?? B.defaultBase ?? 'ground'; this.prm = null; this.s = 0;
     this.trim = o.trim ?? B.theme.trim ?? null;
+    this.step = o.step || 0.2;   // pas des lignes droites plates (les très longs trous en prennent un plus grand : même forme, moins de triangles)
     this.pieces = []; this.frames = []; this.main = o.main !== false;
     this.newPiece();
     this.pushFrame(this.P, this.slopeless(), 0);
@@ -64,8 +65,9 @@ class Path {
   /** Segment générique : longueur horizontale len, virage turn (deg, + = gauche), dénivelé dh, dévers bank (deg), largeur w */
   seg(o) {
     const len = Math.max(0.05, o.len), tr = (o.turn || 0) * D2R, dh = o.dh || 0, [E, dE] = EASE[o.ease || 's'];
-    const N = Math.max(2, Math.ceil(len / 0.2 + Math.abs(tr) / (5 * D2R)));
     const yaw0 = this.yaw, y0 = this.P[1], b0 = this.bank, b1 = o.bank != null ? o.bank * D2R : b0, w0 = this.w, w1 = o.w ?? w0;
+    const flat = !tr && !dh && Math.abs(b1 - b0) < 1e-6 && Math.abs(w1 - w0) < 1e-6 && !this.prmMode;
+    const N = Math.max(2, Math.ceil(len / (flat ? this.step : 0.2) + Math.abs(tr) / (5 * D2R)));
     let x = this.P[0], z = this.P[2];
     for (let k = 1; k <= N; k++) {
       const t = k / N, ym = yaw0 + tr * (k - 0.5) / N;
@@ -472,13 +474,14 @@ export class HoleBuilder {
     for (const p of main) for (const f of p.frames) route.push(f.p);
     if (this.teeP) route.unshift(this.teeP);
     if (this.cupP) route.push(this.cupP);
+    let routeLen = 0; for (let i = 1; i < route.length; i++) routeLen += Math.hypot(route[i][0] - route[i - 1][0], route[i][2] - route[i - 1][2]);
     const world = new World({ mesh, kin: this.kins, zones, cup: this.cupP, groundY: this.groundY, groundType: this.groundType,
       ceilY: zones.some((z) => z.type === 'antigrav') ? mesh.max[1] + 10 : null,
       killY: Math.min(mesh.min[1], this.groundY) - 4,
       bounds: [mesh.min[0] - 12, mesh.min[2] - 12, mesh.max[0] + 12, mesh.max[2] + 12] });
     // départ posé au sol
     const tee = this.teeP ? settle(world, this.teeP) : null;
-    return { ...meta, groups, kin: this.kins, zones, decor: this.decor, lights: this.lights, piles: this.piles, groundY: this.groundY, groundType: this.groundType, tee, cup: this.cupP, route, foot: this.foot,
+    return { ...meta, groups, kin: this.kins, zones, decor: this.decor, lights: this.lights, piles: this.piles, groundY: this.groundY, groundType: this.groundType, tee, cup: this.cupP, route, routeLen, foot: this.foot,
       world, bounds: { min: mesh.min, max: mesh.max }, tris: mesh.n, cam: this.cam };
   }
 }

@@ -63,6 +63,12 @@ export const THEMES = {
     sun: { color: '#fff0d8', int: 2.6, dir: [0.4, 0.65, 0.3] }, hemi: ['#ffd0ec', '#5ac8a8', 0.75],
     bloom: [0.3, 0.45, 0.9], exposure: 0.82, ground: 'candy', amb: 'confetti', flag: '#7a3cff', grade: [1.02, 0.99, 1.02], sat: 1.28,
   },
+  // Le Marathon : grande campagne en fin d'après-midi, brouillard lointain pour voir loin le long des très longs trous
+  marathon: {
+    sky: ['#3a7fd6', '#93c3ee', '#ffe2b8'], fog: '#e6dcc8', fogNear: 120, fogFar: 470,
+    sun: { color: '#ffe6c2', int: 3.0, dir: [0.5, 0.62, 0.35] }, hemi: ['#d6e8ff', '#5d7d3a', 0.9],
+    bloom: [0.24, 0.4, 0.92], exposure: 1.0, ground: 'grass', amb: 'butterflies', flag: '#ff7a1a', grade: [1.05, 1.0, 0.96], sat: 1.1,
+  },
 };
 
 /* ---------------------------------------------------------------- matériaux */
@@ -512,6 +518,7 @@ const SCATTER = {
   swamp: [['deadtree', 0.22], ['reeds', 0.28], ['lilypad', 0.24], ['mushroom', 0.12], ['stump', 0.14]],
   ice: [['snowpine', 0.48], ['rock', 0.2], ['icecrystal', 0.14], ['snowman', 0.06], ['bush', 0.12]],
   candy: [['lollipop', 0.26], ['candycane', 0.18], ['gumdrop', 0.3], ['cupcake', 0.16], ['tree', 0.1]],
+  marathon: [['tree', 0.32], ['pine', 0.2], ['bush', 0.22], ['flowers', 0.1], ['rock', 0.1], ['fence', 0.03], ['bench', 0.03]],
 };
 
 /* ---------------------------------------------------------------- rendu */
@@ -612,27 +619,27 @@ export class Renderer {
   }
 
   buildGround(course, holes) {
-    const th = this.th, y = course.groundY;
-    let geo = new THREE.PlaneGeometry(900, 900, 1, 1); geo.rotateX(-Math.PI / 2);
+    const th = this.th, y = course.groundY, size = course.groundSize || 900, rk = size / 900;   // le Marathon s'étend bien plus loin
+    let geo = new THREE.PlaneGeometry(size, size, 1, 1); geo.rotateX(-Math.PI / 2);
     let mat;
     if (th.ground === 'water') {
-      const n = T.waterN().clone(); n.needsUpdate = true; n.repeat.set(60, 60);
+      const n = T.waterN().clone(); n.needsUpdate = true; n.repeat.set(60 * rk, 60 * rk);
       mat = new THREE.MeshStandardMaterial({ color: '#2a8ea6', roughness: 0.22, metalness: 0.05, normalMap: n, normalScale: new THREE.Vector2(0.16, 0.16), envMapIntensity: 0.9 });
       this.waterNormal = n;
     } else if (th.ground === 'lava') {
-      const t = T.lava().clone(); t.needsUpdate = true; t.repeat.set(22, 22);
+      const t = T.lava().clone(); t.needsUpdate = true; t.repeat.set(22 * rk, 22 * rk);
       mat = new THREE.MeshStandardMaterial({ color: '#2a0a04', emissive: '#ffffff', emissiveMap: t, emissiveIntensity: 0.8, roughness: 0.9 });
       this.lavaTex = t;
     } else if (th.ground === 'swamp') {
-      const n = T.waterN().clone(); n.needsUpdate = true; n.repeat.set(50, 50);
-      const t = T.swampwater().clone(); t.needsUpdate = true; t.repeat.set(30, 30);
+      const n = T.waterN().clone(); n.needsUpdate = true; n.repeat.set(50 * rk, 50 * rk);
+      const t = T.swampwater().clone(); t.needsUpdate = true; t.repeat.set(30 * rk, 30 * rk);
       mat = new THREE.MeshStandardMaterial({ map: t, color: '#8fa080', roughness: 0.3, metalness: 0.05, normalMap: n, normalScale: new THREE.Vector2(0.12, 0.12), envMapIntensity: 0.6 });
       this.waterNormal = n;
     } else if (th.ground === 'void') {
       mat = null;
     } else {
       const src = { moss: T.moss, desert: T.desert, snow: T.snow, candy: T.candyground }[th.ground] || T.grass;
-      const t = src().clone(); t.needsUpdate = true; t.repeat.set(140, 140);
+      const t = src().clone(); t.needsUpdate = true; t.repeat.set(140 * rk, 140 * rk);
       mat = new THREE.MeshStandardMaterial({ map: t, roughness: 1, color: th.ground === 'moss' ? '#9db48a' : '#ffffff' });
     }
     if (mat) { const g = new THREE.Mesh(geo, mat); g.position.y = y; g.receiveShadow = true; this.scene.add(g); this.ground = g; }
@@ -771,7 +778,7 @@ export class Renderer {
     for (const d of course.center || []) this.footAdd([d.p[0], d.p[2], d.r ? d.r + 1 : 5]);
     const free = this.footFree, foot = { push: (f) => this.footAdd(f) };
     const list = SCATTER[course.theme], pad = 22;
-    const area = (mxx - mnx + pad * 2) * (mxz - mnz + pad * 2), N = Math.min(420, Math.floor(area / (course.theme === 'pirate' ? 70 : 22)));
+    const area = (mxx - mnx + pad * 2) * (mxz - mnz + pad * 2), N = Math.min(course.scatterMax || 420, Math.floor(area / (course.theme === 'pirate' ? 70 : 22)));
     for (let i = 0; i < N; i++) {
       const x = mnx - pad + R() * (mxx - mnx + pad * 2), z = mnz - pad + R() * (mxz - mnz + pad * 2);
       let u = R(), type = list[0][0]; for (const [t, w] of list) { if (u < w) { type = t; break; } u -= w; }
@@ -805,7 +812,10 @@ export class Renderer {
   setHole(i) {
     this.hole = i; const h = this.holes[i]; if (!h) return;
     const c = new V3((h.bounds.min[0] + h.bounds.max[0]) / 2, (h.bounds.min[1] + h.bounds.max[1]) / 2, (h.bounds.min[2] + h.bounds.max[2]) / 2);
-    const ext = Math.max(h.bounds.max[0] - h.bounds.min[0], h.bounds.max[2] - h.bounds.min[2]) / 2 + 6;
+    let ext = Math.max(h.bounds.max[0] - h.bounds.min[0], h.bounds.max[2] - h.bounds.min[2]) / 2 + 6;
+    // très long trou : une seule carte d'ombres sur 150 m serait floue ; elle suit la balle (update) sur 80 m de côté
+    this.follow = ext > 46 ? { ext: 40, at: null, lightAt: 0 } : null;
+    if (this.follow) ext = this.follow.ext;
     const d = new V3(...this.th.sun.dir).normalize();
     this.sun.position.copy(c).addScaledVector(d, 80); this.sun.target.position.copy(c);
     const cam = this.sun.shadow.camera; cam.left = -ext; cam.right = ext; cam.top = ext; cam.bottom = -ext; cam.near = 20; cam.far = 160; cam.updateProjectionMatrix();
@@ -813,7 +823,25 @@ export class Renderer {
     // lumières : les plus proches du trou
     const all = []; this.holes.forEach((hh) => hh.lights.forEach((L) => all.push(L)));
     all.sort((a, b) => c.distanceToSquared(new V3(...a.p)) - c.distanceToSquared(new V3(...b.p)));
-    this.pointPool.forEach((l, k) => { const L = all[k]; if (!L) { l.intensity = 0; return; } l.position.set(...L.p); l.color.set(L.color); l.userData.base = L.intensity * 1.6; l.distance = L.dist * 1.4; l.intensity = l.userData.base; });
+    this.pointPool.forEach((l, k) => { const L = all[k]; if (!L) { l.intensity = 0; l.userData.base = 0; return; } l.position.set(...L.p); l.color.set(L.color); l.userData.base = L.intensity * 1.6; l.distance = L.dist * 1.4; l.intensity = l.userData.base; });
+  }
+
+  /** Très long trou : cadre des ombres recentré sur la balle (par pas d'un texel, sans scintillement), lumières les plus proches */
+  followFocus(focus) {
+    const F = this.follow, ext = F.ext, cell = (ext * 2) / this.sun.shadow.mapSize.x * 8;
+    const c = new V3(Math.round(focus.x / cell) * cell, focus.y, Math.round(focus.z / cell) * cell);
+    if (!F.at || F.at.distanceToSquared(c) > 1e-6) {
+      F.at = c;
+      const d = new V3(...this.th.sun.dir).normalize();
+      this.sun.position.copy(c).addScaledVector(d, 80); this.sun.target.position.copy(c);
+      this.sun.target.updateMatrixWorld(); this.hemi.position.copy(c);
+    }
+    if (this.time - F.lightAt > 0.5) {
+      F.lightAt = this.time;
+      const h = this.holes[this.hole]; if (!h) return;
+      const all = h.lights.slice().sort((a, b) => focus.distanceToSquared(new V3(...a.p)) - focus.distanceToSquared(new V3(...b.p)));
+      this.pointPool.forEach((l, k) => { const L = all[k]; if (!L) { l.intensity = 0; l.userData.base = 0; return; } l.position.set(...L.p); l.color.set(L.color); l.userData.base = L.intensity * 1.6; l.distance = L.dist * 1.4; });
+    }
   }
 
   /* ---- balles ---- */
@@ -988,6 +1016,8 @@ export class Renderer {
     if (this.lavaTex) { this.lavaTex.offset.x = t * 0.004; this.lavaTex.offset.y = Math.sin(t * 0.2) * 0.02; this.ground.material.emissiveIntensity = 0.78 + Math.sin(t * 1.3) * 0.1; }
     if (this.mats) { this.mats.boost.map.offset.y = -t * 1.5; this.mats.conveyor.map.offset.y = t * 1.6; }
     for (const l of this.pointPool) if (l.userData.base) l.intensity = l.userData.base * (0.9 + Math.sin(t * 11 + l.id) * 0.05 + Math.sin(t * 5.7 + l.id * 3) * 0.05);
+    if (this.sky) this.sky.position.copy(this.camera.position);   // le ciel reste centré sur la caméra, où qu'on soit sur la carte
+    if (this.follow && focus) this.followFocus(focus);
     this.emitAmbient(dt, focus);
     this.parts.update(dt); this.partsN.update(dt); this.petals.update(dt);
     this.updateTrails();

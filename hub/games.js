@@ -195,7 +195,7 @@ window.HUB_GAMES = [
     id: 'minigolf',
     title: 'Mini-Golf Party',
     tag: 'Parcours déjantés',
-    desc: 'Du mini-golf en 3D à la souris ou au doigt : 54 trous sur neuf parcours, avec loopings, plafonds aimantés, glace, boue et lave.',
+    desc: 'Du mini-golf en 3D à la souris ou au doigt : 72 trous sur dix parcours, dont le Marathon et ses 18 trous géants, avec loopings, plafonds aimantés, glace, boue et lave.',
     url: 'minigolf/',
     minPlayers: 1, maxPlayers: 6,
     accent: '#2e8b57',

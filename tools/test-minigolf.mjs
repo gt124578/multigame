@@ -1,4 +1,4 @@
-/* Tests de Mini-Golf Party : construction des 54 trous et vérification qu'un bot expert peut les finir.
+/* Tests de Mini-Golf Party : construction des 72 trous et vérification qu'un bot expert peut les finir.
    node tools/test-minigolf.mjs [parcours] [trou]   (ex. node tools/test-minigolf.mjs forge 3) */
 import { COURSES, buildCourseHole } from '../minigolf/js/courses.js';
 import { makeBall, strike, simulate, resetOOB, BALL_R } from '../minigolf/js/physics.js';
@@ -33,6 +33,9 @@ for (const course of COURSES) {
     ok(ball.holed, `${h.name}: bot expert n'a pas fini (${strokes} coups : ${log.join(' ')})`);
     console.log(`  ${ball.holed ? '✓' : '✗'} ${String(i + 1).padStart(2)}. ${h.name.padEnd(24)} par ${h.par}  bot ${strokes}  [${log.join(' ')}]  ${h.tris} tri  ${Date.now() - t0} ms`);
     boxes.push({ i, name: h.name, min: h.bounds.min, max: h.bounds.max });
+    // le trou reste sur le sol du parcours (900 m de côté, ou groundSize)
+    const G2 = (course.groundSize || 900) / 2 - 20;
+    ok(Math.max(-h.bounds.min[0], h.bounds.max[0], -h.bounds.min[2], h.bounds.max[2]) < G2, `${h.name}: sort du sol du parcours`);
   }
   // les trous ne se chevauchent pas
   for (let a = 0; a < boxes.length; a++) for (let b = a + 1; b < boxes.length; b++) {
