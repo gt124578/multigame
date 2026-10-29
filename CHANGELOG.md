@@ -1,5 +1,8 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.19 — 30 octobre 2026
+- Add files via upload (Gabe)
+
 ## 3.18 — 29 octobre 2026
 - **Mini-Golf Party** — Nouveau parcours « Le Marathon » : 18 trous géants, de 110 à plus de 300 m chacun (par 99), qui enchaînent toutes les épreuves des autres parcours.
   - Cinq épingles qui grimpent au col, une grande descente glacée, des sauts, trois loopings, deux tunnels aimantés, un pont suspendu, des marteaux, une spirale de 300 m qui descend vers le trou…
