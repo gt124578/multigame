@@ -623,7 +623,7 @@ def fit_nature(img, fit):
     """taille du jeu. Herbes hautes et barrières sont des motifs qui se répètent : on en découpe une case
     (32 pixels de large, en bas et au centre) au lieu de les réduire, pour garder chaque pixel dessiné"""
     if fit[0] in ('wh', 'w'):
-        w = fit[1]; h = fit[2] if fit[0] == 'wh' else img.height
+        w = fit[1]; h = min(img.height, 40) if fit[0] == 'wh' else img.height   # herbe : la case et ses pointes (40 px au plus)
         if img.width >= w and img.height >= h:
             x0 = (img.width - w) // 2
             return img.crop((x0, img.height - h, x0 + w, img.height))
