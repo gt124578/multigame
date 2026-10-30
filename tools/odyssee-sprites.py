@@ -19,7 +19,14 @@ OUT = os.path.join(ROOT, 'odyssee', 'img')
 os.makedirs(OUT, exist_ok=True)
 
 def load(name):
-    return np.array(Image.open(os.path.join(SRC, name)).convert('RGB'))
+    im = Image.open(os.path.join(SRC, name))
+    if im.mode in ('RGBA', 'LA', 'PA') or (im.mode == 'P' and 'transparency' in im.info):
+        # fond transparent : les pixels transparents deviennent magenta pur, le reste reste opaque
+        a = np.array(im.convert('RGBA'))
+        if (a[..., 3] < 128).any():
+            rgb = a[..., :3].copy(); rgb[a[..., 3] < 128] = (255, 0, 255)
+            return rgb
+    return np.array(im.convert('RGB'))
 
 def save(img, *parts):
     p = os.path.join(OUT, *parts); os.makedirs(os.path.dirname(p), exist_ok=True); img.save(p, optimize=True)
@@ -145,10 +152,14 @@ def pixel_grid(rgb, fg, lo=3, hi=16):
     b = round((bx + by) / 2)
     return b, px % b, py % b
 
-def snap(rgb, fg, block=None):
+def snap(rgb, fg, block=None, expect=None):
     """réduit un dessin « pixel art agrandi » à sa vraie résolution : un pixel par bloc, couleur dominante du bloc,
-    opaque si la majorité du bloc fait partie du dessin. Renvoie une image RGBA nette (sans lissage)."""
-    b, px, py = pixel_grid(rgb, fg) if block is None else (block, 0, 0)
+    opaque si la majorité du bloc fait partie du dessin. Renvoie une image RGBA nette (sans lissage).
+    expect : taille de bloc attendue (case / pixels logiques) ; la grille trouvée n'est gardée que si elle s'en approche."""
+    if block is None:
+        b, px, py = pixel_grid(rgb, fg)
+        if expect and abs(b - expect) > max(1, expect * 0.15): b, px, py = expect, 0, 0
+    else: b, px, py = block, 0, 0
     H, W = rgb.shape[:2]
     xs = list(range(px - b if px else 0, W, b)); ys = list(range(py - b if py else 0, H, b))
     out = np.zeros((len(ys), len(xs), 4), np.uint8)
@@ -279,7 +290,7 @@ def do_chars():
             for d in range(4):
                 for c in range(3):
                     rgb, fg = cells[d * 3 + c]
-                    img, blk = snap(rgb, fg)
+                    img, blk = snap(rgb, fg, expect=round(rgb.shape[1] / 32))
                     atlas.alpha_composite(place(img, CW, CHH, pad=1), ((d * 3 + c) * CW, r * CHH))
             rows[cid] = r
             print('personnage (v2)', cid, 'bloc', blk)
@@ -441,7 +452,7 @@ def do_nature2():
             bg = magenta(cell); m = bg.copy(); m[:4] = True; m[-4:] = True; m[:, :4] = True; m[:, -4:] = True
             fg = keep_main(~border_flood(m), frac=0.05, opening=1)
             w, h = NATURE2_SIZE[key]
-            img, blk = snap(cell, fg)
+            img, blk = snap(cell, fg, expect=round(cell.shape[1] / 64))
             save(place(img, w, h), 'nature', key + '.png')
             done[key] = [w, h]
             print('nature (v2)', key, 'bloc', blk, img.size)
