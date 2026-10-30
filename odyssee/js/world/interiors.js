@@ -132,3 +132,24 @@ export function caveMap(id, w, h, seed, entries, o = {}) {
   m.deco = m.deco.filter((d) => { const t = m.get(d.x, d.y); return t === T.BLOCK; });
   return m;
 }
+
+/* ---------------- Tour de la Grue (Île de la Grue) ---------------- */
+// Étages reliés par des escaliers (cases d'escalier = téléporteurs). L'escalier qui monte est en haut à droite,
+// celui qui descend en haut à gauche ; on arrive juste en dessous.
+export const TOWER_UP = { x: 11, y: 2 }, TOWER_DOWN = { x: 1, y: 2 };
+export function towerFloor(id, name, o = {}) {
+  const m = room(id, 13, 12, { floor: o.roof ? 'league' : 'wood', music: 'tower', wall: o.roof ? 'wall_league' : 'wall_in', name, battleBg: 'indoor' });
+  if (!o.ground) m.set(m.exitX, m.exitY, T.FLOOR);   // seul le rez-de-chaussée a une porte
+  if (o.up) { m.set(TOWER_UP.x, TOWER_UP.y, T.CAVEDOOR); }
+  if (o.down) { m.set(TOWER_DOWN.x, TOWER_DOWN.y, T.CAVEDOOR); }
+  if (o.roof) {
+    // le toit : un autel au centre, des lanternes aux angles
+    furn(m, 'gymstatue', 4, 4); furn(m, 'gymstatue', 8, 4);
+    for (const [x, y] of [[2, 9], [10, 9], [2, 5], [10, 5]]) furn(m, 'lamp', x, y);
+  } else {
+    // piliers de bois et vases rituels
+    for (const [x, y] of [[3, 4], [9, 4], [3, 8], [9, 8]]) furn(m, 'statue', x, y);
+    furn(m, 'pot', 1, 10); furn(m, 'pot', 11, 10);
+  }
+  return m;
+}

@@ -23,7 +23,7 @@ const GYM_HINTS = { bug: 'le Feu, le Vol et la Roche', rock: 'l\'Eau, la Plante,
 // capacité de terrain donnée par chaque Champion après sa victoire
 const GYM_GIFT = { 3: 'coupe', 4: 'surf', 5: 'eclate', 6: 'vol' };
 // portrait affiché à côté de la boîte de dialogue, selon qui parle
-const FACES = { 'Prof. Saule': 'saule', [RIVAL_NAME]: 'theo', Hector: 'hector', Marine: 'marine', Volta: 'volta', Flora: 'flora', Sibylle: 'sibylle', Basalte: 'basalte', Pyros: 'pyros', Drakos: 'drakos', Célestine: 'celestine' };
+const FACES = { 'Prof. Saule': 'saule', [RIVAL_NAME]: 'theo', Hector: 'hector', Marine: 'marine', Volta: 'volta', Flora: 'flora', Sibylle: 'sibylle', Basalte: 'basalte', Pyros: 'pyros', Drakos: 'drakos', Célestine: 'celestine', Capitaine: 'marin', 'Gardien du phare': 'scientifique', Ermite: 'montagnard' };
 
 export class Game {
   static SAVE_KEY = SAVE_KEY;
@@ -82,14 +82,17 @@ export class Game {
     this.items = m.items.filter((it) => !st.flags['I:' + it.id]).map((it) => ({ ...it }));
     for (const it of this.items) { const a = this.view.actor('item:' + it.id, { kind: 'item' }); this.view.place(a, it.x, it.y - 0.15); }
     this.gateBlock = new Set();
-    for (const g of m.gates) if (this.badgeCount() < g.badges) for (const [x, y] of g.tiles) this.gateBlock.add(key(x, y));
+    for (const g of m.gates) if (this.gateClosed(g)) for (const [x, y] of g.tiles) this.gateBlock.add(key(x, y));
+    this.spawnLegends();
     this.view.setTimeOfDay(this.hour());
     this.zone = null; this.updateZone();
   }
   npcVisible(n) {
-    if (n.gate) return this.badgeCount() < n.gate.badges;
+    if (n.gate) return this.gateClosed(n.gate);
     return true;
   }
+  /** un passage gardé est fermé tant qu'il manque des badges, ou tant qu'un drapeau d'histoire n'est pas levé */
+  gateClosed(g) { return g.flag ? !this.state.flags[g.flag] : this.badgeCount() < g.badges; }
   badgeCount() { return this.state.badges.filter(Boolean).length; }
   worldPos() {
     if (this.mapObj.id === 'monde') return { x: this.player.x, y: this.player.y };
@@ -125,6 +128,13 @@ export class Game {
   async onEnterMap() {
     const st = this.state;
     // au labo, le professeur accueille le joueur avant qu'il ne touche aux capsules
+    // Tour de la Grue : trois bêtes s'enfuient à l'arrivée du joueur
+    if (this.mapObj.id === 'grue:tour' && !st.flags.beasts) {
+      st.flags.beasts = true;
+      this.sound.sfx('bang'); this.view.shake = 0.25;
+      await this.ui.say(['Un grondement fait trembler le plancher de la tour...', 'Trois créatures bondissent devant toi et s\'enfuient par la porte !', 'Un éclair jaune... une flamme... un souffle cristallin...', 'Raikou, Entei et Suicune se sont dispersés dans les îles.']);
+      await this.ui.flash(2, '#ffffff', 80);
+    }
     if (this.mapObj.id === 'aube:labo' && !st.flags.metProf) {
       const prof = this.npcs.find((n) => n.id === 'prof');
       await this.playerWalk('up', 2);
@@ -195,6 +205,7 @@ export class Game {
     if (this.player && this.player.x === x && this.player.y === y && except !== this.player) return true;
     for (const n of this.npcs) if (n !== except && ((n.x === x && n.y === y) || (n.move && n.move.fx === x && n.move.fy === y))) return true;
     for (const it of this.items) if (it.x === x && it.y === y) return true;
+    for (const L of this.legends || []) if (L.x === x && L.y === y) return true;
     return this.gateBlock.has(key(x, y));
   }
 
@@ -309,8 +320,14 @@ export class Game {
       else {
         const it = this.items.find((q) => q.x === fx && q.y === fy);
         const o = m.objectAt(fx, fy), t = m.get(fx, fy);
-        if (it) await this.pickItem(it);
+        // un légendaire est grand : on peut lui parler d'une case de plus
+        const L = (this.legends || []).find((q) => (q.x === fx && q.y === fy) || (q.x === fx + dx && q.y === fy + dy && walkable(t)));
+        if (L) await this.legendBattle(L);
+        else if (it) await this.pickItem(it);
         else if (o?.type === 'pc') await pcScreen(this);
+        else if (o?.type === 'pylon') await this.pylon(o);
+        else if (o?.type === 'stele') await this.stele(o);
+        else if (o?.type === 'shrine') await this.shrine();
         else if (o?.type === 'starter') await this.chooseStarter(o.sp);
         else if (t === T.CUT) await this.fieldObstacle('coupe', fx, fy, 'Ce petit arbre pourrait être coupé.');
         else if (t === T.SMASH) await this.fieldObstacle('eclate', fx, fy, 'Ce rocher est plein de fissures. Il pourrait être brisé.');
@@ -336,6 +353,100 @@ export class Game {
     this.state.flags['I:' + it.id] = true;
     this.items = this.items.filter((q) => q !== it); this.view.removeActor('item:' + it.id);
     await this.ui.say(`${this.state.name} trouve ${it.qty > 1 ? it.qty + ' × ' : ''}${itemName(it.item)} !\nVous rangez l'objet dans le Sac.`);
+  }
+
+  /* ================= légendaires ================= */
+  /** les légendaires de la carte courante qui sont là (quête faite, pas encore capturés) */
+  spawnLegends() {
+    for (const L of this.legends || []) this.view.removeActor('legend:' + L.id);
+    const st = this.state, mapNow = this.mapObj;
+    this.legends = (this.world.legends || []).filter((L) => L.map === mapNow.id && st.flags['L:' + L.id] !== 'caught' && this.legendReady(L)).map((L) => ({ ...L }));
+    for (const L of this.legends) loadImg(ASSETS.front(L.sp)).then((img) => {
+      if (!img || this.mapObj !== mapNow || !this.legends.includes(L)) return;
+      const a = this.view.imageActor('legend:' + L.id, img, 0.62); this.view.place(a, L.x, L.y - 0.1);
+    });
+  }
+  legendReady(L) {
+    const f = this.state.flags, b = this.badgeCount();
+    switch (L.cond) {
+      case 'celebi': return !!f.celebiCalled;
+      case 'pylons': return !!f.pylons;
+      case 'mew': return !!(f['S:1'] && f['S:2'] && f['S:3']) && b >= 4;
+      case 'plume': return !!f.plume;
+      case 'beasts': return !!f.beasts && b >= 5;
+      default: return true;
+    }
+  }
+  async legendBattle(L) {
+    const st = this.state, ui = this.ui, name = SPECIES[L.sp].n;
+    this.sound.cry(ASSETS.cry(L.sp));
+    await ui.say(L.intro);
+    if (!(await ui.yesNo(`${name} te fixe du regard.\nL'affronter ?`))) return;
+    if (!st.flags['L:' + L.id]) st.flags['L:' + L.id] = 'met';
+    const res = await this.wildBattle([[L.sp, L.lvl, L.lvl, 1]], { fixed: true, music: 'legend' });
+    if (L.id === 'hooh') st.flags.hoohDone = true;
+    if (res === 'caught' || res === 'win') {
+      this.legends = this.legends.filter((q) => q !== L); this.view.removeActor('legend:' + L.id);
+      if (res === 'caught') st.flags['L:' + L.id] = 'caught';
+      else await ui.say([`${name} s'envole au loin...`, 'Il reviendra peut-être plus tard.']);
+    }
+    this.save(true);
+  }
+  /** Île Orageuse : les trois relais à rallumer pour ouvrir le Pic Tonnerre */
+  async pylon(o) {
+    const f = this.state.flags, ui = this.ui;
+    if (f['P:' + o.n]) { await ui.say(`Le relais n°${o.n} ronronne doucement.`); return; }
+    if (!f.orageQuest) { await ui.say(`Une borne électrique éteinte. Une plaque indique : « Relais n°${o.n} ».`); return; }
+    if (!(await ui.yesNo(`Relais n°${o.n}.\nRemettre le courant ?`))) return;
+    f['P:' + o.n] = true; this.sound.sfx('pc'); await ui.flash(1, '#fff6a0', 70);
+    const n = [1, 2, 3].filter((k) => f['P:' + k]).length;
+    await ui.say(`Le relais n°${o.n} se rallume ! (${n}/3)`);
+    if (n === 3) {
+      f.pylons = true; this.refreshGates(); this.spawnLegends();
+      this.sound.sfx('bang'); this.view.shake = 0.2;
+      await ui.say(['Au loin, le Pic Tonnerre se couvre d\'éclairs...', 'Le technicien libère le sentier du Pic !']);
+    }
+  }
+  /** Côte des Ruines : trois stèles à lire pour réveiller l'autel de Mew */
+  async stele(o) {
+    const f = this.state.flags;
+    await this.ui.say(o.text);
+    if (f['S:' + o.n]) return;
+    f['S:' + o.n] = true;
+    if (f['S:1'] && f['S:2'] && f['S:3']) {
+      if (this.badgeCount() >= 4) { this.spawnLegends(); await this.ui.say('Une lueur rose danse au loin, du côté de l\'autel...'); }
+      else await this.ui.say('Les trois stèles sont lues... mais l\'autel reste silencieux. Il faudrait plus d\'expérience (4 badges).');
+    }
+  }
+  /** Bois Murmure : l'autel de Celebi */
+  async shrine() {
+    const st = this.state, ui = this.ui;
+    if (st.flags['L:celebi'] === 'caught') { await ui.say('Un vieil autel de bois. Les feuilles autour bruissent doucement.'); return; }
+    if (st.flags.celebiCalled) { await ui.say('L\'autel est tiède. Celebi ne doit pas être loin...'); return; }
+    if (!st.bag['gs-ball']) { await ui.say(['Un vieil autel de bois, couvert de mousse.', 'Il y a un creux au centre, de la taille d\'une capsule...']); return; }
+    if (!(await ui.yesNo('Un vieil autel de bois, couvert de mousse.\nPoser la Balle GS dans le creux ?'))) return;
+    this.take('gs-ball'); st.flags.celebiCalled = true;
+    await ui.say(['Tu poses la Balle GS sur l\'autel...', '... ... ...', 'La Balle GS s\'ouvre dans un éclat vert !']);
+    await ui.flash(3, '#c8ffb0', 80);
+    this.spawnLegends();
+    const L = this.legends.find((q) => q.id === 'celebi');
+    if (L) await this.legendBattle(L);
+  }
+  /** bateau de l'Embarcadère : chaque île s'ouvre avec un nombre de badges */
+  async ferry(n) {
+    const st = this.state, ui = this.ui, docks = this.world.docks, here = n.def.dock, sp = 'Capitaine';
+    if (!st.flags.passe) {
+      st.flags.passe = true; this.give('ferry-ticket'); this.sound.sfx('item');
+      await ui.say(['Ahoy, moussaillon ! Mon bateau fait le tour des îles de l\'Est.', 'L\'Île Orageuse pour ceux qui ont 2 badges, l\'Île de la Grue avec 3, et l\'Île Givrée, tout au nord, avec 5.', `Tiens, voici ton Passe Marin. ${st.name} reçoit le Passe Marin !`], { speaker: sp });
+    }
+    const opts = Object.entries(docks).filter(([k]) => k !== here), b = this.badgeCount();
+    await ui.say('Où veux-tu aller ?', { keep: true, speaker: sp });
+    const r = await ui.list({ title: 'Destination', items: opts.map(([, d]) => ({ label: d.name, right: b >= d.badges ? '' : `${d.badges} badges`, disabled: b < d.badges })).concat([{ label: 'Rester ici' }]), cls: 'shop', cancel: opts.length });
+    if (r < 0 || r >= opts.length) { await ui.say('Bon vent, moussaillon !', { speaker: sp }); return; }
+    const d = opts[r][1];
+    await ui.say([`Cap sur ${d.name} !`, 'Le bateau largue les amarres...'], { speaker: sp });
+    await this.warp({ map: d.map, x: d.x, y: d.y, dir: d.dir }, 'door');
+    this.ui.banner(d.name);
   }
 
   /* ================= capacités de terrain ================= */
@@ -498,6 +609,7 @@ export class Game {
     if (res === 'win') {
       st.flags['T:' + n.id] = true;
       if (d.leader != null) await this.badgeScene(d.leader, tr.name);
+      if (d.onWin) await this.script(d.onWin, n);
       if (d.champion) await this.ending();
     }
     this.updateZone();
@@ -532,8 +644,8 @@ export class Game {
     // les gardes s'écartent quand on a assez de badges
     const m = this.mapObj;
     this.gateBlock = new Set();
-    for (const g of m.gates) if (this.badgeCount() < g.badges) for (const [x, y] of g.tiles) this.gateBlock.add(key(x, y));
-    this.npcs = this.npcs.filter((n) => { if (n.def.gate && this.badgeCount() >= n.def.gate.badges) { this.view.removeActor('npc:' + n.id); return false; } return true; });
+    for (const g of m.gates) if (this.gateClosed(g)) for (const [x, y] of g.tiles) this.gateBlock.add(key(x, y));
+    this.npcs = this.npcs.filter((n) => { if (n.def.gate && !this.gateClosed(n.def.gate)) { this.view.removeActor('npc:' + n.id); return false; } return true; });
   }
 
   async checkTrainers() {
@@ -556,7 +668,7 @@ export class Game {
     const kind = o.wild ? o.music || 'wild' : o.music || 'trainer';
     const curtain = await this.encounterIntro(kind);
     const m = this.mapObj, z = this.zone;
-    const bg = !m.outdoor ? (m.floor === 'cave' ? 'cave' : m.battleBg) : this.player.surf ? 'water' : z?.theme === 'volcanic' ? 'volcanic' : z?.town === 'azur' || z?.town === 'granit' || z?.name === 'Cap des Étoiles' ? 'water' : 'grass';
+    const bg = !m.outdoor ? (m.floor === 'cave' ? 'cave' : m.battleBg) : this.player.surf ? 'water' : z?.theme === 'volcanic' ? 'volcanic' : z?.theme === 'snow' ? 'snow' : z?.town === 'azur' || z?.town === 'granit' || z?.name === 'Cap des Étoiles' ? 'water' : 'grass';
     const battle = new Battle({ player: { name: st.name, party: st.party, bag: st.bag }, foe: o.wild ? { name: 'sauvage', party: [o.wild] } : { name: o.trainer.name, party: o.party, trainer: o.trainer } });
     const foeMons = o.wild ? [o.wild] : o.party;
     const h = this.hour();
@@ -692,6 +804,49 @@ export class Game {
       const L = LEADERS[n.def.gym];
       if (st.badges[n.def.gym]) { await ui.say(['Bravo, champion en devenir !', 'Tu as battu ' + L.name + ' ! Continue comme ça !'], { speaker: 'Guide' }); return; }
       await ui.say(['Yo, futur Maître ! Bienvenue dans l\'Arène.', `${L.name} utilise des créatures de type ${TYPE_FR[L.type]}.`, `Pour en venir à bout, mise sur ${GYM_HINTS[L.type]} !`], { speaker: 'Guide' });
+    } else if (name === 'ferry') {
+      await this.ferry(n);
+    } else if (name === 'gsBall') {
+      const sp = 'Vieille dame';
+      if (st.flags.gsGiven) { await ui.say(st.flags['L:celebi'] === 'caught' ? ['Tu as vu Celebi ? Oh... Alors la légende était vraie.', 'Prends bien soin de lui, mon petit.'] : ['L\'autel est dans le Bois Murmure, un peu à l\'écart du sentier.', 'Pose la Balle GS dans le creux... et sois patient.'], { speaker: sp }); return; }
+      if (this.badgeCount() < 1) { await ui.say(['Quand j\'étais jeune, j\'ai trouvé une étrange capsule dorée dans le Bois Murmure.', 'Reviens me voir quand tu auras le badge d\'Hector. Je te raconterai.'], { speaker: sp }); return; }
+      st.flags.gsGiven = true; this.give('gs-ball'); this.sound.sfx('item');
+      await ui.say(['Le badge d\'Hector ! Tu es un vrai dresseur, maintenant.', 'Tiens, prends cette capsule dorée. Je l\'ai trouvée près d\'un vieil autel du Bois Murmure.', `${st.name} reçoit la Balle GS !`, 'On dit que le gardien de la forêt, un petit être qui voyage dans le temps, attend qu\'on la lui rapporte...'], { speaker: sp });
+    } else if (name === 'phare') {
+      const sp = 'Gardien du phare', f = st.flags;
+      if (f.pylons) { await ui.say(f['L:zapdos'] === 'caught' ? 'Électhor dans ton équipe ! L\'île n\'a jamais été aussi calme.' : ['Le Pic Tonnerre est ouvert.', 'Électhor y attend, au milieu des éclairs. Prépare de quoi soigner la paralysie !'], { speaker: sp }); return; }
+      if (!f.orageQuest) {
+        f.orageQuest = true;
+        await ui.say(['Bienvenue au Phare de l\'Orage ! Enfin... ce qu\'il en reste.', 'Depuis la grande tempête, les trois relais de l\'île sont coupés, et le phare est éteint.', 'Les anciens disent que la tempête vient d\'Électhor, l\'oiseau de foudre qui niche sur le Pic Tonnerre.', 'Tu veux bien rallumer les relais ? Ils sont le long du Sentier Orageux, au nord.', 'Quand les trois seront allumés, le technicien te laissera monter au Pic.'], { speaker: sp });
+        return;
+      }
+      const k = [1, 2, 3].filter((q) => f['P:' + q]).length;
+      await ui.say(`Encore ${3 - k} relais à rallumer sur le Sentier Orageux. Courage !`, { speaker: sp });
+    } else if (name === 'doyenne') {
+      const sp = 'Doyenne Amaya', f = st.flags;
+      if (f['L:hooh'] === 'caught') { await ui.say(['Ho-Oh t\'a choisi... Après tant d\'années.', 'Les trois bêtes errent toujours dans les îles. Raikou sur l\'Île Orageuse, Entei sur le Chemin du Brasier, Suicune près de Givrebourg.', 'Elles ne se laisseront approcher que par un dresseur aguerri (5 badges).'], { speaker: sp }); return; }
+      if (f.plume) { await ui.say(['La Plume Arc-en-ciel ! Le Grand Sage t\'a jugé digne.', 'Monte sur le toit de la tour. Si Ho-Oh le veut, il descendra vers toi.'], { speaker: sp }); return; }
+      if (!f.grueQuest) {
+        f.grueQuest = true;
+        await ui.say(['Tu viens du continent ? Assieds-toi, que je te raconte.', 'Autrefois, deux tours se dressaient ici. L\'une a brûlé, et trois créatures ont péri dans les flammes.', 'Ho-Oh, l\'oiseau arc-en-ciel, les a ramenées à la vie : ce sont Raikou, Entei et Suicune.', 'Depuis, Ho-Oh ne se pose plus que sur la Tour de la Grue... et seulement devant celui qui porte la Plume Arc-en-ciel.', 'La plume est gardée par le Grand Sage, au sommet de la tour. Gagne le respect des Sages, et peut-être te la confiera-t-il.'], { speaker: sp });
+        return;
+      }
+      await ui.say(['Les Sages t\'attendent dans la tour, au nord du village.', 'Le Grand Sage Hoël garde la Plume Arc-en-ciel au dernier étage.'], { speaker: sp });
+    } else if (name === 'grandSage') {
+      if (st.flags.plume) return;
+      st.flags.plume = true; this.give('plume-arc'); this.give('great-ball', 5); this.sound.sfx('item');
+      await ui.say(['Ton cœur et celui de tes créatures battent ensemble.', 'Cette plume t\'appartient désormais.', `${st.name} reçoit la Plume Arc-en-ciel et 5 Super Balls !`, 'Monte sur le toit. Le novice te laissera passer.'], { speaker: 'Grand Sage Hoël' });
+      this.refreshGates();
+    } else if (name === 'ermite') {
+      const sp = 'Ermite', f = st.flags;
+      if (f.plumeArgent) { await ui.say(f['L:lugia'] === 'caught' ? 'Lugia... Tu l\'as vu de tes propres yeux. Moi, j\'ai attendu toute ma vie.' : ['La Grotte des Tourbillons est à l\'est du village.', 'Avec la Plume Argentée, les courants te laisseront passer jusqu\'à Lugia.'], { speaker: sp }); return; }
+      if (f['L:articuno']) {
+        f.plumeArgent = true; this.give('plume-argent'); this.sound.sfx('item');
+        await ui.say(['Tu as affronté Artikodin sur la Cime Givrée ? Alors tu es prêt.', 'Prends cette plume. Je l\'ai trouvée sur la plage, il y a quarante ans. Elle vient de Lugia, le gardien des mers.', `${st.name} reçoit la Plume Argentée !`, 'Le pêcheur qui garde la Grotte des Tourbillons te laissera entrer.'], { speaker: sp });
+        this.refreshGates();
+        return;
+      }
+      await ui.say(['Hmm. Un dresseur, jusqu\'ici ? Rare.', 'Sous cette île dort Lugia, le gardien des mers. Ses courants protègent la Grotte des Tourbillons.', 'Mais avant de le voir, va affronter Artikodin, sur la Cime Givrée, au bout de la Pente Givrée.', 'Reviens me voir ensuite.'], { speaker: sp });
     } else if (name === 'granitDock') {
       if (!st.flags.granitDock) {
         st.flags.granitDock = true;

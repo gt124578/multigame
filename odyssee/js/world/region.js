@@ -2,10 +2,12 @@
 // des trois frères (Basalte, Pyros et Drakos), qu'on rejoint en surfant. Les quatre premières arènes se suivent dans
 // l'ordre (des gardes bloquent la route) ; ensuite, ce sont les capacités de terrain qui ouvrent de nouvelles zones :
 // Coupe (badge 4) vers Mirage, Surf (badge 5) vers les îles, Éclate-Roc (badge 6) sur la Grande Île, Vol (badge 7).
+// À l'est, trois îles desservies par le bateau de l'Embarcadère de l'Aube (2, 3 et 5 badges), avec les quêtes des
+// légendaires (renvoyées dans `legends`, les quais dans `docks`).
 // Noms de lieux et personnages originaux ; les créatures du jeu côtoient les Pokémon du prototype.
 import { T } from './tiles.js';
 import { GameMap, carveRoute, carveTown, ledges, along, nearestWalkable, rng } from './mapgen.js';
-import { centerInterior, martInterior, houseInterior, labInterior, gymInterior, leagueInterior, caveMap } from './interiors.js';
+import { centerInterior, martInterior, houseInterior, labInterior, gymInterior, leagueInterior, caveMap, towerFloor, TOWER_UP, TOWER_DOWN } from './interiors.js';
 import { NEW_STARTERS } from '../data/creatures.js';
 
 export const STARTERS = NEW_STARTERS;
@@ -51,6 +53,13 @@ const ENC = {
   ecaille: [[1049, 42, 45, 12], [1050, 45, 47, 4], [1044, 43, 46, 10], [1025, 42, 46, 12], [1016, 42, 45, 10], [1012, 43, 46, 8], [1023, 42, 45, 10], [1048, 43, 46, 8], [148, 44, 46, 6], [1040, 43, 46, 8], [1035, 42, 45, 8], [147, 42, 44, 4]],
   r9: [[1012, 34, 38, 15], [1035, 34, 38, 10], [67, 34, 38, 20], [75, 34, 38, 20], [42, 34, 37, 20], [1044, 35, 38, 10], [105, 34, 37, 5]],
   victoire: [[67, 36, 42, 12], [75, 36, 42, 12], [1028, 36, 42, 12], [1025, 36, 40, 12], [1048, 38, 42, 8], [1050, 38, 42, 6], [95, 37, 41, 8], [42, 36, 40, 12], [105, 36, 40, 8], [1044, 38, 42, 6], [208, 39, 42, 2], [1051, 50, 50, 1]],
+  // îles du bateau : un cran au-dessus de l'arène précédente
+  orage: [[1034, 20, 24, 15], [1036, 21, 24, 10], [81, 20, 24, 12], [100, 20, 24, 10], [1029, 20, 24, 10], [21, 20, 23, 10], [22, 22, 25, 5], [1031, 20, 24, 10], [179, 20, 23, 10], [180, 24, 26, 3], [1037, 22, 25, 5]],
+  grue: [[1021, 27, 31, 10], [1038, 27, 31, 10], [1039, 27, 30, 10], [1023, 28, 31, 10], [96, 27, 31, 10], [177, 27, 30, 10], [203, 28, 31, 8], [163, 27, 30, 10], [164, 30, 32, 3], [1043, 28, 31, 8], [1015, 27, 30, 8]],
+  brasier: [[1041, 28, 32, 20], [1042, 31, 33, 4], [58, 28, 32, 12], [77, 28, 32, 12], [1028, 28, 31, 10], [1026, 28, 31, 10], [126, 30, 33, 4], [74, 28, 31, 10]],
+  givre: [[1045, 37, 41, 20], [1046, 40, 42, 4], [86, 37, 41, 12], [220, 37, 41, 12], [221, 40, 42, 4], [225, 37, 41, 10], [215, 38, 41, 10], [124, 39, 42, 5], [1012, 38, 41, 8], [1016, 38, 41, 8]],
+  tourbillons: [[1046, 40, 44, 15], [87, 40, 44, 10], [1030, 40, 43, 12], [1032, 40, 43, 12], [1027, 40, 44, 10], [1009, 42, 44, 3], [131, 42, 44, 4], [42, 40, 43, 12], [1025, 40, 43, 10]],
+  est: [[1029, 30, 36, 20], [1031, 30, 36, 20], [72, 30, 36, 20], [1033, 32, 36, 10], [1045, 32, 36, 8], [120, 30, 35, 10], [1007, 32, 35, 3], [131, 35, 38, 2]],
   r10: [[1014, 33, 37, 10], [1035, 33, 37, 10], [1037, 33, 37, 10], [1040, 34, 37, 5], [22, 33, 37, 15], [85, 33, 37, 10], [128, 34, 37, 10], [241, 34, 37, 10], [203, 33, 37, 10], [20, 33, 36, 10]],
 };
 
@@ -61,6 +70,8 @@ const CLS = {
   Topdresseur: ['topdresseur', 40], Topdresseuse: ['topdresseuse', 40], Scientifique: ['scientifique', 30], Pêcheur: ['pecheur', 20],
   Insectomane: ['insectomane', 16], Randonneuse: ['randonneuse', 20], Médium: ['medium', 30], Karatéka: ['karateka', 28],
   'Garde d\'Écaille': ['garde', 36],
+  // troisième valeur : portrait en combat quand le personnage n'a pas le sien
+  Sage: ['vieil_homme', 32, 'medium'], 'Grand Sage': ['vieil_homme', 60, 'medium'], Skieuse: ['randonneuse', 30], Alpiniste: ['montagnard', 30],
 };
 export const LEADERS = [
   { name: 'Hector', type: 'bug', ow: 'hector', team: [[1018, 10], [167, 11], [1020, 12], [1019, 14]], intro: 'Les insectes ne crient pas : ils observent. Et toi, que vois-tu dans ce combat ?', lose: 'Tu as l\'œil vif ! Le Badge Élytre est à toi.' },
@@ -76,10 +87,10 @@ const CHAMPION = { name: 'Célestine', ow: 'celestine', team: [[1016, 56], [1046
 
 let tCount = 0;
 function trainerNpc(map, x, y, dir, cls, name, team, o = {}) {
-  const [ow, prize] = CLS[cls] || ['gamin', 20];
+  const [ow, prize, bs] = CLS[cls] || ['gamin', 20];
   return map.npc({
-    id: o.id || `${map.id}:t${tCount++}`, x, y, dir, sprite: o.ow || ow, move: 'static',
-    trainer: { cls, name, team, prize: o.prize || prize, sight: o.sight ?? 4, bs: o.bs || ow, ai: o.ai || 'normal', items: o.items, intro: o.intro || 'Nos regards se sont croisés : c\'est l\'heure du combat !', lose: o.lose || 'J\'ai perdu...', after: o.after || 'Tu es vraiment fort !' },
+    id: o.id || `${map.id}:t${tCount++}`, x, y, dir, sprite: o.ow || ow, move: 'static', onWin: o.onWin,
+    trainer: { cls, name, team, prize: o.prize || prize, sight: o.sight ?? 4, bs: o.bs || bs || ow, ai: o.ai || 'normal', items: o.items, intro: o.intro || 'Nos regards se sont croisés : c\'est l\'heure du combat !', lose: o.lose || 'J\'ai perdu...', after: o.after || 'Tu es vraiment fort !' },
   });
 }
 /** dresseur posé le long d'une route : t sur la ligne, côté ±1, distance au sentier */
@@ -118,10 +129,11 @@ function buildTown(W, maps, def) {
     else W.prop(k, ox + a[0], oy + a[1]);
   }
   for (const b of def.buildings) {
-    const B = W.building(b.kind, ox + b.x, oy + b.y, { roof: b.roof, style: b.style, label: b.label });
+    const B = W.building(b.kind, ox + b.x, oy + b.y, { roof: b.roof, style: b.style, label: b.label, w: b.w, d: b.d, h: b.h, door: b.door });
     const id = `${def.id}:${b.id || b.kind + b.x}`;
     let inside;
-    if (b.kind === 'center') inside = centerInterior(id, 'Centre de soins');
+    if (b.interior) inside = b.interior(id);
+    else if (b.kind === 'center') inside = centerInterior(id, 'Centre de soins');
     else if (b.kind === 'mart') inside = martInterior(id, 'Boutique', STOCK[def.stock || 1]);
     else if (b.kind === 'gym') inside = gymInterior(id, LEADERS[def.gym].type, 'Arène de ' + def.name);
     else if (b.kind === 'lab') inside = labInterior(id);
@@ -136,6 +148,7 @@ function buildTown(W, maps, def) {
     // chemin depuis la porte jusqu'à la route la plus proche
     for (let y = B.doorY + 1; y < B.doorY + 8; y++) { const t = W.get(B.doorX, y); if (t === T.PAVE || t === T.PATH) break; if (t === T.TREE || t === T.BUILD || t === T.WATER) break; W.set(B.doorX, y, T.PATH); }
     maps[id] = inside;
+    for (const more of b.more ? b.more(inside, id) : []) maps[more.id] = more;   // étages supplémentaires
     if (b.kind === 'center') { def.centerId = id; def.centerDoor = [B.doorX, B.doorY + 1]; }
     if (b.id === 'maison') def.homeDoor = [B.doorX, B.doorY + 1];   // Vol ramène devant la maison à Bourg-Aube (pas de Centre)
     if (b.kind === 'gym') { def.gymMap = inside; def.gymDoor = [B.doorX, B.doorY]; }
@@ -159,14 +172,17 @@ function gymGuard(W, def, badges, text) {
    ====================================================================== */
 export function buildWorld() {
   tCount = 0;
-  const W = new GameMap('monde', 340, 280, { outdoor: true, fill: T.TREE, name: 'Odyssée' });
+  const W = new GameMap('monde', 440, 280, { outdoor: true, fill: T.TREE, name: 'Odyssée' });
   const maps = { monde: W };
   const towns = {};
 
   // mers : nord, côte du Port-Azur, est, sud-est (l'archipel), détroit de Cimelune
   W.rect(150, 0, 339, 19, T.WATER);
   W.rect(222, 20, 272, 35, T.WATER);
-  W.rect(322, 0, 339, 279, T.WATER);
+  W.rect(322, 0, 439, 279, T.WATER);   // mer de l'Est : les îles du bateau
+  W.rect(0, 268, 184, 279, T.WATER);   // mer du Sud
+  // baie de l'Aube (l'Embarcadère, à droite de la route 1) et chenal vers la mer du Sud, sous le pont de la route 10
+  W.blob(60, 214, 7, 10, T.WATER, rng(2024)); W.rect(60, 214, 62, 267, T.WATER);
   W.rect(185, 196, 339, 279, T.WATER);
   W.rect(250, 189, 321, 195, T.WATER);   // la mer s'avance jusqu'au Cap Mirage
   // l'archipel : Île de Granit (petite), Cendrelune (volcan), Grande Île de l'Écaille
@@ -204,7 +220,7 @@ export function buildWorld() {
     buildings: [
       { kind: 'center', x: 5, y: 7 }, { kind: 'mart', x: 23, y: 7 }, { kind: 'gym', x: 21, y: 14, roof: 'green' },
       { kind: 'house', x: 5, y: 15, roof: 'green', npcs: [{ x: 4, y: 4, sprite: 'insectomane', text: ['Hector, le Champion, adore les créatures Insecte.', 'Le Feu, le Vol et la Roche les mettent en difficulté !'] }] },
-      { kind: 'house', x: 10, y: 15, roof: 'brown', npcs: [{ x: 2, y: 4, sprite: 'habitante', text: ['Une créature endormie ou paralysée est bien plus facile à capturer.', 'Et plus ses PV sont bas, mieux c\'est !'] }] },
+      { kind: 'house', x: 10, y: 15, roof: 'brown', npcs: [{ x: 2, y: 4, sprite: 'habitante', text: ['Une créature endormie ou paralysée est bien plus facile à capturer.', 'Et plus ses PV sont bas, mieux c\'est !'] }, { id: 'gs', x: 6, y: 3, sprite: 'vieil_homme', script: 'gsBall' }] },
     ],
     npcs: [
       { id: 'gamin', x: 9, y: 13, sprite: 'gamin', move: 'wander', text: ['Le Centre de soins soigne tes créatures gratuitement.', 'C\'est le bâtiment au toit rouge !'] },
@@ -522,11 +538,212 @@ export function buildWorld() {
   W.zone(99, 165, 112, 172, { name: 'Route 9', music: 'route', enc: ENC.r9, trigger: 'rival5' });
   void r9; void r9b;
 
-  const r10 = R('r10', 'Route 10', [[49, 248.5], [75, 250.5], [100, 247.5], [125, 242.5], [150, 238.5]], { w: 12, grass: 0.8, trees: 0.05, rocks: 0.02 }, 'r10');
+  const r10 = R('r10', 'Route 10', [[49, 248.5], [75, 250.5], [100, 247.5], [125, 242.5], [150, 238.5]], { w: 12, grass: 0.8, trees: 0.05, rocks: 0.02, bridge: true }, 'r10');
   routeTrainer(W, r10, 0.2, 1, 4, 'Topdresseur', 'Victor', [[1035, 36], [128, 36], [1014, 36]]);
   routeTrainer(W, r10, 0.45, -1, 4, 'Karatéka', 'Ryu', [[68, 37], [1033, 37]]);
   routeTrainer(W, r10, 0.7, 1, 4, 'Topdresseuse', 'Léa', [[241, 37], [1040, 37], [1037, 37]]);
   routeItem(W, r10, 0.35, -1, 5, 'ultra-ball', 3); routeItem(W, r10, 0.85, 1, 5, 'sun-stone');
+
+
+  /* ======================== LES ÎLES DU BATEAU ======================== */
+  // Le bateau part de l'Embarcadère de l'Aube (à droite de la route 1) : Île Orageuse avec 2 badges, Île de la Grue avec 3,
+  // Île Givrée (tout au nord) avec 5. Pas de Champion sur ces îles, mais des dresseurs plus forts que l'arène précédente
+  // et, sur chacune, au moins un légendaire à capturer au bout d'une quête.
+  const legends = [], docks = {};
+  const legend = (o) => { legends.push({ map: 'monde', ...o }); return o; };
+  const xy = ([x, y]) => ({ x, y });
+  /** ponton : planches sur l'eau depuis la côte (x, y) vers dx ; le capitaine se tient au bout */
+  const pier = (key, name, x, y, dx, len, badges, o = {}) => {
+    for (let k = 0; k < len; k++) W.set(x + dx * k, y, T.BRIDGE);
+    const cx = x + dx * (len - 1);
+    W.npc({ id: 'quai:' + key, x: cx, y, dir: dx > 0 ? 'left' : 'right', sprite: 'marin', script: 'ferry', dock: key });
+    docks[key] = { name, map: 'monde', x: cx - dx, y, dir: dx > 0 ? 'left' : 'right', badges, ...o };
+    const x0 = Math.min(x, cx), x1 = Math.max(x, cx); W.zone(x0 - 1, y - 2, x1 + 1, y + 2, { name: o.town || name, music: o.music || 'port' });
+  };
+  /** passage étroit (2 cases) fermé par un PNJ tant qu'un drapeau d'histoire n'est pas levé */
+  const flagGate = (id, tiles, npcAt, flag, badges, sprite, text) => {
+    const n = W.npc({ id, x: npcAt[0], y: npcAt[1], dir: 'down', sprite, gate: { badges, flag, tiles }, text });
+    W.gates.push({ npc: n.id, badges, flag, tiles });
+  };
+  /** objet de décor avec lequel on interagit (borne, stèle, autel) */
+  const thing = (prop, x, y, o) => { W.prop(prop, x, y); W.object(x, y, o); };
+  const offRoute = (pts, t, side, off) => { const p = along(pts, t); return nearestWalkable(W, p.x + 0.5 + p.nx * side * off, p.y + 0.5 + p.ny * side * off); };
+
+  // Bois Murmure : l'autel de Celebi (la Balle GS vient d'une vieille dame de Sylvebourg)
+  { const [sx, sy] = offRoute(bois, 0.5, 1, 5); thing('statue', sx, sy, { type: 'shrine' });
+    const [cx, cy] = nearestWalkable(W, sx, sy + 1, new Set([sx + ',' + sy]));
+    legend({ id: 'celebi', sp: 251, lvl: 20, x: cx, y: cy, cond: 'celebi', intro: ['La Balle GS se met à trembler...', 'Une petite créature verte surgit d\'entre les feuilles : Celebi !'] }); }
+
+  // Embarcadère de l'Aube : un sentier part de la route 1 vers la baie
+  W.rect(40, 212, 53, 216, T.GRASS, [T.TREE, T.TALL]); W.rect(40, 214, 53, 214, T.PATH);
+  W.sign(44, 213, 'EMBARCADÈRE DE L\'AUBE\nBateau pour les îles de l\'Est.\nÎle Orageuse : 2 badges · Île de la Grue : 3 badges · Île Givrée : 5 badges');
+  pier('aube', 'Embarcadère de l\'Aube', 54, 214, 1, 4, 0);
+  W.zone(46, 204, 68, 224, { name: 'Embarcadère de l\'Aube', music: 'port' });
+
+  /* ---------- Île Orageuse (2 badges) : Électhor, Mew, et Mewtwo pour le Maître ---------- */
+  W.rect(350, 156, 434, 243, T.TREE);
+  const O = towns.O = {
+    id: 'orage', name: 'Port-Orage', x: 352, y: 206, w: 28, h: 20, exits: [['w', 9], ['n', 13], ['e', 9]], stock: 3, music: 'island',
+    roads: [[0, 9, 27, 10, T.PATH], [13, 0, 14, 19, T.PATH]],
+    deco: [['lamp', 12, 8], ['lamp', 15, 8], ['flowers', 16, 13, 18, 16], ['sign', 11, 11, 'PORT-ORAGE\nL\'île où gronde le tonnerre.'], ['rock', 24, 16]],
+    buildings: [
+      { kind: 'center', x: 3, y: 3 }, { kind: 'mart', x: 8, y: 3 },
+      { kind: 'tower', x: 21, y: 3, roof: 'red', name: 'Phare de l\'Orage', npcs: [{ id: 'gardien', x: 5, y: 4, sprite: 'scientifique', script: 'phare' }] },
+      { kind: 'house', x: 16, y: 4, roof: 'blue', npcs: [{ x: 4, y: 4, sprite: 'pecheur', text: ['Les orages d\'ici ne sont pas naturels.', 'Mon grand-père disait qu\'un grand oiseau de foudre dort sur le Pic Tonnerre.'] }] },
+      { kind: 'house', x: 3, y: 13, roof: 'teal', npcs: [{ x: 2, y: 4, sprite: 'habitante', text: ['À l\'est, au bout de la côte, il y a de vieilles ruines.', 'Trois stèles racontent l\'histoire d\'une créature minuscule, rose comme l\'aube...'] }] },
+      { kind: 'house', x: 19, y: 13, roof: 'gray', npcs: [{ x: 4, y: 4, sprite: 'vieil_homme', text: ['Tout au fond de l\'île, il y a un sanctuaire scellé.', 'Seul le Maître de la Ligue a le droit d\'y entrer. Ce qui dort là-dedans est... dangereux.'] }] },
+    ],
+    npcs: [{ id: 'marin', x: 8, y: 11, sprite: 'marin', move: 'wander', text: ['Le bateau de l\'Embarcadère passe ici tous les jours.', 'Avec trois badges, il t\'emmènera à l\'Île de la Grue, au nord.'] }],
+  };
+  buildTown(W, maps, O);
+  W.rect(350, 215, 353, 216, T.SAND);
+  pier('orage', 'Île Orageuse (Port-Orage)', 349, 215, -1, 5, 2, { town: 'Port-Orage', music: 'island' });
+  // Sentier Orageux jusqu'au Pic Tonnerre
+  const so = R('orage1', 'Sentier Orageux', [[365.5, 206], [365.5, 192], [378, 182], [394, 176], [406, 174]], { w: 11, grass: 0.9, trees: 0.05, rocks: 0.03 }, 'orage', 'island');
+  routeTrainer(W, so, 0.2, 1, 4, 'Scientifique', 'Ampère', [[1036, 24], [81, 24], [100, 25]], { intro: 'Mes mesures sont formelles : la foudre vient du Pic !' });
+  routeTrainer(W, so, 0.45, -1, 4, 'Randonneuse', 'Orane', [[1038, 24], [1034, 25]]);
+  routeTrainer(W, so, 0.7, 1, 4, 'Topdresseur', 'Éloi', [[1035, 26], [1011, 25], [1031, 26]]);
+  routeItem(W, so, 0.35, -1, 5, 'super-potion', 2); routeItem(W, so, 0.85, 1, 4, 'thunder-stone');
+  // trois relais électriques à rallumer (quête du gardien du phare)
+  [[0.3, 1], [0.6, -1], [0.92, -1]].forEach(([t, side], i) => { const [x, y] = offRoute(so, t, side, 4); thing('labmachine', x, y, { type: 'pylon', n: i + 1 }); });
+  // le Pic : un couloir de deux cases, fermé par un technicien tant que les relais sont coupés
+  W.rect(406, 173, 420, 174, T.PATH); W.rect(419, 166, 420, 174, T.PATH);
+  W.rect(410, 157, 429, 166, T.GRASS); W.rect(419, 158, 420, 166, T.PATH);
+  W.set(421, 171, T.GRASS);
+  flagGate('orage:technicien', [[419, 170], [420, 170]], [421, 171], 'pylons', 2, 'scientifique', ['Le sentier du Pic Tonnerre est fermé : les trois relais de l\'île sont coupés.', 'Le gardien du phare, à Port-Orage, sait comment les rallumer.']);
+  W.prop('statue', 415, 159); W.prop('statue', 424, 159);
+  W.zone(406, 156, 430, 175, { name: 'Pic Tonnerre', music: 'mystic' });
+  legend({ id: 'zapdos', sp: 145, lvl: 30, x: 419, y: 160, cond: 'pylons', intro: ['Le ciel se zèbre d\'éclairs...', 'Électhor, l\'oiseau de foudre, déploie ses ailes !'] });
+  legend({ id: 'raikou', sp: 243, lvl: 40, ...xy(offRoute(so, 0.55, 1, 2)), cond: 'beasts', intro: ['Un rugissement fait trembler l\'herbe...', 'C\'est Raikou, la bête du tonnerre, échappée de la Tour de la Grue !'] });
+  // Côte des Ruines : trois stèles, l'autel de Mew, et le sanctuaire scellé de Mewtwo
+  const cr = R('orage2', 'Côte des Ruines', [[379.5, 215.5], [394, 221], [410, 225], [424, 225]], { w: 10, grass: 0.8, trees: 0.04, flowers: 0.03 }, 'orage', 'island');
+  routeTrainer(W, cr, 0.3, 1, 3, 'Médium', 'Céleste', [[1039, 26], [1023, 27]]);
+  routeTrainer(W, cr, 0.65, -1, 3, 'Karatéka', 'Tao', [[1033, 27], [66, 27], [1037, 28]]);
+  routeItem(W, cr, 0.5, 1, 4, 'great-ball', 3);
+  const STELES = [
+    'STÈLE I\n« Avant les hommes, avant les villes, une créature minuscule portait en elle toutes les autres. »',
+    'STÈLE II\n« Elle jouait dans le vent des îles, invisible à ceux qui la cherchaient. »',
+    'STÈLE III\n« Qui aura lu les trois pierres et porté quatre badges la verra danser sur l\'autel. »',
+  ];
+  [[0.2, -1], [0.5, -1], [0.8, 1]].forEach(([t, side], i) => { const [x, y] = offRoute(cr, t, side, 3); thing('statue', x, y, { type: 'stele', n: i + 1, text: STELES[i] }); });
+  W.rect(424, 222, 431, 228, T.GRASS); W.rect(424, 225, 431, 225, T.PATH);
+  W.prop('gymstatue', 430, 223); W.prop('gymstatue', 430, 227);
+  legend({ id: 'mew', sp: 151, lvl: 35, x: 429, y: 225, cond: 'mew', intro: ['Une bulle rose flotte au-dessus de l\'autel...', 'C\'est Mew !'] });
+  // sanctuaire scellé : au sud de la côte, gardé jusqu'au titre de Maître
+  W.rect(414, 229, 415, 237, T.PATH); W.rect(410, 237, 422, 241, T.GRASS); W.set(416, 234, T.GRASS);
+  flagGate('orage:sceau', [[414, 234], [415, 234]], [416, 234], 'champion', 8, 'garde', ['Ce sanctuaire est scellé par ordre de la Ligue.', 'Seul le Maître peut y entrer.']);
+  W.prop('statue', 411, 238); W.prop('statue', 421, 238);
+  W.zone(409, 235, 423, 242, { name: 'Sanctuaire Scellé', music: 'mystic' });
+  legend({ id: 'mewtwo', sp: 150, lvl: 70, x: 416, y: 239, intro: ['Une présence écrasante emplit le sanctuaire...', 'Mewtwo ouvre les yeux.'] });
+
+  /* ---------- Île de la Grue (3 badges) : Hautegrue, la Tour de la Grue et Ho-Oh, Sulfura, Entei ---------- */
+  W.rect(350, 72, 434, 148, T.TREE);
+  const tower = (id) => towerFloor(id, 'Tour de la Grue — rez-de-chaussée', { ground: true, up: true });
+  const towerMore = (f1, id) => {
+    const f2 = towerFloor(id + '2', 'Tour de la Grue — 1er étage', { up: true, down: true });
+    const f3 = towerFloor(id + '3', 'Tour de la Grue — 2e étage', { up: true, down: true });
+    const roof = towerFloor(id + '-toit', 'Toit de la Tour de la Grue', { down: true, roof: true });
+    const link = (a, b) => { a.warp(TOWER_UP.x, TOWER_UP.y, { map: b.id, x: TOWER_DOWN.x, y: TOWER_DOWN.y + 1, dir: 'down' }); b.warp(TOWER_DOWN.x, TOWER_DOWN.y, { map: a.id, x: TOWER_UP.x, y: TOWER_UP.y + 1, dir: 'down' }); };
+    link(f1, f2); link(f2, f3); link(f3, roof);
+    const sage = (m, x, y, dir, name, team, intro) => trainerNpc(m, x, y, dir, 'Sage', name, team, { sight: 3, intro, after: 'Le Grand Sage t\'attend plus haut.' });
+    sage(f1, 4, 7, 'right', 'Ernest', [[1039, 30], [163, 30]], 'La tour accueille ceux qui viennent en paix. Prouve-le !');
+    sage(f1, 8, 5, 'left', 'Gaspard', [[1023, 31], [1015, 30]], 'La grue de bois veille sur nous depuis mille ans.');
+    sage(f2, 5, 5, 'right', 'Hilaire', [[1030, 32], [1040, 31]], 'Ho-Oh ne se montre qu\'aux cœurs sincères.');
+    sage(f2, 8, 8, 'left', 'Isidore', [[164, 32], [1016, 32]], 'Plus haut, l\'air devient sacré.');
+    trainerNpc(f3, 6, 4, 'down', 'Grand Sage', 'Hoël', [[1040, 34], [1030, 34], [1023, 35], [1016, 36]], { sight: 0, ai: 'smart', onWin: 'grandSage', intro: 'Tu viens chercher la Plume Arc-en-ciel ? Montre-moi le lien qui t\'unit à tes créatures !', lose: 'Ce lien... il est réel.', after: 'Va sur le toit. Ho-Oh t\'attend peut-être.' });
+    const n = f3.npc({ id: id + ':novice', x: 10, y: 3, dir: 'down', sprite: 'medium', gate: { badges: 3, flag: 'plume', tiles: [[10, 2], [11, 3]] }, text: ['Le toit est réservé à qui porte la Plume Arc-en-ciel.', 'Seul le Grand Sage peut te la confier.'] });
+    f3.gates.push({ npc: n.id, badges: 3, flag: 'plume', tiles: [[10, 2], [11, 3]] });
+    legends.push({ id: 'hooh', sp: 250, lvl: 40, map: roof.id, x: 6, y: 6, cond: 'plume', intro: ['La Plume Arc-en-ciel se met à briller...', 'Un arc-en-ciel déchire les nuages. Ho-Oh se pose sur la tour !'] });
+    return [f2, f3, roof];
+  };
+  const G2 = towns.Q = {
+    id: 'grue', name: 'Hautegrue', x: 354, y: 112, w: 34, h: 26, exits: [['w', 12], ['e', 12], ['n', 16]], stock: 4, music: 'mystic',
+    roads: [[0, 12, 33, 13, T.PATH], [16, 0, 17, 25, T.PATH]],
+    deco: [['lamp', 15, 11], ['lamp', 18, 11], ['flowers', 3, 20, 8, 23], ['water', 27, 21, 2.6, 1.8], ['trees', 2, 2, 4, 4, T.PINE],
+      ['sign', 14, 14, 'HAUTEGRUE\nLe village de la Grue de bois.'], ['sign', 20, 10, 'TOUR DE LA GRUE\nLà où l\'oiseau arc-en-ciel se posait jadis.']],
+    buildings: [
+      { kind: 'center', x: 5, y: 4 }, { kind: 'mart', x: 10, y: 4 },
+      { kind: 'tower', x: 22, y: 2, w: 5, d: 5, h: 7, door: 2, roof: 'brown', id: 'tour', name: 'Tour de la Grue', interior: tower, more: towerMore },
+      { kind: 'house', x: 4, y: 16, roof: 'brown', id: 'doyenne', name: 'Maison de la Doyenne', npcs: [{ id: 'doyenne', x: 4, y: 4, sprite: 'vieil_homme', script: 'doyenne' }] },
+      { kind: 'house', x: 21, y: 16, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'habitante', text: ['Il y a longtemps, trois créatures ont péri dans l\'incendie de l\'ancienne tour.', 'On raconte que Ho-Oh les a ramenées à la vie : Raikou, Entei et Suicune.'] }] },
+      { kind: 'house', x: 10, y: 17, roof: 'teal', npcs: [{ x: 2, y: 4, sprite: 'montagnard', text: ['À l\'est, le chemin du Mont Brasier est barré par des arbustes.', 'Avec Coupe, tu pourrais aller voir le cratère... on dit qu\'un oiseau de feu y niche.'] }] },
+    ],
+    npcs: [{ id: 'enfant', x: 12, y: 15, sprite: 'enfant', move: 'wander', text: ['Mamie dit que la Tour de la Grue touche presque les nuages !'] }],
+  };
+  buildTown(W, maps, G2);
+  W.rect(350, 124, 355, 125, T.SAND);
+  pier('grue', 'Île de la Grue (Hautegrue)', 349, 124, -1, 5, 3, { town: 'Hautegrue', music: 'mystic' });
+  // Sentier des Pins, au nord du village
+  const sp1 = R('grue1', 'Sentier des Pins', [[370.5, 112], [370.5, 100], [384, 90], [396, 86], [404, 85]], { w: 11, grass: 0.9, trees: 0.06, treeT: T.PINE, flowers: 0.02 }, 'grue', 'forest');
+  routeTrainer(W, sp1, 0.2, -1, 4, 'Randonneuse', 'Iris', [[1021, 29], [1038, 30], [69, 29]]);
+  routeTrainer(W, sp1, 0.45, 1, 4, 'Médium', 'Séléné', [[1039, 30], [1023, 31]]);
+  routeTrainer(W, sp1, 0.75, -1, 4, 'Topdresseur', 'Hugo', [[1043, 31], [1011, 31], [58, 31]]);
+  routeItem(W, sp1, 0.3, 1, 5, 'great-ball', 3); routeItem(W, sp1, 0.6, -1, 5, 'hyper-potion'); routeItem(W, sp1, 0.95, 1, 3, 'rare-candy');
+  // Chemin du Mont Brasier, à l'est : des arbustes à couper (Coupe) mènent au cratère de Sulfura
+  const mb = R('grue2', 'Chemin du Brasier', [[387.5, 124.5], [400, 120], [412, 112], [423.5, 102]], { w: 10, grass: 0.8, trees: 0.04, rocks: 0.04 }, 'brasier', 'volcano');
+  routeTrainer(W, mb, 0.35, 1, 4, 'Karatéka', 'Kaito', [[1033, 31], [66, 31], [1041, 32]]);
+  routeTrainer(W, mb, 0.7, -1, 4, 'Montagnard', 'Bastien', [[1042, 32], [1028, 31], [74, 31]]);
+  W.rect(423, 88, 424, 103, T.PATH); W.set(423, 95, T.CUT); W.set(424, 95, T.CUT);
+  W.rect(414, 76, 432, 87, T.ASH); W.rect(423, 78, 424, 87, T.PATH);
+  W.prop('rock', 416, 78); W.prop('rock', 430, 79); W.prop('rock', 417, 85);
+  W.zone(412, 75, 433, 94, { name: 'Cratère du Brasier', music: 'volcano', theme: 'volcanic' });
+  legend({ id: 'moltres', sp: 146, lvl: 38, x: 423, y: 79, intro: ['La chaleur devient insoutenable...', 'Sulfura, l\'oiseau de feu, s\'élève du cratère !'] });
+  legend({ id: 'entei', sp: 244, lvl: 40, ...xy(offRoute(mb, 0.5, -1, 2)), cond: 'beasts', intro: ['Le sol se met à fumer...', 'C\'est Entei, la bête du feu !'] });
+
+  /* ---------- Île Givrée (5 badges) : Artikodin, Lugia et Suicune ---------- */
+  W.rect(344, 3, 436, 62, T.TREE);
+  W.zone(340, 0, 439, 64, { name: 'Île Givrée', music: 'snow', theme: 'snow' });   // posée avant les routes : elles passent devant
+  const Gv = towns.V = {
+    id: 'givre', name: 'Givrebourg', x: 350, y: 36, w: 28, h: 20, exits: [['w', 8], ['n', 14], ['e', 8]], stock: 6, music: 'snow', ground: T.SNOW, theme: 'snow',
+    roads: [[0, 8, 27, 9, T.PATH], [14, 0, 15, 19, T.PATH]],
+    deco: [['water', 22, 15, 3, 2], ['lamp', 13, 7], ['lamp', 16, 7], ['trees', 2, 15, 4, 17, T.PINE],
+      ['sign', 11, 10, 'GIVREBOURG\nLe village au bout du monde.']],
+    buildings: [
+      { kind: 'center', x: 3, y: 2 }, { kind: 'mart', x: 9, y: 2 },
+      { kind: 'house', x: 19, y: 3, roof: 'gray', id: 'ermite', name: 'Cabane de l\'Ermite', npcs: [{ id: 'ermite', x: 4, y: 4, sprite: 'montagnard', script: 'ermite' }] },
+      { kind: 'house', x: 3, y: 12, roof: 'blue', npcs: [{ x: 2, y: 4, sprite: 'habitante', text: ['Sous l\'île, la mer creuse des grottes immenses.', 'Les tourbillons y sont si forts que personne n\'en revient... sauf ceux que Lugia laisse passer.'] }] },
+      { kind: 'house', x: 9, y: 13, roof: 'teal', npcs: [{ x: 4, y: 4, sprite: 'pecheur', text: ['La Glace craint le Feu, le Combat, la Roche et l\'Acier.', 'Pense à prendre de quoi soigner le gel !'] }] },
+    ],
+    npcs: [{ id: 'enfant', x: 18, y: 11, sprite: 'enfant', move: 'wander', text: ['Il neige tout le temps ici. J\'adore !'] }],
+  };
+  buildTown(W, maps, Gv);
+  W.rect(344, 44, 351, 45, T.SAND);
+  pier('givre', 'Île Givrée (Givrebourg)', 343, 44, -1, 3, 5, { town: 'Givrebourg', music: 'snow' });
+  const pg = R('givre1', 'Pente Givrée', [[364.5, 36], [364.5, 24], [380, 16], [398, 12], [414, 10]], { w: 11, grass: 0.8, trees: 0.06, treeT: T.PINE, rocks: 0.03, theme: 'snow' }, 'givre', 'snow');
+  routeTrainer(W, pg, 0.2, 1, 4, 'Skieuse', 'Neige', [[1045, 38], [225, 38], [86, 39]], { intro: 'Attention, ça glisse !' });
+  routeTrainer(W, pg, 0.45, -1, 4, 'Alpiniste', 'Gaspard', [[220, 39], [1028, 39], [1027, 40]]);
+  routeTrainer(W, pg, 0.7, 1, 4, 'Topdresseuse', 'Alba', [[1046, 41], [124, 40], [1040, 41]]);
+  routeTrainer(W, pg, 0.9, -1, 3, 'Alpiniste', 'Erwan', [[221, 42], [87, 42], [1035, 42]]);
+  routeItem(W, pg, 0.3, -1, 5, 'ice-heal', 3); routeItem(W, pg, 0.6, 1, 5, 'ultra-ball', 3); routeItem(W, pg, 0.8, -1, 5, 'max-potion');
+  // Cime Givrée : Artikodin
+  W.rect(413, 9, 418, 10, T.PATH); W.rect(416, 4, 432, 15, T.GRASS); W.rect(423, 5, 424, 15, T.PATH);
+  W.prop('statue', 419, 6); W.prop('statue', 428, 6);
+  W.zone(412, 3, 433, 16, { name: 'Cime Givrée', music: 'mystic', theme: 'snow' });
+  legend({ id: 'articuno', sp: 144, lvl: 45, x: 423, y: 6, intro: ['Un vent glacial se lève...', 'Artikodin, l\'oiseau des glaces, plane au-dessus de la cime !'] });
+  // à l'est du village : la Grotte des Tourbillons (Lugia), ouverte par l'Ermite
+  const gt = R('givre2', 'Rivage Gelé', [[377.5, 44.5], [392, 46], [404, 47.5]], { w: 9, grass: 0.6, trees: 0.05, treeT: T.PINE, theme: 'snow' }, 'givre', 'snow');
+  routeTrainer(W, gt, 0.5, 1, 3, 'Skieuse', 'Flocon', [[1045, 40], [1046, 42]]);
+  const tb = W.building('cave', 406, 43);
+  W.rect(402, 46, 413, 48, T.GRASS); W.rect(402, 47, 413, 47, T.PATH); W.rect(tb.doorX, tb.doorY + 1, tb.doorX, 48, T.PATH);
+  flagGate('givre:gardien', [[tb.doorX, tb.doorY + 1]], [tb.doorX + 1, tb.doorY + 2], 'plumeArgent', 5, 'pecheur', ['Halte ! Les tourbillons de cette grotte sont mortels.', 'L\'Ermite de Givrebourg sait comment les apaiser. Va le voir.']);
+  const tourb = caveMap('tourbillons', 44, 30, 5151, [{ x: 4, y: 25 }], { name: 'Grotte des Tourbillons', via: [{ x: 16, y: 10 }, { x: 30, y: 20 }, { x: 38, y: 6 }], dark: false });
+  tourb.encounter = ENC.tourbillons; maps.tourbillons = tourb;
+  tourb.set(4, 26, T.CAVEDOOR); tourb.set(4, 25, T.CAVE); tourb.set(4, 27, T.CAVEWALL);
+  tourb.warp(4, 26, { map: 'monde', x: tb.doorX, y: tb.doorY + 1, dir: 'down' });
+  W.warp(tb.doorX, tb.doorY, { map: 'tourbillons', x: 4, y: 25, dir: 'up' });
+  tourb.deco.push({ k: 'exitlight', x: 4, y: 26 });
+  { // un bassin d'eau et Lugia au fond de la grotte
+    const [lx, ly] = nearestWalkable(tourb, 38, 6);
+    legends.push({ id: 'lugia', sp: 249, lvl: 50, map: 'tourbillons', x: lx, y: ly, intro: ['L\'eau se met à tourbillonner...', 'Une immense silhouette argentée émerge des profondeurs : Lugia !'] });
+  }
+  caveTrainers(tourb, [['Pêcheur', 'Morvan', [[1046, 43], [131, 43]]], ['Topdresseur', 'Loïc', [[1032, 43], [87, 44], [1009, 44]]]], 44);
+  caveItems(tourb, ['max-repel', 'ultra-ball', 'full-restore'], 45);
+  legend({ id: 'suicune', sp: 245, lvl: 40, ...xy(offRoute(gt, 0.25, -1, 2)), cond: 'beasts', intro: ['Un vent du nord souffle sur la glace...', 'C\'est Suicune, la bête des eaux pures !'] });
+  // l'île se couvre de neige ; les arbres deviennent des sapins givrés, les sentiers des chemins pavés
+  for (let y = 3; y <= 62; y++) for (let x = 344; x <= 436; x++) { const t = W.get(x, y); if (t === T.GRASS) W.set(x, y, T.SNOW); else if (t === T.TREE) W.set(x, y, T.PINE); else if (t === T.PATH) W.set(x, y, T.PAVE); }
+
+  // mer de l'Est : rencontres en surfant
+  W.zone(340, 64, 439, 279, { name: 'Mer de l\'Est', music: 'route2', enc: ENC.est, sea: true, prio: -1 });
 
   // pas d'herbes hautes débordant des routes dans les villes (sauf celles prévues par la ville)
   for (const t of Object.values(towns)) {
@@ -603,7 +820,7 @@ export function buildWorld() {
   lab.npc({ id: 'assistant', x: 10, y: 7, sprite: 'scientifique', move: 'wander', text: ['Le professeur étudie le lien entre les dresseurs et leurs créatures.', 'Il dit que c\'est en voyageant qu\'on le comprend le mieux.'] });
   STARTERS.forEach((sp, i) => lab.object(5 + i, 5, { type: 'starter', sp }));
 
-  return { maps, towns, routes, start: { map: 'aube:maison', x: 4, y: 6, dir: 'up' } };
+  return { maps, towns, routes, legends, docks, start: { map: 'aube:maison', x: 4, y: 6, dir: 'up' } };
 }
 
 function caveTrainers(m, list, seed) {

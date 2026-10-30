@@ -1,5 +1,18 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.24 — 30 octobre 2026
+- **Odyssée** — les arbres, les personnages et les maisons ne sont plus écrasés en bas de l'écran : tout garde la même hauteur partout, comme sur DS.
+- **Odyssée** — un bateau pour les îles de l'Est, depuis l'Embarcadère de l'Aube (à droite de la route 1).
+  - Île Orageuse avec 2 badges, Île de la Grue avec 3, Île Givrée (tout au nord, sous la neige) avec 5.
+  - Pas d'arène sur ces îles, mais des dresseurs plus forts que l'arène précédente.
+- **Odyssée** — des légendaires à capturer, chacun au bout d'une quête :
+  - Celebi dans le Bois Murmure, dès le premier badge (une vieille dame de Sylvebourg a quelque chose pour toi).
+  - Électhor sur le Pic Tonnerre (rallume les trois relais de l'Île Orageuse) et Mew à l'autel des ruines (lis les trois stèles, 4 badges).
+  - Ho-Oh au sommet de la Tour de la Grue, à Hautegrue : bats les Sages pour obtenir la Plume Arc-en-ciel. Sulfura niche dans le cratère voisin (Coupe).
+  - Raikou, Entei et Suicune s'enfuient de la tour et se cachent dans les îles (5 badges).
+  - Artikodin sur la Cime Givrée, puis Lugia au fond de la Grotte des Tourbillons.
+  - Et un secret pour le Maître de la Ligue, sur l'Île Orageuse…
+
 ## 3.23 — 30 octobre 2026
 - **Odyssée** — une aventure bien plus longue : huit arènes et la Ligue.
   - Les quatre premières arènes se font dans l'ordre, puis de nouvelles zones s'ouvrent au fil des badges : Mirage, puis la mer et l'archipel.

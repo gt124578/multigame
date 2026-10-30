@@ -5,7 +5,27 @@ import { T } from '../world/tiles.js';
 import { buildAtlas, buildAnimAtlas, buildSprites, applySpriteImages, facade, sideWall, roofTex, roofColors, PAL } from './textures.js';
 import { SPRITES } from '../data/sprites.js';
 
-export const EL = 55 * Math.PI / 180, FOV = 26;
+export const EL = 55 * Math.PI / 180, FOV = 22;
+
+// Rendu « façon DS » : tout ce qui se dresse au-dessus du sol (arbres, personnages, murs, maisons) garde la même
+// hauteur à l'écran, qu'il soit en haut ou en bas de l'image. Sans ça, la caméra plongeante écrase les sprites du
+// bas de l'écran (vus presque d'au-dessus) et étire ceux du haut. Chaque sommet est étiré verticalement selon
+// l'angle sous lequel la caméra voit le sol à sa verticale : un pixel de sprite reste carré partout.
+THREE.ShaderChunk.project_vertex = `
+vec4 dsW = modelMatrix * vec4( transformed, 1.0 );
+if ( dsW.y > 0.0001 ) {
+  mat4 dsVP = projectionMatrix * viewMatrix;
+  vec4 dsA = dsVP * vec4( dsW.x, 0.0, dsW.z, 1.0 );
+  vec4 dsX = dsVP * vec4( dsW.x + 1.0, 0.0, dsW.z, 1.0 );
+  vec4 dsY = dsVP * vec4( dsW.x, 1.0, dsW.z, 1.0 );
+  float dsAspect = projectionMatrix[1][1] / projectionMatrix[0][0];
+  float dsSx = abs( dsX.x / dsX.w - dsA.x / dsA.w ) * dsAspect;
+  float dsSy = abs( dsY.y / dsY.w - dsA.y / dsA.w );
+  dsW.y *= clamp( ${Math.cos(EL).toFixed(6)} * dsSx / max( dsSy, 1e-5 ), 0.5, 2.5 );
+}
+vec4 mvPosition = viewMatrix * dsW;
+gl_Position = projectionMatrix * mvPosition;
+`;
 export const WPX = Math.sin(EL) / 16, HPX = Math.tan(EL) / 16; // unités monde par pixel de sprite (largeur, hauteur)
 const CH = 16;
 // lignes de la planche des personnages (img/chars.png) ; les anciens noms des sprites du prototype pointent vers les nouveaux
@@ -111,8 +131,10 @@ export class WorldView {
     const m = this.map, t = m.get(x, y), A = this.A.cells, v = hash(x, y);
     const g4 = () => 'grass' + (v < 0.55 ? 0 : v < 0.8 ? 1 : v < 0.93 ? 2 : 3);
     const zone = m.outdoor ? m.zoneAt(x, y) : null, theme = zone?.theme;
-    const grassKey = theme === 'volcanic' ? 'ash' + (v < 0.5 ? 0 : 1) : g4();
+    const grassKey = theme === 'volcanic' ? 'ash' + (v < 0.5 ? 0 : 1) : theme === 'snow' ? 'snow' + (v < 0.5 ? 0 : 1) : g4();
     const mask = (same) => { let k = 0; if (same(m.get(x, y - 1))) k |= 1; if (same(m.get(x + 1, y))) k |= 2; if (same(m.get(x, y + 1))) k |= 4; if (same(m.get(x - 1, y))) k |= 8; return k; };
+    // sur la neige, pas de bordure d'herbe autour des chemins : on prend la case pleine
+    const edge = theme === 'snow' ? () => 15 : mask;
     const groundOf = (tt) => (tt === T.SIGN || tt === T.BLOCK ? m.underAt(x, y) ?? (m.outdoor ? T.GRASS : T.FLOOR) : tt);
     const tt = groundOf(t);
     const deco = this.decoAt.get(x + ',' + y);
@@ -123,10 +145,10 @@ export class WorldView {
       case T.SMASH: return { c: m.outdoor ? A[grassKey] : A['cave' + (v < 0.5 ? 0 : 1)] };
       case T.TALL: return { c: A['tall' + (v < 0.5 ? 0 : 1)] };
       case T.DARKTALL: return { c: A['darktall' + (v < 0.5 ? 0 : 1)] };
-      case T.TREE: case T.PINE: return { c: theme === 'volcanic' ? A.ash1 : A['forest' + (v < 0.5 ? 0 : 1)] };
-      case T.PATH: return { c: A['path' + mask(isPathish)] };
-      case T.PAVE: case T.DOOR: case T.BUILD: return { c: A['pave' + mask((q) => isPathish(q))] };
-      case T.SAND: return { c: A['sand' + mask((q) => q !== T.GRASS && q !== T.TALL && q !== T.TREE && q !== T.FLOWER && q !== T.PINE)] };
+      case T.TREE: case T.PINE: return { c: theme === 'volcanic' ? A.ash1 : theme === 'snow' ? A.snow1 : A['forest' + (v < 0.5 ? 0 : 1)] };
+      case T.PATH: return { c: A['path' + edge(isPathish)] };
+      case T.PAVE: case T.DOOR: case T.BUILD: return { c: A['pave' + edge((q) => isPathish(q))] };
+      case T.SAND: return { c: A['sand' + edge((q) => q !== T.GRASS && q !== T.TALL && q !== T.TREE && q !== T.FLOWER && q !== T.PINE)] };
       case T.WATER: return { anim: this.N.cells['water' + mask((q) => q === T.WATER || q === T.BRIDGE)] };
       case T.BRIDGE: return { anim: this.N.cells.water15, bridge: A.bridge };
       case T.FLOWER: return { anim: this.N.cells['flower' + Math.floor(v * 3)] };
@@ -158,6 +180,7 @@ export class WorldView {
       if (t === T.TREE || t === T.PINE) {
         let key = t === T.PINE ? 'pine' : v < 0.7 ? 'tree' : 'tree2';
         if (theme === 'volcanic') key = 'deadtree';
+        else if (theme === 'snow') key = 'snowpine';
         const r = S[key];
         billboard(P, x + 0.5 + (v - 0.5) * 0.12, y + 0.62, r.w * WPX, r.h * HPX, r, 0, v > 0.5, 1);
         flat(Sh, x - 0.15, y + 0.35, x + 1.15, y + 0.95, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
@@ -197,7 +220,7 @@ export class WorldView {
       }
     }
     const grp = new THREE.Group();
-    const add = (geo, mat, order = 0) => { const g = geo.build(); if (g) { const me = new THREE.Mesh(g, mat); me.renderOrder = order; me.frustumCulled = true; grp.add(me); } };
+    const add = (geo, mat, order = 0) => { const g = geo.build(); if (g) { const me = new THREE.Mesh(g, mat); me.renderOrder = order; me.frustumCulled = false; grp.add(me); } };
     add(G, this.mat.ground); add(N, this.mat.anim); add(Sh, this.mat.shadow, 1); add(P, this.mat.sprite); add(Wl, this.mat.walls);
     for (const [gx, gz, gy] of glows) {
       const me = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), this.matGlow); me.position.set(gx, gy, gz + 0.05); me.rotation.x = -0.3; me.userData.lampGlow = true; this.glows.add(me);
@@ -355,6 +378,20 @@ export class WorldView {
       requestAnimationFrame(step);
     };
     step();
+  }
+  /** grande créature posée sur la carte (légendaire) : son image de face, debout sur la case */
+  imageActor(id, img, scale = 1) {
+    let a = this.actors.get(id); if (a) return a;
+    const t = tex(img), W = img.width * WPX * scale, H = img.height * HPX * scale;
+    const geo = new THREE.PlaneGeometry(W, H); geo.translate(0, H / 2 - 3 * HPX * scale, 0);
+    const mat = new THREE.MeshBasicMaterial({ map: t, alphaTest: 0.5, side: THREE.DoubleSide }); this.tinted.push(mat); mat.color.copy(this.tint);
+    const mesh = new THREE.Mesh(geo, mat);
+    const S = this.S.rects.shadow, sg = new THREE.PlaneGeometry(1.6, 0.7); sg.rotateX(-Math.PI / 2);
+    const uv = sg.attributes.uv; for (let i = 0; i < 4; i++) uv.setXY(i, i % 2 ? S.u1 : S.u0, i < 2 ? S.v0 : S.v1);
+    const shadow = new THREE.Mesh(sg, this.mat.shadow); shadow.renderOrder = 1;
+    a = { mesh, shadow, kind: 'image', dispose: () => { geo.dispose(); sg.dispose(); t.dispose(); mat.dispose(); this.tinted = this.tinted.filter((m) => m !== mat); this.root?.remove(mesh); this.root?.remove(shadow); } };
+    this.root.add(mesh); this.root.add(shadow); this.actors.set(id, a);
+    return a;
   }
   removeActor(id) { const a = this.actors.get(id); if (a) { a.dispose(); this.actors.delete(id); } }
 

@@ -40,6 +40,11 @@ export const ITEMS = {
   'cs-surf': { pocket: 'cles', price: 0, key: true, field: 'surf', icon: 'notebook', name: 'CS02 Surf', desc: 'Traverse l\'eau sur le dos d\'une créature. Badge Mirage requis. Place-toi face à l\'eau et appuie sur F.' },
   'cs-eclate': { pocket: 'cles', price: 0, key: true, field: 'eclate', icon: 'notebook', name: 'CS03 Éclate-Roc', desc: 'Brise les rochers fissurés. Badge Granit requis. Place-toi face au rocher et appuie sur F.' },
   'cs-vol': { pocket: 'cles', price: 0, key: true, field: 'vol', icon: 'notebook', name: 'CS04 Vol', desc: 'Ramène en un instant dans une ville déjà visitée (depuis le menu, ou en utilisant cet objet). Badge Braise requis.' },
+  // objets de quête des légendaires
+  'gs-ball': { pocket: 'cles', price: 0, key: true, icon: 'gift', name: 'Balle GS', desc: 'Une capsule dorée gravée des lettres G et S. Elle semble attirée par l\'autel du Bois Murmure.' },
+  'ferry-ticket': { pocket: 'cles', price: 0, key: true, icon: 'letter', name: 'Passe Marin', desc: 'Le passe du bateau de l\'Embarcadère de l\'Aube. Les îles s\'ouvrent au fil des badges.' },
+  'plume-arc': { pocket: 'cles', price: 0, key: true, icon: 'rainbow-wing', name: 'Plume Arc-en-ciel', desc: 'Une plume qui brille de sept couleurs. Elle appelle Ho-Oh au sommet de la Tour de la Grue.' },
+  'plume-argent': { pocket: 'cles', price: 0, key: true, icon: 'silver-wing', name: 'Plume Argentée', desc: 'Une plume d\'argent, douce comme l\'écume. Elle apaise les courants de la Grotte des Tourbillons.' },
   'town-map': { pocket: 'cles', price: 0, key: true, name: 'Carte', desc: 'La carte de la région d\'Odyssée. On peut aussi l\'ouvrir avec la touche C.' },
 };
 export const itemName = (k) => ITEMS[k]?.name || ITEM_NAMES[k] || k;

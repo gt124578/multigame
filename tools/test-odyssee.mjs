@@ -50,7 +50,7 @@ console.log('fins de combat', ends, 'tours moyens', (turns / 600).toFixed(1));
 // ---------------- la région : tout est atteignable depuis Bourg-Aube ----------------
 const { buildWorld } = await import('../odyssee/js/world/region.js');
 const { T, walkable } = await import('../odyssee/js/world/tiles.js');
-const { maps, towns } = buildWorld();
+const { maps, towns, legends, docks } = buildWorld();
 const W = maps.monde;
 // exploration à travers les grottes : chaque sortie de grotte relance l'exploration du monde
 // gates : true ou nombre de badges ; abil : true (Coupe, Surf, Éclate-Roc) ou Set des cases franchissables
@@ -107,6 +107,27 @@ for (let k = 0; k <= 8; k++) {
   if (k < 7) ok(!doorOpen(seen, gymDoor(k + 1)), `avec ${k} badge(s), l'arène ${k + 2} est encore fermée`);
   ok(doorOpen(seen, leagueDoor) === (k === 8), `Ligue ${k === 8 ? 'ouverte' : 'fermée'} avec ${k} badge(s)`);
   ok(!!seen[at(W, 212, 202)] === (k === 8), `Cap des Étoiles ${k === 8 ? 'ouvert' : 'fermé'} avec ${k} badge(s)`);
+}
+// îles du bateau : depuis chaque quai, sans Surf, avec les badges qui ouvrent la traversée
+const near = (seen, m, x, y) => [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => m.in(x + dx, y + dy) && seen[(y + dy) * m.w + x + dx]);
+for (const [k, d] of Object.entries(docks)) ok(walkable(W.get(d.x, d.y)) && seenW[at(W, d.x, d.y)], `quai ${k} praticable et atteignable`);
+const L = Object.fromEntries(legends.map((q) => [q.id, q]));
+const fromDock = (k, badges, abil = new Set()) => W.reach(docks[k].x, docks[k].y, badges, true, abil);
+{ const s2 = fromDock('orage', 2); ok(near(s2, W, L.zapdos.x, L.zapdos.y) && near(s2, W, L.mew.x, L.mew.y), 'Île Orageuse : Électhor et Mew accessibles avec 2 badges');
+  ok(!near(s2, W, L.mewtwo.x, L.mewtwo.y), 'Île Orageuse : le sanctuaire de Mewtwo reste scellé');
+  const s1 = fromDock('orage', 1); ok(!near(s1, W, L.zapdos.x, L.zapdos.y), 'Île Orageuse : Pic Tonnerre fermé tant que les relais sont coupés'); }
+{ const s3 = fromDock('grue', 3), door = [...W.warps].find(([, w]) => w.map === 'grue:tour')[0].split(',').map(Number);
+  ok(near(s3, W, door[0], door[1] + 1), 'Île de la Grue : la tour est accessible avec 3 badges');
+  ok(!near(s3, W, L.moltres.x, L.moltres.y), 'Île de la Grue : le cratère de Sulfura demande Coupe');
+  ok(near(fromDock('grue', 4, new Set([T.CUT])), W, L.moltres.x, L.moltres.y), 'Île de la Grue : Sulfura accessible avec Coupe'); }
+{ const s5 = fromDock('givre', 5, new Set([T.CUT, T.WATER])); ok(near(s5, W, L.articuno.x, L.articuno.y), 'Île Givrée : Artikodin accessible avec 5 badges'); }
+// chaque légendaire se tient sur une case libre qu'on peut approcher
+for (const q of legends) {
+  const m = maps[q.map]; ok(m && walkable(m.get(q.x, q.y)), `légendaire ${q.id} sur une case praticable`);
+  const e = [...m.warps.keys()][0].split(',').map(Number);
+  const seen = q.map === 'monde' ? seenW : m.reach(e[0], m.get(e[0], e[1]) === T.CAVEDOOR && m.get(e[0], e[1] - 1) === T.CAVE ? e[1] - 1 : e[1], true, true, true);
+  ok(near(seen, m, q.x, q.y), `légendaire ${q.id} atteignable`);
+  ok(SPECIES[q.sp] && q.lvl > 0, `légendaire ${q.id} valide`);
 }
 // les huit Champions et la Maître existent
 const leaders = Object.values(maps).flatMap((m) => m.npcs.filter((n) => n.leader != null));

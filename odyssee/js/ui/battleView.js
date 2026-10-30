@@ -45,6 +45,11 @@ export class BattleView {
       grad(0, 70, night ? '#182850' : '#88c8f8', night ? '#304078' : '#d8f0ff');
       grad(70, 120, '#3878d0', '#58a0e8'); stripes(72, 120, 'rgba(255,255,255,0.35)', 7);
       grad(120, BH, '#f0dca0', '#e0c880'); stripes(122, BH, 'rgba(160,120,60,0.15)', 6);
+    } else if (kind === 'snow') {
+      grad(0, 74, night ? '#1a2450' : '#a8c8e8', night ? '#3a4a88' : '#eef6ff');
+      x.fillStyle = night ? '#5a6a98' : '#c8d8ec'; x.beginPath(); x.moveTo(0, 74); x.lineTo(W * 0.18, 30); x.lineTo(W * 0.34, 74); x.lineTo(W * 0.5, 40); x.lineTo(W * 0.7, 74); x.lineTo(W * 0.85, 26); x.lineTo(W, 74); x.fill();
+      x.fillStyle = '#ffffff'; for (const [a1, b1] of [[0.18, 30], [0.5, 40], [0.85, 26]]) { x.beginPath(); x.moveTo(W * a1 - 10, b1 + 12); x.lineTo(W * a1, b1); x.lineTo(W * a1 + 10, b1 + 12); x.fill(); }
+      grad(74, BH, '#f4f8fc', '#d0deec'); stripes(76, BH, 'rgba(120,150,190,0.12)', 6);
     } else if (kind === 'volcanic') {
       grad(0, 80, '#70384a', '#e0906a'); x.fillStyle = '#4a3a40'; x.beginPath(); x.moveTo(W * 0.55, 80); x.lineTo(W * 0.72, 22); x.lineTo(W * 0.78, 24); x.lineTo(W * 0.95, 80); x.fill();
       grad(80, BH, '#9a8e88', '#7a706c'); stripes(82, BH, 'rgba(0,0,0,0.08)', 6);
@@ -60,7 +65,7 @@ export class BattleView {
     return c;
   }
   drawPlatform(x, cx, cy, rx, ry, kind) {
-    const cols = kind === 'cave' ? ['#4a3a2c', '#8a7258', '#a08a6c'] : kind === 'indoor' || kind === 'gym' || kind === 'league' ? ['#9098a8', '#d8dce8', '#f2f4f8'] : kind === 'water' ? ['#c0a060', '#f0dca0', '#fbecc0'] : kind === 'volcanic' ? ['#5a5250', '#8a8280', '#a8a09c'] : ['#3c8a3c', '#6cc458', '#90dc78'];
+    const cols = kind === 'cave' ? ['#4a3a2c', '#8a7258', '#a08a6c'] : kind === 'indoor' || kind === 'gym' || kind === 'league' ? ['#9098a8', '#d8dce8', '#f2f4f8'] : kind === 'water' ? ['#c0a060', '#f0dca0', '#fbecc0'] : kind === 'volcanic' ? ['#5a5250', '#8a8280', '#a8a09c'] : kind === 'snow' ? ['#a0b4cc', '#dce8f4', '#ffffff'] : ['#3c8a3c', '#6cc458', '#90dc78'];
     x.fillStyle = cols[0]; x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, 7); x.fill();
     x.fillStyle = cols[1]; x.beginPath(); x.ellipse(cx, cy - 2, rx - 3, ry - 3, 0, 0, 7); x.fill();
     x.fillStyle = cols[2]; x.beginPath(); x.ellipse(cx - rx * 0.15, cy - 4, rx * 0.55, ry * 0.4, 0, 0, 7); x.fill();
