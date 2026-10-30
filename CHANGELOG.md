@@ -1,10 +1,8 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
-## 3.36 — 30 octobre 2026
-- Add files via upload (Gabe)
-
-## 3.35 — 30 octobre 2026
-- Delete assets/graphics/mobilier.png (Gabe)
+## 3.37 — 30 octobre 2026
+- **Odyssée** — le mobilier des maisons, du Centre, du labo et des arènes est redessiné en pixel art, affiché pixel pour pixel.
+- **Odyssée** — deux arbres côte à côte ne se « hachurent » plus : celui de gauche passe proprement devant celui de droite.
 
 ## 3.34 — 30 octobre 2026
 - **Odyssée** — le joueur, la joueuse, Théo, les herbes, les fleurs et les arbres utilisent les dessins retouchés à la main : chaque pixel est affiché tel quel, sans ombre violette ni contour de fond.

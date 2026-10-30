@@ -567,6 +567,14 @@ ITEM_RECT = {'full-heal', 'awakening', 'super-repel', 'ice-heal'}
 ITEM_FLAT = {'repel'}
 
 def do_items():
+    if is_native('objets.png'):
+        # planche en vraie résolution (6 × 6 icônes de 32 × 32) : chaque icône reprise pixel pour pixel
+        done = []
+        for k, img in enumerate(native_cells(load_native('objets.png'), 6, 6)):
+            if img is None: continue
+            key = ITEMS[k // 6][k % 6]
+            save(place(fit_px(img, 32, 32), 32, 32, anchor='center'), 'items', key + '.png'); done.append(key)
+        META['items'] = done; print('objets en vraie résolution :', len(done)); return
     a = load('objets.png'); done = []
     for i, j, cell in grid_cells(a, 6, 6):
         key = ITEMS[j][i]
@@ -692,6 +700,16 @@ def do_nature2():
 def do_sheet(file, names, sizes, folder, meta, dens=1):
     """planche 6 × 4 sur fond uni. dens = 2 : réduction nette (couleur dominante, pas de flou) à deux fois la résolution
     des tuiles, comme les personnages et la nature « version 2 »"""
+    if is_native(file):
+        # planche retouchée à la main en vraie résolution : chaque objet est repris pixel pour pixel (densité 2)
+        done = {}
+        for k, img in enumerate(native_cells(load_native(file), 6, 4)):
+            if img is None: continue
+            key = names[k // 6][k % 6]
+            save(img, folder, key + '.png'); done[key] = [img.width, img.height, 2]
+        META[meta] = done
+        print(file, 'en vraie résolution :', ', '.join(f'{k} {v[0]}×{v[1]}' for k, v in done.items()))
+        return
     a = load(file); done = {}
     for i, j, cell in grid_cells(a, 6, 4):
         key = names[j][i]
@@ -734,6 +752,12 @@ FACADES = {'maison': 'facade_maison.png', 'centre': 'facade_centre.png', 'boutiq
 
 def do_facades():
     for k, fn in FACADES.items():
+        if not os.path.exists(os.path.join(SRC, fn)): continue
+        im = Image.open(os.path.join(SRC, fn))
+        if max(im.size) <= 256:
+            # kit en vraie résolution (4 × 4 tuiles de 32 pixels) : repris tel quel
+            save(im.convert('RGB').resize((128, 128), Image.NEAREST) if im.size != (128, 128) else im.convert('RGB'), 'facades', k + '.png')
+            print('façade (vraie résolution)', k); continue
         a = load(fn); H, W = a.shape[:2]
         out = Image.new('RGB', (64, 64))
         for j in range(4):

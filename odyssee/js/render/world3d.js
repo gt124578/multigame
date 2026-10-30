@@ -58,7 +58,10 @@ function screenSprite(mat) {
         vec2 sPx = floor( ( sAC.xy / sAC.w * 0.5 + 0.5 ) * uRes + 0.5 ) + vec2( sD.x / ${WPX_STR}, sD.y / ${HPX_STR} );
         vec4 mvPosition = viewMatrix * sW;
         vec4 sPC = projectionMatrix * mvPosition;
-        gl_Position = vec4( ( sPx / uRes * 2.0 - 1.0 ) * sPC.w, sPC.z, sPC.w );`);
+        // deux sprites sur la même rangée auraient exactement la même profondeur (pixels qui se battent, « hachurés ») :
+        // celui de gauche passe devant celui de droite (léger décalage selon la colonne, bien plus petit qu'une rangée)
+        float sBias = mod( sA.x, 64.0 ) * 1.0e-5;
+        gl_Position = vec4( ( sPx / uRes * 2.0 - 1.0 ) * sPC.w, sPC.z + sBias * sPC.w, sPC.w );`);
   };
   mat.customProgramCacheKey = () => 'screenSprite';
   return mat;
