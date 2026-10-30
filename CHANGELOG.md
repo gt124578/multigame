@@ -1,5 +1,8 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.35 — 30 octobre 2026
+- Delete assets/graphics/mobilier.png (Gabe)
+
 ## 3.34 — 30 octobre 2026
 - **Odyssée** — le joueur, la joueuse, Théo, les herbes, les fleurs et les arbres utilisent les dessins retouchés à la main : chaque pixel est affiché tel quel, sans ombre violette ni contour de fond.
 
