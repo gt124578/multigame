@@ -1,5 +1,8 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.26 — 30 octobre 2026
+- Delete assets/graphics/Théo.png (Gabe)
+
 ## 3.25 — 30 octobre 2026
 - **Odyssée** — nouveau rendu façon DS : personnages, arbres et objets sont dessinés pixel pour pixel, à taille fixe, sans plus jamais être écrasés ni étirés par la caméra. Les tuiles sont carrées comme sur DS.
   - Les forêts sont rangées un arbre tous les deux pas, comme dans les jeux DS.
