@@ -1,5 +1,8 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.39 — 30 octobre 2026
+- Add files via upload (Gabe)
+
 ## 3.38 — 30 octobre 2026
 - Delete assets/graphics/nature_petits.png (Gabe)
 
