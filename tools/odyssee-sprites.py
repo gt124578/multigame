@@ -28,6 +28,53 @@ def load(name):
             return rgb
     return np.array(im.convert('RGB'))
 
+def is_native(name):
+    """planche retouchée à la main en vraie résolution (un pixel = un pixel), sur fond transparent"""
+    im = Image.open(os.path.join(SRC, name))
+    return max(im.size) < 600 and (im.mode in ('RGBA', 'LA', 'PA') or 'transparency' in im.info)
+
+def clean_alpha(a, body=None):
+    """RGBA nette : les pixels à moitié transparents (ombres violettes, traits de grille, restes de fond) disparaissent.
+    body : zone (au-dessus des pieds) où un pixel assez opaque fait partie du dessin — le détourage a parfois rendu
+    à moitié transparent un vêtement violet, proche du fond magenta d'origine"""
+    keep = a[..., 3] >= 230
+    if body is not None: keep |= body & (a[..., 3] >= 140)
+    a[..., 3] = np.where(keep, 255, 0)
+    # liseré resté teinté par l'ancien fond magenta (vert à zéro, rouge ≈ bleu) au bord du dessin : contour sombre neutre
+    r, g, b = a[..., 0].astype(int), a[..., 1].astype(int), a[..., 2].astype(int)
+    op = a[..., 3] > 0
+    fringe = op & (g <= 8) & (np.minimum(r, b) > 20) & (np.abs(r - b) < 40) & ndimage.binary_dilation(~op)
+    a[fringe, :3] = (38, 30, 42)
+    a[a[..., 3] == 0, :3] = 0
+    return a
+
+def load_native(name):
+    return clean_alpha(np.array(Image.open(os.path.join(SRC, name)).convert('RGBA')))
+
+def native_cells(a, cols, rows, raw=False):
+    """cases d'une planche en vraie résolution : (image RGBA du dessin, rognée) ou None"""
+    H, W = a.shape[:2]; out = []
+    for j in range(rows):
+        for i in range(cols):
+            x0, x1, y0, y1 = round(i * W / cols), round((i + 1) * W / cols), round(j * H / rows), round((j + 1) * H / rows)
+            c = a[y0:y1, x0:x1].copy()
+            if raw:
+                # le corps : du haut du dessin jusqu'au-dessus des pieds (l'ombre au sol, en dessous, est retirée)
+                op = c[..., 3] >= 230; ys = np.nonzero(op.any(1))[0]
+                body = np.zeros(op.shape, bool)
+                if len(ys): body[ys[0]:ys[0] + int((ys[-1] - ys[0]) * 0.88)] = True
+                c = clean_alpha(c, body)
+            fg = c[..., 3] > 0
+            if fg.sum() < 20: out.append(None); continue
+            # traits de grille restés opaques : taches de 1 ou 2 pixels d'épaisseur
+            lab, n = ndimage.label(fg)
+            for k in range(1, n + 1):
+                ys, xs = np.nonzero(lab == k)
+                if min(np.ptp(ys), np.ptp(xs)) <= 1 and max(np.ptp(ys), np.ptp(xs)) > 8: fg[lab == k] = False
+            fg = keep_main(fg, frac=0.02, opening=0); c[~fg, 3] = 0
+            out.append(crop_alpha(Image.fromarray(c)))
+    return out
+
 def save(img, *parts):
     p = os.path.join(OUT, *parts); os.makedirs(os.path.dirname(p), exist_ok=True); img.save(p, optimize=True)
 
@@ -406,9 +453,13 @@ def do_chars():
     rows, report = {}, []
     for r, cid in enumerate(ids):
         fn, _ = CHARS[cid]
-        cells = char_cells(load(fn))
-        grids, p = sheet_grid(cells)
-        imgs = [snap(rgb, fg, grids[k])[0] if fg.sum() > 100 else None for k, (rgb, fg) in enumerate(cells)]
+        if is_native(fn):
+            # planche retouchée à la main en vraie résolution : rien à deviner, on garde chaque pixel
+            imgs = native_cells(np.array(Image.open(os.path.join(SRC, fn)).convert('RGBA')), 3, 4, raw=True); p = 1.0
+        else:
+            cells = char_cells(load(fn))
+            grids, p = sheet_grid(cells)
+            imgs = [snap(rgb, fg, grids[k])[0] if fg.sum() > 100 else None for k, (rgb, fg) in enumerate(cells)]
         # taille : on garde la résolution du dessin, sauf s'il dépasse la case
         hmax = max(im.height for im in imgs if im)
         lim = 50 if cid in CHAR_SMALL else 60
@@ -560,7 +611,18 @@ NATURE2_FIT = {'tree': (72, 96), 'tree2': (72, 96), 'tree3': (72, 96), 'pine': (
                'darktuft': ('wh', 32, 36), 'snowtuft': ('wh', 32, 36), 'flowers_r': (30, 26), 'flowers_y': (30, 26), 'flowers_w': (30, 26),
                'fence': ('w', 32), 'pot': (28, 32), 'statue': (32, 64), 'gymstatue': (32, 64), 'itemball': (20, 20)}
 
-def sheet_objects(a, cols, rows):
+def fit_nature(img, fit):
+    """taille du jeu. Herbes hautes et barrières sont des motifs qui se répètent : on en découpe une case
+    (32 pixels de large, en bas et au centre) au lieu de les réduire, pour garder chaque pixel dessiné"""
+    if fit[0] in ('wh', 'w'):
+        w = fit[1]; h = fit[2] if fit[0] == 'wh' else img.height
+        if img.width >= w and img.height >= h:
+            x0 = (img.width - w) // 2
+            return img.crop((x0, img.height - h, x0 + w, img.height))
+        return crisp_resize(img, w, h) if fit[0] == 'wh' else fit_px(img, 32, 64, exactw=w)
+    return fit_px(img, *fit)
+
+def sheet_objects(a, cols, rows, dil=2, minarea=150):
     """objets d'une planche sur fond magenta (cases plus ou moins régulières, traits de grille) : un objet par case,
     trouvé comme une tache de couleur, rangé dans la case où tombe son centre"""
     H, W = a.shape[:2]
@@ -577,15 +639,18 @@ def sheet_objects(a, cols, rows):
     lines = ndimage.binary_dilation(hl | vl, iterations=2)
     fg = ~bg & ~lines
     fg = ndimage.binary_opening(fg, iterations=1)
-    lab, n = ndimage.label(ndimage.binary_dilation(fg, iterations=2))
-    found = {}
+    lab, n = ndimage.label(ndimage.binary_dilation(fg, iterations=dil) if dil else fg)
+    # chaque tache rejoint la case où tombe son centre (un objet en plusieurs morceaux, comme des fleurs, est réuni)
+    masks = {}
     for k in range(1, n + 1):
         m = (lab == k) & fg
-        if m.sum() < 150: continue
+        if m.sum() < minarea: continue
         ys, xs = np.nonzero(m); cy, cx = ys.mean(), xs.mean()
         cell = (min(cols - 1, int(cx * cols / W)), min(rows - 1, int(cy * rows / H)))
-        if cell in found and found[cell][0].sum() > m.sum(): continue
-        found[cell] = (m, (ys.min(), ys.max() + 1, xs.min(), xs.max() + 1))
+        masks[cell] = masks[cell] | m if cell in masks else m
+    found = {}
+    for cell, m in masks.items():
+        ys, xs = np.nonzero(m); found[cell] = (m, (ys.min(), ys.max() + 1, xs.min(), xs.max() + 1))
     return found
 
 def do_nature2():
@@ -594,8 +659,19 @@ def do_nature2():
     for files, names in ((('nature_arbres.png', 'nature_abre.png'), NATURE2_TREES), (('nature_petits.png',), NATURE2_SMALL)):
         file = next((f for f in files if os.path.exists(os.path.join(SRC, f))), None)
         if not file: continue
-        a = load(file)
-        objs = sheet_objects(a, len(names[0]), len(names))
+        native = is_native(file)
+        if native:
+            A = load_native(file); a = A[..., :3].copy(); a[A[..., 3] == 0] = (255, 0, 255)
+        else: a = load(file)
+        objs = sheet_objects(a, len(names[0]), len(names), *((0, 6) if native else ()))
+        if native:
+            # vraie résolution : chaque objet est repris pixel pour pixel
+            for (i, j), (m, (y0, y1, x0, x1)) in sorted(objs.items()):
+                key = names[j][i]; c = A[y0:y1, x0:x1].copy(); c[~m[y0:y1, x0:x1], 3] = 0
+                img = fit_nature(crop_alpha(Image.fromarray(c)), NATURE2_FIT[key])
+                save(img, 'nature', key + '.png'); done[key] = [img.width, img.height, 2]
+                print('nature (vraie résolution)', key, img.size)
+            continue
         crops = {}
         for (i, j), (m, (y0, y1, x0, x1)) in objs.items():
             pad = 6; y0, x0 = max(0, y0 - pad), max(0, x0 - pad); y1, x1 = min(a.shape[0], y1 + pad), min(a.shape[1], x1 + pad)
@@ -606,10 +682,7 @@ def do_nature2():
         for (i, j), (rgb, fg) in sorted(crops.items()):
             key = names[j][i]
             img, p = snap(rgb, fg, grid_phase(rgb, fg, pS) if pS else None)
-            fit = NATURE2_FIT[key]
-            if fit[0] == 'wh': img = crisp_resize(img, fit[1], fit[2])   # herbes hautes : une case pleine, les rangées se chevauchent
-            elif fit[0] == 'w': img = fit_px(img, 32, 64, exactw=fit[1])
-            else: img = fit_px(img, *fit)
+            img = fit_nature(img, NATURE2_FIT[key])
             save(img, 'nature', key + '.png')
             done[key] = [img.width, img.height, 2]
             print('nature (v2)', key, 'pas', round(p, 2), img.size)
