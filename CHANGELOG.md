@@ -1,5 +1,8 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.31 — 30 octobre 2026
+- Delete assets/graphics/joueur_f.png (Gabe)
+
 ## 3.30 — 30 octobre 2026
 - **Odyssée** — nouveaux dessins : le joueur, la joueuse, Théo, les arbres, les rochers, les herbes et les fleurs sont redessinés en pixel art façon DS, vus de 3/4.
   - Les personnages et le décor sont affichés pixel pour pixel, sans flou, à la bonne taille par rapport aux maisons.
