@@ -1,5 +1,8 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.36 — 30 octobre 2026
+- Add files via upload (Gabe)
+
 ## 3.35 — 30 octobre 2026
 - Delete assets/graphics/mobilier.png (Gabe)
 
