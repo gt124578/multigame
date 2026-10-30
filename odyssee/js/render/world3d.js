@@ -191,7 +191,7 @@ export class WorldView {
     switch (tt) {
       case T.GRASS: case T.FENCE: case T.ROCK: case T.BUSH: case T.CUT: return { c: A[grassKey] };
       case T.SMASH: return { c: m.outdoor ? A[grassKey] : A['cave' + (v < 0.5 ? 0 : 1)] };
-      case T.TALL: return { c: A['tall' + (v < 0.5 ? 0 : 1)] };
+      case T.TALL: return { c: theme === 'snow' ? A.snow1 : A['tall' + (v < 0.5 ? 0 : 1)] };
       case T.DARKTALL: return { c: A['darktall' + (v < 0.5 ? 0 : 1)] };
       case T.TREE: case T.PINE: return { c: theme === 'volcanic' ? A.ash1 : theme === 'snow' ? A.snow1 : A['forest' + (v < 0.5 ? 0 : 1)] };
       case T.PATH: return { c: A['path' + edge(isPathish)] };
@@ -243,8 +243,9 @@ export class WorldView {
           flat(Sh, cx - 0.75, cz - 0.3, cx + 0.75, cz + 0.3, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
         }
       } else if (t === T.TALL || t === T.DARKTALL) {
-        const r = S[t === T.DARKTALL ? 'darktuft' : theme === 'snow' && S.snowtuft ? 'snowtuft' : v < 0.5 ? 'tuft' : 'tuft1'];
-        billboard(P, x + 0.5, y + 0.93, SW(r), SH(r), r, 0, v > 0.5);
+        // herbe haute en tapis : la même case partout, jamais retournée, pour que les cases voisines se raccordent
+        const r = S[t === T.DARKTALL ? 'darktuft' : theme === 'snow' && S.snowtuft ? 'snowtuft' : 'tuft'];
+        billboard(P, x + 0.5, y + 0.93, SW(r), SH(r), r, 0, false);
       } else if (t === T.FENCE) { const r = S.fence; billboard(P, x + 0.5, y + 0.55, SW(r), SH(r), r); }
       else if (t === T.ROCK) { const r = S.rock; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
       else if (t === T.BUSH) { const r = S.bush; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r); }

@@ -630,6 +630,36 @@ def fit_nature(img, fit):
         return crisp_resize(img, w, h) if fit[0] == 'wh' else fit_px(img, 32, 64, exactw=w)
     return fit_px(img, *fit)
 
+GRASS_KEYS = ('tuft', 'darktuft', 'snowtuft')
+
+def grass_tile(c, W=32, H=40):
+    """herbe haute dessinée en tapis (une case pleine de brins, pointes en haut) : on garde les 40 lignes du haut
+    (les pointes + une case) sur 32 pixels de large. Le motif se répète tous les p pixels (≈ 15) : on en prend un
+    nombre entier de périodes, puis on double (ou retire) les colonnes les plus discrètes pour tomber sur 32,
+    si bien que deux cases voisines se raccordent sans couture"""
+    a = c[..., 3] > 0
+    if not a.any(): return None
+    ys, xs = np.nonzero(a); c = c[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    g = c[c.shape[0] // 3:, :, :3].astype(float).mean(2)
+    p = min(range(8, c.shape[1] // 2), key=lambda p: np.abs(g[:, p:] - g[:, :-p]).mean())
+    n = max(1, round(W / p)); base = n * p; c = c[:H]
+    x0 = (c.shape[1] - base) // 2; win = c[:, x0:x0 + base].copy()
+    # restes violets de l'ancien fond entre les pointes : transparents en haut, sinon la couleur du pixel du dessous
+    r, gg, b = (win[..., k].astype(int) for k in range(3))
+    vi = (win[..., 3] > 0) & (r > gg + 25) & (b > gg + 25)
+    for y, x in sorted(zip(*np.nonzero(vi)), reverse=True):
+        if y < 10 or y + 1 >= win.shape[0]: win[y, x] = 0
+        else: win[y, x] = win[y + 1, x]
+    d = np.abs(win[:, 1:, :3].astype(int) - win[:, :-1, :3].astype(int)).sum((0, 2))
+    extra = W - base; cols = list(range(base)); pick = []
+    for k in sorted(range(base - 1), key=lambda k: d[k]):
+        if len(pick) == abs(extra): break
+        if all(abs(k - q) >= p // 2 for q in pick): pick.append(k)
+    for k in sorted(pick, reverse=True):
+        if extra > 0: cols.insert(k + 1, k)
+        else: cols.pop(k)
+    return Image.fromarray(np.ascontiguousarray(win[:, cols]))
+
 def sheet_objects(a, cols, rows, dil=2, minarea=150):
     """objets d'une planche sur fond magenta (cases plus ou moins régulières, traits de grille) : un objet par case,
     trouvé comme une tache de couleur, rangé dans la case où tombe son centre"""
@@ -674,8 +704,19 @@ def do_nature2():
         objs = sheet_objects(a, len(names[0]), len(names), *((0, 6) if native else ()))
         if native:
             # vraie résolution : chaque objet est repris pixel pour pixel
+            H, W = A.shape[:2]; R, C = len(names), len(names[0])
+            for j, row in enumerate(names):
+                for i, key in enumerate(row):
+                    if key not in GRASS_KEYS: continue
+                    # tapis d'herbe : la case entière (trop sombre ou trop dense pour le détourage par taches)
+                    img = grass_tile(A[round(j * H / R):round((j + 1) * H / R), round(i * W / C):round((i + 1) * W / C)])
+                    if img is None: continue
+                    save(img, 'nature', key + '.png'); done[key] = [img.width, img.height, 2]
+                    print('herbe (tapis, vraie résolution)', key, img.size)
             for (i, j), (m, (y0, y1, x0, x1)) in sorted(objs.items()):
-                key = names[j][i]; c = A[y0:y1, x0:x1].copy(); c[~m[y0:y1, x0:x1], 3] = 0
+                key = names[j][i]
+                if key in GRASS_KEYS: continue
+                c = A[y0:y1, x0:x1].copy(); c[~m[y0:y1, x0:x1], 3] = 0
                 img = fit_nature(crop_alpha(Image.fromarray(c)), NATURE2_FIT[key])
                 save(img, 'nature', key + '.png'); done[key] = [img.width, img.height, 2]
                 print('nature (vraie résolution)', key, img.size)
