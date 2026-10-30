@@ -694,6 +694,13 @@ def do_nature2():
             save(img, 'nature', key + '.png')
             done[key] = [img.width, img.height, 2]
             print('nature (v2)', key, 'pas', round(p, 2), img.size)
+    # cases d'herbe haute retouchées à part (32 × 40 : une case + les pointes qui dépassent au-dessus)
+    for file, key in (('herbe_haute.png', 'tuft'), ('herbe_sombre.png', 'darktuft'), ('herbe_neige.png', 'snowtuft')):
+        if os.path.exists(os.path.join(SRC, file)):
+            img = Image.fromarray(load_native(file)) if is_native(file) else None
+            if img is None: continue
+            save(img, 'nature', key + '.png'); done[key] = [img.width, img.height, 2]
+            print('herbe (vraie résolution)', key, img.size)
     META['nature'] = done
     META['natureV2'] = True
 
