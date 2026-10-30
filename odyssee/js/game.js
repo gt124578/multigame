@@ -651,6 +651,33 @@ export class Game {
     }
     if (g === 7) { st.flags.drakos = true; this.give('town-map'); }
     this.refreshGates();
+    await this.profCall(g);
+  }
+  /** le second rival : l'autre enfant de l'histoire (celui que le joueur n'a pas choisi d'incarner) */
+  rivalB() {
+    const f = this.state.gender === 'f';
+    return { name: f ? 'Ethan' : 'Lyra', sprite: f ? 'player_m' : 'player_f', bs: f ? 'topdresseur' : 'topdresseuse', il: f ? 'il' : 'elle', le: f ? 'le' : 'la', fils: f ? 'petit-fils' : 'petite-fille', e: f ? '' : 'e' };
+  }
+  /** la troisième capsule du labo : celle que ni le joueur ni Théo n'ont prise (et ses évolutions) */
+  thirdLine() {
+    const st = this.state, mine = st.flags.starter || 1001, theo = (RIVAL_TEAMS[mine] || RIVAL_TEAMS[1001])[0];
+    const s = STARTERS.find((x) => x !== mine && x !== theo) || 1007;
+    return [s, s + 1, s + 2];
+  }
+  /** appel du Prof. Saule sur le Pokématos, après certains badges */
+  async profCall(g) {
+    const st = this.state, B = this.rivalB(), sp = 'Prof. Saule';
+    const calls = {
+      1: ['Allô, ' + st.name + ' ? Deux badges, déjà ! Bravo.', 'Écoute : le capitaine de l\'Embarcadère de l\'Aube, à l\'est de la route 1, emmène les dresseurs aguerris vers les îles de l\'Est.', 'On dit qu\'Électhor, l\'oiseau de foudre, dérègle les orages de l\'Île Orageuse. Ça mérite un coup d\'œil !'],
+      2: ['Trois badges ! Le capitaine peut maintenant t\'emmener à l\'Île de la Grue.', 'Là-bas se dresse la Tour de la Grue. La légende dit que Ho-Oh, l\'oiseau arc-en-ciel, s\'y posait autrefois.', 'La doyenne de Hautegrue connaît cette histoire mieux que personne.'],
+      3: ['Quatre badges... Tu vas bientôt passer à Mirage.', 'Au fait, ' + st.name + ', je ne t\'en ai jamais parlé : j\'ai un' + (B.e ? 'e ' : ' ') + B.fils + ', ' + B.name + '.', B.name + ' a grandi à Port-Granit, sur les îles. Le lendemain de ton départ, ' + B.il + ' est passé' + B.e + ' au labo et a pris la troisième capsule.', 'Depuis, ' + B.il + ' ne répond plus à mes appels. On dit qu\'' + B.il + ' s\'est engagé' + B.e + ' chez les Gardes d\'Écaille de Drakos...', 'Si tu ' + B.le + ' croises, dis-lui que son grand-père pense à ' + (B.e ? 'elle' : 'lui') + '.'],
+      4: ['Cinq badges ! Avec Surf, tu peux rejoindre l\'archipel des trois frères, au sud du Cap Mirage.', 'Et le capitaine t\'emmènera aussi à l\'Île Givrée, tout au nord. Artikodin y vivrait... et plus profond encore, Lugia.'],
+      7: ['Tu as battu Drakos ?! Toute la région en parle.', st.flags.rivalB3 ? B.name + ' m\'a appelé. Pour la première fois depuis des mois. ' + (B.e ? 'Elle' : 'Il') + ' a quitté les Gardes d\'Écaille.' : 'J\'espère que mon' + (B.e ? 'e ' : ' ') + B.fils + ' va bien, là-bas...', 'Il ne te reste plus que la Ligue. Mais avant, va donc voir le Cap des Étoiles, au nord de Fort-Écaille.'],
+    };
+    const c = calls[g]; if (!c) return;
+    this.sound.sfx('pc'); await wait(300);
+    await this.ui.say('Bip bip... Bip bip... Le Prof. Saule appelle !', { auto: 900 });
+    await this.ui.say(c, { speaker: sp });
   }
   refreshGates() {
     // les gardes s'écartent quand on a assez de badges
@@ -808,7 +835,14 @@ export class Game {
         return;
       }
       if (!st.flags.starter) { await ui.say('Les trois capsules sont sur la table. Approche-toi et choisis !', { speaker: 'Prof. Saule' }); return; }
-      await ui.say(['Chaque créature que tu rencontreras remplira ton Pokédex.', 'Les cinq Champions du continent t\'attendent, puis les trois frères de l\'archipel.', 'Et au bout du chemin : la Ligue Céleste !'], { speaker: 'Prof. Saule' });
+      const LEG = (this.world.legends || []).map((L) => L.id), seen = LEG.filter((k) => st.flags['L:' + k]).length, caught = LEG.filter((k) => st.flags['L:' + k] === 'caught').length;
+      const B = this.rivalB(), lines = [];
+      if (st.flags.rivalB3) lines.push(`${B.name} m'a raconté votre combat à Fort-Écaille. Merci, ${st.name}. Tu m'as rendu mon${B.e ? 'e' : ''} ${B.fils}.`);
+      else if (st.flags.rivalB1) lines.push(`Tu as croisé ${B.name} ? ${B.il === 'il' ? 'Il' : 'Elle'} a toujours eu la tête dure... comme sa grand-mère.`);
+      if (seen) lines.push(`Tu as déjà rencontré ${seen} créature${seen > 1 ? 's' : ''} légendaire${seen > 1 ? 's' : ''}${caught ? `, et tu en as capturé ${caught}` : ''} !`, caught >= 10 ? 'Presque toutes les légendes d\'Odyssée sont dans ton équipe ou ton PC. Odyssor lui-même doit t\'observer.' : 'Les anciens disent que les légendaires ne choisissent que les dresseurs au cœur sincère.');
+      else lines.push('Chaque créature que tu rencontreras remplira ton Pokédex.', 'On raconte que des créatures légendaires dorment sur les îles de l\'Est. Le capitaine de l\'Embarcadère pourra t\'y emmener.');
+      lines.push(st.badges[7] ? 'Il ne te reste que la Ligue Céleste. Je suis fier de toi.' : 'Les cinq Champions du continent t\'attendent, puis les trois frères de l\'archipel. Et au bout du chemin : la Ligue Céleste !');
+      await ui.say(lines, { speaker: 'Prof. Saule' });
     } else if (name === 'rivalLab') {
       if (st.flags.starter) { await ui.say('Hé, ne traîne pas !', { speaker: RIVAL_NAME }); return; }
       await ui.say(st.flags.metProf ? ['Vas-y, choisis ! Je prendrai celle qui bat la tienne, évidemment.'] : ['Yo ! Va parler au prof d\'abord, il t\'attend depuis ce matin.'], { speaker: RIVAL_NAME });
@@ -924,26 +958,27 @@ export class Game {
       await this.playerWalk('down', 1);
       this.busy = false; return true;
     }
-    const rivalFight = async (flag, team, lvlText, lines, after) => {
+    const rivalFight = async (flag, team, lvlText, lines, after, who = null) => {
       if (st.flags[flag] || !st.flags.rival1 || !st.party.some((m) => m.hp > 0)) return false;
+      const W = who || { name: RIVAL_NAME, sprite: 'theo', bs: 'theo' };
       this.busy = true; st.flags[flag] = true;
       const R = RIVAL_TEAMS[st.flags.rivalSp] || RIVAL_TEAMS[1001];
       // le rival arrive par le haut (ou par le côté si la place manque), jamais à travers un mur
       let dir = 'up', n = this.spawnAhead('up');
       for (const d of ['left', 'right', 'down']) { if (n >= 2) break; const k = this.spawnAhead(d); if (k > n) { n = k; dir = d; } }
       const [dx, dy] = DIRS[dir];
-      const rival = { def: { id: 'rival-' + flag }, id: 'rival-' + flag, x: p.x + dx * Math.max(1, n), y: p.y + dy * Math.max(1, n), dir: OPP[dir], sprite: 'theo', home: [0, 0], timer: 99, move: null, step: 0 };
+      const rival = { def: { id: 'rival-' + flag }, id: 'rival-' + flag, x: p.x + dx * Math.max(1, n), y: p.y + dy * Math.max(1, n), dir: OPP[dir], sprite: W.sprite, home: [0, 0], timer: 99, move: null, step: 0 };
       this.npcs.push(rival);
       this.musicLock = true; this.sound.play('rival');
       p.dir = dir; rival.bang = true; this.sound.sfx('bang'); await wait(500); rival.bang = false;
       if (n > 1) await this.npcWalk(rival, OPP[dir], n - 1);
       rival.dir = OPP[dir];
-      await ui.say(lines, { speaker: RIVAL_NAME });
-      const party = team(R).map(([s, l]) => createMon(s, l, { iv: Array(6).fill(20), shiny: false }));
-      const res = await this.runBattle({ trainer: { cls: 'Rival', name: RIVAL_NAME, prize: 40, bs: 'theo', ai: 'smart', items: { 'super-potion': 1 }, lose: lvlText }, party, music: 'rival', rival: true });
+      await ui.say(lines, { speaker: W.name });
+      const party = team(R).map(([s, l]) => createMon(s, l, { iv: Array(6).fill(22), shiny: false }));
+      const res = await this.runBattle({ trainer: { cls: W.cls || 'Rival', name: W.name, prize: 40, bs: W.bs, ai: 'smart', items: { [st.badges[4] ? 'hyper-potion' : 'super-potion']: 1 }, lose: lvlText }, party, music: 'rival', rival: true });
       this.musicLock = false;
       if (res !== 'lose') {
-        await ui.say(after, { speaker: RIVAL_NAME });
+        await ui.say(after, { speaker: W.name });
         // il repart par où il est venu
         if (n > 1) await this.npcWalk(rival, dir, n - 1);
       }
@@ -954,6 +989,21 @@ export class Game {
     if (name === 'rival2') return rivalFight('rival2', (R) => [[1010, 11], [1013, 11], [R[0], 13]], 'Grr... Tu as eu de la chance !', [`${st.name} ! Tu as déjà ton premier badge ?`, 'Moi aussi, évidemment. Voyons qui a le plus progressé !'], ['Je vais m\'entraîner dans le Bois Murmure.', 'La prochaine fois, je ne perdrai pas !']);
     if (name === 'rival3') return rivalFight('rival3', (R) => [[1011, 27], [1034, 26], [1021, 26], [R[1], 29]], 'Encore ?! Tes créatures sont devenues sacrément fortes...', ['Tiens, tiens... Le grand voyageur !', 'Floralia, c\'est ma ville porte-bonheur. Prépare-toi !'], ['Flora t\'attend à l\'Arène. Moi, je file vers l\'est.', 'On se retrouvera tout en haut, à la Ligue !']);
     if (name === 'rival4') return rivalFight('rival4', (R) => [[1012, 36], [1035, 35], [1022, 36], [1019, 36], [R[2], 39]], 'Toi et tes créatures, vous êtes vraiment synchronisés...', [`${st.name} ! Tu vas sur les îles, toi aussi ?`, 'On dit que Drakos a battu tous ceux qui ont osé le défier, sauf Célestine.', 'Avant que tu y ailles, montre-moi si tu es prêt !'], ['Bon. Tu es prêt. Fonce !', 'Moi, je vais m\'entraîner sur la route 10. On se revoit avant la Ligue.']);
+    // second rival : l'autre enfant, petit-fils / petite-fille du professeur, recrue des Gardes d'Écaille
+    const B = this.rivalB(), L3 = this.thirdLine(), bd = (k) => st.badges[k];
+    const asB = { name: B.name, sprite: B.sprite, bs: B.bs, cls: 'Garde d\'Écaille' };
+    if (name === 'rivalB1' && bd(3)) return rivalFight('rivalB1', () => [[1043, 33], [1015, 33], [L3[1], 36]], 'Pas mal... pour quelqu\'un du continent.',
+      [`Alors c'est toi, ${st.name}. Le prodige de Bourg-Aube.`, `Moi, c'est ${B.name}. J'ai pris la dernière capsule de mon grand-père, le lendemain de ton départ.`, 'J\'ai grandi sur les îles. Là-bas, la Ligue ne vient jamais. Personne ne nous aide... sauf Drakos.', 'Je suis Garde d\'Écaille, maintenant. Et je viens voir de quoi tu es capable avant que tu ne mettes les pieds chez nous.'],
+      ['Tu viendras sur les îles, je le sais. Drakos t\'attend.', 'Et moi aussi.'], { ...asB, cls: 'Rival' });
+    if (name === 'rivalB2' && bd(5)) return rivalFight('rivalB2', () => [[1044, 42], [1015, 41], [1039, 41], [L3[2], 45]], 'Basalte avait raison... tu ne lâches rien.',
+      [`${st.name}. Tu as battu Basalte.`, 'C\'est lui qui m\'a appris à me battre, tu sais.', 'Les pêcheurs disent que Drakos leur prend trop. Je... je ne veux pas y croire.', 'Montre-moi que tu mérites d\'aller plus loin !'],
+      ['Va voir Pyros, à Cendrelune.', `Moi... je vais parler aux pêcheurs. Juste pour savoir.`], { ...asB, cls: 'Rival' });
+    if (name === 'rivalB3' && bd(6) && !bd(7)) return rivalFight('rivalB3', () => [[1044, 48], [1016, 48], [1040, 49], [148, 48], [L3[2], 51]], 'C\'est fini. Je ne suis plus sûr' + B.e + ' de rien.',
+      [`Stop, ${st.name}. Je suis le dernier rempart avant la Tour de Drakos.`, 'Les pêcheurs m\'ont tout raconté. Les ports fermés, les pêches confisquées...', 'Mais Drakos nous a protégés quand personne d\'autre ne le faisait.', 'Alors je vais me battre. Une dernière fois. Pour savoir lequel de nous deux a raison !'],
+      ['Vas-y. Montre-lui ce que ça fait de perdre... comme moi.', 'Je quitte les Gardes. Peut-être qu\'après toi, Drakos écoutera enfin les îles.'], asB);
+    if (name === 'rivalB4' && bd(7)) return rivalFight('rivalB4', () => [[1044, 54], [1016, 54], [1040, 54], [149, 55], [1046, 54], [L3[2], 57]], 'Merci. J\'avais besoin de ce combat.',
+      [`${st.name} ! Je savais que tu viendrais ici.`, 'Drakos m\'a parlé, hier soir. Il dit qu\'Odyssor passe au Cap quand quelqu\'un a eu le courage de changer les choses.', 'J\'aimerais le voir avec toi. Mais d\'abord... un vrai combat. Sans uniforme, sans camp. Juste nous deux !'],
+      ['Mon grand-père a raison : on apprend plus en perdant qu\'en gagnant.', 'Avance jusqu\'au bord de la falaise. Si Odyssor vient, c\'est pour toi.'], { ...asB, cls: 'Rival' });
     if (name === 'rival5') return rivalFight('rival5', (R) => [[1012, 50], [1035, 49], [1022, 50], [1040, 50], [1051, 51], [R[2], 54]], 'Incroyable... Tu mérites d\'aller jusqu\'au bout.', [`${st.name}... Je savais que tu viendrais.`, 'Huit badges, dont celui de Drakos. Tout le monde ne parle que de toi.', 'Mais avant la Ligue, il y a moi. Donne tout ce que tu as !'], ['Va. La Maître de la Ligue t\'attend.', 'Et bats-la, sinon c\'est moi qui m\'en chargerai !']);
     return false;
   }
@@ -966,6 +1016,7 @@ export class Game {
     try {
       this.musicLock = true; this.sound.play('mystic');
       await ui.say(['La mer se met à scintiller...', 'Une immense silhouette constellée d\'étoiles glisse entre les vagues.', 'C\'est Odyssor, la baleine céleste !']);
+      if (st.flags.rivalB4) await ui.say(['... Il est magnifique.', 'Les anciens disent qu\'Odyssor a guidé les premiers marins jusqu\'aux îles, avant même la Ligue.', 'Vas-y. C\'est toi qu\'il est venu voir.'], { speaker: this.rivalB().name });
       await ui.flash(4, '#cfe4ff', 90);
       const res = await this.wildBattle([[1052, 50, 50, 1]], { fixed: true, music: 'champion' });
       if (res === 'caught') { st.flags.odyssor = 'caught'; await ui.say(['Odyssor a rejoint ton équipe.', 'Les marins d\'Odyssée raconteront longtemps cette nuit-là.']); }
@@ -982,7 +1033,10 @@ export class Game {
     const st = this.state, ui = this.ui;
     st.flags.champion = true;
     this.sound.play('victory');
-    await ui.say(['Félicitations !', `${st.name}, tu es le nouveau Maître de la Ligue Céleste !`, 'Drakos m\'a fait passer un message, tu sais. « Le vieux Drakos attend sa revanche. »', 'Je crois que les îles et la Ligue vont enfin pouvoir se reparler. Grâce à toi.', 'Ton équipe et toi entrez au Panthéon des dresseurs.'], { speaker: 'Célestine' });
+    const B = this.rivalB();
+    await ui.say(['Félicitations !', `${st.name}, tu es le nouveau Maître de la Ligue Céleste !`, 'Drakos m\'a fait passer un message, tu sais. « Le vieux Drakos attend sa revanche. »', st.flags.rivalB3 ? `Et ${B.name} m'a écrit aussi. ${B.il === 'il' ? 'Il' : 'Elle'} veut ouvrir une arène à Port-Granit, ouverte à tous.` : 'Drakos a rouvert les ports de l\'archipel.', 'Grâce à toi, les îles et le continent se reparlent.', 'Ton équipe et toi entrez au Panthéon des dresseurs.'], { speaker: 'Célestine' });
+    await ui.say([`Bravo, ${st.name}. Tu as tenu ta promesse.`, 'Mais la prochaine fois, c\'est moi qui serai Maître !'], { speaker: RIVAL_NAME });
+    if (st.flags.rivalB4) await ui.say(['Félicitations. Je suis venu' + B.e + ' avec mon grand-père pour voir ça.', 'On se reverra sur les îles. Elles t\'attendront toujours.'], { speaker: B.name });
     const s = el('div', 'screen hof-scr'); s.innerHTML = `<div class="scr-title">PANTHÉON</div><div class="hof">${st.party.map((m) => `<div class="hof-m box"><img src="${ASSETS.front(m.sp, m.shiny)}" alt=""><div>${esc(monName(m))}</div><div>N.${m.lvl}</div></div>`).join('')}</div><div class="box hof-txt">${esc(st.name)} — Maître de la Ligue · ${st.dex.caught.length} créatures capturées<br>Merci d'avoir joué à ce prototype d'Odyssée !</div>`;
     ui.root.appendChild(s);
     await new Promise((res) => { const pop = this.input.push((k) => { if (k === 'a' || k === 'b') { pop(); res(); } }); });

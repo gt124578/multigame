@@ -327,7 +327,7 @@ export function buildWorld() {
       ['sign', 18, 12, 'MIRAGE\nLa ville où l\'esprit voit plus loin.'], ['sign', 11, 17, 'ARÈNE DE MIRAGE\nChampionne : Sibylle\nLe regard qui perce le voile.']],
     buildings: [
       { kind: 'center', x: 3, y: 6 }, { kind: 'mart', x: 9, y: 6 },
-      { kind: 'tower', x: 20, y: 6, roof: 'purple', name: 'Tour Mirage', npcs: [{ x: 5, y: 4, sprite: 'medium', text: ['Les attaques Psy sont puissantes... mais le type Ténèbres ne les craint pas.', 'Et les Insectes ne sont pas si fragiles face à elles.'] }] },
+      { kind: 'tower', x: 20, y: 6, roof: 'purple', name: 'Tour Mirage', npcs: [{ x: 5, y: 4, sprite: 'medium', text: ['Les attaques Psy sont puissantes... mais le type Ténèbres ne les craint pas.', 'Et les Insectes ne sont pas si fragiles face à elles.'] }, { x: 8, y: 5, sprite: 'vieil_homme', text: ['Les murs de cette tour racontent les légendes d\'Odyssée.', 'Trois oiseaux gardent les îles de l\'Est : la foudre, le feu et la glace.', 'Deux gardiens règnent sur le ciel et la mer : Ho-Oh, l\'arc-en-ciel, et Lugia, l\'argent des profondeurs.', 'Et au-dessus d\'eux, Odyssor, la baleine des étoiles, qui a guidé les premiers marins jusqu\'ici.'] }] },
       { kind: 'gym', x: 3, y: 13, roof: 'purple' },
       { kind: 'house', x: 19, y: 15, roof: 'purple', npcs: [{ x: 4, y: 4, sprite: 'medium', text: ['Je savais que tu viendrais. Ne me demande pas comment.'] }] },
       { kind: 'house', x: 24, y: 15, roof: 'teal', npcs: [{ x: 2, y: 4, sprite: 'pecheur', text: ['Au sud, la route 7 descend jusqu\'au Cap Mirage.', 'De là, on aperçoit les îles de l\'archipel.', 'Mais sans Surf, impossible de traverser.'] }] },
@@ -337,6 +337,7 @@ export function buildWorld() {
     ],
   };
   buildTown(W, maps, G);
+  W.zone(G.x, G.y + 9, G.x + 3, G.y + 12, { name: 'Mirage', music: 'mystic', town: 'mirage', trigger: 'rivalB1' });
 
   /* ---------- K · Port-Granit, Île de Granit (Basalte, Roche) ---------- */
   const K = towns.K = {
@@ -356,6 +357,7 @@ export function buildWorld() {
     ],
   };
   buildTown(W, maps, K);
+  W.zone(K.x + 9, K.y, K.x + 14, K.y + 3, { name: 'Port-Granit', music: 'port', town: 'granit', trigger: 'rivalB2' });
   // ponton de Port-Granit, face au Cap Mirage
   W.rect(314, 196, 317, 198, T.SAND);
 
@@ -398,6 +400,7 @@ export function buildWorld() {
     ],
   };
   buildTown(W, maps, L);
+  { const [gx, gy] = L.gymDoor; W.zone(gx - 3, gy + 1, gx + 3, gy + 4, { name: 'Fort-Écaille', music: 'mystic', town: 'ecaille', trigger: 'rivalB3' }); }
   gymGuard(W, L, 7, ['Halte ! Drakos ne reçoit que ceux qui ont vaincu ses deux frères.', 'Il te faut le Badge Granit et le Badge Braise.']);
 
   /* ---------- I · Cimelune (porte de la Route Victoire) ---------- */
@@ -409,7 +412,7 @@ export function buildWorld() {
     buildings: [
       { kind: 'center', x: 3, y: 5 }, { kind: 'mart', x: 14, y: 5 },
       { kind: 'house', x: 19, y: 6, roof: 'purple', npcs: [{ x: 4, y: 4, sprite: 'scientifique', text: ['Les dragons ne craignent presque rien...', 'sauf la Glace et les autres dragons.'] }] },
-      { kind: 'bighouse', x: 13, y: 11, roof: 'purple', name: 'Musée des Dragons', npcs: [{ x: 5, y: 4, sprite: 'vieil_homme', text: ['Drakos a grandi en écoutant les histoires de ce musée.', 'Il rêvait de devenir Maître. Célestine l\'a battu en finale.', 'Depuis, il règne sur l\'archipel, loin de la Ligue.'] }] },
+      { kind: 'bighouse', x: 13, y: 11, roof: 'purple', name: 'Musée des Dragons', npcs: [{ x: 5, y: 4, sprite: 'vieil_homme', text: ['Drakos a grandi en écoutant les histoires de ce musée.', 'Il rêvait de devenir Maître. Célestine l\'a battu en finale.', 'Depuis, il règne sur l\'archipel, loin de la Ligue.'] }, { x: 8, y: 5, sprite: 'scientifique', text: ['Regarde cette fresque : une baleine immense nageant entre les étoiles.', 'Odyssor. Les anciens disaient qu\'il apparaît au Cap des Étoiles quand les îles et le continent se réconcilient.', 'À côté, un oiseau d\'argent plonge dans la mer : Lugia. On dit qu\'Odyssor et Lugia sont les deux gardiens des eaux.'] }] },
       { kind: 'house', x: 3, y: 13, roof: 'teal', npcs: [{ x: 2, y: 4, sprite: 'habitante', text: ['Au nord, la Route Victoire mène au Plateau Céleste.', 'Seuls les dresseurs aux huit badges peuvent la franchir.'] }] },
       { kind: 'house', x: 22, y: 13, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'montagnard', text: ['La route 10 relie Cimelune à Bourg-Aube, par l\'ouest.', 'Ça rappelle des souvenirs, hein ?'] }] },
     ],
@@ -527,7 +530,7 @@ export function buildWorld() {
   W.object(212, 202, { type: 'odyssor' }); W.object(213, 202, { type: 'odyssor' });
   // une barrière au bord de la falaise : on contemple la mer, mais on n'accoste pas ici en surfant
   W.set(212, 201, T.FENCE); W.set(213, 201, T.FENCE); W.rect(208, 199, 217, 200, T.WATER);
-  W.zone(208, 199, 217, 206, { name: 'Cap des Étoiles', music: 'mystic' });
+  W.zone(208, 199, 217, 206, { name: 'Cap des Étoiles', music: 'mystic', trigger: 'rivalB4' });
 
   // la mer de l'archipel : rencontres en surfant
   W.zone(185, 186, 339, 279, { name: 'Mer de l\'Archipel', music: 'route2', enc: ENC.mer, sea: true, prio: -1 });
@@ -701,7 +704,7 @@ export function buildWorld() {
     buildings: [
       { kind: 'center', x: 3, y: 2 }, { kind: 'mart', x: 9, y: 2 },
       { kind: 'house', x: 19, y: 3, roof: 'gray', id: 'ermite', name: 'Cabane de l\'Ermite', npcs: [{ id: 'ermite', x: 4, y: 4, sprite: 'montagnard', script: 'ermite' }] },
-      { kind: 'house', x: 3, y: 12, roof: 'blue', npcs: [{ x: 2, y: 4, sprite: 'habitante', text: ['Sous l\'île, la mer creuse des grottes immenses.', 'Les tourbillons y sont si forts que personne n\'en revient... sauf ceux que Lugia laisse passer.'] }] },
+      { kind: 'house', x: 3, y: 12, roof: 'blue', npcs: [{ x: 2, y: 4, sprite: 'habitante', text: ['Sous l\'île, la mer creuse des grottes immenses.', 'Les tourbillons y sont si forts que personne n\'en revient... sauf ceux que Lugia laisse passer.', 'Ma grand-mère disait que Lugia et Ho-Oh étaient autrefois amis. Depuis l\'incendie de la vieille tour, chacun garde son île.'] }] },
       { kind: 'house', x: 9, y: 13, roof: 'teal', npcs: [{ x: 4, y: 4, sprite: 'pecheur', text: ['La Glace craint le Feu, le Combat, la Roche et l\'Acier.', 'Pense à prendre de quoi soigner le gel !'] }] },
     ],
     npcs: [{ id: 'enfant', x: 18, y: 11, sprite: 'enfant', move: 'wander', text: ['Il neige tout le temps ici. J\'adore !'] }],

@@ -1,10 +1,14 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
-## 3.39 — 30 octobre 2026
-- Add files via upload (Gabe)
-
-## 3.38 — 30 octobre 2026
-- Delete assets/graphics/nature_petits.png (Gabe)
+## 3.40 — 30 octobre 2026
+- **Odyssée** — un second rival entre en scène au milieu de l'aventure : l'enfant que tu n'as pas choisi d'incarner (Lyra ou Ethan), petite-fille ou petit-fils du Prof. Saule.
+  - Recrue des Gardes d'Écaille de Drakos, elle ou il te défie à Mirage, à Port-Granit, devant la Tour de Drakos, puis une dernière fois au Cap des Étoiles.
+  - Elle ou il a pris la troisième capsule du labo : son équipe dépend de ton starter.
+- **Odyssée** — l'histoire s'étoffe :
+  - Le Prof. Saule t'appelle après certains badges (le bateau, la Tour de la Grue, sa famille, les îles, Drakos).
+  - De nouveaux habitants racontent les légendes d'Odyssée : les trois oiseaux, Ho-Oh et Lugia, et Odyssor, la baleine des étoiles.
+  - Le professeur suit tes rencontres avec les légendaires, et la fin réunit tes deux rivaux.
+- **Odyssée** — nouvelles herbes hautes, fleurs, barrière et statues redessinées : les herbes forment un vrai tapis, sans quadrillage.
 
 ## 3.37 — 30 octobre 2026
 - **Odyssée** — le mobilier des maisons, du Centre, du labo et des arènes est redessiné en pixel art, affiché pixel pour pixel.
