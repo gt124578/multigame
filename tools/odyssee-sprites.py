@@ -615,8 +615,8 @@ NATURE2_SMALL = [['tuft', 'tuft1', 'darktuft', 'snowtuft'], ['flowers_r', 'flowe
 # taille maximale dans le jeu (pixels, densité 2 : une case du décor = 32 pixels) ; « w » impose la largeur exacte
 NATURE2_FIT = {'tree': (72, 96), 'tree2': (72, 96), 'tree3': (72, 96), 'pine': (64, 100), 'snowpine': (64, 100), 'deadtree': (72, 96),
                'palm': (72, 100), 'cuttree': (32, 48), 'bush': (32, 32), 'rock': (32, 32), 'crackrock': (32, 32), 'caverock': (32, 32),
-               'stalag': (32, 56), 'lamp': (32, 64), 'sign': (32, 40), 'mailbox': (32, 40), 'tuft': ('wh', 32, 36), 'tuft1': ('w', 30),
-               'darktuft': ('wh', 32, 36), 'snowtuft': ('wh', 32, 36), 'flowers_r': (30, 26), 'flowers_y': (30, 26), 'flowers_w': (30, 26),
+               'stalag': (32, 56), 'lamp': (32, 64), 'sign': (32, 40), 'mailbox': (32, 40), 'tuft': ('wh', 32, 40), 'tuft1': ('w', 30),
+               'darktuft': ('wh', 32, 40), 'snowtuft': ('wh', 32, 40), 'flowers_r': (30, 26), 'flowers_y': (30, 26), 'flowers_w': (30, 26),
                'fence': ('w', 32), 'pot': (28, 32), 'statue': (32, 64), 'gymstatue': (32, 64), 'itemball': (20, 20)}
 
 def fit_nature(img, fit):
