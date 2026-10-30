@@ -1,5 +1,14 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.25 — 30 octobre 2026
+- **Odyssée** — nouveau rendu façon DS : personnages, arbres et objets sont dessinés pixel pour pixel, à taille fixe, sans plus jamais être écrasés ni étirés par la caméra. Les tuiles sont carrées comme sur DS.
+  - Les forêts sont rangées un arbre tous les deux pas, comme dans les jeux DS.
+  - Un arbre ou un personnage derrière une maison passe proprement derrière son toit.
+- **Odyssée** — la carte de la région se découvre en voyageant : au début, seul Bourg-Aube est visible, puis la carte s'agrandit avec chaque route parcourue.
+- **Odyssée** — corrections :
+  - Le personnage ne tourne plus sur lui-même quand il marche vers la gauche ou la droite.
+  - Les légendaires ne sont plus à l'envers sur la carte.
+
 ## 3.24 — 30 octobre 2026
 - **Odyssée** — les arbres, les personnages et les maisons ne sont plus écrasés en bas de l'écran : tout garde la même hauteur partout, comme sur DS.
 - **Odyssée** — un bateau pour les îles de l'Est, depuis l'Embarcadère de l'Aube (à droite de la route 1).

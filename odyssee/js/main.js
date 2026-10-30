@@ -30,7 +30,8 @@ const SOLS = ['floor_wood', 'floor_center', 'floor_mart', 'floor_lab', 'floor_le
 
 async function loadArt() {
   const sprites = {};
-  for (const k of NATURE) sprites[k] = ASSETS.nature(k);
+  // décor version 2 (vue de 3/4, bible) : tout ce que la planche fournit ; sinon la sélection de la première planche
+  for (const k of SPRITES.natureV2 ? Object.keys(SPRITES.nature) : NATURE) sprites[k] = ASSETS.nature(k);
   for (const k of Object.keys(SPRITES.mobilier || {})) sprites[k] = ASSETS.mobilier(k);
   const kits = {}; for (const k of SPRITES.facades || []) kits[k] = ASSETS.facade(k);
   const sols = {}; for (const k of SOLS) sols[k] = ASSETS.sol(k);

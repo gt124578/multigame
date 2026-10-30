@@ -41,7 +41,7 @@ export class Game {
     return {
       v: 2, name, gender, id: Math.floor(Math.random() * 65536), money: 3000, badges: Array(8).fill(false), flags: {},
       party: [], box: [], bag: { potion: 1 }, dex: { seen: [], caught: [] }, time: 0, visited: ['aube'], repel: 0,
-      cleared: {}, surf: false,
+      cleared: {}, surf: false, explored: [],
       lastCenter: { map: 'aube:maison', x: 4, y: 5, dir: 'up' }, ...this.world.start,
     };
   }
@@ -52,14 +52,14 @@ export class Game {
   }
   load() {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY));
-    s.cleared ||= {};
+    s.cleared ||= {}; s.explored ||= [];
     let maxUid = 0; for (const m of s.party.concat(s.box)) maxUid = Math.max(maxUid, m.uid || 0);
     setUidBase(maxUid + 1);
     return s;
   }
 
   async start(state) {
-    this.state = state;
+    this.state = state; this._seen = null;
     this.player = { x: state.x, y: state.y, dir: state.dir || 'down', move: null, step: 0, turnLock: 0, bumpT: 0, surf: !!state.surf };
     this.setMap(state.map);
     this.view.setTimeOfDay(this.hour());
@@ -100,6 +100,17 @@ export class Game {
   }
   locationName() { const z = this.mapObj.outdoor ? this.mapObj.zoneAt(this.player.x, this.player.y) : null; return z?.name || this.mapObj.name || 'Odyssée'; }
 
+  /** la carte se découvre en marchant : blocs de 8 × 8 cases autour du joueur (et toute ville visitée) */
+  explore() {
+    if (this.mapObj.id !== 'monde') return;
+    const st = this.state, W = this.mapObj, B = 8, cw = Math.ceil(W.w / B), p = this.player;
+    this._seen ||= new Set(st.explored);
+    const add = (i) => { if (!this._seen.has(i)) { this._seen.add(i); st.explored.push(i); } };
+    const R = 9;
+    for (let y = Math.floor((p.y - R) / B); y <= Math.floor((p.y + R) / B); y++) for (let x = Math.floor((p.x - R) / B); x <= Math.floor((p.x + R) / B); x++) if (x >= 0 && y >= 0 && x < cw && y * B < W.h) add(y * cw + x);
+    const t = this.zone?.town && Object.values(this.world.towns).find((q) => q.id === this.zone.town);
+    if (t) for (let y = Math.floor(t.y / B); y <= Math.floor((t.y + t.h) / B); y++) for (let x = Math.floor(t.x / B); x <= Math.floor((t.x + t.w) / B); x++) add(y * cw + x);
+  }
   updateZone() {
     const m = this.mapObj, p = this.player;
     const z = m.outdoor ? m.zoneAt(p.x, p.y) : { name: m.name, music: m.music };
@@ -107,6 +118,7 @@ export class Game {
     // bandeau du lieu : en extérieur et dans les grottes (pas en sortant d'une maison)
     if ((m.outdoor || m.floor === 'cave') && name !== this.zoneName) { this.zoneName = name; this.ui.banner(name); }
     if (z?.town && !this.state.visited.includes(z.town)) this.state.visited.push(z.town);
+    this.zone = z; this.explore();
     if (!this.musicLock) this.sound.play(p.surf && m.outdoor ? 'route2' : (z && z.music) || m.music);
     this.zone = z;
   }
@@ -186,7 +198,7 @@ export class Game {
     const bob = p.surf ? 0.04 + Math.sin(performance.now() / 260) * 0.03 : 0;
     v.place(a, px, py, hop + bob, (isGrassEnc(t) && !p.move) || p.surf);
     if (p.surf) {
-      const w = v.actor('wake', { kind: 'item' }); if (!w.wakeSet) { const r = v.S.rects.wake; v.setSpriteRect(w, r, r.w, r.h); w.wakeSet = true; w.shadow.visible = false; }
+      const w = v.actor('wake', { kind: 'flat' }); if (!w.wakeSet) { const r = v.S.rects.wake; v.setSpriteRect(w, r, r.w, r.h); w.wakeSet = true; w.shadow.visible = false; }
       w.mesh.position.set(px + 0.5, 0.01 + bob * 0.3, py + 0.62); w.mesh.rotation.x = -1.1;
     } else if (v.actors.has('wake')) v.removeActor('wake');
     for (const n of this.npcs) {
@@ -363,7 +375,7 @@ export class Game {
     this.legends = (this.world.legends || []).filter((L) => L.map === mapNow.id && st.flags['L:' + L.id] !== 'caught' && this.legendReady(L)).map((L) => ({ ...L }));
     for (const L of this.legends) loadImg(ASSETS.front(L.sp)).then((img) => {
       if (!img || this.mapObj !== mapNow || !this.legends.includes(L)) return;
-      const a = this.view.imageActor('legend:' + L.id, img, 0.62); this.view.place(a, L.x, L.y - 0.1);
+      const a = this.view.imageActor('legend:' + L.id, img, 1); this.view.place(a, L.x, L.y - 0.1);
     });
   }
   legendReady(L) {

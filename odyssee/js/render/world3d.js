@@ -7,29 +7,62 @@ import { SPRITES } from '../data/sprites.js';
 
 export const EL = 55 * Math.PI / 180, FOV = 22;
 
-// Rendu « façon DS » : tout ce qui se dresse au-dessus du sol (arbres, personnages, murs, maisons) garde la même
-// hauteur à l'écran, qu'il soit en haut ou en bas de l'image. Sans ça, la caméra plongeante écrase les sprites du
-// bas de l'écran (vus presque d'au-dessus) et étire ceux du haut. Chaque sommet est étiré verticalement selon
-// l'angle sous lequel la caméra voit le sol à sa verticale : un pixel de sprite reste carré partout.
-THREE.ShaderChunk.project_vertex = `
-vec4 dsW = modelMatrix * vec4( transformed, 1.0 );
-if ( dsW.y > 0.0001 ) {
-  mat4 dsVP = projectionMatrix * viewMatrix;
-  vec4 dsA = dsVP * vec4( dsW.x, 0.0, dsW.z, 1.0 );
-  vec4 dsX = dsVP * vec4( dsW.x + 1.0, 0.0, dsW.z, 1.0 );
-  vec4 dsY = dsVP * vec4( dsW.x, 1.0, dsW.z, 1.0 );
-  float dsAspect = projectionMatrix[1][1] / projectionMatrix[0][0];
-  float dsSx = abs( dsX.x / dsX.w - dsA.x / dsA.w ) * dsAspect;
-  float dsSy = abs( dsY.y / dsY.w - dsA.y / dsA.w );
-  dsW.y *= clamp( ${Math.cos(EL).toFixed(6)} * dsSx / max( dsSy, 1e-5 ), 0.5, 2.5 );
+// Une tuile fait 16 × 16 pixels à l'écran (la projection est resserrée en largeur pour que les tuiles soient carrées,
+// comme sur DS) ; un pixel de sprite vaut un pixel d'écran : WPX en largeur, HPX en hauteur (unités du monde).
+export const WPX = 1 / 16, HPX = Math.tan(EL) / 16;
+const WPX_STR = WPX.toFixed(8), HPX_STR = HPX.toFixed(8);
+
+/*
+ * Sprites « à la Génération 4 » (Platine, HeartGold/SoulSilver) : les personnages, arbres, herbes et objets ne sont pas
+ * des panneaux plantés dans le décor 3D. Ils sont dessinés à plat, à l'écran, toujours à leur taille exacte (un pixel
+ * du dessin = un pixel d'écran, calé sur la grille), posés à l'endroit où se projettent leurs pieds. Seule leur
+ * profondeur vient de la 3D (celle d'un panneau vertical à cet endroit) : un arbre passe derrière une maison, un
+ * personnage devant un autre, sans jamais être déformé par la perspective, en haut comme en bas de l'écran.
+ */
+export const SPRITE_UNIFORMS = { uRes: { value: new THREE.Vector2(400, 240) } };
+/**
+ * Bâtiments : leur profondeur est celle de leur façade (comme un grand sprite posé sur sa rangée de devant). Un arbre
+ * ou un personnage dont les pieds sont derrière la façade passe derrière toute la maison, toit compris ; devant la
+ * façade, il passe devant. C'est le tri par rangée des jeux DS, sans que les toits ne coupent les arbres voisins.
+ */
+function frontDepth(mat, zFront) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uZFront = { value: zFront };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uZFront;')
+      .replace('#include <project_vertex>', `
+        vec4 fW = modelMatrix * vec4( transformed, 1.0 );
+        vec4 mvPosition = viewMatrix * fW;
+        vec4 fC = projectionMatrix * mvPosition;
+        vec4 fF = projectionMatrix * viewMatrix * vec4( fW.x, fW.y, max( fW.z, uZFront ), 1.0 );
+        gl_Position = vec4( fC.xy * ( fF.w / fC.w ), fF.z, fF.w );`);
+  };
+  mat.customProgramCacheKey = () => 'frontDepth';
+  return mat;
 }
-vec4 mvPosition = viewMatrix * dsW;
-gl_Position = projectionMatrix * mvPosition;
-`;
-export const WPX = Math.sin(EL) / 16, HPX = Math.tan(EL) / 16; // unités monde par pixel de sprite (largeur, hauteur)
+function screenSprite(mat) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uRes = SPRITE_UNIFORMS.uRes;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec3 anchor;\nuniform vec2 uRes;')
+      .replace('#include <project_vertex>', `
+        vec4 sW = modelMatrix * vec4( transformed, 1.0 );
+        vec4 sA = modelMatrix * vec4( anchor, 1.0 );
+        vec3 sD = sW.xyz - sA.xyz;
+        vec4 sAC = projectionMatrix * viewMatrix * sA;
+        vec2 sPx = floor( ( sAC.xy / sAC.w * 0.5 + 0.5 ) * uRes + 0.5 ) + vec2( sD.x / ${WPX_STR}, sD.y / ${HPX_STR} );
+        vec4 mvPosition = viewMatrix * sW;
+        vec4 sPC = projectionMatrix * mvPosition;
+        gl_Position = vec4( ( sPx / uRes * 2.0 - 1.0 ) * sPC.w, sPC.z, sPC.w );`);
+  };
+  mat.customProgramCacheKey = () => 'screenSprite';
+  return mat;
+}
 const CH = 16;
 // lignes de la planche des personnages (img/chars.png) ; les anciens noms des sprites du prototype pointent vers les nouveaux
 export const CHAR_ROWS = { ...((SPRITES.chars && SPRITES.chars.rows) || {}) };
+// taille d'une case de la planche des personnages (32 × 32 depuis la version 2 de la bible)
+const CW = SPRITES.chars?.w || 24, CHH = SPRITES.chars?.h || 32;
 const CHAR_ALIAS = { red: 'player_m', green: 'player_f', prof: 'scientifique', clerk: 'vendeur', youngster: 'gamin', lass: 'habitante', sailor: 'marin', hiker: 'montagnard', cooltrainer_f: 'habitante' };
 const DIR_COL = { down: 0, left: 1, right: 2, up: 3 };
 
@@ -42,8 +75,9 @@ const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) ^ 0x5bd1e995; h
 
 /** accumulateur de géométrie (quads indexés) */
 class Geo {
-  constructor() { this.p = []; this.uv = []; this.c = []; this.i = []; this.n = 0; }
-  quad(a, b, c, d, u0, v0, u1, v1, shade = 1) {
+  constructor() { this.p = []; this.uv = []; this.c = []; this.i = []; this.n = 0; this.an = []; }
+  quad(a, b, c, d, u0, v0, u1, v1, shade = 1, anchor = null) {
+    if (anchor) for (let k = 0; k < 4; k++) this.an.push(...anchor);
     // a=bas-gauche, b=bas-droite, c=haut-droite, d=haut-gauche (du point de vue de la texture)
     this.p.push(...a, ...b, ...c, ...d);
     this.uv.push(u0, v1, u1, v1, u1, v0, u0, v0);
@@ -56,6 +90,7 @@ class Geo {
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
+    if (this.an.length) g.setAttribute('anchor', new THREE.Float32BufferAttribute(this.an, 3));
     g.setIndex(this.i); g.computeBoundingSphere();
     return g;
   }
@@ -63,7 +98,7 @@ class Geo {
 /** sprite vertical, pieds en (cx, cz) */
 function billboard(G, cx, cz, w, h, r, y0 = 0, flip = false, shade = 1) {
   const u0 = flip ? r.u1 : r.u0, u1 = flip ? r.u0 : r.u1;
-  G.quad([cx - w / 2, y0, cz], [cx + w / 2, y0, cz], [cx + w / 2, y0 + h, cz], [cx - w / 2, y0 + h, cz], u0, r.v0, u1, r.v1, shade);
+  G.quad([cx - w / 2, y0, cz], [cx + w / 2, y0, cz], [cx + w / 2, y0 + h, cz], [cx - w / 2, y0 + h, cz], u0, r.v0, u1, r.v1, shade, [cx, y0, cz]);
 }
 function flat(G, x0, z0, x1, z1, y, cell, shade = 1) {
   // la texture regarde vers le haut : haut de la tuile = nord (z0)
@@ -85,14 +120,16 @@ export class WorldView {
     const A = buildAtlas(), N = buildAnimAtlas(), S = buildSprites();
     if (art.sprites) applySpriteImages(S, art.sprites);
     this.A = A; this.N = N; this.S = S;
-    this.charRows = charsImg ? Math.round(charsImg.height / 32) : 10;
+    this.charRows = charsImg ? Math.round(charsImg.height / CHH) : 10;
     this.texA = tex(A.canvas); this.texN = tex(N.canvas); this.texS = tex(S.canvas); this.texC = tex(charsImg);
     const mk = (map, o = {}) => new THREE.MeshBasicMaterial({ map, vertexColors: true, ...o });
     this.mat = {
-      ground: mk(this.texA), anim: mk(this.texN), sprite: mk(this.texS, { alphaTest: 0.5, side: THREE.DoubleSide }),
-      chars: new THREE.MeshBasicMaterial({ map: this.texC, alphaTest: 0.5, side: THREE.DoubleSide }),
+      ground: mk(this.texA), anim: mk(this.texN), sprite: screenSprite(mk(this.texS, { alphaTest: 0.5, side: THREE.DoubleSide })),
+      chars: screenSprite(new THREE.MeshBasicMaterial({ map: this.texC, alphaTest: 0.5, side: THREE.DoubleSide })),
       // sprites isolés (objets, bulle « ! », herbes qui bougent) : pas de couleurs de sommets
-      actorSprite: new THREE.MeshBasicMaterial({ map: this.texS, alphaTest: 0.5, side: THREE.DoubleSide }),
+      actorSprite: screenSprite(new THREE.MeshBasicMaterial({ map: this.texS, alphaTest: 0.5, side: THREE.DoubleSide })),
+      // sprite couché au sol (sillage du surf)
+      flatSprite: new THREE.MeshBasicMaterial({ map: this.texS, alphaTest: 0.5, side: THREE.DoubleSide }),
       shadow: mk(this.texS, { transparent: true, depthWrite: false }),
       walls: mk(this.texA),
     };
@@ -108,6 +145,9 @@ export class WorldView {
 
   resize(w, h) {
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
+    // tuiles carrées à l'écran : la projection est resserrée en largeur (16 px de large comme de haut au centre)
+    this.camera.projectionMatrix.elements[0] *= Math.sin(EL); this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
+    SPRITE_UNIFORMS.uRes.value.set(w, h);
     // distance pour qu'une tuile fasse 16 pixels de haut à l'écran (rendu basse résolution)
     this.dist = (Math.sin(EL) * h) / (2 * Math.tan(FOV * Math.PI / 360) * 16) * (this.zoom || 1);
   }
@@ -178,20 +218,27 @@ export class WorldView {
       const zone = m.outdoor ? m.zoneAt(x, y) : null, theme = zone?.theme;
       // décor en volume
       if (t === T.TREE || t === T.PINE) {
-        let key = t === T.PINE ? 'pine' : v < 0.7 ? 'tree' : 'tree2';
-        if (theme === 'volcanic') key = 'deadtree';
-        else if (theme === 'snow') key = 'snowpine';
-        const r = S[key];
-        billboard(P, x + 0.5 + (v - 0.5) * 0.12, y + 0.62, r.w * WPX, r.h * HPX, r, 0, v > 0.5, 1);
-        flat(Sh, x - 0.15, y + 0.35, x + 1.15, y + 0.95, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
+        // forêts rangées comme sur DS : un arbre par bloc de 2 × 2 cases, les rangées se chevauchent un peu ;
+        // un arbre isolé (bord de route) reste centré sur sa case
+        const isT = (q) => q === T.TREE || q === T.PINE, bx = x & ~1, by = y & ~1;
+        const full = isT(m.get(bx, by)) && isT(m.get(bx + 1, by)) && isT(m.get(bx, by + 1)) && isT(m.get(bx + 1, by + 1));
+        if (!full || (x === bx && y === by)) {
+          const vb = full ? hash(bx + 7, by + 3) : v;
+          let key = t === T.PINE ? 'pine' : vb < (S.tree3 ? 0.55 : 0.7) ? 'tree' : S.tree3 && vb < 0.8 ? 'tree3' : 'tree2';
+          if (theme === 'volcanic') key = 'deadtree';
+          else if (theme === 'snow') key = 'snowpine';
+          const r = S[key], cx = full ? bx + 1 : x + 0.5, cz = full ? by + 1.8 : y + 0.62;
+          billboard(P, cx, cz, r.w * WPX, r.h * HPX, r, 0, vb > 0.5, 1);
+          flat(Sh, cx - 0.75, cz - 0.3, cx + 0.75, cz + 0.3, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
+        }
       } else if (t === T.TALL || t === T.DARKTALL) {
-        const r = S[t === T.DARKTALL ? 'darktuft' : v < 0.5 ? 'tuft' : 'tuft1'];
-        billboard(P, x + 0.5, y + 0.93, 1.02, r.h * HPX, r, 0, v > 0.5);
-      } else if (t === T.FENCE) { const r = S.fence; billboard(P, x + 0.5, y + 0.55, 1.0, r.h * HPX, r); }
-      else if (t === T.ROCK) { const r = S.rock; billboard(P, x + 0.5, y + 0.6, r.w * WPX * 1.2, r.h * HPX, r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
-      else if (t === T.BUSH) { const r = S.bush; billboard(P, x + 0.5, y + 0.6, r.w * WPX * 1.2, r.h * HPX, r); }
-      else if (t === T.CUT) { const r = S.cuttree; billboard(P, x + 0.5, y + 0.62, r.w * WPX * 1.15, r.h * HPX * 1.15, r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
-      else if (t === T.SMASH) { const r = S.crackrock; billboard(P, x + 0.5, y + 0.62, r.w * WPX * 1.2, r.h * HPX * 1.1, r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
+        const r = S[t === T.DARKTALL ? 'darktuft' : theme === 'snow' && S.snowtuft ? 'snowtuft' : v < 0.5 ? 'tuft' : 'tuft1'];
+        billboard(P, x + 0.5, y + 0.93, r.w * WPX, r.h * HPX, r, 0, v > 0.5);
+      } else if (t === T.FENCE) { const r = S.fence; billboard(P, x + 0.5, y + 0.55, r.w * WPX, r.h * HPX, r); }
+      else if (t === T.ROCK) { const r = S.rock; billboard(P, x + 0.5, y + 0.6, r.w * WPX, r.h * HPX, r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
+      else if (t === T.BUSH) { const r = S.bush; billboard(P, x + 0.5, y + 0.6, r.w * WPX, r.h * HPX, r); }
+      else if (t === T.CUT) { const r = S.cuttree; billboard(P, x + 0.5, y + 0.62, r.w * WPX, r.h * HPX, r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
+      else if (t === T.SMASH) { const r = S.crackrock; billboard(P, x + 0.5, y + 0.62, r.w * WPX, r.h * HPX, r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
       else if (t === T.WALL) {
         // mur du fond en volume ; murs latéraux et bas réduits à une bordure sombre, comme sur DS
         if (y <= 1) { const south = m.get(x, y + 1) !== T.WALL; box(Wl, x, y, x + 1, y + 1, wallH, A[m.wallStyle] || A.wall_in, A.walltop, A.walltop, { south, east: false, west: false }); }
@@ -207,7 +254,7 @@ export class WorldView {
         if (d.k === 'counter') {
           box(Wl, x, y + 0.1, x + 1, y + 1, 0.75 * Math.tan(EL), A[d.front] || A.counterfront, A.counter, A.counter, { east: m.get(x + 1, y) !== T.BLOCK, west: m.get(x - 1, y) !== T.BLOCK });
           // capsule posée sur le comptoir (starters du labo)
-          if (d.ball && S.itemball) { const r = S.itemball; billboard(P, x + 0.5, y + 0.55, r.w * WPX * 0.8, r.h * HPX * 0.8, r, 0.75 * Math.tan(EL) - 0.05); }
+          if (d.ball && S.itemball) { const r = S.itemball; billboard(P, x + 0.5, y + 0.55, r.w * WPX, r.h * HPX, r, 0.75 * Math.tan(EL) - 0.05); }
         }
         else if (d.k === 'shelf') box(Wl, x + 0.05, y + 0.2, x + 0.95, y + 0.95, 1.5 * Math.tan(EL), A.shelf, A.roof_flat, A.shelf);
         else if (d.k === 'carpet' || d.k === 'exitlight') { /* sol */ }
@@ -254,13 +301,15 @@ export class WorldView {
     for (const b of this.map.buildings) {
       const g = new THREE.Group();
       const wallH = b.h * Math.tan(EL), o = 0.18;
-      const own = (t) => { const m = new THREE.MeshBasicMaterial({ map: t, vertexColors: true }); this.tinted.push(m); m.userData.ownTint = true; return m; };
+      const zf = b.y + b.d + 0.02;
+      const own = (t) => { const m = frontDepth(new THREE.MeshBasicMaterial({ map: t, vertexColors: true }), zf); this.tinted.push(m); m.userData.ownTint = true; return m; };
       if (b.kind === 'cave') {
         // monticule rocheux avec une ouverture sombre
         const geo = new Geo(), A = this.A.cells;
         const h = 1.6 * Math.tan(EL);
         box(geo, b.x, b.y, b.x + b.w, b.y + b.d, h, A.cliffplain, A.cliff, A.cliffplain);
-        const mesh = new THREE.Mesh(geo.build(), this.mat.walls); g.add(mesh);
+        const cm = frontDepth(new THREE.MeshBasicMaterial({ map: this.texA, vertexColors: true }), zf); this.tinted.push(cm); cm.color.copy(this.tint);
+        const mesh = new THREE.Mesh(geo.build(), cm); g.add(mesh);
         const holeW = 1.6, holeH = 1.15 * Math.tan(EL);
         const hole = new THREE.Mesh(new THREE.PlaneGeometry(holeW, holeH), new THREE.MeshBasicMaterial({ color: 0x0a0806 }));
         hole.position.set(b.doorX + 0.5, holeH / 2, b.y + b.d + 0.01); g.add(hole);
@@ -289,7 +338,7 @@ export class WorldView {
       g.add(new THREE.Mesh(geoR.build(), mRoof));
       // pignons
       const rc = roofColors[b.roof] || roofColors.red;
-      const gableMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(rc[1]) }); this.tinted.push(gableMat); gableMat.userData.ownTint = true; gableMat.userData.base = new THREE.Color(rc[1]);
+      const gableMat = frontDepth(new THREE.MeshBasicMaterial({ color: new THREE.Color(rc[1]) }), zf); this.tinted.push(gableMat); gableMat.userData.ownTint = true; gableMat.userData.base = new THREE.Color(rc[1]);
       const gg = new THREE.BufferGeometry();
       gg.setAttribute('position', new THREE.Float32BufferAttribute([x1 + o, wallH - 0.05, z1 + o, x1 + o, wallH - 0.05, z0 - o, x1 + o, ytop, zm, x0 - o, wallH - 0.05, z0 - o, x0 - o, wallH - 0.05, z1 + o, x0 - o, ytop, zm], 3));
       g.add(new THREE.Mesh(gg, gableMat));
@@ -331,8 +380,11 @@ export class WorldView {
   actor(id, o) {
     let a = this.actors.get(id);
     if (!a) {
-      const geo = new THREE.PlaneGeometry(24 * WPX, 32 * HPX); geo.translate(0, 16 * HPX, 0);
-      const mesh = new THREE.Mesh(geo, o.kind === 'item' || o.kind === 'bang' ? this.mat.actorSprite : this.mat.chars);
+      const geo = new THREE.PlaneGeometry(CW * WPX, CHH * HPX); geo.translate(0, CHH / 2 * HPX, 0);
+      // point d'ancrage (les pieds) : la bulle « ! » flotte au-dessus d'un personnage mais reste calée sur ses pieds
+      const ay = o.kind === 'bang' ? -34 * HPX : 0;
+      geo.setAttribute('anchor', new THREE.Float32BufferAttribute([0, ay, 0, 0, ay, 0, 0, ay, 0, 0, ay, 0], 3));
+      const mesh = new THREE.Mesh(geo, o.kind === 'flat' ? this.mat.flatSprite : o.kind === 'item' || o.kind === 'bang' ? this.mat.actorSprite : this.mat.chars);
       const S = this.S.rects.shadow;
       const sg = new THREE.PlaneGeometry(0.85, 0.42); sg.rotateX(-Math.PI / 2);
       const uv = sg.attributes.uv; for (let i = 0; i < 4; i++) uv.setXY(i, i % 2 ? S.u1 : S.u0, i < 2 ? S.v0 : S.v1);
@@ -356,8 +408,8 @@ export class WorldView {
   setFrame(a, sprite, dir, step) {
     const row = CHAR_ROWS[sprite] ?? CHAR_ROWS[CHAR_ALIAS[sprite]] ?? 0, col = DIR_COL[dir] * 3 + (step === 0 ? 1 : step === 1 ? 0 : 2);
     const k = row * 100 + col; if (a.frame === k) return; a.frame = k;
-    const H = this.charRows * 32;
-    const u0 = col * 24 / 288, u1 = (col + 1) * 24 / 288, v0 = row * 32 / H, v1 = (row + 1) * 32 / H;
+    const H = this.charRows * CHH;
+    const u0 = col * CW / (12 * CW), u1 = (col + 1) * CW / (12 * CW), v0 = row * CHH / H, v1 = (row + 1) * CHH / H;
     const uv = a.mesh.geometry.attributes.uv; uv.setXY(0, u0, v0); uv.setXY(1, u1, v0); uv.setXY(2, u0, v1); uv.setXY(3, u1, v1); uv.needsUpdate = true;
   }
   place(a, x, y, hop = 0, inGrass = false) {
@@ -382,9 +434,11 @@ export class WorldView {
   /** grande créature posée sur la carte (légendaire) : son image de face, debout sur la case */
   imageActor(id, img, scale = 1) {
     let a = this.actors.get(id); if (a) return a;
-    const t = tex(img), W = img.width * WPX * scale, H = img.height * HPX * scale;
+    const t = tex(img); t.flipY = true; t.needsUpdate = true;   // image chargée telle quelle : le haut en haut
+    const W = Math.round(img.width * scale) * WPX, H = Math.round(img.height * scale) * HPX;
     const geo = new THREE.PlaneGeometry(W, H); geo.translate(0, H / 2 - 3 * HPX * scale, 0);
-    const mat = new THREE.MeshBasicMaterial({ map: t, alphaTest: 0.5, side: THREE.DoubleSide }); this.tinted.push(mat); mat.color.copy(this.tint);
+    geo.setAttribute('anchor', new THREE.Float32BufferAttribute(new Array(12).fill(0), 3));
+    const mat = screenSprite(new THREE.MeshBasicMaterial({ map: t, alphaTest: 0.5, side: THREE.DoubleSide })); this.tinted.push(mat); mat.color.copy(this.tint);
     const mesh = new THREE.Mesh(geo, mat);
     const S = this.S.rects.shadow, sg = new THREE.PlaneGeometry(1.6, 0.7); sg.rotateX(-Math.PI / 2);
     const uv = sg.attributes.uv; for (let i = 0; i < 4; i++) uv.setXY(i, i % 2 ? S.u1 : S.u0, i < 2 ? S.v0 : S.v1);

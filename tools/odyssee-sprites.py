@@ -121,6 +121,62 @@ def mode_down(rgb, f):
             out[j, i] = rgb[j * f:(j + 1) * f, i * f:(i + 1) * f].reshape(-1, 3)[sel].mean(0)
     return out
 
+def pixel_grid(rgb, fg, lo=3, hi=16):
+    """pixel art agrandi par une IA : taille et décalage de la grille des « gros pixels ». Les changements de couleur
+    tombent sur les bords des blocs : on cherche la période (et la phase) qui en concentre le plus, en x et en y."""
+    a = rgb.astype(np.int32)
+    def axis(diff):
+        # un multiple de la vraie période marque aussi bien les bords : on garde la plus petite période presque aussi bonne
+        n = len(diff); res = []
+        for b in range(lo, hi + 1):
+            sc = []
+            for ph in range(b):
+                idx = np.arange(ph, n, b)
+                if len(idx) >= 3: sc.append((diff[idx].mean() - diff.mean(), ph))
+            if sc: res.append((max(sc), b))
+        top = max(r[0][0] for r in res)
+        for (score, ph), b in res:
+            if score >= 0.8 * top: return b, ph
+        return res[0][1], res[0][0][1]
+    m = fg.astype(np.float64)
+    dx = (np.abs(np.diff(a, axis=1)).sum(2) * (m[:, 1:] * m[:, :-1])).sum(0); dx = np.concatenate([[0], dx])
+    dy = (np.abs(np.diff(a, axis=0)).sum(2) * (m[1:] * m[:-1])).sum(1); dy = np.concatenate([[0], dy])
+    bx, px = axis(dx); by, py = axis(dy)
+    b = round((bx + by) / 2)
+    return b, px % b, py % b
+
+def snap(rgb, fg, block=None):
+    """réduit un dessin « pixel art agrandi » à sa vraie résolution : un pixel par bloc, couleur dominante du bloc,
+    opaque si la majorité du bloc fait partie du dessin. Renvoie une image RGBA nette (sans lissage)."""
+    b, px, py = pixel_grid(rgb, fg) if block is None else (block, 0, 0)
+    H, W = rgb.shape[:2]
+    xs = list(range(px - b if px else 0, W, b)); ys = list(range(py - b if py else 0, H, b))
+    out = np.zeros((len(ys), len(xs), 4), np.uint8)
+    q = (rgb // 10).astype(np.int32); key = (q[..., 0] << 10) | (q[..., 1] << 5) | q[..., 2]
+    for j, y0 in enumerate(ys):
+        for i, x0 in enumerate(xs):
+            ya, yb, xa, xb = max(0, y0), min(H, y0 + b), max(0, x0), min(W, x0 + b)
+            if yb <= ya or xb <= xa: continue
+            f = fg[ya:yb, xa:xb]
+            if f.mean() < 0.5: continue
+            k = key[ya:yb, xa:xb][f]; vals, cnt = np.unique(k, return_counts=True)
+            sel = k == vals[cnt.argmax()]
+            out[j, i, :3] = rgb[ya:yb, xa:xb][f][sel].mean(0); out[j, i, 3] = 255
+    return Image.fromarray(out), b
+
+def place(img, w, h, anchor='bottom', pad=0):
+    """pose un sprite déjà à la bonne résolution dans une case w × h (réduit seulement s'il déborde)"""
+    al = np.array(img)[..., 3] > 0
+    if not al.any(): return Image.new('RGBA', (w, h))
+    ys, xs = np.nonzero(al); img = img.crop((xs.min(), ys.min(), xs.max() + 1, ys.max() + 1))
+    if img.width > w or img.height > h - pad:
+        sc = min(w / img.width, (h - pad) / img.height)
+        img = img.resize((max(1, round(img.width * sc)), max(1, round(img.height * sc))), Image.NEAREST)
+    out = Image.new('RGBA', (w, h))
+    y = h - img.height - pad if anchor == 'bottom' else (h - img.height) // 2
+    out.alpha_composite(img, ((w - img.width) // 2, max(0, y)))
+    return out
+
 def tile_down(rgb, size):
     """tuile carrée → size × size : moyenne locale puis couleur dominante (garde le grain sans flou)"""
     h, w = rgb.shape[:2]
@@ -153,7 +209,7 @@ CHARS = {
     'habitant': ('habitant_h.png', False), 'habitante': ('habitant_f.png', False), 'vieil_homme': ('vieil_homme.png', False),
     'enfant': ('enfant.png', False),
 }
-CW, CHH = 24, 32
+CW, CHH = 32, 32
 LR_FILE = os.path.join(ROOT, 'tools', 'odyssee-sprites-lr.json')
 
 def char_cells(a):
@@ -166,6 +222,42 @@ def char_cells(a):
             cells.append((a[y0:y1, x0:x1], fg))
     return cells
 
+# personnages dont les profils sont inversés sur la planche (colonne 0 tournée vers la droite)
+SIDE_FLIP = set()
+
+def new_style(cells):
+    """planche au nouveau format (prompts « chibi ») : chaque ligne entière regarde dans une seule direction.
+    On le reconnaît à ce que la case du milieu des lignes de profil ne ressemble pas à la case de face."""
+    def sig(i):
+        rgb, fg = cells[i]
+        if not fg.any(): return None
+        ys, xs = np.nonzero(fg); c = rgb[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+        return np.array(Image.fromarray(c).resize((12, 16), Image.BILINEAR)).astype(float)
+    f, m1 = sig(1), sig(4)
+    if f is None or m1 is None: return False
+    return np.abs(f - m1).mean() > 28
+
+def side_groups(cells, cid):
+    """les quatre profils (colonnes 0 et 2 des lignes 1 et 2) rangés en « tournés vers la gauche » / « vers la droite ».
+    Sur certaines planches un profil est retourné : on compare chacun au premier, tel quel ou en miroir."""
+    def sig(i, flip=False):
+        rgb, fg = cells[i]; ys, xs = np.nonzero(fg)
+        c = rgb[ys.min():ys.max() + 1, xs.min():xs.max() + 1].astype(float); m = fg[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+        c[~m] = 128
+        im = np.array(Image.fromarray(c.astype(np.uint8)).resize((16, 24), Image.BILINEAR)).astype(float)
+        return im[:, ::-1] if flip else im
+    ids = [3, 5, 6, 8]
+    ref = sig(3); same, opp = [3], []
+    for i in ids[1:]:
+        (same if np.abs(sig(i) - ref).mean() <= np.abs(sig(i, True) - ref).mean() else opp).append(i)
+    # sens absolu : la colonne 0 regarde vers la gauche sur la plupart des planches
+    votes = sum(1 for i in (3, 6) if i in same) - sum(1 for i in (3, 6) if i in opp)
+    left, right = (same, opp) if votes >= 0 else (opp, same)
+    if cid in SIDE_FLIP: left, right = right, left
+    if not left: left = right
+    if not right: right = left
+    return left, right
+
 def do_chars():
     swap = {}
     if os.path.exists(LR_FILE): swap = json.load(open(LR_FILE))
@@ -174,14 +266,32 @@ def do_chars():
     rows = {}
     for r, cid in enumerate(ids):
         fn, _ = CHARS[cid]
-        cells = char_cells(load(fn))
+        src_img = load(fn); cells = char_cells(src_img)
+        v2 = abs(src_img.shape[0] / src_img.shape[1] - 4 / 3) < 0.08   # 3 colonnes × 4 lignes de cases carrées
         hmax = max((np.ptp(np.nonzero(fg)[0]) + 1) for _, fg in cells if fg.any())
         sc = (CHH - 1) / hmax
-        # ligne de la planche → direction du jeu (bas, gauche, droite, haut)
-        order = [0, 2, 1, 3] if swap.get(cid) else [0, 1, 2, 3]
-        for d, srow in enumerate(order):
+        # planches dessinées : ligne 0 de face, lignes 1 et 2 de profil, ligne 3 de dos. Sur les lignes de profil, la
+        # colonne du milieu est presque toujours de face : on ne garde que les profils (colonne 0 tournée vers la
+        # gauche, colonne 2 vers la droite, sauf mention contraire), sinon le personnage tourne sur lui-même en marchant.
+        # case du jeu : (pas 1, immobile, pas 2)
+        if v2:
+            # planche « chibi » (bible, version 2) : chaque ligne regarde dans une seule direction, lue pixel pour pixel
+            for d in range(4):
+                for c in range(3):
+                    rgb, fg = cells[d * 3 + c]
+                    img, blk = snap(rgb, fg)
+                    atlas.alpha_composite(place(img, CW, CHH, pad=1), ((d * 3 + c) * CW, r * CHH))
+            rows[cid] = r
+            print('personnage (v2)', cid, 'bloc', blk)
+            continue
+        if new_style(cells): src = {0: [0, 1, 2], 1: [3, 4, 5], 2: [6, 7, 8], 3: [9, 10, 11]}
+        else:
+            lefts, rights = side_groups(cells, cid)
+            pick = lambda g: [g[1 % len(g)], g[0], g[1 % len(g)]]
+            src = {0: [0, 1, 2], 1: pick(lefts), 2: pick(rights), 3: [9, 10, 11]}
+        for d in range(4):
             for c in range(3):
-                rgb, fg = cells[srow * 3 + c]
+                rgb, fg = cells[src[d][c]]
                 img, _ = fit(rgb, fg, CW, CHH, scale=sc)
                 atlas.alpha_composite(img, ((d * 3 + c) * CW, r * CHH))
         rows[cid] = r
@@ -309,6 +419,35 @@ MOBILIER_SIZE = {'healer': (32, 32), 'pc': (16, 32), 'books': (16, 32), 'tv': (1
                  'fridge': (16, 32), 'kitchen': (16, 22), 'clock': (16, 32), 'painting': (16, 14), 'boxes': (16, 18), 'labmachine': (16, 30),
                  'startertable': (32, 22), 'bench': (32, 18), 'trash': (16, 16), 'vase': (16, 18), 'fireplace': (32, 30), 'rug': (32, 16)}
 
+# version 2 (bible) : décor dessiné en vue de 3/4 plongeante, pixel art agrandi ×4 sur fond magenta
+NATURE2_TREES = [['tree', 'tree2', 'tree3', 'pine'], ['snowpine', 'deadtree', 'palm', 'cuttree'],
+                 ['bush', 'rock', 'crackrock', 'caverock'], ['stalag', 'lamp', 'sign', 'mailbox']]
+NATURE2_SMALL = [['tuft', 'tuft1', 'darktuft', 'snowtuft'], ['flowers_r', 'flowers_y', 'flowers_w', 'fence'],
+                 ['pot', 'statue', 'gymstatue', 'itemball']]
+NATURE2_SIZE = {'tree': (32, 44), 'tree2': (32, 44), 'tree3': (32, 44), 'pine': (32, 48), 'snowpine': (32, 48), 'deadtree': (32, 44),
+                'palm': (32, 48), 'cuttree': (16, 24), 'bush': (16, 16), 'rock': (16, 16), 'crackrock': (16, 16), 'caverock': (16, 16),
+                'stalag': (16, 28), 'lamp': (16, 32), 'sign': (16, 18), 'mailbox': (16, 18), 'tuft': (16, 16), 'tuft1': (16, 16),
+                'darktuft': (16, 16), 'snowtuft': (16, 16), 'flowers_r': (16, 12), 'flowers_y': (16, 12), 'flowers_w': (16, 12),
+                'fence': (16, 16), 'pot': (16, 14), 'statue': (16, 32), 'gymstatue': (16, 32), 'itemball': (16, 12)}
+
+def do_nature2():
+    """planches nature_arbres.png (4 × 4) et nature_petits.png (4 × 3), si elles existent"""
+    done = dict(META.get('nature', {}))
+    for file, names in (('nature_arbres.png', NATURE2_TREES), ('nature_petits.png', NATURE2_SMALL)):
+        if not os.path.exists(os.path.join(SRC, file)): continue
+        a = load(file)
+        for i, j, cell in grid_cells(a, len(names[0]), len(names)):
+            key = names[j][i]
+            bg = magenta(cell); m = bg.copy(); m[:4] = True; m[-4:] = True; m[:, :4] = True; m[:, -4:] = True
+            fg = keep_main(~border_flood(m), frac=0.05, opening=1)
+            w, h = NATURE2_SIZE[key]
+            img, blk = snap(cell, fg)
+            save(place(img, w, h), 'nature', key + '.png')
+            done[key] = [w, h]
+            print('nature (v2)', key, 'bloc', blk, img.size)
+    META['nature'] = done
+    META['natureV2'] = True
+
 def do_sheet(file, names, sizes, folder, meta):
     a = load(file); done = {}
     for i, j, cell in grid_cells(a, 6, 4):
@@ -380,7 +519,9 @@ if __name__ == '__main__':
     if 'portraits' in want: do_portraits()
     if 'crea' in want or only: do_crea(only or None)
     if 'items' in want: do_items()
-    if 'nature' in want: do_sheet('nature.png', NATURE, NATURE_SIZE, 'nature', 'nature')
+    if 'nature' in want:
+        do_sheet('nature.png', NATURE, NATURE_SIZE, 'nature', 'nature')
+        do_nature2()
     if 'mobilier' in want: do_sheet('mobilier.png', MOBILIER, MOBILIER_SIZE, 'mobilier', 'mobilier')
     if 'sol' in want: do_sol()
     if 'facades' in want: do_facades()

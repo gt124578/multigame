@@ -349,6 +349,9 @@ export function applySpriteImages(S, images) {
     if (x + w > S.size) { x = 0; y += rowH + 2; rowH = 0; }
     if (y + h > S.size) break;
     ctx.clearRect(x, y, w, h); ctx.drawImage(img, x, y);
+    // case vide sur la planche (découpe ratée) : on garde le dessin procédural
+    const px = ctx.getImageData(x, y, w, h).data; let any = false; for (let i = 3; i < px.length; i += 4) if (px[i] > 0) { any = true; break; }
+    if (!any) { ctx.clearRect(x, y, w, h); continue; }
     S.rects[k] = { x, y, w, h, u0: x / S.size, v0: y / S.size, u1: (x + w) / S.size, v1: (y + h) / S.size };
     x += w + 2; rowH = Math.max(rowH, h);
   }

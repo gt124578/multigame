@@ -183,26 +183,51 @@ export function dexScreen(game) {
 }
 
 /* ================= CARTE DE LA RÉGION ================= */
+// La carte se dévoile au fil du voyage : seules les zones parcourues sont dessinées, le reste n'est qu'une étendue
+// verte ; le cadre est zoomé sur ce qu'on connaît et s'élargit à mesure qu'on avance.
 export function mapScreen(game) {
-  const ui = game.ui, W = game.world.maps.monde, towns = game.world.towns;
+  const ui = game.ui, W = game.world.maps.monde, towns = game.world.towns, st = game.state;
   return new Promise((resolve) => {
     const s = screen(ui, 'map-scr', 'CARTE DE LA RÉGION');
-    const wrap = el('div', 'map-wrap'); s.appendChild(wrap);
-    const c = el('canvas', 'mapcv'); c.width = W.w; c.height = W.h; wrap.appendChild(c);
-    const ctx = c.getContext('2d'), img = ctx.createImageData(W.w, W.h);
+    const B = 8, cw = Math.ceil(W.w / B), seen = new Set(st.explored || []);
+    const p = game.worldPos();
+    if (!seen.size) seen.add(Math.floor(p.y / B) * cw + Math.floor(p.x / B));
+    // cadre : ce qui a été exploré, avec une marge, au moins 64 × 48 cases, aux proportions de l'écran
+    let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+    for (const i of seen) { const cx = (i % cw) * B, cy = Math.floor(i / cw) * B; x0 = Math.min(x0, cx); y0 = Math.min(y0, cy); x1 = Math.max(x1, cx + B); y1 = Math.max(y1, cy + B); }
+    x0 -= 12; y0 -= 10; x1 += 12; y1 += 10;
+    let bw = Math.max(64, x1 - x0), bh = Math.max(48, y1 - y0);
+    if (bw / bh > 4 / 3) bh = bw * 3 / 4; else bw = bh * 4 / 3;
+    bw = Math.min(W.w, Math.ceil(bw)); bh = Math.min(W.h, Math.ceil(bh));
+    const cxm = (x0 + x1) / 2, cym = (y0 + y1) / 2;
+    const ox = Math.round(Math.max(0, Math.min(W.w - bw, cxm - bw / 2))), oy = Math.round(Math.max(0, Math.min(W.h - bh, cym - bh / 2)));
+    const wrap = el('div', 'map-wrap'); wrap.style.aspectRatio = `${bw} / ${bh}`; s.appendChild(wrap);
+    const c = el('canvas', 'mapcv'); c.width = bw; c.height = bh; wrap.appendChild(c);
+    const ctx = c.getContext('2d'), img = ctx.createImageData(bw, bh);
     const col = (t) => {
-      switch (t) { case T.WATER: return [72, 136, 224]; case T.TREE: case T.PINE: return [52, 120, 64]; case T.PATH: case T.BRIDGE: return [232, 208, 150]; case T.PAVE: case T.BUILD: case T.DOOR: return [228, 222, 208]; case T.SAND: return [240, 226, 170]; case T.TALL: case T.DARKTALL: return [90, 170, 80]; case T.ASH: return [150, 140, 136]; default: return [132, 200, 110]; }
+      switch (t) { case T.WATER: return [72, 136, 224]; case T.TREE: case T.PINE: return [52, 120, 64]; case T.PATH: case T.BRIDGE: return [232, 208, 150]; case T.PAVE: case T.BUILD: case T.DOOR: return [228, 222, 208]; case T.SAND: return [240, 226, 170]; case T.TALL: case T.DARKTALL: return [90, 170, 80]; case T.ASH: return [150, 140, 136]; case T.SNOW: return [236, 242, 250]; default: return [132, 200, 110]; }
     };
-    for (let y = 0; y < W.h; y++) for (let x = 0; x < W.w; x++) { const [r, g, b] = col(W.get(x, y)), k = (y * W.w + x) * 4; img.data[k] = r; img.data[k + 1] = g; img.data[k + 2] = b; img.data[k + 3] = 255; }
+    const known = (x, y) => seen.has(Math.floor(y / B) * cw + Math.floor(x / B));
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+      const wx = ox + x, wy = oy + y, k = (y * bw + x) * 4;
+      let rgb;
+      if (known(wx, wy)) {
+        rgb = col(W.get(wx, wy));
+        // lisière : un léger fondu vers l'inconnu
+        if (!known(wx - 3, wy) || !known(wx + 3, wy) || !known(wx, wy - 3) || !known(wx, wy + 3)) rgb = rgb.map((v, i) => (v + [70, 128, 76][i]) / 2);
+      } else { const n = ((wx * 7 + wy * 13) % 5) * 3; rgb = [62 + n, 116 + n, 70 + n]; }
+      img.data[k] = rgb[0]; img.data[k + 1] = rgb[1]; img.data[k + 2] = rgb[2]; img.data[k + 3] = 255;
+    }
     ctx.putImageData(img, 0, 0);
     const lab = el('div', 'map-labels'); wrap.appendChild(lab);
-    const visited = new Set(game.state.visited || []);
+    const visited = new Set(st.visited || []);
     for (const t of Object.values(towns)) {
-      const d = el('div', 'map-town' + (visited.has(t.id) ? ' seen' : ''), `<i></i><span>${visited.has(t.id) ? esc(t.name) : '???'}</span>`);
-      d.style.left = ((t.x + t.w / 2) / W.w * 100) + '%'; d.style.top = ((t.y + t.h / 2) / W.h * 100) + '%'; lab.appendChild(d);
+      if (!visited.has(t.id)) continue;   // une ville n'apparaît qu'une fois découverte
+      const tx = t.x + t.w / 2 - ox, ty = t.y + t.h / 2 - oy; if (tx < 0 || ty < 0 || tx > bw || ty > bh) continue;
+      const d = el('div', 'map-town seen', `<i></i><span>${esc(t.name)}</span>`);
+      d.style.left = (tx / bw * 100) + '%'; d.style.top = (ty / bh * 100) + '%'; lab.appendChild(d);
     }
-    const p = game.worldPos();
-    const me = el('div', 'map-me'); me.style.left = (p.x / W.w * 100) + '%'; me.style.top = (p.y / W.h * 100) + '%'; lab.appendChild(me);
+    const me = el('div', 'map-me'); me.style.left = ((p.x - ox) / bw * 100) + '%'; me.style.top = ((p.y - oy) / bh * 100) + '%'; lab.appendChild(me);
     s.appendChild(el('div', 'box map-where', esc(game.locationName())));
     const pop = ui.input.push((k) => { if (k === 'a' || k === 'b' || k === 'map') { pop(); s.remove(); ui.sound.sfx('cancel'); resolve(); } });
   });
