@@ -60,6 +60,7 @@ export class Game {
 
   async start(state) {
     this.state = state; this._seen = null;
+    this.stepLock = false; this.stepGap = false;
     this.player = { x: state.x, y: state.y, dir: state.dir || 'down', move: null, step: 0, turnLock: 0, bumpT: 0, surf: !!state.surf };
     this.setMap(state.map);
     this.view.setTimeOfDay(this.hour());
@@ -161,20 +162,31 @@ export class Game {
     st.time += dt;
     const p = this.player;
     // déplacement du joueur
+    // un pas terminé est traité (rencontre, dresseur, porte) avant que le suivant ne parte : sinon, en gardant la
+    // direction enfoncée, on sortait déjà des herbes quand le combat commençait (et il se jouait sur la case d'après)
+    let stepped = false;
     if (p.move) {
       p.move.t += dt / p.move.dur;
-      if (p.move.t >= 1) { const mv = p.move; p.x = mv.tx; p.y = mv.ty; p.move = null; p.step++; if (mv.land) p.surf = false; if (!mv.scripted) this.onStep(mv); }
+      if (p.move.t >= 1) {
+        const mv = p.move; p.x = mv.tx; p.y = mv.ty; p.move = null; p.step++; if (mv.land) p.surf = false; stepped = true;
+        if (!mv.scripted) { this.stepLock = true; this.onStep(mv).finally(() => { this.stepLock = false; }); }
+      }
     }
     if (p.turnLock > 0) p.turnLock -= dt;
     if (p.bumpT > 0) p.bumpT -= dt;
-    if (!p.move && !this.busy && this.input.free) {
+    if (!p.move && !this.busy && !this.stepLock && this.input.free) {
       const tap = this.input.takeTap();
       const d = this.input.dir() || tap;
       if (d) {
         if (p.dir !== d && !p.walking) { p.dir = d; p.turnLock = 0.1; }
-        else if (p.turnLock <= 0 || (tap && !this.input.dir())) this.tryStep(d);
+        else if (p.turnLock <= 0 || (tap && !this.input.dir())) {
+          this.tryStep(d);
+          // le pas a attendu une image : on la rattrape, la marche reste aussi fluide qu'avant
+          if (p.move && this.stepGap) p.move.t = Math.min(0.5, dt / p.move.dur);
+        }
       } else p.walking = false;
     }
+    this.stepGap = stepped;
     // PNJ
     for (const n of this.npcs) this.npcTick(n, dt);
     // la carte n'est pas redessinée sous un combat ou un écran plein cadre
@@ -341,6 +353,7 @@ export class Game {
         else if (o?.type === 'stele') await this.stele(o);
         else if (o?.type === 'shrine') await this.shrine();
         else if (o?.type === 'starter') await this.chooseStarter(o.sp);
+        else if (t === T.BLOCK && this.view.decoAt.get(key(fx, fy))) await this.furniture(this.view.decoAt.get(key(fx, fy)).k, fx, fy);
         else if (t === T.CUT) await this.fieldObstacle('coupe', fx, fy, 'Ce petit arbre pourrait être coupé.');
         else if (t === T.SMASH) await this.fieldObstacle('eclate', fx, fy, 'Ce rocher est plein de fissures. Il pourrait être brisé.');
         else if (t === T.WATER && m.outdoor && !p.surf) await this.trySurf(fx, fy);
@@ -801,6 +814,50 @@ export class Game {
     alive = false; s.remove(); this.sound.current = null; this.updateZone();
   }
 
+  /** meubles et objets du décor : un petit texte, comme sur DS (le lit de la maison soigne l'équipe) */
+  async furniture(k, x, y) {
+    const st = this.state, ui = this.ui, home = this.mapObj.id === 'aube:maison', b = this.badgeCount();
+    const pick = (a) => a[(x * 7 + y * 3 + this.mapObj.id.length) % a.length];
+    const TV = [
+      ['C\'est un film : quatre amis suivent une voie ferrée à travers la forêt.', 'Ça donne envie de partir à l\'aventure !'],
+      ['Un reportage sur les créatures de la région.', '« Les Capyousse adorent les journées ensoleillées... »'],
+      ['La météo : grand soleil sur Bourg-Aube, tempête de neige sur l\'Île Givrée.'],
+    ];
+    if (b >= 3 && !st.flags.rivalB4) TV.push(['Flash spécial : les Gardes d\'Écaille ferment des ports de pêche.', 'Les pêcheurs de Port-Granit protestent...']);
+    if (st.flags.champion) TV.push(['On parle de toi aux informations ! Le nouveau Maître de la Ligue...', 'Maman doit être si fière.']);
+    const T_ = {
+      books: home ? ['Des livres d\'images sur les créatures...', '« Mon premier voyage », celui que Maman te lisait le soir.']
+        : pick([['« Le guide du jeune Dresseur ».', 'Chapitre 1 : toujours garder des Potions dans son sac.'],
+          ['« Légendes de la région ».', 'On raconte que trois bêtes sacrées veillent sur les îles de l\'est...'],
+          ['Un livre de recettes de baies.', '« Tarte à la Baie Oran : de quoi requinquer toute une équipe. »'],
+          ['Des cartes marines annotées à la main.', 'Une île tout au nord est entourée d\'un cercle rouge.']]),
+      tv: pick(TV),
+      fridge: home ? ['Le frigo est bien rempli.', 'Il y a un mot de Maman : « Une part de gâteau t\'attend pour ton retour ! »']
+        : pick([['De la limonade bien fraîche et un pot de miel.'], ['Des baies, du lait Meumeu... rien qui se mange en route.'], ['Le frigo ronronne doucement.']]),
+      kitchen: home ? ['L\'évier brille.', 'Maman a fait la vaisselle en chantonnant.'] : pick([['L\'évier est impeccable.'], ['De l\'eau goutte du robinet... plic... ploc...'], ['Ça sent bon la soupe de légumes.']]),
+      plant: ['Une jolie plante verte, bien arrosée.'],
+      clock: ['Tic... tac... L\'horloge est parfaitement à l\'heure.'],
+      painting: ['Un tableau : un grand oiseau de feu au-dessus d\'une tour.'],
+      boxes: ['Des cartons de déménagement, jamais déballés.'],
+      sofa: ['Un canapé moelleux. Pas le temps de faire la sieste !'],
+      table: ['Une table bien cirée.'],
+      shelf: ['Des rayons de Potions, de Poké Balls et de Repousse bien alignés.'],
+      labmachine: ['Une machine pleine de voyants clignotants.', 'Elle analyse les données du Pokédex.'],
+      healer: ['La machine de soins. Seule l\'Infirmière sait s\'en servir.'],
+      vase: ['Un vase de fleurs fraîches.'], trash: ['Il n\'y a rien d\'intéressant dans la poubelle.'],
+      fireplace: ['Un bon feu crépite dans la cheminée.'], bench: ['Un banc pour patienter.'],
+      gymstatue: ['Une statue d\'arène.', 'Les noms des Dresseurs qui ont gagné ici y sont gravés.'],
+    };
+    if (k === 'bed') {
+      if (home) {
+        await ui.say('Ton lit ! Tu fais une petite sieste...'); this.sound.sfx('heal'); await ui.flash(1, '#000', 600);
+        for (const m of st.party) healFull(m);
+        await ui.say('Ton équipe est en pleine forme !');
+      } else await ui.say('Un lit bien fait. Ce n\'est pas le tien.');
+      return;
+    }
+    if (T_[k]) await ui.say(T_[k]);
+  }
   async nurse() {
     const ui = this.ui, st = this.state;
     await ui.say('Bienvenue au Centre de soins !', { keep: true, speaker: 'Infirmière' });

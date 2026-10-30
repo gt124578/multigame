@@ -45,6 +45,7 @@ function frontDepth(mat, zFront) {
   mat.customProgramCacheKey = () => 'frontDepth';
   return mat;
 }
+const WIDE_DECO = new Set(['healer', 'sofa', 'bench', 'startertable', 'fireplace', 'rug']);
 function screenSprite(mat) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uRes = SPRITE_UNIFORMS.uRes;
@@ -59,8 +60,9 @@ function screenSprite(mat) {
         vec4 mvPosition = viewMatrix * sW;
         vec4 sPC = projectionMatrix * mvPosition;
         // deux sprites sur la même rangée auraient exactement la même profondeur (pixels qui se battent, « hachurés ») :
-        // celui de gauche passe devant celui de droite (léger décalage selon la colonne, bien plus petit qu'une rangée)
-        float sBias = mod( sA.x, 64.0 ) * 1.0e-5;
+        // celui de gauche passe devant celui de droite (léger décalage selon la colonne, bien plus petit qu'une rangée).
+        // Le décalage rapproche le sprite de la caméra : s'il l'éloignait, le sol passerait devant le bas du dessin (les pieds)
+        float sBias = - ( 64.0 - mod( sA.x, 64.0 ) ) * 2.0e-6;
         gl_Position = vec4( ( sPx / uRes * 2.0 - 1.0 ) * sPC.w, sPC.z + sBias * sPC.w, sPC.w );`);
   };
   mat.customProgramCacheKey = () => 'screenSprite';
@@ -222,7 +224,7 @@ export class WorldView {
       const t = m.get(x, y), g = this.groundCell(x, y), v = hash(x + 7, y + 3);
       if (g.c) flat(G, x, y, x + 1, y + 1, 0, g.c);
       if (g.anim) flat(N, x, y, x + 1, y + 1, 0, g.anim);
-      if (g.bridge) flat(G, x - 0.02, y, x + 1.02, y + 1, 0.06, g.bridge);
+      if (g.bridge) flat(G, x - 0.02, y, x + 1.02, y + 1, 0.012, g.bridge);
       const zone = m.outdoor ? m.zoneAt(x, y) : null, theme = zone?.theme;
       // décor en volume
       if (t === T.TREE || t === T.PINE) {
@@ -272,7 +274,8 @@ export class WorldView {
         else if (d.k === 'carpet' || d.k === 'exitlight') { /* sol */ }
         else if (S[d.k]) {
           const r = S[d.k];
-          billboard(P, x + (r.w / (r.d || 1) > 16 ? 1 : 0.5), y + 0.6, SW(r), SH(r), r);
+          // meubles de deux cases (le second est bloqué par l'intérieur) : centrés entre les deux ; les autres sur leur case
+          billboard(P, x + (WIDE_DECO.has(d.k) ? 1 : 0.5), y + 0.6, SW(r), SH(r), r);
           if (d.k === 'lamp') glows.push([x + 0.5, y + 0.62, SH(r) * 0.82]);
           if (['statue', 'gymstatue', 'plant', 'lamp', 'mailbox', 'sign', 'pot', 'caverock', 'stalag', 'fridge', 'clock', 'books', 'pc', 'labmachine', 'vase', 'trash'].includes(d.k)) flat(Sh, x + 0.1, y + 0.4, x + 0.9, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
         }

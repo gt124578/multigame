@@ -37,7 +37,8 @@ export function martInterior(id, name, stock) {
 export function houseInterior(id, name, o = {}) {
   const m = room(id, o.w || 9, o.h || 8, { floor: 'wood', music: 'house', name, exitX: o.exitX });
   const w = o.w || 9;
-  furn(m, 'books', 1, 2); furn(m, 'tv', 3, 2); furn(m, 'plant', w - 2, 2);
+  // avec une cuisine (frigo et évier au fond), la plante descend dans le coin pour ne pas toucher l'évier
+  furn(m, 'books', 1, 2); furn(m, 'tv', 3, 2); furn(m, 'plant', o.kitchen ? 1 : w - 2, o.kitchen ? (o.h || 8) - 2 : 2);
   furn(m, 'table', 4, 4); if (o.bed) furn(m, 'bed', w - 2, 4);
   if (o.kitchen) { furn(m, 'fridge', 5, 2); furn(m, 'kitchen', 6, 2); }
   else furn(m, w > 9 ? 'clock' : 'painting', 5, 2);

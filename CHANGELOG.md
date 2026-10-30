@@ -1,5 +1,13 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.41 — 30 octobre 2026
+- **Odyssée** — les pieds des personnages s'affichent en entier, sur les chemins comme sur les ponts.
+- **Odyssée** — un combat sauvage déclenché sur la dernière case d'herbe se joue bien dans les herbes : le joueur ne fait plus un pas de plus sur la route avant le combat.
+- **Odyssée** — on peut examiner les meubles : bibliothèque, télé, frigo, évier, horloge, tableau, étagères…
+  - Les textes changent d'une maison à l'autre, et la télé suit l'aventure.
+  - Une sieste dans ton lit, à la maison, remet ton équipe en forme.
+- **Odyssée** — chez Maman, la plante ne chevauche plus l'évier ; les meubles d'une case (bibliothèque, PC) sont posés sur leur case.
+
 ## 3.40 — 30 octobre 2026
 - **Odyssée** — un second rival entre en scène au milieu de l'aventure : l'enfant que tu n'as pas choisi d'incarner (Lyra ou Ethan), petite-fille ou petit-fils du Prof. Saule.
   - Recrue des Gardes d'Écaille de Drakos, elle ou il te défie à Mirage, à Port-Granit, devant la Tour de Drakos, puis une dernière fois au Cap des Étoiles.
