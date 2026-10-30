@@ -1,5 +1,8 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.28 — 30 octobre 2026
+- Delete assets/graphics/joueur_g.png (Gabe)
+
 ## 3.27 — 30 octobre 2026
 - Delete assets/graphics/joueur_f.png (Gabe)
 
