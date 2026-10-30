@@ -128,52 +128,87 @@ def mode_down(rgb, f):
             out[j, i] = rgb[j * f:(j + 1) * f, i * f:(i + 1) * f].reshape(-1, 3)[sel].mean(0)
     return out
 
-def pixel_grid(rgb, fg, lo=3, hi=16):
-    """pixel art agrandi par une IA : taille et décalage de la grille des « gros pixels ». Les changements de couleur
-    tombent sur les bords des blocs : on cherche la période (et la phase) qui en concentre le plus, en x et en y."""
-    a = rgb.astype(np.int32)
-    def axis(diff):
-        # un multiple de la vraie période marque aussi bien les bords : on garde la plus petite période presque aussi bonne
-        n = len(diff); res = []
-        for b in range(lo, hi + 1):
-            sc = []
-            for ph in range(b):
-                idx = np.arange(ph, n, b)
-                if len(idx) >= 3: sc.append((diff[idx].mean() - diff.mean(), ph))
-            if sc: res.append((max(sc), b))
-        top = max(r[0][0] for r in res)
-        for (score, ph), b in res:
-            if score >= 0.8 * top: return b, ph
-        return res[0][1], res[0][0][1]
-    m = fg.astype(np.float64)
-    dx = (np.abs(np.diff(a, axis=1)).sum(2) * (m[:, 1:] * m[:, :-1])).sum(0); dx = np.concatenate([[0], dx])
-    dy = (np.abs(np.diff(a, axis=0)).sum(2) * (m[1:] * m[:-1])).sum(1); dy = np.concatenate([[0], dy])
-    bx, px = axis(dx); by, py = axis(dy)
-    b = round((bx + by) / 2)
-    return b, px % b, py % b
+def _edge_profile(rgb, fg, axis):
+    a = rgb.astype(np.int32); m = fg.astype(np.float64)
+    if axis == 1: return (np.abs(np.diff(a, axis=1)).sum(2) * (m[:, 1:] * m[:, :-1])).sum(0)
+    return (np.abs(np.diff(a, axis=0)).sum(2) * (m[1:] * m[:-1])).sum(1)
 
-def snap(rgb, fg, block=None, expect=None):
-    """réduit un dessin « pixel art agrandi » à sa vraie résolution : un pixel par bloc, couleur dominante du bloc,
-    opaque si la majorité du bloc fait partie du dessin. Renvoie une image RGBA nette (sans lissage).
-    expect : taille de bloc attendue (case / pixels logiques) ; la grille trouvée n'est gardée que si elle s'en approche."""
-    if block is None:
-        b, px, py = pixel_grid(rgb, fg)
-        if expect and abs(b - expect) > max(1, expect * 0.15): b, px, py = expect, 0, 0
-    else: b, px, py = block, 0, 0
+def _comb(prof, p):
+    """énergie des bords qui tombent sur une grille de pas p (meilleure phase)"""
+    n = len(prof); best = (-1.0, 0.0)
+    for ph in np.arange(0, p, p / 12):
+        pos = np.arange(ph, n - 1, p); i = np.floor(pos).astype(int); f = pos - i
+        v = prof[i] * (1 - f) + prof[np.minimum(i + 1, n - 1)] * f
+        v = np.maximum(prof[np.clip(np.round(pos).astype(int), 0, n - 1)], v)
+        if v.mean() > best[0]: best = (v.mean(), ph)
+    return best
+
+def pixel_grid(rgb, fg, lo=3.0, hi=16.0, ratio=0.86):
+    """pixel art agrandi (par une IA, ou retouché) : pas de la grille des « gros pixels », souvent fractionnaire
+    (3,5 ; 5,7…), et sa phase en x et en y. Les changements de couleur tombent sur les bords des blocs ; un multiple
+    du vrai pas marque aussi bien les bords, on garde donc le plus petit pas presque aussi bon que le meilleur."""
+    px, py = _edge_profile(rgb, fg, 1), _edge_profile(rgb, fg, 0)
+    px = px / (px.mean() + 1e-9); py = py / (py.mean() + 1e-9)
+    res = []
+    for p in np.arange(lo, hi, 0.02):
+        sx, phx = _comb(px, p); sy, phy = _comb(py, p)
+        res.append((sx + sy, p, phx, phy))
+    top = max(r[0] for r in res)
+    for sc, p, phx, phy in res:
+        if sc >= ratio * top: return float(p), float(phx), float(phy)
+    return float(res[0][1]), float(res[0][2]), float(res[0][3])
+
+def snap(rgb, fg, grid=None):
+    """réduit un dessin « pixel art agrandi » à sa vraie résolution : un pixel par bloc (couleur dominante du cœur
+    du bloc), opaque si la majorité du bloc fait partie du dessin. Image RGBA nette, sans lissage."""
+    p, phx, phy = grid or pixel_grid(rgb, fg)
     H, W = rgb.shape[:2]
-    xs = list(range(px - b if px else 0, W, b)); ys = list(range(py - b if py else 0, H, b))
-    out = np.zeros((len(ys), len(xs), 4), np.uint8)
-    q = (rgb // 10).astype(np.int32); key = (q[..., 0] << 10) | (q[..., 1] << 5) | q[..., 2]
-    for j, y0 in enumerate(ys):
-        for i, x0 in enumerate(xs):
-            ya, yb, xa, xb = max(0, y0), min(H, y0 + b), max(0, x0), min(W, x0 + b)
-            if yb <= ya or xb <= xa: continue
-            f = fg[ya:yb, xa:xb]
-            if f.mean() < 0.5: continue
-            k = key[ya:yb, xa:xb][f]; vals, cnt = np.unique(k, return_counts=True)
+    x0s = np.arange(phx - p if phx > 0 else 0, W, p); y0s = np.arange(phy - p if phy > 0 else 0, H, p)
+    out = np.zeros((len(y0s), len(x0s), 4), np.uint8)
+    q = (rgb // 12).astype(np.int32); key = (q[..., 0] << 10) | (q[..., 1] << 5) | q[..., 2]
+    m = p * 0.25
+    for j, y0 in enumerate(y0s):
+        for i, x0 in enumerate(x0s):
+            ya, yb = int(round(max(0, y0))), int(round(min(H, y0 + p))); xa, xb = int(round(max(0, x0))), int(round(min(W, x0 + p)))
+            if yb <= ya or xb <= xa or fg[ya:yb, xa:xb].mean() < 0.5: continue
+            ia, ib = int(round(max(0, y0 + m))), int(round(min(H, y0 + p - m))); ja, jb = int(round(max(0, x0 + m))), int(round(min(W, x0 + p - m)))
+            if ib <= ia: ia, ib = ya, yb
+            if jb <= ja: ja, jb = xa, xb
+            f = fg[ia:ib, ja:jb]
+            if not f.any(): f = np.ones_like(f)
+            k = key[ia:ib, ja:jb][f]; vals, cnt = np.unique(k, return_counts=True)
             sel = k == vals[cnt.argmax()]
-            out[j, i, :3] = rgb[ya:yb, xa:xb][f][sel].mean(0); out[j, i, 3] = 255
-    return Image.fromarray(out), b
+            out[j, i, :3] = rgb[ia:ib, ja:jb][f][sel].mean(0); out[j, i, 3] = 255
+    return crop_alpha(Image.fromarray(out)), p
+
+def crop_alpha(img):
+    al = np.array(img)[..., 3] > 0
+    if not al.any(): return img
+    ys, xs = np.nonzero(al); return img.crop((xs.min(), ys.min(), xs.max() + 1, ys.max() + 1))
+
+def crisp_resize(img, w, h):
+    """réduction nette d'un sprite déjà en pixels : chaque pixel d'arrivée prend la couleur dominante de sa zone"""
+    a = np.array(img).astype(np.int32); H, W = a.shape[:2]
+    out = np.zeros((h, w, 4), np.uint8)
+    q = (a[..., :3] // 12); key = (q[..., 0] << 10) | (q[..., 1] << 5) | q[..., 2]
+    for j in range(h):
+        for i in range(w):
+            ya, yb = int(j * H / h), max(int(j * H / h) + 1, int(round((j + 1) * H / h))); xa, xb = int(i * W / w), max(int(i * W / w) + 1, int(round((i + 1) * W / w)))
+            blk = a[ya:yb, xa:xb]; op = blk[..., 3] > 0
+            if op.mean() < 0.5: continue
+            k = key[ya:yb, xa:xb][op]; vals, cnt = np.unique(k, return_counts=True)
+            out[j, i, :3] = blk[op][k == vals[cnt.argmax()]][:, :3].mean(0); out[j, i, 3] = 255
+    return Image.fromarray(out)
+
+def fit_px(img, maxw, maxh, exactw=None):
+    """sprite en pixels → taille du jeu : gardé tel quel s'il tient dans maxw × maxh, sinon réduit net ;
+    exactw : largeur imposée (herbes, barrières : exactement une case)"""
+    w, h = img.size
+    sc = exactw / w if exactw else min(1.0, maxw / w, maxh / h)
+    if exactw is None and sc > 0.87: sc = 1.0 if (w <= maxw * 1.15 and h <= maxh * 1.15) else sc
+    if abs(sc - 1) < 1e-6 and w <= maxw and h <= maxh: return img
+    nw, nh = max(1, round(w * sc)), max(1, round(h * sc))
+    return crisp_resize(img, min(nw, maxw), min(nh, maxh))
 
 def place(img, w, h, anchor='bottom', pad=0):
     """pose un sprite déjà à la bonne résolution dans une case w × h (réduit seulement s'il déborde)"""
@@ -220,7 +255,7 @@ CHARS = {
     'habitant': ('habitant_h.png', False), 'habitante': ('habitant_f.png', False), 'vieil_homme': ('vieil_homme.png', False),
     'enfant': ('enfant.png', False),
 }
-CW, CHH = 32, 32
+CW, CHH = 64, 64
 LR_FILE = os.path.join(ROOT, 'tools', 'odyssee-sprites-lr.json')
 
 def char_cells(a):
@@ -269,51 +304,134 @@ def side_groups(cells, cid):
     if not right: right = left
     return left, right
 
+def grid_phase(rgb, fg, p):
+    px, py = _edge_profile(rgb, fg, 1), _edge_profile(rgb, fg, 0)
+    return p, _comb(px / (px.mean() + 1e-9), p)[1], _comb(py / (py.mean() + 1e-9), p)[1]
+
+def sheet_grid(cells):
+    """pas commun à toute la planche (médiane des cases), phase propre à chaque case"""
+    ps = [pixel_grid(rgb, fg)[0] for rgb, fg in cells[:6] if fg.sum() > 400]
+    p = float(np.median(ps)) if ps else 6.0
+    # un personnage fait de 40 à 100 pixels de haut : sinon on a trouvé un multiple (ou une fraction) du vrai pas
+    hs = [np.ptp(np.nonzero(fg)[0]) + 1 for _, fg in cells if fg.any()]
+    if hs:
+        h = max(hs)
+        while h / p < 42 and p / 2 >= 2.5: p /= 2
+        while h / p > 100: p *= 2
+    return [grid_phase(rgb, fg, p) for rgb, fg in cells], p
+
+def _sig(img, flip=False):
+    a = np.array(img).astype(float); a[a[..., 3] == 0] = 128
+    s = np.array(Image.fromarray(a.astype(np.uint8)).resize((16, 24), Image.BILINEAR)).astype(float)[..., :3]
+    return s[:, ::-1] if flip else s
+
+def facing(img):
+    """sens d'un profil : -1 tourné vers la gauche, +1 vers la droite, 0 de face ou de dos.
+    Le visage (peau claire) est du côté où regarde le personnage ; une case symétrique est de face."""
+    a = np.array(img).astype(int); op = a[..., 3] > 0; H, W = op.shape
+    ys, xs = np.nonzero(op)
+    sym = np.abs(_sig(img) - _sig(img, True)).mean()
+    head = op.copy(); head[int(H * 0.45):] = False
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    skin = head & (r > 150) & (r > g + 10) & (g > b) & (g > 90) & (r - b > 35)
+    hx = np.nonzero(head)[1].mean() if head.any() else W / 2
+    if skin.sum() >= 4:
+        dx = np.nonzero(skin)[1].mean() - hx
+        if abs(dx) > W * 0.06: return (-1 if dx < 0 else 1), sym
+    return 0, sym
+
+def foot_spread(img):
+    op = np.array(img)[..., 3] > 0; H = op.shape[0]
+    rows = op[int(H * 0.85):]; xs = np.nonzero(rows.any(0))[0]
+    return (xs.max() - xs.min()) if len(xs) else 0
+
+def walk_cycle(frames):
+    """trois cases (pas 1, immobile, pas 2) parmi des profils tournés du même côté"""
+    uniq = []
+    for f in frames:
+        if all(np.abs(_sig(f) - _sig(u)).mean() > 4 for u in uniq): uniq.append(f)
+    if not uniq: return None
+    # les cases les plus « de profil » (les moins symétriques) d'abord : une case presque de face ferait tourner le
+    # personnage sur lui-même
+    sy = {id(u): np.abs(_sig(u) - _sig(u, True)).mean() for u in uniq}
+    top = max(sy.values())
+    good = [u for u in uniq if sy[id(u)] >= 0.75 * top]
+    if len(good) >= 2: uniq = good
+    uniq.sort(key=foot_spread)
+    idle = uniq[0]; steps = uniq[1:] or [idle]
+    if len(steps) >= 2:
+        # les deux pas les plus différents l'un de l'autre
+        best = max(((a, b) for i, a in enumerate(steps) for b in steps[i + 1:]), key=lambda ab: np.abs(_sig(ab[0]) - _sig(ab[1])).mean())
+        return [best[0], idle, best[1]]
+    return [steps[0], idle, steps[0]]
+
+def split_profiles(frames, front=None):
+    """profils rangés en « vers la gauche » / « vers la droite ». Repère : le profil dont le visage est le plus net ;
+    chaque autre case est comparée à ce repère telle quelle et en miroir. Les cases presque symétriques (de face,
+    égarées au milieu d'une ligne de profil) sont écartées."""
+    if not frames: return [], []
+    info = []
+    for im in frames:
+        a = np.array(im).astype(int); op = a[..., 3] > 0; H, W = op.shape
+        head = op.copy(); head[int(H * 0.45):] = False
+        r, g, b = a[..., 0], a[..., 1], a[..., 2]
+        skin = head & (r > 150) & (r > g + 10) & (g > b) & (g > 90) & (r - b > 35)
+        dx = (np.nonzero(skin)[1].mean() - np.nonzero(head)[1].mean()) / W if skin.sum() >= 4 and head.any() else 0
+        sym = np.abs(_sig(im) - _sig(im, True)).mean()
+        info.append((im, dx, sym))
+    syms = sorted(x[2] for x in info); med = syms[len(syms) // 2]
+    prof = [x for x in info if x[2] >= 0.45 * med] or info
+    if front is not None and len(prof) > 2:
+        # case de face égarée : elle ressemble bien plus à la case de face qu'à un profil
+        df = [np.abs(_sig(x[0]) - _sig(front)).mean() for x in prof]
+        md = sorted(df)[len(df) // 2]
+        keep = [x for x, d in zip(prof, df) if d >= 0.6 * md]
+        if len(keep) >= 2: prof = keep
+    anchor = max(prof, key=lambda x: abs(x[1]))
+    side = -1 if anchor[1] <= 0 else 1   # sans visage visible : la première case de profil regarde à gauche
+    if abs(anchor[1]) < 0.02: side = -1; anchor = prof[0]
+    L, R = [], []
+    for im, dx, sym in prof:
+        same = np.abs(_sig(im) - _sig(anchor[0])).mean() <= np.abs(_sig(im, True) - _sig(anchor[0])).mean()
+        (L if (same and side < 0) or (not same and side > 0) else R).append(im)
+    return L, R
+
+CHAR_SMALL = {'gamin', 'fillette', 'enfant'}
+
 def do_chars():
-    swap = {}
-    if os.path.exists(LR_FILE): swap = json.load(open(LR_FILE))
+    """planche des personnages : cases de 64 × 64, un pixel du dessin = un pixel à l'écran (densité 2 : une case du
+    décor fait 32 pixels). Les profils sont triés par sens (gauche / droite) quelle que soit leur place sur la planche."""
     ids = list(CHARS)
     atlas = Image.new('RGBA', (CW * 12, CHH * len(ids)))
-    rows = {}
+    rows, report = {}, []
     for r, cid in enumerate(ids):
         fn, _ = CHARS[cid]
-        src_img = load(fn); cells = char_cells(src_img)
-        v2 = abs(src_img.shape[0] / src_img.shape[1] - 4 / 3) < 0.08   # 3 colonnes × 4 lignes de cases carrées
-        hmax = max((np.ptp(np.nonzero(fg)[0]) + 1) for _, fg in cells if fg.any())
-        sc = (CHH - 1) / hmax
-        # planches dessinées : ligne 0 de face, lignes 1 et 2 de profil, ligne 3 de dos. Sur les lignes de profil, la
-        # colonne du milieu est presque toujours de face : on ne garde que les profils (colonne 0 tournée vers la
-        # gauche, colonne 2 vers la droite, sauf mention contraire), sinon le personnage tourne sur lui-même en marchant.
-        # case du jeu : (pas 1, immobile, pas 2)
-        if v2:
-            # planche « chibi » (bible, version 2) : chaque ligne regarde dans une seule direction, lue pixel pour pixel
-            for d in range(4):
-                for c in range(3):
-                    rgb, fg = cells[d * 3 + c]
-                    img, blk = snap(rgb, fg, expect=round(rgb.shape[1] / 32))
-                    atlas.alpha_composite(place(img, CW, CHH, pad=1), ((d * 3 + c) * CW, r * CHH))
-            rows[cid] = r
-            print('personnage (v2)', cid, 'bloc', blk)
-            continue
-        if new_style(cells): src = {0: [0, 1, 2], 1: [3, 4, 5], 2: [6, 7, 8], 3: [9, 10, 11]}
-        else:
-            lefts, rights = side_groups(cells, cid)
-            pick = lambda g: [g[1 % len(g)], g[0], g[1 % len(g)]]
-            src = {0: [0, 1, 2], 1: pick(lefts), 2: pick(rights), 3: [9, 10, 11]}
+        cells = char_cells(load(fn))
+        grids, p = sheet_grid(cells)
+        imgs = [snap(rgb, fg, grids[k])[0] if fg.sum() > 100 else None for k, (rgb, fg) in enumerate(cells)]
+        # taille : on garde la résolution du dessin, sauf s'il dépasse la case
+        hmax = max(im.height for im in imgs if im)
+        lim = 50 if cid in CHAR_SMALL else 60
+        if hmax > lim:
+            sc = (lim - 2) / hmax
+            imgs = [crisp_resize(im, max(1, round(im.width * sc)), max(1, round(im.height * sc))) if im else None for im in imgs]
+        # profils : toutes les cases des lignes 2 et 3 (et une éventuelle case de profil égarée ailleurs)
+        L, R = split_profiles([imgs[k] for k in range(3, 9) if imgs[k] is not None], imgs[1])
+        mir = lambda im: im.transpose(Image.FLIP_LEFT_RIGHT)
+        left = walk_cycle(L + [mir(x) for x in R]) if len(L) < 2 else walk_cycle(L)
+        right = walk_cycle(R + [mir(x) for x in L]) if len(R) < 2 else walk_cycle(R)
+        left = left or [mir(x) for x in right]; right = right or [mir(x) for x in left]
+        out = {0: imgs[0:3], 1: left, 2: right, 3: imgs[9:12]}
         for d in range(4):
             for c in range(3):
-                rgb, fg = cells[src[d][c]]
-                img, _ = fit(rgb, fg, CW, CHH, scale=sc)
-                atlas.alpha_composite(img, ((d * 3 + c) * CW, r * CHH))
+                im = out[d][c] or out[d][1]
+                if im is None: continue
+                atlas.alpha_composite(place(im, CW, CHH, pad=1), ((d * 3 + c) * CW, r * CHH))
         rows[cid] = r
+        report.append(f'{cid}: pas {p:.2f}, hauteur {hmax}, profils G {len(L)} / D {len(R)}')
     save(atlas, 'chars.png')
-    META['chars'] = {'w': CW, 'h': CHH, 'rows': rows}
-    # planche de contrôle : profils gauche / droite agrandis (pour vérifier le sens)
-    chk = Image.new('RGBA', (len(ids) * 2 * CW, CHH + 10), (80, 150, 80, 255))
-    for r, cid in enumerate(ids):
-        for k, d in enumerate([1, 2]):
-            chk.alpha_composite(atlas.crop(((d * 3 + 1) * CW, r * CHH, (d * 3 + 2) * CW, (r + 1) * CHH)), ((r * 2 + k) * CW, 0))
-    chk.resize((chk.width * 4, chk.height * 4), Image.NEAREST).save(os.path.join(ROOT, 'tools', 'odyssee-sprites-lr.png'))
+    META['chars'] = {'w': CW, 'h': CHH, 'd': 2, 'rows': rows}
+    print('\n'.join(report))
 
 # ------------------------------------------------------------------ portraits
 PORTRAITS = ['hector', 'basalte', 'marine', 'volta', 'flora', 'sibylle', 'pyros', 'drakos', 'celestine', 'saule', 'théo',
@@ -435,36 +553,84 @@ NATURE2_TREES = [['tree', 'tree2', 'tree3', 'pine'], ['snowpine', 'deadtree', 'p
                  ['bush', 'rock', 'crackrock', 'caverock'], ['stalag', 'lamp', 'sign', 'mailbox']]
 NATURE2_SMALL = [['tuft', 'tuft1', 'darktuft', 'snowtuft'], ['flowers_r', 'flowers_y', 'flowers_w', 'fence'],
                  ['pot', 'statue', 'gymstatue', 'itemball']]
-NATURE2_SIZE = {'tree': (32, 44), 'tree2': (32, 44), 'tree3': (32, 44), 'pine': (32, 48), 'snowpine': (32, 48), 'deadtree': (32, 44),
-                'palm': (32, 48), 'cuttree': (16, 24), 'bush': (16, 16), 'rock': (16, 16), 'crackrock': (16, 16), 'caverock': (16, 16),
-                'stalag': (16, 28), 'lamp': (16, 32), 'sign': (16, 18), 'mailbox': (16, 18), 'tuft': (16, 16), 'tuft1': (16, 16),
-                'darktuft': (16, 16), 'snowtuft': (16, 16), 'flowers_r': (16, 12), 'flowers_y': (16, 12), 'flowers_w': (16, 12),
-                'fence': (16, 16), 'pot': (16, 14), 'statue': (16, 32), 'gymstatue': (16, 32), 'itemball': (16, 12)}
+# taille maximale dans le jeu (pixels, densité 2 : une case du décor = 32 pixels) ; « w » impose la largeur exacte
+NATURE2_FIT = {'tree': (72, 96), 'tree2': (72, 96), 'tree3': (72, 96), 'pine': (64, 100), 'snowpine': (64, 100), 'deadtree': (72, 96),
+               'palm': (72, 100), 'cuttree': (32, 48), 'bush': (32, 32), 'rock': (32, 32), 'crackrock': (32, 32), 'caverock': (32, 32),
+               'stalag': (32, 56), 'lamp': (32, 64), 'sign': (32, 40), 'mailbox': (32, 40), 'tuft': ('wh', 32, 36), 'tuft1': ('w', 30),
+               'darktuft': ('wh', 32, 36), 'snowtuft': ('wh', 32, 36), 'flowers_r': (30, 26), 'flowers_y': (30, 26), 'flowers_w': (30, 26),
+               'fence': ('w', 32), 'pot': (28, 32), 'statue': (32, 64), 'gymstatue': (32, 64), 'itemball': (20, 20)}
+
+def sheet_objects(a, cols, rows):
+    """objets d'une planche sur fond magenta (cases plus ou moins régulières, traits de grille) : un objet par case,
+    trouvé comme une tache de couleur, rangé dans la case où tombe son centre"""
+    H, W = a.shape[:2]
+    bg = magenta(a)
+    dark = (a.max(2) < 90) & ~bg
+    # un trait de grille est long (60 pixels et plus) et fin (4 pixels au plus) ; un dessin sombre est épais
+    hl = ndimage.binary_opening(dark, structure=np.ones((1, 60))); vl = ndimage.binary_opening(dark, structure=np.ones((60, 1)))
+    hl &= ~ndimage.binary_opening(hl, structure=np.ones((5, 1))); vl &= ~ndimage.binary_opening(vl, structure=np.ones((1, 5)))
+    # … et il passe près d'une limite de case (les cases dessinées à la main ne sont pas parfaitement régulières)
+    band_y = np.zeros(H, bool); band_x = np.zeros(W, bool)
+    for k in range(1, rows): c = int(k * H / rows); band_y[max(0, c - 70):c + 70] = True
+    for k in range(1, cols): c = int(k * W / cols); band_x[max(0, c - 70):c + 70] = True
+    hl &= band_y[:, None]; vl &= band_x[None, :]
+    lines = ndimage.binary_dilation(hl | vl, iterations=2)
+    fg = ~bg & ~lines
+    fg = ndimage.binary_opening(fg, iterations=1)
+    lab, n = ndimage.label(ndimage.binary_dilation(fg, iterations=2))
+    found = {}
+    for k in range(1, n + 1):
+        m = (lab == k) & fg
+        if m.sum() < 150: continue
+        ys, xs = np.nonzero(m); cy, cx = ys.mean(), xs.mean()
+        cell = (min(cols - 1, int(cx * cols / W)), min(rows - 1, int(cy * rows / H)))
+        if cell in found and found[cell][0].sum() > m.sum(): continue
+        found[cell] = (m, (ys.min(), ys.max() + 1, xs.min(), xs.max() + 1))
+    return found
 
 def do_nature2():
-    """planches nature_arbres.png (4 × 4) et nature_petits.png (4 × 3), si elles existent"""
+    """planches nature_arbres.png (4 × 4) et nature_petits.png (4 × 3) : pixel art ramené à sa résolution réelle"""
     done = dict(META.get('nature', {}))
-    for file, names in (('nature_arbres.png', NATURE2_TREES), ('nature_petits.png', NATURE2_SMALL)):
-        if not os.path.exists(os.path.join(SRC, file)): continue
+    for files, names in ((('nature_arbres.png', 'nature_abre.png'), NATURE2_TREES), (('nature_petits.png',), NATURE2_SMALL)):
+        file = next((f for f in files if os.path.exists(os.path.join(SRC, f))), None)
+        if not file: continue
         a = load(file)
-        for i, j, cell in grid_cells(a, len(names[0]), len(names)):
+        objs = sheet_objects(a, len(names[0]), len(names))
+        crops = {}
+        for (i, j), (m, (y0, y1, x0, x1)) in objs.items():
+            pad = 6; y0, x0 = max(0, y0 - pad), max(0, x0 - pad); y1, x1 = min(a.shape[0], y1 + pad), min(a.shape[1], x1 + pad)
+            crops[(i, j)] = (a[y0:y1, x0:x1], m[y0:y1, x0:x1])
+        # même pas pour toute la planche (les petits objets seuls donnent parfois le double)
+        ps = sorted(pixel_grid(rgb, fg)[0] for rgb, fg in crops.values() if fg.sum() > 3000)
+        pS = ps[len(ps) // 2] if ps else None
+        for (i, j), (rgb, fg) in sorted(crops.items()):
             key = names[j][i]
-            bg = magenta(cell); m = bg.copy(); m[:4] = True; m[-4:] = True; m[:, :4] = True; m[:, -4:] = True
-            fg = keep_main(~border_flood(m), frac=0.05, opening=1)
-            w, h = NATURE2_SIZE[key]
-            img, blk = snap(cell, fg, expect=round(cell.shape[1] / 64))
-            save(place(img, w, h), 'nature', key + '.png')
-            done[key] = [w, h]
-            print('nature (v2)', key, 'bloc', blk, img.size)
+            img, p = snap(rgb, fg, grid_phase(rgb, fg, pS) if pS else None)
+            fit = NATURE2_FIT[key]
+            if fit[0] == 'wh': img = crisp_resize(img, fit[1], fit[2])   # herbes hautes : une case pleine, les rangées se chevauchent
+            elif fit[0] == 'w': img = fit_px(img, 32, 64, exactw=fit[1])
+            else: img = fit_px(img, *fit)
+            save(img, 'nature', key + '.png')
+            done[key] = [img.width, img.height, 2]
+            print('nature (v2)', key, 'pas', round(p, 2), img.size)
     META['nature'] = done
     META['natureV2'] = True
 
-def do_sheet(file, names, sizes, folder, meta):
+def do_sheet(file, names, sizes, folder, meta, dens=1):
+    """planche 6 × 4 sur fond uni. dens = 2 : réduction nette (couleur dominante, pas de flou) à deux fois la résolution
+    des tuiles, comme les personnages et la nature « version 2 »"""
     a = load(file); done = {}
     for i, j, cell in grid_cells(a, 6, 4):
         key = names[j][i]
         sz = sizes[key]; w, h = sz[0], sz[1]; fill = sz[2] if len(sz) > 2 else 1
         fg = keep_main(grab(cell, flat_bg(cell, 0.04, 0.04, tol=20), margin=0.03))
+        if dens == 2 and fg.any():
+            ys, xs = np.nonzero(fg); y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+            src = Image.fromarray(np.dstack([cell[y0:y1, x0:x1], fg[y0:y1, x0:x1] * 255]).astype(np.uint8))
+            W2, H2 = w * 2, h * 2; sc = min(W2 * fill / src.width, H2 * fill / src.height)
+            img = place(crisp_resize(src, max(1, round(src.width * sc)), max(1, round(src.height * sc))), W2, H2)
+            save(img, folder, key + '.png'); done[key] = [W2, H2, 2]
+            continue
         img, _ = fit(cell, fg, w, h, fill=fill)
         save(img, folder, key + '.png')
         done[key] = [w, h]
@@ -533,7 +699,7 @@ if __name__ == '__main__':
     if 'nature' in want:
         do_sheet('nature.png', NATURE, NATURE_SIZE, 'nature', 'nature')
         do_nature2()
-    if 'mobilier' in want: do_sheet('mobilier.png', MOBILIER, MOBILIER_SIZE, 'mobilier', 'mobilier')
+    if 'mobilier' in want: do_sheet('mobilier.png', MOBILIER, MOBILIER_SIZE, 'mobilier', 'mobilier', dens=2)
     if 'sol' in want: do_sol()
     if 'facades' in want: do_facades()
     if 'title' in want: do_title()

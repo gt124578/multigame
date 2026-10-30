@@ -10,7 +10,12 @@ export const EL = 55 * Math.PI / 180, FOV = 22;
 // Une tuile fait 16 × 16 pixels à l'écran (la projection est resserrée en largeur pour que les tuiles soient carrées,
 // comme sur DS) ; un pixel de sprite vaut un pixel d'écran : WPX en largeur, HPX en hauteur (unités du monde).
 export const WPX = 1 / 16, HPX = Math.tan(EL) / 16;
-const WPX_STR = WPX.toFixed(8), HPX_STR = HPX.toFixed(8);
+// À l'écran, une case du décor fait TILE_PX pixels : les tuiles (dessinées en 16 × 16) sont agrandies ×2, les sprites
+// « version 2 » (personnages, nature) sont dessinés deux fois plus fins (densité 2) et affichés pixel pour pixel.
+export const TILE_PX = 32;
+const WPX_STR = (1 / TILE_PX).toFixed(8), HPX_STR = (Math.tan(EL) / TILE_PX).toFixed(8);
+/** taille dans le monde d'un sprite de la planche (selon sa densité) */
+const SW = (r) => r.w * WPX / (r.d || 1), SH = (r) => r.h * HPX / (r.d || 1);
 
 /*
  * Sprites « à la Génération 4 » (Platine, HeartGold/SoulSilver) : les personnages, arbres, herbes et objets ne sont pas
@@ -62,7 +67,7 @@ const CH = 16;
 // lignes de la planche des personnages (img/chars.png) ; les anciens noms des sprites du prototype pointent vers les nouveaux
 export const CHAR_ROWS = { ...((SPRITES.chars && SPRITES.chars.rows) || {}) };
 // taille d'une case de la planche des personnages (32 × 32 depuis la version 2 de la bible)
-const CW = SPRITES.chars?.w || 24, CHH = SPRITES.chars?.h || 32;
+const CW = SPRITES.chars?.w || 24, CHH = SPRITES.chars?.h || 32, CD = SPRITES.chars?.d || 1;
 const CHAR_ALIAS = { red: 'player_m', green: 'player_f', prof: 'scientifique', clerk: 'vendeur', youngster: 'gamin', lass: 'habitante', sailor: 'marin', hiker: 'montagnard', cooltrainer_f: 'habitante' };
 const DIR_COL = { down: 0, left: 1, right: 2, up: 3 };
 
@@ -118,7 +123,7 @@ export class WorldView {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(FOV, 1, 1, 400);
     const A = buildAtlas(), N = buildAnimAtlas(), S = buildSprites();
-    if (art.sprites) applySpriteImages(S, art.sprites);
+    if (art.sprites) applySpriteImages(S, art.sprites, art.dens);
     this.A = A; this.N = N; this.S = S;
     this.charRows = charsImg ? Math.round(charsImg.height / CHH) : 10;
     this.texA = tex(A.canvas); this.texN = tex(N.canvas); this.texS = tex(S.canvas); this.texC = tex(charsImg);
@@ -149,7 +154,7 @@ export class WorldView {
     this.camera.projectionMatrix.elements[0] *= Math.sin(EL); this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
     SPRITE_UNIFORMS.uRes.value.set(w, h);
     // distance pour qu'une tuile fasse 16 pixels de haut à l'écran (rendu basse résolution)
-    this.dist = (Math.sin(EL) * h) / (2 * Math.tan(FOV * Math.PI / 360) * 16) * (this.zoom || 1);
+    this.dist = (Math.sin(EL) * h) / (2 * Math.tan(FOV * Math.PI / 360) * TILE_PX) * (this.zoom || 1);
   }
 
   /* ---------------- construction d'une carte ---------------- */
@@ -220,25 +225,28 @@ export class WorldView {
       if (t === T.TREE || t === T.PINE) {
         // forêts rangées comme sur DS : un arbre par bloc de 2 × 2 cases, les rangées se chevauchent un peu ;
         // un arbre isolé (bord de route) reste centré sur sa case
-        const isT = (q) => q === T.TREE || q === T.PINE, bx = x & ~1, by = y & ~1;
-        const full = isT(m.get(bx, by)) && isT(m.get(bx + 1, by)) && isT(m.get(bx, by + 1)) && isT(m.get(bx + 1, by + 1));
-        if (!full || (x === bx && y === by)) {
-          const vb = full ? hash(bx + 7, by + 3) : v;
-          let key = t === T.PINE ? 'pine' : vb < (S.tree3 ? 0.55 : 0.7) ? 'tree' : S.tree3 && vb < 0.8 ? 'tree3' : 'tree2';
+        // forêts serrées comme sur DS : au cœur de la forêt, un arbre une case sur deux en quinconce (les arbres font
+        // presque une case et demie, ils se chevauchent) ; en lisière, un arbre sur chaque case
+        const isT = (q) => q === T.TREE || q === T.PINE;
+        const inner = isT(m.get(x - 1, y)) && isT(m.get(x + 1, y)) && isT(m.get(x, y - 1)) && isT(m.get(x, y + 1));
+        const full = false, bx = x, by = y;
+        if (!inner || ((x + y) & 1) === 0) {
+          const vb = v;
+          let key = t === T.PINE ? 'pine' : vb < 0.6 ? 'tree' : S.tree3 && vb < 0.68 ? 'tree3' : 'tree2';
           if (theme === 'volcanic') key = 'deadtree';
           else if (theme === 'snow') key = 'snowpine';
-          const r = S[key], cx = full ? bx + 1 : x + 0.5, cz = full ? by + 1.8 : y + 0.62;
-          billboard(P, cx, cz, r.w * WPX, r.h * HPX, r, 0, vb > 0.5, 1);
+          const r = S[key], cx = x + 0.5 + (v - 0.5) * 0.2, cz = y + 0.7;
+          billboard(P, cx, cz, SW(r), SH(r), r, 0, vb > 0.5, 1);
           flat(Sh, cx - 0.75, cz - 0.3, cx + 0.75, cz + 0.3, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
         }
       } else if (t === T.TALL || t === T.DARKTALL) {
         const r = S[t === T.DARKTALL ? 'darktuft' : theme === 'snow' && S.snowtuft ? 'snowtuft' : v < 0.5 ? 'tuft' : 'tuft1'];
-        billboard(P, x + 0.5, y + 0.93, r.w * WPX, r.h * HPX, r, 0, v > 0.5);
-      } else if (t === T.FENCE) { const r = S.fence; billboard(P, x + 0.5, y + 0.55, r.w * WPX, r.h * HPX, r); }
-      else if (t === T.ROCK) { const r = S.rock; billboard(P, x + 0.5, y + 0.6, r.w * WPX, r.h * HPX, r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
-      else if (t === T.BUSH) { const r = S.bush; billboard(P, x + 0.5, y + 0.6, r.w * WPX, r.h * HPX, r); }
-      else if (t === T.CUT) { const r = S.cuttree; billboard(P, x + 0.5, y + 0.62, r.w * WPX, r.h * HPX, r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
-      else if (t === T.SMASH) { const r = S.crackrock; billboard(P, x + 0.5, y + 0.62, r.w * WPX, r.h * HPX, r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
+        billboard(P, x + 0.5, y + 0.93, SW(r), SH(r), r, 0, v > 0.5);
+      } else if (t === T.FENCE) { const r = S.fence; billboard(P, x + 0.5, y + 0.55, SW(r), SH(r), r); }
+      else if (t === T.ROCK) { const r = S.rock; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
+      else if (t === T.BUSH) { const r = S.bush; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r); }
+      else if (t === T.CUT) { const r = S.cuttree; billboard(P, x + 0.5, y + 0.62, SW(r), SH(r), r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
+      else if (t === T.SMASH) { const r = S.crackrock; billboard(P, x + 0.5, y + 0.62, SW(r), SH(r), r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
       else if (t === T.WALL) {
         // mur du fond en volume ; murs latéraux et bas réduits à une bordure sombre, comme sur DS
         if (y <= 1) { const south = m.get(x, y + 1) !== T.WALL; box(Wl, x, y, x + 1, y + 1, wallH, A[m.wallStyle] || A.wall_in, A.walltop, A.walltop, { south, east: false, west: false }); }
@@ -254,14 +262,14 @@ export class WorldView {
         if (d.k === 'counter') {
           box(Wl, x, y + 0.1, x + 1, y + 1, 0.75 * Math.tan(EL), A[d.front] || A.counterfront, A.counter, A.counter, { east: m.get(x + 1, y) !== T.BLOCK, west: m.get(x - 1, y) !== T.BLOCK });
           // capsule posée sur le comptoir (starters du labo)
-          if (d.ball && S.itemball) { const r = S.itemball; billboard(P, x + 0.5, y + 0.55, r.w * WPX, r.h * HPX, r, 0.75 * Math.tan(EL) - 0.05); }
+          if (d.ball && S.itemball) { const r = S.itemball; billboard(P, x + 0.5, y + 0.55, SW(r), SH(r), r, 0.75 * Math.tan(EL) - 0.05); }
         }
         else if (d.k === 'shelf') box(Wl, x + 0.05, y + 0.2, x + 0.95, y + 0.95, 1.5 * Math.tan(EL), A.shelf, A.roof_flat, A.shelf);
         else if (d.k === 'carpet' || d.k === 'exitlight') { /* sol */ }
         else if (S[d.k]) {
           const r = S[d.k];
-          billboard(P, x + (r.w > 16 ? 1 : 0.5), y + 0.6, r.w * WPX, r.h * HPX, r);
-          if (d.k === 'lamp') glows.push([x + 0.5, y + 0.62, 26 * HPX]);
+          billboard(P, x + (r.w / (r.d || 1) > 16 ? 1 : 0.5), y + 0.6, SW(r), SH(r), r);
+          if (d.k === 'lamp') glows.push([x + 0.5, y + 0.62, SH(r) * 0.82]);
           if (['statue', 'gymstatue', 'plant', 'lamp', 'mailbox', 'sign', 'pot', 'caverock', 'stalag', 'fridge', 'clock', 'books', 'pc', 'labmachine', 'vase', 'trash'].includes(d.k)) flat(Sh, x + 0.1, y + 0.4, x + 0.9, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
         }
       }
@@ -380,7 +388,7 @@ export class WorldView {
   actor(id, o) {
     let a = this.actors.get(id);
     if (!a) {
-      const geo = new THREE.PlaneGeometry(CW * WPX, CHH * HPX); geo.translate(0, CHH / 2 * HPX, 0);
+      const geo = new THREE.PlaneGeometry(CW / CD * WPX, CHH / CD * HPX); geo.translate(0, CHH / CD / 2 * HPX, 0);
       // point d'ancrage (les pieds) : la bulle « ! » flotte au-dessus d'un personnage mais reste calée sur ses pieds
       const ay = o.kind === 'bang' ? -34 * HPX : 0;
       geo.setAttribute('anchor', new THREE.Float32BufferAttribute([0, ay, 0, 0, ay, 0, 0, ay, 0, 0, ay, 0], 3));
@@ -399,7 +407,7 @@ export class WorldView {
   }
   setSpriteRect(a, r, w, h) {
     const g = a.mesh.geometry; const pos = g.attributes.position, uv = g.attributes.uv;
-    const W = w * WPX, H = h * HPX;
+    const W = w * WPX / (r.d || 1), H = h * HPX / (r.d || 1);
     pos.setXYZ(0, -W / 2, H, 0); pos.setXYZ(1, W / 2, H, 0); pos.setXYZ(2, -W / 2, 0, 0); pos.setXYZ(3, W / 2, 0, 0);
     uv.setXY(0, r.u0, r.v0); uv.setXY(1, r.u1, r.v0); uv.setXY(2, r.u0, r.v1); uv.setXY(3, r.u1, r.v1);
     pos.needsUpdate = uv.needsUpdate = true; g.computeBoundingSphere();
@@ -420,7 +428,7 @@ export class WorldView {
   /** les herbes hautes s'agitent quand on y entre */
   rustle(x, y) {
     const id = 'rustle:' + x + ',' + y + ':' + performance.now();
-    const a = this.actor(id, { kind: 'item' }); this.setSpriteRect(a, this.S.rects.tuft1, 16, 14);
+    const a = this.actor(id, { kind: 'item' }); { const r = this.S.rects.tuft1; this.setSpriteRect(a, r, r.w, r.h); }
     a.shadow.visible = false; a.mesh.position.set(x + 0.5, 0, y + 0.96);
     const t0 = performance.now();
     const step = () => {

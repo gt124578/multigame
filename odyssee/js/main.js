@@ -32,11 +32,14 @@ async function loadArt() {
   const sprites = {};
   // décor version 2 (vue de 3/4, bible) : tout ce que la planche fournit ; sinon la sélection de la première planche
   for (const k of SPRITES.natureV2 ? Object.keys(SPRITES.nature) : NATURE) sprites[k] = ASSETS.nature(k);
-  for (const k of Object.keys(SPRITES.mobilier || {})) sprites[k] = ASSETS.mobilier(k);
+  const dens = {}; for (const [k, v] of Object.entries(SPRITES.nature || {})) if (v[2]) dens[k] = v[2];
+  // mobilier (sans écraser un élément de la nature du même nom, comme la statue d'arène)
+  for (const k of Object.keys(SPRITES.mobilier || {})) if (!sprites[k]) sprites[k] = ASSETS.mobilier(k);
+  for (const [k, v] of Object.entries(SPRITES.mobilier || {})) if (v[2] && !dens[k]) dens[k] = v[2];
   const kits = {}; for (const k of SPRITES.facades || []) kits[k] = ASSETS.facade(k);
   const sols = {}; for (const k of SOLS) sols[k] = ASSETS.sol(k);
   const [S, K, L, chars, title] = await Promise.all([loadAll(sprites), loadAll(kits), loadAll(sols), loadImg(ASSETS.chars), loadImg(ASSETS.title)]);
-  return { sprites: S, kits: K, sols: L, chars, title };
+  return { sprites: S, dens, kits: K, sols: L, chars, title };
 }
 
 async function boot() {
@@ -46,16 +49,19 @@ async function boot() {
   const world = buildWorld();
   const art = await loadArt();
   setArt({ kits: art.kits, sols: art.sols });
-  const view = new WorldView(renderer, art.chars, { sprites: art.sprites });
+  const view = new WorldView(renderer, art.chars, { sprites: art.sprites, dens: art.dens });
   const game = new Game({ view, ui, input, sound, world });
   window.__ody = { game, world, view, ui, sound, mon: (sp, lvl) => createMon(sp, lvl) };
 
   // rendu en basse résolution, agrandi sans lissage : chaque « pixel » du jeu fait --px pixels d'écran
   const resize = () => {
-    const scale = Math.max(2, Math.round(innerHeight / 270));
+    // le monde : une case fait 32 pixels de rendu, environ 12 cases de haut comme sur DS (agrandi d'un facteur entier)
+    const scale = Math.max(1, Math.round(innerHeight / 400));
     const iw = Math.ceil(innerWidth / scale), ih = Math.ceil(innerHeight / scale);
     renderer.setSize(iw, ih, false); view.resize(iw, ih);
-    document.documentElement.style.setProperty('--px', scale + 'px');
+    // l'interface garde son propre pas de pixel
+    const ui = Math.max(2, Math.round(innerHeight / 270));
+    document.documentElement.style.setProperty('--px', ui + 'px');
     document.documentElement.style.setProperty('--bp', (innerHeight / 192) + 'px');
   };
   addEventListener('resize', resize); resize();

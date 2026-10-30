@@ -150,8 +150,8 @@ img { image-rendering: pixelated; }
 .tc-top { display: flex; justify-content: space-between; font-weight: 600; border-bottom: var(--px) solid #c8a878; margin-bottom: calc(var(--px) * 4); }
 .tc-body { display: flex; gap: calc(var(--px) * 8); } .tc-body .kv { flex: 1; }
 .tc-photo { width: calc(var(--px) * 56); height: calc(var(--px) * 64); background: #e8f0f8; border: var(--px) solid #8898b0; border-radius: calc(var(--px) * 3); display: flex; align-items: center; justify-content: center; }
-.tc-char { width: 24px; height: 32px; background: url(img/chars.png) -24px 0; transform: scale(calc(var(--px) / 1px)); image-rendering: pixelated; }
-.tc-char.f { background-position: -24px -32px; }
+.tc-char { width: 64px; height: 64px; background: url(img/chars.png) -64px 0; transform: scale(calc(var(--px) / 2px)); image-rendering: pixelated; }
+.tc-char.f { background-position: -64px -64px; }
 .badges { display: grid; grid-template-columns: repeat(8, 1fr); gap: calc(var(--px) * 4); margin-top: calc(var(--px) * 8); }
 .badge { aspect-ratio: 1; border-radius: 50%; background: rgba(0,0,0,.08); border: var(--px) dashed #b8a888; display: flex; align-items: center; justify-content: center; }
 .badge.got { background: radial-gradient(circle at 35% 35%, #fff 0 12%, var(--bc) 14% 70%, #000 140%); border: var(--px) solid #503818; }
@@ -193,8 +193,8 @@ img { image-rendering: pixelated; }
 .intro-prof.in { opacity: 1; }
 .intro-mon { position: absolute; left: 64%; bottom: 36%; width: calc(var(--px) * 80); height: calc(var(--px) * 80); opacity: 0; transform: scale(.2); transition: opacity .4s, transform .4s; }
 .intro-mon.in { opacity: 1; transform: scale(1); }
-.intro-kid { position: absolute; left: 50%; bottom: 40%; width: 24px; height: 32px; background: url(img/chars.png) -24px 0; transform: translateX(-50%) scale(calc(var(--px) / 1px * 2)); image-rendering: pixelated; opacity: 0; transition: opacity .4s; transform-origin: 50% 100%; }
-.intro-kid.in { opacity: 1; } .intro-kid.f { background-position: -24px -32px; }
+.intro-kid { position: absolute; left: 50%; bottom: 40%; width: 64px; height: 64px; background: url(img/chars.png) -64px 0; transform: translateX(-50%) scale(calc(var(--px) / 1px)); image-rendering: pixelated; opacity: 0; transition: opacity .4s; transform-origin: 50% 100%; }
+.intro-kid.in { opacity: 1; } .intro-kid.f { background-position: -64px -64px; }
 
 /* ---------- combat ---------- */
 .battle { position: absolute; inset: 0; z-index: 18; background: #000; display: flex; align-items: center; justify-content: center; font-size: calc(var(--bp) * 8.5); --px: calc(var(--bp) * 0.85); }

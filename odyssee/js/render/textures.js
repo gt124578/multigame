@@ -276,7 +276,7 @@ function tuftSprite(P, pal, ox, oy, frame = 0) {
   P.rect(ox, oy + 12, 16, 2, dd);
 }
 export function buildSprites() {
-  const SIZE = 512; const P = new Pix(SIZE, SIZE, 4242);
+  const SIZE = 1024; const P = new Pix(SIZE, SIZE, 4242);
   P.x.clearRect(0, 0, SIZE, SIZE);
   const rects = {};
   const add = (k, x, y, w, h) => { rects[k] = { x, y, w, h, u0: x / SIZE, v0: y / SIZE, u1: (x + w) / SIZE, v1: (y + h) / SIZE }; };
@@ -340,19 +340,20 @@ export function buildSprites() {
   return { canvas: P.c, rects, size: SIZE };
 }
 /** pose les images dessinées (nature, mobilier) dans l'atlas des sprites, à la place des dessins du code */
-export function applySpriteImages(S, images) {
+/** dens : densité de chaque image (2 = dessin « version 2 », deux fois plus fin que les tuiles du décor) */
+export function applySpriteImages(S, images, dens = {}) {
   const ctx = S.canvas.getContext('2d');
   let x = 0, y = 96, rowH = 0;
   for (const [k, img] of Object.entries(images)) {
     if (!img) continue;
     const w = img.width, h = img.height;
     if (x + w > S.size) { x = 0; y += rowH + 2; rowH = 0; }
-    if (y + h > S.size) break;
+    if (y + h > S.size) { console.warn('planche des sprites pleine :', k); break; }
     ctx.clearRect(x, y, w, h); ctx.drawImage(img, x, y);
     // case vide sur la planche (découpe ratée) : on garde le dessin procédural
     const px = ctx.getImageData(x, y, w, h).data; let any = false; for (let i = 3; i < px.length; i += 4) if (px[i] > 0) { any = true; break; }
     if (!any) { ctx.clearRect(x, y, w, h); continue; }
-    S.rects[k] = { x, y, w, h, u0: x / S.size, v0: y / S.size, u1: (x + w) / S.size, v1: (y + h) / S.size };
+    S.rects[k] = { x, y, w, h, d: dens[k] || 1, u0: x / S.size, v0: y / S.size, u1: (x + w) / S.size, v1: (y + h) / S.size };
     x += w + 2; rowH = Math.max(rowH, h);
   }
 }

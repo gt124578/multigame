@@ -1,16 +1,11 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
-## 3.29 — 30 octobre 2026
-- Add files via upload (Gabe)
-
-## 3.28 — 30 octobre 2026
-- Delete assets/graphics/joueur_g.png (Gabe)
-
-## 3.27 — 30 octobre 2026
-- Delete assets/graphics/joueur_f.png (Gabe)
-
-## 3.26 — 30 octobre 2026
-- Delete assets/graphics/Théo.png (Gabe)
+## 3.30 — 30 octobre 2026
+- **Odyssée** — nouveaux dessins : le joueur, la joueuse, Théo, les arbres, les rochers, les herbes et les fleurs sont redessinés en pixel art façon DS, vus de 3/4.
+  - Les personnages et le décor sont affichés pixel pour pixel, sans flou, à la bonne taille par rapport aux maisons.
+  - Les forêts sont serrées comme sur DS : de vrais murs d'arbres.
+  - Tous les autres personnages regardent enfin dans la bonne direction quand ils marchent sur le côté, et le mobilier est plus net.
+- **Odyssée** — nouvelle musique d'écran titre : elle commence tout doucement, puis un riff rapide monte en puissance jusqu'à l'entrée de la batterie.
 
 ## 3.25 — 30 octobre 2026
 - **Odyssée** — nouveau rendu façon DS : personnages, arbres et objets sont dessinés pixel pour pixel, à taille fixe, sans plus jamais être écrasés ni étirés par la caméra. Les tuiles sont carrées comme sur DS.

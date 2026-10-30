@@ -9,7 +9,7 @@ const SCALES = { maj: [0, 2, 4, 5, 7, 9, 11], min: [0, 2, 3, 5, 7, 8, 10], dor: 
 
 /* ---------------- thèmes : tonalité, tempo, grille, caractère ---------------- */
 const THEMES = {
-  title: { key: 'Bb3', scale: 'maj', bpm: 112, prog: ['I', 'V', 'vi', 'IV', 'I', 'V', 'IV', 'V'], seed: 11, style: 'anthem' },
+  title: { custom: 'title', key: 'B3', scale: 'min', bpm: 138, prog: ['i'], seed: 11, style: 'battle' },
   town: { key: 'F3', scale: 'maj', bpm: 100, prog: ['I', 'vi', 'IV', 'V', 'I', 'iii', 'IV', 'V'], seed: 21, style: 'gentle' },
   house: { key: 'F3', scale: 'maj', bpm: 92, prog: ['I', 'IV', 'I', 'V', 'vi', 'IV', 'ii', 'V'], seed: 23, style: 'gentle', soft: 1 },
   lab: { key: 'G3', scale: 'maj', bpm: 104, prog: ['I', 'iii', 'IV', 'V', 'I', 'vi', 'ii', 'V'], seed: 27, style: 'gentle' },
@@ -108,15 +108,74 @@ function compose(th) {
   return { steps, bpm: th.bpm, tracks: [{ type: 'pulse25', vol: th.big ? 0.13 : 0.11, notes: lead }, { type: 'pulse50', vol: 0.045, notes: harm }, { type: 'triangle', vol: 0.16, notes: bass }, { type: 'drum', vol: 0.1, notes: drum }] };
 }
 
+/**
+ * Thème de l'écran titre, écrit à la main : il commence tout doucement (nappes et clochettes sur la mer de nuit),
+ * puis un riff rapide en doubles croches monte en puissance, un roulement de toms… et la batterie entre avec la
+ * guitare saturée. Après l'introduction, seule la partie énergique tourne en boucle.
+ */
+function composeTitle() {
+  const B = 59, tracks = { pad: [], bell: [], riff: [], gtr: [], bass: [], lead: [], drum: [] };
+  // accords (racines, en demi-tons au-dessus de si) : si mineur, sol, ré, la
+  const CH = { Bm: [0, 3, 7], G: [-4, 0, 3], D: [3, 7, 10], A: [-2, 2, 5], E: [5, 8, 12], Fs: [7, 10, 14] };
+  const at = (bar, step) => bar * 16 + step;
+  // A · introduction calme (4 mesures) : nappe tenue et quelques notes de clochette
+  const intro = ['Bm', 'G', 'D', 'A'];
+  intro.forEach((c, b) => {
+    for (const t of CH[c]) tracks.pad.push({ s: at(b, 0), d: 16, m: B - 12 + t, v: 0.5 + b * 0.15 });
+    [[0, 7], [6, 3], [10, 0], [12, 10]].forEach(([st, iv], k) => { if (b === 3 && k === 3) return; tracks.bell.push({ s: at(b, st), d: 4, m: B + 12 + CH[c][0] + iv, v: 0.6 }); });
+  });
+  // le riff : la note pédale (fa dièse) une double croche sur deux, une ligne d'accord qui monte et redescend
+  const riffBar = (c) => { const t = CH[c], line = [t[0], t[1], t[2], t[1], t[2], t[1], t[0] + 12, t[2]]; const out = []; for (let k = 0; k < 8; k++) { out.push(B + line[k]); out.push(B + 7); } return out; };
+  const prog = ['Bm', 'Bm', 'G', 'A', 'Bm', 'Bm', 'E', 'Fs'];
+  // B · le riff seul, de plus en plus fort (4 mesures), puis un roulement de toms
+  for (let b = 4; b < 8; b++) {
+    const notes = riffBar(prog[b - 4]);
+    notes.forEach((m, k) => tracks.riff.push({ s: at(b, k), d: 1, m, v: 0.25 + 0.75 * ((b - 4) * 16 + k) / 64 }));
+    if (b >= 6) tracks.pad.push({ s: at(b, 0), d: 16, m: B - 24 + CH[prog[b - 4]][0], v: 0.6 });
+  }
+  for (let k = 8; k < 16; k++) tracks.drum.push({ s: at(7, k), k: 't', m: 60 - k * 2, v: 0.5 + k * 0.04 });
+  // C · tout le monde (8 mesures, en boucle) : batterie, basse, guitare saturée, et une mélodie la seconde fois
+  const melody = [[0, 4, 12], [4, 2, 14], [6, 2, 15], [8, 6, 19], [14, 2, 17], [16, 4, 15], [20, 4, 14], [24, 8, 12],
+    [32, 4, 7], [36, 2, 8], [38, 2, 12], [40, 6, 15], [46, 2, 14], [48, 4, 12], [52, 4, 10], [56, 8, 7]];
+  for (let b = 8; b < 24; b++) {
+    const c = prog[(b - 8) % 8], t = CH[c];
+    riffBar(c).forEach((m, k) => tracks.riff.push({ s: at(b, k), d: 1, m, v: 1 }));
+    // guitare saturée : quintes (accords « en puissance ») sur les temps forts
+    for (const [st, d] of [[0, 3], [3, 3], [6, 2], [8, 3], [11, 3], [14, 2]]) { tracks.gtr.push({ s: at(b, st), d, m: B - 12 + t[0], v: 1 }); tracks.gtr.push({ s: at(b, st), d, m: B - 12 + t[0] + 7, v: 0.8 }); }
+    for (let k = 0; k < 16; k += 2) tracks.bass.push({ s: at(b, k), d: 2, m: B - 24 + t[0] + (k === 12 ? 7 : 0) });
+    for (let k = 0; k < 16; k++) {
+      if (k % 4 === 0) tracks.drum.push({ s: at(b, k), k: 'k' });
+      if (k === 10) tracks.drum.push({ s: at(b, k), k: 'k' });
+      if (k % 8 === 4) tracks.drum.push({ s: at(b, k), k: 's' });
+      if (k % 2 === 0) tracks.drum.push({ s: at(b, k), k: 'h' });
+    }
+    if ((b - 8) % 8 === 0) tracks.drum.push({ s: at(b, 0), k: 'c' });
+    if ((b - 8) % 8 === 7) for (const k of [12, 13, 14, 15]) tracks.drum.push({ s: at(b, k), k: 's', v: 0.7 + (k - 12) * 0.1 });
+    // la seconde moitié de la boucle (mesures 16 à 23) porte la mélodie : deux fois ses quatre mesures
+    if (b >= 16) for (const [st, d, iv] of melody) if (Math.floor(st / 16) === (b - 16) % 4) tracks.lead.push({ s: at(b, st % 16), d, m: B + iv });
+  }
+  return {
+    steps: 24 * 16, loopStart: 8 * 16, bpm: 138,
+    // volumes un peu au-dessus des autres musiques (c'est l'écran titre), sans écraser l'introduction
+    tracks: [
+      { type: 'triangle', vol: 0.09, notes: tracks.pad, attack: 0.6 }, { type: 'pulse12', vol: 0.05, notes: tracks.bell, release: 0.3 },
+      { type: 'pulse25', vol: 0.06, notes: tracks.riff }, { type: 'sawtooth', vol: 0.028, notes: tracks.gtr, dist: true },
+      { type: 'triangle', vol: 0.14, notes: tracks.bass }, { type: 'pulse50', vol: 0.05, notes: tracks.lead },
+      { type: 'drum', vol: 0.09, notes: tracks.drum },
+    ],
+  };
+}
+
 export class Sound {
   constructor() {
     this.ctx = null; this.vol = 0.7; this.music = null; this.songs = {}; this.muted = false;
     try { const v = localStorage.getItem('odyssee-vol'); if (v != null) this.vol = +v; } catch (e) {}
   }
-  init() {
+  init(offline) {
+    if (offline) { this.ctx = null; this.offline = offline.length / offline.sampleRate; }
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
-    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-    this.ctx = new AC();
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC && !offline) return;
+    this.ctx = offline || new AC();
     this.master = this.ctx.createGain(); this.master.gain.value = this.vol; this.master.connect(this.ctx.destination);
     // les réglages de volume du Hub (musique / effets) s'appliquent s'ils sont disponibles
     const DV = window.DDVolume, via = (kind) => { if (!DV) return this.master; const g = DV.gain(this.ctx, kind); g.connect(this.master); return g; };
@@ -152,29 +211,41 @@ export class Sound {
     if (!this.ctx) { this.pending = name; return; }
     this.stopMusic(0.25);
     if (!name || !THEMES[name]) return;
-    const song = this.songs[name] ||= compose(THEMES[name]);
+    const song = this.songs[name] ||= (THEMES[name].custom === 'title' ? composeTitle() : compose(THEMES[name]));
     const stepDur = 60 / song.bpm / 4;
     const bus = this.ctx.createGain(); bus.gain.value = 1; bus.connect(this.musicBus);
+    // guitare saturée : courbe de distorsion douce puis filtre passe-bas
+    let dist = null;
+    if (song.tracks.some((tr) => tr.dist)) {
+      const ws = this.ctx.createWaveShaper(), n = 1024, curve = new Float32Array(n);
+      for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; curve[i] = Math.tanh(x * 6); }
+      ws.curve = curve; ws.oversample = '2x';
+      const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600;
+      dist = this.ctx.createGain(); dist.gain.value = 1; dist.connect(ws); ws.connect(lp); lp.connect(bus);
+    }
     const st = { song, bus, step: 0, t: this.ctx.currentTime + 0.12, stepDur, alive: true, oneShot: name === 'victory' && false };
     const byStep = song.tracks.map((tr) => { const m = new Map(); for (const n of tr.notes) { if (!m.has(n.s)) m.set(n.s, []); m.get(n.s).push(n); } return m; });
     const tick = () => {
       if (!st.alive) return;
       const now = this.ctx.currentTime;
-      while (st.t < now + 0.25) {
-        const s = st.step % song.steps;
+      while (st.t < now + (this.offline || 0.25)) {
+        const s = song.loopStart != null && st.step >= song.steps ? song.loopStart + (st.step - song.loopStart) % (song.steps - song.loopStart) : st.step % song.steps;
         song.tracks.forEach((tr, i) => {
           const ns = byStep[i].get(s); if (!ns) return;
           for (const n of ns) {
             if (tr.type === 'drum') {
-              if (n.k === 'k') this.tone('triangle', 140, st.t, 0.12, tr.vol * 1.6, bus, { slide: 45 });
-              else if (n.k === 's') this.tone('noise', 1800, st.t, 0.09, tr.vol * 0.8, bus);
-              else this.tone('noise', 7000, st.t, 0.03, tr.vol * 0.35, bus);
-            } else this.tone(tr.type, freq(n.m), st.t, n.d * stepDur * 0.92, tr.vol, bus, { release: Math.min(0.08, n.d * stepDur * 0.3) });
+              const v = tr.vol * (n.v ?? 1);
+              if (n.k === 'k') this.tone('triangle', 140, st.t, 0.12, v * 1.6, bus, { slide: 45 });
+              else if (n.k === 's') this.tone('noise', 1800, st.t, 0.09, v * 0.8, bus);
+              else if (n.k === 'c') this.tone('noise', 4500, st.t, 0.9, v * 0.7, bus, { release: 0.8 });
+              else if (n.k === 't') this.tone('triangle', freq(n.m), st.t, 0.16, v * 1.4, bus, { slide: freq(n.m) * 0.55 });
+              else this.tone('noise', 7000, st.t, 0.03, v * 0.35, bus);
+            } else this.tone(tr.type, freq(n.m), st.t, n.d * stepDur * 0.92, tr.vol * (n.v ?? 1), tr.dist && dist ? dist : bus, { attack: tr.attack, release: tr.release ?? Math.min(0.08, n.d * stepDur * 0.3) });
           }
         });
         st.step++; st.t += stepDur;
       }
-      st.timer = setTimeout(tick, 60);
+      if (!this.offline) st.timer = setTimeout(tick, 60);
     };
     tick();
     this.music = st;

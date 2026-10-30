@@ -375,7 +375,7 @@ export class Game {
     this.legends = (this.world.legends || []).filter((L) => L.map === mapNow.id && st.flags['L:' + L.id] !== 'caught' && this.legendReady(L)).map((L) => ({ ...L }));
     for (const L of this.legends) loadImg(ASSETS.front(L.sp)).then((img) => {
       if (!img || this.mapObj !== mapNow || !this.legends.includes(L)) return;
-      const a = this.view.imageActor('legend:' + L.id, img, 1); this.view.place(a, L.x, L.y - 0.1);
+      const a = this.view.imageActor('legend:' + L.id, img, 0.5); this.view.place(a, L.x, L.y - 0.1);
     });
   }
   legendReady(L) {
