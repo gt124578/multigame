@@ -189,6 +189,14 @@ export function buildAtlas() {
   put('martfront', (P) => { P.fill('#5a8ad0'); P.rect(0, 0, 16, 2, '#9ac0f0'); P.rect(0, 13, 16, 3, '#3a5a98'); });
   put('shelf', (P) => { P.fill('#8a6440'); for (let y = 1; y < 16; y += 5) { P.rect(1, y, 14, 4, '#5a3e24'); for (let x = 2; x < 14; x += 3) P.rect(x, y + 1, 2, 3, ['#e05050', '#50a0e0', '#f0c040', '#60c060'][(x + y) % 4]); } });
   put('roof_flat', (P) => { P.fill('#5c6a7c'); P.speck(6, '#6c7a8c'); });
+  // sols et murs d'intérieur dessinés : ils remplacent la version du code
+  for (const k of ['floor_wood', 'floor_center', 'floor_mart', 'floor_lab', 'floor_league', 'floor_gymBug', 'floor_gymRock', 'floor_gymWater', 'floor_gymElec', 'floor_gymGrass', 'floor_gymPsy', 'floor_gymFire', 'floor_gymDragon', 'wall_center', 'wall_mart', 'wall_gym', 'wall_league', 'counter', 'counterfront', 'martfront']) {
+    const img = SOLS[k]; if (!img || !cells[k]) continue;
+    const [u0, v0] = cells[k], cx = Math.round(u0 * SIZE) - 1, cy = Math.round(v0 * SIZE) - 1;
+    ctx.drawImage(img, 0, 0, 16, 1, cx + 1, cy, 16, 1); ctx.drawImage(img, 0, 15, 16, 1, cx + 1, cy + 17, 16, 1);
+    ctx.drawImage(img, 0, 0, 1, 16, cx, cy + 1, 1, 16); ctx.drawImage(img, 15, 0, 1, 16, cx + 17, cy + 1, 1, 16);
+    ctx.drawImage(img, cx + 1, cy + 1);
+  }
   return { canvas: atlas, cells, size: SIZE };
 }
 
@@ -324,9 +332,75 @@ export function buildSprites() {
   (() => { const ox = 384, oy = 48; P.rect(ox + 1, oy + 1, 14, 14, '#1a1410'); P.rect(ox + 2, oy + 2, 12, 12, '#2c2018'); for (let y = 3; y < 14; y += 3) P.rect(ox + 4, oy + y, 8, 1, '#a07848'); P.rect(ox + 4, oy + 2, 1, 12, '#a07848'); P.rect(ox + 11, oy + 2, 1, 12, '#a07848'); add('ladder', ox, oy, 16, 16); })();
   // petit palmier
   (() => { const ox = 400, oy = 0; P.rect(ox + 14, oy + 14, 4, 24, '#a87848'); for (let y = 14; y < 38; y += 3) P.rect(ox + 14, oy + y, 4, 1, '#7a5430'); for (let i = 0; i < 7; i++) { const a = -2.6 + i * 0.85; for (let t = 0; t < 13; t++) { const x = ox + 16 + Math.cos(a) * t, y = oy + 14 + Math.sin(a) * t * 0.6 + (t * t) / 28; P.p(x, y, t > 9 ? '#8ae07a' : '#3a9a4a'); P.p(x, y + 1, '#2a7a3a'); } } add('palm', ox, oy, 32, 40); })();
-  // tapis de sortie et marches
+  // petit arbre à couper (Coupe) et rocher fissuré (Éclate-Roc)
+  (() => { const ox = 416, oy = 48; for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const dx = x - 7.5, dy = y - 8; if (dx * dx / 40 + dy * dy / 42 > 1) continue; const e = dx * dx / 40 + dy * dy / 42 > 0.72; P.p(ox + x, oy + y, e ? '#1d4a24' : y < 6 ? '#8ad86a' : y < 10 ? '#4ea84e' : '#2f7a3c'); } P.rect(ox + 7, oy + 13, 2, 3, '#7a5030'); add('cuttree', ox, oy, 16, 16); })();
+  (() => { const ox = 432, oy = 48, c = PAL.rock; for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const dx = x - 7.5, dy = y - 9; const q = dx * dx / 56 + dy * dy / 44; if (q > 1) continue; P.p(ox + x, oy + y, q > 0.78 ? c[4] : dy < -2 && dx < 2 ? c[2] : dy > 2 ? c[3] : c[0]); } for (const [x, y] of [[7, 3], [8, 4], [7, 5], [8, 6], [9, 7], [8, 8], [6, 7], [5, 8], [10, 8], [11, 9]]) P.p(ox + x, oy + y, '#3a3a3a'); add('crackrock', ox, oy, 16, 16); })();
+  // sillage autour du joueur qui surfe
+  (() => { const ox = 448, oy = 48; for (let y = 0; y < 10; y++) for (let x = 0; x < 24; x++) { const dx = (x - 11.5) / 11.5, dy = (y - 4.5) / 4.5, q = dx * dx + dy * dy; if (q > 1) continue; P.p(ox + x, oy + y, q > 0.62 ? '#ffffff' : q > 0.4 ? '#bfe4ff' : '#3a86d8'); } add('wake', ox, oy, 24, 10); })();
   return { canvas: P.c, rects, size: SIZE };
 }
+/** pose les images dessinées (nature, mobilier) dans l'atlas des sprites, à la place des dessins du code */
+export function applySpriteImages(S, images) {
+  const ctx = S.canvas.getContext('2d');
+  let x = 0, y = 96, rowH = 0;
+  for (const [k, img] of Object.entries(images)) {
+    if (!img) continue;
+    const w = img.width, h = img.height;
+    if (x + w > S.size) { x = 0; y += rowH + 2; rowH = 0; }
+    if (y + h > S.size) break;
+    ctx.clearRect(x, y, w, h); ctx.drawImage(img, x, y);
+    S.rects[k] = { x, y, w, h, u0: x / S.size, v0: y / S.size, u1: (x + w) / S.size, v1: (y + h) / S.size };
+    x += w + 2; rowH = Math.max(rowH, h);
+  }
+}
+
+/* ---------------- images dessinées (planches préparées par tools/odyssee-sprites.py) ---------------- */
+// kits de façade (4 × 4 tuiles de 16 px) par style, et sols d'intérieur ; chargés au démarrage, sinon dessin du code
+const KITS = {}, SOLS = {};
+export function setArt({ kits = {}, sols = {} } = {}) { Object.assign(KITS, kits); Object.assign(SOLS, sols); }
+const KIT_OF = { house: 'maison', house2: 'maison', house3: 'maison', bighouse: 'maison', tower: 'maison', gate: 'maison', center: 'centre', mart: 'boutique', gym: 'arene', lab: 'labo', league: 'ligue' };
+// position des tuiles dans un kit : [colonne, ligne]
+const KT = { wall: [0, 0], win: [1, 0], winN: [2, 0], base: [3, 0], door: [0, 1], doorN: [1, 1], lintel: [2, 1], side: [3, 1], roof: [0, 2], eave: [1, 2], ridge: [2, 2], chimney: [3, 2], signL: [0, 3], signR: [1, 3], flowers: [2, 3], lamp: [3, 3] };
+const kitTile = (ctx, kit, k, x, y) => { const [c, r] = KT[k]; ctx.drawImage(kit, c * 16, r * 16, 16, 16, x, y, 16, 16); };
+/** façade assemblée à partir d'un kit dessiné (null si le kit manque) */
+function kitFacade(style, w, H, door, night) {
+  const kit = KITS[KIT_OF[style]]; if (!kit) return null;
+  const c = canvas(w * 16, H * 16), x = c.getContext('2d');
+  const shop = ['center', 'mart', 'gym', 'league', 'lab'].includes(style);
+  const signCols = shop ? (door + 1 < w ? [door, door + 1] : [door - 1, door]) : [];
+  for (let j = 0; j < H; j++) for (let i = 0; i < w; i++) {
+    const X = i * 16, Y = j * 16, bottom = j === H - 1, off = (i - door) % 2 !== 0;
+    let k = 'wall';
+    if (bottom) k = i === door ? (night ? 'doorN' : 'door') : off && w > 2 ? (night ? 'winN' : 'win') : 'base';
+    else if (j === H - 2 && signCols.includes(i)) k = i === signCols[0] ? 'signL' : 'signR';
+    else if (j === H - 2 && i === door) k = 'lintel';
+    else k = (i + j) % 2 === (door + 1) % 2 ? (night ? 'winN' : 'win') : 'wall';
+    kitTile(x, kit, k, X, Y);
+    // lampe murale à côté de la porte des maisons
+    if (bottom && !shop && i === door + 1 && w >= 4) kitTile(x, kit, 'lamp', X, Y);
+  }
+  return c;
+}
+function kitSide(style, d, H) {
+  const kit = KITS[KIT_OF[style]]; if (!kit) return null;
+  const c = canvas(d * 16, H * 16), x = c.getContext('2d');
+  for (let j = 0; j < H; j++) for (let i = 0; i < d; i++) kitTile(x, kit, 'side', i * 16, j * 16);
+  return c;
+}
+function kitRoof(style, color, w, d) {
+  const kit = KITS[KIT_OF[style]]; if (!kit) return null;
+  const c = canvas(w * 16, d * 16), x = c.getContext('2d');
+  for (let j = 0; j < d; j++) for (let i = 0; i < w; i++) kitTile(x, kit, j === d - 1 ? 'eave' : 'roof', i * 16, j * 16);
+  // les toits des maisons sont gris : on les teinte de la couleur voulue
+  if (KIT_OF[style] === 'maison' && ROOFS[color]) {
+    x.globalCompositeOperation = 'multiply'; x.fillStyle = ROOFS[color][0]; x.fillRect(0, 0, c.width, c.height);
+    x.globalCompositeOperation = 'lighter'; x.fillStyle = 'rgba(40,30,30,1)'; x.fillRect(0, 0, c.width, c.height);
+    x.globalCompositeOperation = 'source-over';
+  }
+  return c;
+}
+/** tuile de sol dessinée (intérieurs), ou null */
+export const solTile = (k) => SOLS[k] || null;
 
 /* ---------------- façades des bâtiments ---------------- */
 const ROOFS = { red: ['#d8584a', '#b23e34', '#f08070'], blue: ['#4a7ad0', '#335aa8', '#78a4f0'], green: ['#4aa060', '#337a46', '#78c88a'], brown: ['#a8724a', '#82542f', '#c8946a'], purple: ['#8a64c0', '#684898', '#aa8ce0'], teal: ['#3aa0a0', '#287878', '#68c8c8'], gray: ['#7a8090', '#5a6070', '#a0a6b4'], orange: ['#e0884a', '#b8642c', '#f8a870'], gold: ['#d8a838', '#b08020', '#f0c860'] };
@@ -340,6 +414,7 @@ function windowAt(P, x, y, w, h, night) {
 }
 /** façade avant d'un bâtiment de w tuiles de large et H tuiles de haut (murs) */
 export function facade(style, w, H, door, night = false, seed = 1) {
+  const kitted = kitFacade(style, w, H, door, night); if (kitted) return kitted;
   const W = w * 16, Hp = H * 16; const P = new Pix(W, Hp, seed);
   const wallCol = { house: '#f4e8cc', house2: '#e8eef4', house3: '#f6dcc8', center: '#fbf6f0', mart: '#f6f9fc', gym: '#c8ccd8', lab: '#f0f4f4', league: '#d8d0f0', cave: '#5a4836', tower: '#e0d8c8' }[style] || '#f4e8cc';
   P.fill(wallCol);
@@ -378,6 +453,7 @@ export function facade(style, w, H, door, night = false, seed = 1) {
   return P.c;
 }
 export function sideWall(style, d, H, seed = 2) {
+  const kitted = kitSide(style, d, H); if (kitted) return kitted;
   const P = new Pix(d * 16, H * 16, seed);
   const base = { center: '#efe6dc', mart: '#e6ecf2', gym: '#b0b4c2', league: '#c2b8e0', lab: '#e0e6e6' }[style] || '#e6d8b8';
   P.fill(base); for (let y = 3; y < H * 16; y += 4) P.rect(0, y, d * 16, 1, shade(base.length === 7 ? base : '#e6d8b8', -0.06));
@@ -385,7 +461,8 @@ export function sideWall(style, d, H, seed = 2) {
   if (d >= 3 && H >= 2 && style.startsWith('house')) windowAt(P, ((d * 16) >> 1) - 4, 7, 8, 7, false);
   return P.c;
 }
-export function roofTex(color, w, d, seed = 3) {
+export function roofTex(color, w, d, seed = 3, style = null) {
+  const kitted = style && kitRoof(style, color, w, d); if (kitted) return kitted;
   const [b, dk, l] = ROOFS[color] || ROOFS.red; const P = new Pix(w * 16, d * 16, seed);
   P.fill(b);
   for (let y = 0; y < d * 16; y += 4) { P.rect(0, y, w * 16, 1, dk); for (let x = (y / 4) % 2 ? 0 : 4; x < w * 16; x += 8) P.rect(x, y, 1, 4, dk); P.rect(0, y + 1, w * 16, 1, l); }

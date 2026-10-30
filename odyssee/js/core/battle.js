@@ -248,7 +248,7 @@ export class Battle {
       this.end('caught');
       return true;
     }
-    this.say(['Oh non ! Le Pokémon s\'est libéré !', 'Raaah ! Ça y était presque !', 'Aaaah ! Presque !', 'Mince ! Ça y était presque !'][shakes] || 'Raté !');
+    this.say(['Oh non ! La créature s\'est libérée !', 'Raaah ! Ça y était presque !', 'Aaaah ! Presque !', 'Mince ! Ça y était presque !'][shakes] || 'Raté !');
     return false;
   }
 
@@ -454,7 +454,7 @@ export class Battle {
       case 'belly-drum':
         if (m.hp <= m.stats[0] / 2) { this.say('Mais cela échoue !'); return true; }
         this.hp(i, -Math.floor(m.stats[0] / 2)); v.st[1] = 6; this.ev.push({ t: 'stat', side: i, up: true }); this.say(`${this.Nm(i)} sacrifie des PV et monte son Attaque au maximum !`); return true;
-      case 'pain-split': { const avg = Math.floor((m.hp + T.hp) / 2); this.hp(i, avg - m.hp); this.hp(d, avg - T.hp); this.say('Les deux Pokémon partagent leur douleur !'); return true; }
+      case 'pain-split': { const avg = Math.floor((m.hp + T.hp) / 2); this.hp(i, avg - m.hp); this.hp(d, avg - T.hp); this.say('Les deux créatures partagent leur douleur !'); return true; }
       case 'haze': for (const s of this.sides) s.v.st = [0, 0, 0, 0, 0, 0, 0, 0]; this.say('Les changements de stats sont annulés !'); return true;
       case 'reflect': case 'light-screen': {
         const k = u === 'reflect' ? 'reflect' : 'light', scr = this.sides[i].screens;
@@ -622,8 +622,9 @@ export class Battle {
     this.end('win');
   }
   loseBattle() {
-    this.say('Vous n\'avez plus de Pokémon en forme !');
-    this.say('Vous êtes pris de panique et perdez connaissance...');
+    this.say('Vous n\'avez plus de créature en forme !');
+    // combat amical (le premier contre le rival) : pas de panique ni d'argent perdu
+    if (!this.sides[1].trainer?.friendly) this.say('Vous êtes pris de panique et perdez connaissance...');
     this.end('lose');
   }
   end(result) {

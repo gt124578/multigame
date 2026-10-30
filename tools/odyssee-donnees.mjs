@@ -177,7 +177,8 @@ for (const id of Object.keys(species).map(Number).sort((a, b) => a - b)) {
   const s = species[id];
   spOut[id] = { n: s.n, k: s.key, t: s.t, b: s.b, cr: s.cr, xp: s.xp, g: s.g, gr: s.gr, ls: s.ls, ...(s.ev.length ? { ev: s.ev } : {}), ...(s.leg ? { leg: 1 } : {}), genus: s.genus, h: s.h, w: s.w, dex: s.dex };
 }
-fs.writeFileSync(path.join(OUT, 'species.js'), banner + 'export const SPECIES = ' + JSON.stringify(spOut).replace(/\},"/g, '},\n"') + ';\n');
+// les créatures originales (data/creatures.js, écrites à la main) rejoignent la table des espèces
+fs.writeFileSync(path.join(OUT, 'species.js'), banner + "import { CREATURES } from './creatures.js';\n" + 'export const SPECIES = ' + JSON.stringify(spOut).replace(/\},"/g, '},\n"') + ';\nObject.assign(SPECIES, CREATURES);\n');
 fs.writeFileSync(path.join(OUT, 'moves.js'), banner + 'export const MOVES = ' + JSON.stringify(outMoves).replace(/\},"/g, '},\n"') + ';\n');
 fs.writeFileSync(path.join(OUT, 'types.js'), banner + 'export const TYPE_LIST = ' + JSON.stringify(TYPE_LIST) + ';\nexport const TYPE_CHART = ' + JSON.stringify(chart) + ';\nexport const ITEM_NAMES = ' + JSON.stringify(itemNames, null, 0) + ';\n');
 console.log('espèces', Object.keys(spOut).length, '· attaques', Object.keys(outMoves).length, '· sans attaque gérée', Object.values(spOut).filter((s) => s.ls.length === 1 && s.ls[0][1] === 33).map((s) => s.n).join(', '));

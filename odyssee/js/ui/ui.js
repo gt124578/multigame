@@ -29,6 +29,12 @@ export class UI {
     }
     const nm = this.dlg.querySelector('.dlg-name'); nm.textContent = o.speaker || ''; nm.style.display = o.speaker ? '' : 'none';
     this.dlg.classList.toggle('battle', !!o.battle);
+    // portrait de celui qui parle (hors combat), à gauche de la boîte
+    const src = !o.battle && o.speaker && this.faceOf ? this.faceOf(o.speaker) : null;
+    let face = this.dlg.querySelector('.dlg-face');
+    if (src) { if (!face) { face = el('img', 'dlg-face'); face.alt = ''; this.dlg.appendChild(face); } if (face.getAttribute('src') !== src) face.src = src; }
+    else if (face) face.remove();
+    this.dlg.classList.toggle('has-face', !!src);
     return this.dlg;
   }
   closeDialog() { if (this.dlg) { this.dlg.remove(); this.dlg = null; } }
@@ -144,6 +150,29 @@ export class UI {
     const b = el('div', 'banner', `<span>${esc(name)}</span>`); this.root.appendChild(b); this.bannerEl = b;
     requestAnimationFrame(() => b.classList.add('in'));
     clearTimeout(this.bannerT); this.bannerT = setTimeout(() => { b.classList.remove('in'); setTimeout(() => b.remove(), 400); }, 2200);
+  }
+  /** petit bouton gris en bas de l'écran : ouvre le panneau des touches (aussi avec H) */
+  helpButton() {
+    const bar = el('div', 'keybar'); this.root.appendChild(bar);
+    const btn = el('button', 'keyhint', '<b>H</b> Touches'); btn.type = 'button'; btn.tabIndex = -1;
+    // bouton Échap : ouvre le menu (ou revient en arrière), utile à la souris ou au doigt
+    const escBtn = el('button', 'keyhint', '<b>Échap</b> Menu'); escBtn.type = 'button'; escBtn.tabIndex = -1;
+    escBtn.addEventListener('click', () => { if (!this.input.helpOpen) this.input.emit('b'); });
+    bar.append(btn, escBtn);
+    const panel = el('div', 'keypanel box', `<div class="list-title">Commandes</div><table class="kv">
+      <tr><td>Se déplacer</td><td><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> ou <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></td></tr>
+      <tr><td>Courir</td><td><kbd>Maj</kbd> maintenue</td></tr>
+      <tr><td>Parler, interagir, valider</td><td><kbd>F</kbd> (ou <kbd>Espace</kbd>, <kbd>Entrée</kbd>)</td></tr>
+      <tr><td>Annuler, revenir</td><td><kbd>Échap</kbd> (ou <kbd>Retour arrière</kbd>)</td></tr>
+      <tr><td>Menu (équipe, sac, sauvegarde…)</td><td><kbd>Échap</kbd>, <kbd>Tab</kbd> ou <kbd>M</kbd></td></tr>
+      <tr><td>Carte de la région</td><td><kbd>C</kbd></td></tr>
+      <tr><td>Capacités de terrain</td><td>face à un petit arbre, un rocher fissuré ou à l'eau : <kbd>F</kbd></td></tr>
+      <tr><td>Sauvegarder</td><td><kbd>Échap</kbd> → SAUVER (la partie se sauve aussi à chaque porte)</td></tr>
+      <tr><td>Afficher / cacher cette aide</td><td><kbd>H</kbd></td></tr></table><div class="hint">Appuie sur H, F ou Échap pour fermer</div>`);
+    this.root.appendChild(panel);
+    const toggle = () => { const on = !panel.classList.contains('on'); panel.classList.toggle('on', on); this.input.helpOpen = on; this.sound.sfx(on ? 'select' : 'cancel'); };
+    btn.addEventListener('click', toggle);
+    this.input.onHelp = toggle;
   }
   toast(text, ms = 1600) {
     const t = el('div', 'toast box', esc(text)); this.root.appendChild(t);

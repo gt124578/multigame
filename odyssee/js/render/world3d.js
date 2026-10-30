@@ -2,12 +2,15 @@
 // arbres / herbes / personnages en sprites verticaux, caméra inclinée en perspective étroite, rendu basse résolution.
 import * as THREE from 'three';
 import { T } from '../world/tiles.js';
-import { buildAtlas, buildAnimAtlas, buildSprites, facade, sideWall, roofTex, roofColors, PAL } from './textures.js';
+import { buildAtlas, buildAnimAtlas, buildSprites, applySpriteImages, facade, sideWall, roofTex, roofColors, PAL } from './textures.js';
+import { SPRITES } from '../data/sprites.js';
 
 export const EL = 55 * Math.PI / 180, FOV = 26;
 export const WPX = Math.sin(EL) / 16, HPX = Math.tan(EL) / 16; // unités monde par pixel de sprite (largeur, hauteur)
 const CH = 16;
-export const CHAR_ROWS = { red: 0, green: 1, prof: 2, nurse: 3, clerk: 4, youngster: 5, lass: 6, sailor: 7, hiker: 8, cooltrainer_f: 9 };
+// lignes de la planche des personnages (img/chars.png) ; les anciens noms des sprites du prototype pointent vers les nouveaux
+export const CHAR_ROWS = { ...((SPRITES.chars && SPRITES.chars.rows) || {}) };
+const CHAR_ALIAS = { red: 'player_m', green: 'player_f', prof: 'scientifique', clerk: 'vendeur', youngster: 'gamin', lass: 'habitante', sailor: 'marin', hiker: 'montagnard', cooltrainer_f: 'habitante' };
 const DIR_COL = { down: 0, left: 1, right: 2, up: 3 };
 
 function tex(canvasOrImg) {
@@ -55,12 +58,14 @@ function box(G, x0, z0, x1, z1, h, front, top, side = front, o = {}) {
 }
 
 export class WorldView {
-  constructor(renderer, charsImg) {
+  constructor(renderer, charsImg, art = {}) {
     this.renderer = renderer;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(FOV, 1, 1, 400);
     const A = buildAtlas(), N = buildAnimAtlas(), S = buildSprites();
+    if (art.sprites) applySpriteImages(S, art.sprites);
     this.A = A; this.N = N; this.S = S;
+    this.charRows = charsImg ? Math.round(charsImg.height / 32) : 10;
     this.texA = tex(A.canvas); this.texN = tex(N.canvas); this.texS = tex(S.canvas); this.texC = tex(charsImg);
     const mk = (map, o = {}) => new THREE.MeshBasicMaterial({ map, vertexColors: true, ...o });
     this.mat = {
@@ -114,7 +119,8 @@ export class WorldView {
     if (deco?.k === 'carpet') return { c: A.mat };
     const isPathish = (q) => [T.PATH, T.PAVE, T.SAND, T.BUILD, T.DOOR, T.BRIDGE, T.SIGN, T.BLOCK, T.MAT].includes(q);
     switch (tt) {
-      case T.GRASS: case T.FENCE: case T.ROCK: case T.BUSH: return { c: A[grassKey] };
+      case T.GRASS: case T.FENCE: case T.ROCK: case T.BUSH: case T.CUT: return { c: A[grassKey] };
+      case T.SMASH: return { c: m.outdoor ? A[grassKey] : A['cave' + (v < 0.5 ? 0 : 1)] };
       case T.TALL: return { c: A['tall' + (v < 0.5 ? 0 : 1)] };
       case T.DARKTALL: return { c: A['darktall' + (v < 0.5 ? 0 : 1)] };
       case T.TREE: case T.PINE: return { c: theme === 'volcanic' ? A.ash1 : A['forest' + (v < 0.5 ? 0 : 1)] };
@@ -161,6 +167,8 @@ export class WorldView {
       } else if (t === T.FENCE) { const r = S.fence; billboard(P, x + 0.5, y + 0.55, 1.0, r.h * HPX, r); }
       else if (t === T.ROCK) { const r = S.rock; billboard(P, x + 0.5, y + 0.6, r.w * WPX * 1.2, r.h * HPX, r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
       else if (t === T.BUSH) { const r = S.bush; billboard(P, x + 0.5, y + 0.6, r.w * WPX * 1.2, r.h * HPX, r); }
+      else if (t === T.CUT) { const r = S.cuttree; billboard(P, x + 0.5, y + 0.62, r.w * WPX * 1.15, r.h * HPX * 1.15, r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
+      else if (t === T.SMASH) { const r = S.crackrock; billboard(P, x + 0.5, y + 0.62, r.w * WPX * 1.2, r.h * HPX * 1.1, r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
       else if (t === T.WALL) {
         // mur du fond en volume ; murs latéraux et bas réduits à une bordure sombre, comme sur DS
         if (y <= 1) { const south = m.get(x, y + 1) !== T.WALL; box(Wl, x, y, x + 1, y + 1, wallH, A[m.wallStyle] || A.wall_in, A.walltop, A.walltop, { south, east: false, west: false }); }
@@ -173,14 +181,18 @@ export class WorldView {
       // décor posé (lampadaires, panneaux, meubles…)
       const d = this.decoAt.get(x + ',' + y);
       if (d) {
-        if (d.k === 'counter') { box(Wl, x, y + 0.1, x + 1, y + 1, 0.75 * Math.tan(EL), A[d.front] || A.counterfront, A.counter, A.counter, { east: m.get(x + 1, y) !== T.BLOCK, west: m.get(x - 1, y) !== T.BLOCK }); }
+        if (d.k === 'counter') {
+          box(Wl, x, y + 0.1, x + 1, y + 1, 0.75 * Math.tan(EL), A[d.front] || A.counterfront, A.counter, A.counter, { east: m.get(x + 1, y) !== T.BLOCK, west: m.get(x - 1, y) !== T.BLOCK });
+          // capsule posée sur le comptoir (starters du labo)
+          if (d.ball && S.itemball) { const r = S.itemball; billboard(P, x + 0.5, y + 0.55, r.w * WPX * 0.8, r.h * HPX * 0.8, r, 0.75 * Math.tan(EL) - 0.05); }
+        }
         else if (d.k === 'shelf') box(Wl, x + 0.05, y + 0.2, x + 0.95, y + 0.95, 1.5 * Math.tan(EL), A.shelf, A.roof_flat, A.shelf);
         else if (d.k === 'carpet' || d.k === 'exitlight') { /* sol */ }
         else if (S[d.k]) {
           const r = S[d.k];
           billboard(P, x + (r.w > 16 ? 1 : 0.5), y + 0.6, r.w * WPX, r.h * HPX, r);
           if (d.k === 'lamp') glows.push([x + 0.5, y + 0.62, 26 * HPX]);
-          if (['statue', 'plant', 'lamp', 'mailbox', 'sign', 'pot', 'caverock', 'stalag'].includes(d.k)) flat(Sh, x + 0.1, y + 0.4, x + 0.9, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
+          if (['statue', 'gymstatue', 'plant', 'lamp', 'mailbox', 'sign', 'pot', 'caverock', 'stalag', 'fridge', 'clock', 'books', 'pc', 'labmachine', 'vase', 'trash'].includes(d.k)) flat(Sh, x + 0.1, y + 0.4, x + 0.9, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
         }
       }
     }
@@ -194,6 +206,12 @@ export class WorldView {
     return grp;
   }
 
+  /** une case a changé (arbre coupé, rocher brisé) : le morceau de carte qui la contient est reconstruit */
+  rebuildAt(x, y) {
+    const k = Math.floor(x / CH) + ',' + Math.floor(y / CH), g = this.chunks.get(k);
+    if (g) { this.root.remove(g); g.traverse((o) => o.geometry?.dispose()); this.chunks.delete(k); }
+    this.lastChunk = null;
+  }
   ensureChunks(px, py) {
     const ci = Math.floor(px / CH), cj = Math.floor(py / CH), k = ci + ',' + cj;
     if (k === this.lastChunk) return; this.lastChunk = k;
@@ -228,7 +246,7 @@ export class WorldView {
       const fkey = `${b.style}:${b.w}:${b.h}:${b.door}`;
       const fr = T3('f' + fkey, () => facade(b.style, b.w, b.h, b.door, false, b.x * 7 + b.y));
       const sd = T3(`s${b.style}:${b.d}:${b.h}`, () => sideWall(b.style, b.d, b.h));
-      const rf = T3(`r${b.roof}:${b.w}:${b.d}`, () => roofTex(b.roof, b.w + 1, b.d + 1));
+      const rf = T3(`r${b.style}:${b.roof}:${b.w}:${b.d}`, () => roofTex(b.roof, b.w + 1, b.d + 1, 3, b.style));
       const mFront = own(fr), mSide = own(sd), mRoof = own(rf);
       const x0 = b.x, x1 = b.x + b.w, z0 = b.y, z1 = b.y + b.d;
       // façade
@@ -299,8 +317,8 @@ export class WorldView {
       a = { mesh, shadow, kind: o.kind || 'char', dispose: () => { geo.dispose(); sg.dispose(); this.root?.remove(mesh); this.root?.remove(shadow); } };
       this.root.add(mesh); if (o.kind !== 'bang') this.root.add(shadow);
       this.actors.set(id, a);
-      if (o.kind === 'item') this.setSpriteRect(a, this.S.rects.itemball, 16, 16);
-      if (o.kind === 'bang') this.setSpriteRect(a, this.S.rects.bang, 14, 16);
+      if (o.kind === 'item') { const r = this.S.rects.itemball; this.setSpriteRect(a, r, r.w, r.h); }
+      if (o.kind === 'bang') { const r = this.S.rects.bang; this.setSpriteRect(a, r, r.w, r.h); }
     }
     return a;
   }
@@ -313,9 +331,10 @@ export class WorldView {
   }
   /** cadre d'animation : sprite (ligne), direction, pas (0 = immobile) */
   setFrame(a, sprite, dir, step) {
-    const row = CHAR_ROWS[sprite] ?? 0, col = DIR_COL[dir] * 3 + (step === 0 ? 1 : step === 1 ? 0 : 2);
+    const row = CHAR_ROWS[sprite] ?? CHAR_ROWS[CHAR_ALIAS[sprite]] ?? 0, col = DIR_COL[dir] * 3 + (step === 0 ? 1 : step === 1 ? 0 : 2);
     const k = row * 100 + col; if (a.frame === k) return; a.frame = k;
-    const u0 = col * 24 / 288, u1 = (col + 1) * 24 / 288, v0 = row * 32 / 320, v1 = (row + 1) * 32 / 320;
+    const H = this.charRows * 32;
+    const u0 = col * 24 / 288, u1 = (col + 1) * 24 / 288, v0 = row * 32 / H, v1 = (row + 1) * 32 / H;
     const uv = a.mesh.geometry.attributes.uv; uv.setXY(0, u0, v0); uv.setXY(1, u1, v0); uv.setXY(2, u0, v1); uv.setXY(3, u1, v1); uv.needsUpdate = true;
   }
   place(a, x, y, hop = 0, inGrass = false) {

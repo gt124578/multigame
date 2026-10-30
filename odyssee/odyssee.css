@@ -111,7 +111,7 @@ img { image-rendering: pixelated; }
 .bag-pic { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--px) * 6); }
 .bag-icon { width: calc(var(--px) * 56); height: calc(var(--px) * 56); border-radius: calc(var(--px) * 12) calc(var(--px) * 12) calc(var(--px) * 8) calc(var(--px) * 8); background: linear-gradient(#e8a858, #b86828); border: calc(var(--px) * 1.5) solid #6a3810; position: relative; }
 .bag-icon::after { content: ''; position: absolute; left: 20%; right: 20%; top: -18%; height: 30%; border: calc(var(--px) * 2) solid #6a3810; border-bottom: none; border-radius: 50% 50% 0 0; }
-.bag-icon.b1 { background: linear-gradient(#e86060, #b03030); } .bag-icon.b2 { background: linear-gradient(#70a8e8, #3868b0); }
+.bag-icon.b1 { background: linear-gradient(#e86060, #b03030); } .bag-icon.b2 { background: linear-gradient(#70a8e8, #3868b0); } .bag-icon.b3 { background: linear-gradient(#b890e0, #7048a8); }
 .bag-pocket { font-weight: 600; }
 .bag-desc { min-height: 30%; padding: calc(var(--px) * 6) calc(var(--px) * 8); font-size: .9em; }
 .itm-big { width: calc(var(--px) * 24); height: calc(var(--px) * 24); float: left; margin-right: calc(var(--px) * 4); }
@@ -150,7 +150,7 @@ img { image-rendering: pixelated; }
 .tc-top { display: flex; justify-content: space-between; font-weight: 600; border-bottom: var(--px) solid #c8a878; margin-bottom: calc(var(--px) * 4); }
 .tc-body { display: flex; gap: calc(var(--px) * 8); } .tc-body .kv { flex: 1; }
 .tc-photo { width: calc(var(--px) * 56); height: calc(var(--px) * 64); background: #e8f0f8; border: var(--px) solid #8898b0; border-radius: calc(var(--px) * 3); display: flex; align-items: center; justify-content: center; }
-.tc-char { width: 24px; height: 32px; background: url(../pokemon/assets/graphics/chars_overworld.png) -24px 0; transform: scale(calc(var(--px) / 1px)); image-rendering: pixelated; }
+.tc-char { width: 24px; height: 32px; background: url(img/chars.png) -24px 0; transform: scale(calc(var(--px) / 1px)); image-rendering: pixelated; }
 .tc-char.f { background-position: -24px -32px; }
 .badges { display: grid; grid-template-columns: repeat(8, 1fr); gap: calc(var(--px) * 4); margin-top: calc(var(--px) * 8); }
 .badge { aspect-ratio: 1; border-radius: 50%; background: rgba(0,0,0,.08); border: var(--px) dashed #b8a888; display: flex; align-items: center; justify-content: center; }
@@ -177,7 +177,7 @@ img { image-rendering: pixelated; }
 .hof-txt { display: inline-block; padding: calc(var(--px) * 6) calc(var(--px) * 14); }
 
 /* ---------- titre et introduction ---------- */
-.title-scr { position: absolute; inset: 0; z-index: 30; background: linear-gradient(rgba(10,20,50,.15), rgba(10,20,50,.55)); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.title-scr { position: absolute; inset: 0; z-index: 30; background: #0b1030; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .logo { text-align: center; transform: translateY(calc(var(--px) * -18)); }
 .logo-main { font-size: calc(var(--px) * 44); font-weight: 600; color: #f4f6fa; letter-spacing: calc(var(--px) * 2);
   text-shadow: 0 calc(var(--px) * 2) 0 #8898b8, 0 calc(var(--px) * 4) 0 #384868, calc(var(--px) * 2) calc(var(--px) * 6) 0 rgba(0,0,0,.35); }
@@ -193,7 +193,7 @@ img { image-rendering: pixelated; }
 .intro-prof.in { opacity: 1; }
 .intro-mon { position: absolute; left: 64%; bottom: 36%; width: calc(var(--px) * 80); height: calc(var(--px) * 80); opacity: 0; transform: scale(.2); transition: opacity .4s, transform .4s; }
 .intro-mon.in { opacity: 1; transform: scale(1); }
-.intro-kid { position: absolute; left: 50%; bottom: 40%; width: 24px; height: 32px; background: url(../pokemon/assets/graphics/chars_overworld.png) -24px 0; transform: translateX(-50%) scale(calc(var(--px) / 1px * 2)); image-rendering: pixelated; opacity: 0; transition: opacity .4s; transform-origin: 50% 100%; }
+.intro-kid { position: absolute; left: 50%; bottom: 40%; width: 24px; height: 32px; background: url(img/chars.png) -24px 0; transform: translateX(-50%) scale(calc(var(--px) / 1px * 2)); image-rendering: pixelated; opacity: 0; transition: opacity .4s; transform-origin: 50% 100%; }
 .intro-kid.in { opacity: 1; } .intro-kid.f { background-position: -24px -32px; }
 
 /* ---------- combat ---------- */
@@ -226,3 +226,28 @@ img { image-rendering: pixelated; }
 .mbtn { position: relative; border-radius: calc(var(--bp) * 4); background: linear-gradient(color-mix(in srgb, var(--tc) 70%, #fff), var(--tc)); border: calc(var(--bp) * 1) solid rgba(0,0,0,.45); color: #fff; text-shadow: calc(var(--bp) * .8) calc(var(--bp) * .8) 0 rgba(0,0,0,.5); padding: calc(var(--bp) * 1.5) calc(var(--bp) * 5); display: flex; flex-direction: column; justify-content: center; }
 .mbtn.empty { background: #c8ccd4; color: #888; text-shadow: none; align-items: center; }
 .mbtn { line-height: 1.1; } .mbtn .mn { font-weight: 600; font-size: .9em; } .mbtn .mpp { font-size: .68em; } .mbtn .mt { position: absolute; right: calc(var(--bp) * 4); bottom: calc(var(--bp) * 1.5); font-size: .65em; opacity: .9; }
+
+/* écran titre : la mer d'Odyssor en fond */
+.title-cv { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; z-index: -1; }
+.title-scr .logo, .title-scr .press, .title-scr .title-menu, .title-scr .title-foot, .title-scr .save-info { position: relative; }
+.title-scr .save-info { position: absolute; }
+.title-scr .title-foot { position: absolute; }
+
+/* bouton d'aide des touches (bas de l'écran) et panneau */
+.keybar { position: absolute; left: calc(var(--px) * 4); bottom: calc(var(--px) * 4); z-index: 55; display: flex; gap: calc(var(--px) * 3); pointer-events: none; transition: opacity .15s; }
+.keyhint { pointer-events: auto; cursor: pointer;
+  font: inherit; font-size: calc(var(--px) * 6.5); color: rgba(255,255,255,.92); background: rgba(40,44,56,.42); border: var(--px) solid rgba(255,255,255,.28);
+  border-radius: calc(var(--px) * 3); padding: calc(var(--px) * 1) calc(var(--px) * 4); text-shadow: var(--px) var(--px) 0 rgba(0,0,0,.4); }
+.keyhint b { display: inline-block; min-width: 1.2em; text-align: center; background: rgba(255,255,255,.22); border-radius: calc(var(--px) * 1.5); margin-right: calc(var(--px) * 2); }
+.keyhint:hover { background: rgba(40,44,56,.62); }
+#ui:has(> .dlg, > .screen, > .wipe, > .battle, > .title-scr) .keybar { opacity: 0; }
+#ui:has(> .dlg, > .screen, > .wipe, > .battle, > .title-scr) .keyhint { pointer-events: none; }
+.keypanel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 56; padding: calc(var(--px) * 6) calc(var(--px) * 10); display: none; width: min(94vw, calc(var(--px) * 330)); font-size: .85em; }
+.keypanel.on { display: block; }
+.keypanel td:first-child { width: 46%; }
+.keypanel .hint { margin-top: calc(var(--px) * 4); text-align: center; }
+kbd { display: inline-block; font: inherit; font-size: .85em; min-width: 1.4em; text-align: center; padding: 0 calc(var(--px) * 1.5); margin: 0 1px; border-radius: calc(var(--px) * 1.5); background: #eef1f6; border: var(--px) solid #8898b0; border-bottom-width: calc(var(--px) * 2); text-shadow: none; color: var(--ink); }
+
+/* portrait de l'interlocuteur à côté de la boîte de dialogue */
+.dlg-face { position: absolute; z-index: 34; left: calc(var(--px) * 10); bottom: calc(var(--px) * 46); width: calc(var(--px) * 64); height: calc(var(--px) * 64); pointer-events: none; image-rendering: pixelated; filter: drop-shadow(var(--px) var(--px) 0 rgba(0,0,0,.35)); }
+.surf-ride { position: absolute; }

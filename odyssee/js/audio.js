@@ -226,6 +226,20 @@ export class Sound {
 
   cry(url) {
     if (!url || this.vol <= 0) return;
+    // créature originale : petit cri synthétisé, toujours le même pour une espèce
+    if (url.startsWith('synth:')) {
+      if (!this.ctx) return;
+      let s = (+url.slice(6) * 2654435761) >>> 0; const r = () => ((s = (s ^ (s << 13)) >>> 0, s = (s ^ (s >>> 17)) >>> 0, s = (s ^ (s << 5)) >>> 0) % 1000) / 1000;
+      const t = this.ctx.currentTime + 0.02, base = 260 + r() * 520, n = 2 + Math.floor(r() * 3), ty = ['pulse25', 'pulse12', 'pulse50', 'triangle'][Math.floor(r() * 4)];
+      let dt = 0;
+      for (let i = 0; i < n; i++) {
+        const f = base * (0.75 + r() * 0.8), d = 0.08 + r() * 0.16;
+        this.tone(ty, f, t + dt, d, 0.11, this.sfxBus, { slide: f * (0.6 + r() * 0.9), release: 0.04 });
+        if (r() < 0.5) this.tone('noise', 2500 + r() * 3000, t + dt, d * 0.6, 0.03, this.sfxBus, { filter: 'bandpass' });
+        dt += d * (0.7 + r() * 0.4);
+      }
+      return;
+    }
     try { const a = new window.Audio(url); a.volume = Math.min(1, this.vol * 0.45); a.play().catch(() => {}); } catch (e) {}
   }
 }

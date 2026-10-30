@@ -229,14 +229,14 @@ export class BattleView {
         const r = await bagScreen(this.game, { battle: true }); if (!r) continue;
         const it = ITEMS[r.item];
         if (it.ball) { if (this.game.state.party.length >= 6 && this.game.state.box.length >= 300) { await this.msg('Plus de place dans le PC !', { wait: true }); continue; } return { type: 'item', item: r.item }; }
-        const target = await partyScreen(this.game, { mode: 'pick', prompt: `Utiliser ${itemName(r.item)} sur quel Pokémon ?`, filter: (m) => (canUseOn(r.item, m) ? null : 'Pas d\'effet') });
+        const target = await partyScreen(this.game, { mode: 'pick', prompt: `Utiliser ${itemName(r.item)} sur quelle créature ?`, filter: (m) => (canUseOn(r.item, m) ? null : 'Pas d\'effet') });
         if (target < 0) continue;
         let moveIdx = -1;
         if (it.pp) { const m = this.game.state.party[target]; moveIdx = await this.ui.list({ title: 'Quelle attaque ?', items: m.moves.map((x) => ({ label: MOVES[x.id].n, right: `${x.pp}/${MOVES[x.id].pp}` })), cls: 'psub', cancel: -1 }); if (moveIdx < 0) continue; }
         return { type: 'item', item: r.item, target, moveIdx };
       }
       if (c === 2) {
-        const k = await partyScreen(this.game, { mode: 'battle', prompt: 'Choisis un Pokémon.', filter: (m, i) => (m.hp <= 0 ? `${monName(m)} n'a plus la force de se battre !` : i === b.sides[0].active ? `${monName(m)} est déjà au combat !` : null) });
+        const k = await partyScreen(this.game, { mode: 'battle', prompt: 'Choisis une créature.', filter: (m, i) => (m.hp <= 0 ? `${monName(m)} n'a plus la force de se battre !` : i === b.sides[0].active ? `${monName(m)} est déjà au combat !` : null) });
         if (k < 0) continue;
         return { type: 'switch', idx: k };
       }
@@ -245,7 +245,7 @@ export class BattleView {
   }
   commandMenu() {
     return new Promise((resolve) => {
-      const labels = [['ATTAQUE', 'fight'], ['SAC', 'bag'], ['POKéMON', 'mon'], ['FUITE', 'run']];
+      const labels = [['ATTAQUE', 'fight'], ['SAC', 'bag'], ['ÉQUIPE', 'mon'], ['FUITE', 'run']];
       this.cmd.innerHTML = `<div class="cmd-grid">${labels.map(([l, c], i) => `<div class="cbtn ${c}" data-i="${i}">${l}</div>`).join('')}</div>`;
       this.cmd.classList.add('on'); this.root.classList.add('cmdon');
       let i = this.lastCmd || 0;
@@ -282,7 +282,7 @@ export class BattleView {
   }
   async forcedSwitch() {
     const b = this.battle;
-    const k = await partyScreen(this.game, { mode: 'pick', prompt: 'Envoyer quel Pokémon ?', filter: (m, i) => (m.hp <= 0 ? 'K.O.' : i === b.sides[0].active ? 'Au combat' : null) });
+    const k = await partyScreen(this.game, { mode: 'pick', prompt: 'Envoyer quelle créature ?', filter: (m, i) => (m.hp <= 0 ? 'K.O.' : i === b.sides[0].active ? 'Au combat' : null) });
     if (k < 0) return;
     await this.play(b.playerSwitch(k));
   }

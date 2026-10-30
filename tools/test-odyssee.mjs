@@ -53,19 +53,24 @@ const { T, walkable } = await import('../odyssee/js/world/tiles.js');
 const { maps, towns } = buildWorld();
 const W = maps.monde;
 // exploration à travers les grottes : chaque sortie de grotte relance l'exploration du monde
-const seenW = new Uint8Array(W.w * W.h);
-const seeds = [[towns.A.x + 5, towns.A.y + 7]], doneCaves = new Set();
-while (seeds.length) {
-  const [sx, sy] = seeds.pop(); if (seenW[sy * W.w + sx]) continue;
-  const r = W.reach(sx, sy, true, true); for (let i = 0; i < r.length; i++) if (r[i]) seenW[i] = 1;
-  for (const [k, w] of W.warps) {
-    const [x, y] = k.split(',').map(Number); const cave = maps[w.map];
-    if (!cave || cave.floor !== 'cave' || doneCaves.has(w.map) || !(seenW[(y + 1) * W.w + x])) continue;
-    doneCaves.add(w.map);
-    const cr = cave.reach(w.x, w.y, true, true);
-    for (const [ck, cw] of cave.warps) { const [cx, cy] = ck.split(',').map(Number); if (cr[(cy - 1) * cave.w + cx] || cr[cy * cave.w + cx]) seeds.push([cw.x, cw.y]); }
+// gates : true ou nombre de badges ; abil : true (Coupe, Surf, Éclate-Roc) ou Set des cases franchissables
+function explore(gates, abil) {
+  const seenW = new Uint8Array(W.w * W.h);
+  const seeds = [[towns.A.x + 5, towns.A.y + 7]], doneCaves = new Set();
+  while (seeds.length) {
+    const [sx, sy] = seeds.pop(); if (seenW[sy * W.w + sx]) continue;
+    const r = W.reach(sx, sy, gates, true, abil); for (let i = 0; i < r.length; i++) if (r[i]) seenW[i] = 1;
+    for (const [k, w] of W.warps) {
+      const [x, y] = k.split(',').map(Number); const cave = maps[w.map];
+      if (!cave || cave.floor !== 'cave' || doneCaves.has(w.map) || !(seenW[(y + 1) * W.w + x])) continue;
+      doneCaves.add(w.map);
+      const cr = cave.reach(w.x, w.y, gates, true, abil);
+      for (const [ck, cw] of cave.warps) { const [cx, cy] = ck.split(',').map(Number); if (cr[(cy - 1) * cave.w + cx] || cr[cy * cave.w + cx]) seeds.push([cw.x, cw.y]); }
+    }
   }
+  return seenW;
 }
+const seenW = explore(true, true);
 const at = (m, x, y) => y * m.w + x;
 const reachable = (m, seen, x, y) => [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => m.in(x + dx, y + dy) && seen[at(m, x + dx, y + dy)]);
 // portes et téléporteurs du monde
@@ -87,6 +92,21 @@ for (const [id, m] of Object.entries(maps)) {
   for (const [x, y] of entries) ok(seen[at(m, x, y)] || reachable(m, seen, x, y), `${id} : sortie (${x},${y}) atteignable`);
   for (const n of m.npcs) ok(reachable(m, seen, n.x, n.y) || m.get(n.x, n.y + 1) === T.BLOCK && reachable(m, seen, n.x, n.y + 2), `${id} : PNJ ${n.id} atteignable`);
   for (const it of m.items) ok(reachable(m, seen, it.x, it.y), `${id} : objet atteignable`);
+}
+// progression : avec k badges (et les capacités de terrain qu'ils débloquent), l'arène k est accessible, pas l'arène k+1 ;
+// la Ligue n'est accessible qu'avec les huit badges
+const { FIELD } = await import('../odyssee/js/world/region.js');
+const FIELD_T = { coupe: T.CUT, surf: T.WATER, eclate: T.SMASH };
+const gymDoor = (g) => Object.values(towns).find((t) => t.gym === g).gymDoor;
+const leagueDoor = [...W.warps].find(([, w]) => w.map === 'plateau:ligue')[0].split(',').map(Number);
+const doorOpen = (seen, [x, y]) => !!seen[at(W, x, y + 1)];
+for (let k = 0; k <= 8; k++) {
+  const abil = new Set(Object.entries(FIELD).filter(([f, d]) => d.badge <= k && FIELD_T[f] != null).map(([f]) => FIELD_T[f]));
+  const seen = explore(k, abil);
+  if (k < 8) ok(doorOpen(seen, gymDoor(k)), `avec ${k} badge(s), l'arène ${k + 1} est accessible`);
+  if (k < 7) ok(!doorOpen(seen, gymDoor(k + 1)), `avec ${k} badge(s), l'arène ${k + 2} est encore fermée`);
+  ok(doorOpen(seen, leagueDoor) === (k === 8), `Ligue ${k === 8 ? 'ouverte' : 'fermée'} avec ${k} badge(s)`);
+  ok(!!seen[at(W, 212, 202)] === (k === 8), `Cap des Étoiles ${k === 8 ? 'ouvert' : 'fermé'} avec ${k} badge(s)`);
 }
 // les huit Champions et la Maître existent
 const leaders = Object.values(maps).flatMap((m) => m.npcs.filter((n) => n.leader != null));

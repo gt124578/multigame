@@ -1,11 +1,12 @@
-// odyssee/js/input.js — clavier : flèches ou ZQSD (WASD en QWERTY), Espace/Entrée = A, Échap/Retour = B, Maj = courir
+// odyssee/js/input.js — clavier : flèches ou ZQSD (WASD en QWERTY), F (ou Espace / Entrée) = interagir / valider,
+// Échap / Retour arrière = annuler, menu ; Maj = courir ; C = carte ; H = aide des touches
 const MAP = {
   ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
   KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right',
-  Space: 'a', Enter: 'a', NumpadEnter: 'a', KeyE: 'a', KeyK: 'a',
+  KeyF: 'a', Space: 'a', Enter: 'a', NumpadEnter: 'a', KeyE: 'a', KeyK: 'a',
   Escape: 'b', Backspace: 'b', KeyX: 'b', KeyL: 'b',
   ShiftLeft: 'run', ShiftRight: 'run',
-  Tab: 'menu', KeyM: 'menu', KeyC: 'map',
+  Tab: 'menu', KeyM: 'menu', KeyC: 'map', KeyH: 'help', F1: 'help',
 };
 export class Input {
   constructor() {
@@ -14,6 +15,9 @@ export class Input {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
       const k = MAP[e.code]; if (!k) return;
       e.preventDefault();
+      // l'aide des touches s'ouvre partout, par-dessus le reste
+      if (k === 'help') { if (!e.repeat) this.onHelp?.(); return; }
+      if (this.helpOpen) { if (k === 'b' || k === 'a') this.onHelp?.(); return; }
       if (!this.held.has(k)) {
         this.held.set(k, performance.now());
         if (['up', 'down', 'left', 'right'].includes(k)) { this.dirOrder = this.dirOrder.filter((d) => d !== k); this.dirOrder.push(k); this.tap = k; }

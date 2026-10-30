@@ -1,5 +1,21 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.23 — 30 octobre 2026
+- **Odyssée** — une aventure bien plus longue : huit arènes et la Ligue.
+  - Les quatre premières arènes se font dans l'ordre, puis de nouvelles zones s'ouvrent au fil des badges : Mirage, puis la mer et l'archipel.
+  - Trois îles tenues par trois frères Champions, de plus en plus forts : Basalte (Île de Granit), Pyros (Cendrelune) et Drakos, le tyran de la Grande Île, ancien rival de la Maître Célestine.
+  - Odyssor, la baleine des étoiles, apparaît au Cap des Étoiles après le huitième badge.
+- **Odyssée** — de nouvelles créatures : Capyousse, Mèchelet et Narvi sont les nouveaux starters, et une cinquantaine de créatures originales rejoignent les Pokémon (qui restent).
+- **Odyssée** — capacités de terrain : Coupe (petits arbres), Surf (on traverse la mer sur le dos d'une créature), Éclate-Roc (rochers fissurés) et Vol (retour éclair dans une ville déjà visitée). Les Champions les donnent après leur victoire ; face à l'obstacle, appuie sur F.
+- **Odyssée** — nouvel écran titre : Odyssor nage dans la mer, sous la lune.
+- **Odyssée** — on interagit avec F ; un petit bouton gris en bas de l'écran (ou H) affiche toutes les touches, un autre ouvre le menu (Échap).
+- **Odyssée** — la partie se sauvegarde depuis le menu, et aussi automatiquement à chaque porte.
+- **Odyssée** — corrections :
+  - On ne peut plus prendre une créature au labo avant d'avoir parlé au Professeur Saule : il t'accueille dès l'entrée.
+  - Le rival Théo n'apparaît plus dans un mur et repart proprement après chaque combat ; il prend toujours le starter qui a l'avantage sur le tien.
+  - Le Sac a une poche « Objets rares » (CS, Carte) ; les objets rares ne se jettent ni ne se vendent plus.
+  - Le Pokédex commence par les créatures d'Odyssée ; les personnages ont leur portrait à côté des dialogues.
+
 ## 3.22 — 30 octobre 2026
 - Add files via upload (Gabe)
 

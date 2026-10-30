@@ -47,7 +47,7 @@ export function partyScreen(game, o = {}) {
       });
       for (let k = party.length; k < 6; k++) grid.appendChild(el('div', 'pslot empty'));
       cancel.classList.toggle('on', i === party.length);
-      help.textContent = swapFrom >= 0 ? 'Avec quel Pokémon échanger sa place ?' : o.prompt || 'Choisis un Pokémon.';
+      help.textContent = swapFrom >= 0 ? 'Avec quelle créature échanger sa place ?' : o.prompt || 'Choisis une créature.';
     };
     draw();
     const close = (v) => { pop(); s.remove(); resolve(v); };
@@ -93,7 +93,7 @@ export function summaryScreen(game, list, idx) {
       if (page === 0) body = `<table class="kv"><tr><td>N° Pokédex</td><td>${String(m.sp).padStart(3, '0')}</td></tr><tr><td>Nom</td><td>${esc(S.n)}</td></tr><tr><td>Type</td><td>${S.t.map(typeTag).join(' ')}</td></tr><tr><td>D.O.</td><td>${esc(m.ot || game.state.name)}</td></tr><tr><td>Rencontré</td><td>${esc(m.met || '—')}</td></tr><tr><td>Exp.</td><td>${m.exp.toLocaleString('fr-FR')}</td></tr></table><div class="expline"><b>EXP</b><i><u style="width:${expProgress(m) * 100}%"></u></i></div><div class="dexline">${esc(S.genus || '')}</div>`;
       else if (page === 1) body = `<table class="kv stats">${STAT_NAMES.map((n, k) => `<tr><td>${n}</td><td>${k === 0 ? `${m.hp}/${m.stats[0]}` : m.stats[k]}</td><td><i class="sbar"><u style="width:${Math.min(100, S.b[k] / 1.6)}%"></u></i></td></tr>`).join('')}</table>`;
       else body = `<div class="moves">${m.moves.map((mv) => { const M = MOVES[mv.id]; return `<div class="mv" style="--tc:${TYPE_COL[M.t]}"><span class="mvn">${esc(M.n)}</span>${typeTag(M.t)}<span class="mvpp">PP ${mv.pp}/${M.pp}</span><span class="mvd">${M.c === 'status' ? 'Statut' : `Puiss. ${M.p || '—'}`} · Préc. ${M.a ?? '—'}</span></div>`; }).join('')}</div>`;
-      s.innerHTML = `<div class="sum-left box"><div class="sum-head">${esc(monName(m))}${gender(m)} <span>N.${m.lvl}</span></div><img class="sum-spr" src="${ASSETS.front(m.sp, m.shiny)}" alt="">${statusTag(m)}${hpBar(m)}<div class="phpn">${m.hp}/${m.stats[0]}</div></div><div class="sum-right box"><div class="tabs">${tabs}</div>${body}</div><div class="sum-help">◀ ▶ pages · ▲ ▼ Pokémon · Échap retour</div>`;
+      s.innerHTML = `<div class="sum-left box"><div class="sum-head">${esc(monName(m))}${gender(m)} <span>N.${m.lvl}</span></div><img class="sum-spr" src="${ASSETS.front(m.sp, m.shiny)}" alt="">${statusTag(m)}${hpBar(m)}<div class="phpn">${m.hp}/${m.stats[0]}</div></div><div class="sum-right box"><div class="tabs">${tabs}</div>${body}</div><div class="sum-help">◀ ▶ pages · ▲ ▼ créature · Échap retour</div>`;
     };
     draw();
     const pop = ui.input.push((k) => {
@@ -125,7 +125,7 @@ export function bagScreen(game, o = {}) {
     const pop = ui.input.push(async (k) => {
       if (busy) return;
       const es = entries();
-      if (k === 'left' || k === 'right') { pocket = (pocket + (k === 'left' ? 2 : 1)) % 3; i = 0; ui.sound.sfx('blip'); draw(); return; }
+      if (k === 'left' || k === 'right') { pocket = (pocket + (k === 'left' ? POCKETS.length - 1 : 1)) % POCKETS.length; i = 0; ui.sound.sfx('blip'); draw(); return; }
       if (k === 'up') { i = (i - 1 + es.length + 1) % (es.length + 1); ui.sound.sfx('blip'); draw(); return; }
       if (k === 'down') { i = (i + 1) % (es.length + 1); ui.sound.sfx('blip'); draw(); return; }
       if (k === 'b') { ui.sound.sfx('cancel'); close(null); return; }
@@ -133,9 +133,10 @@ export function bagScreen(game, o = {}) {
       if (i === es.length) { ui.sound.sfx('cancel'); close(null); return; }
       ui.sound.sfx('select');
       const item = es[i], it = ITEMS[item];
-      const opts = o.battle ? ['Utiliser', 'Annuler'] : ['Utiliser', 'Jeter', 'Annuler'];
+      // les objets rares ne se jettent pas ; seuls ceux qui ont un usage hors combat s'utilisent
+      const opts = o.battle ? ['Utiliser', 'Annuler'] : it.key ? ['Utiliser', 'Annuler'] : ['Utiliser', 'Jeter', 'Annuler'];
       busy = true;
-      const r = await ui.list({ items: opts.map((label) => ({ label, disabled: label === 'Utiliser' && o.battle && !(it.heal || it.cure || it.revive || it.ball || it.pp || it.ppAll) })), cls: 'psub', cancel: opts.length - 1, parent: s });
+      const r = await ui.list({ items: opts.map((label) => ({ label, disabled: label === 'Utiliser' && (o.battle ? !(it.heal || it.cure || it.revive || it.ball || it.pp || it.ppAll) : it.key && !it.field && item !== 'town-map') })), cls: 'psub', cancel: opts.length - 1, parent: s });
       busy = false;
       if (opts[r] === 'Utiliser') { close({ item }); return; }
       if (opts[r] === 'Jeter') {
@@ -154,19 +155,21 @@ export function dexScreen(game) {
   const ui = game.ui, st = game.state;
   return new Promise((resolve) => {
     const s = screen(ui, 'dex-scr');
-    const ids = Object.keys(SPECIES).map(Number);
+    // les créatures d'Odyssée d'abord (numéros 001 à 052), puis les Pokémon venus d'ailleurs
+    const ids = Object.keys(SPECIES).map(Number).sort((a, b) => (a >= 1000) === (b >= 1000) ? a - b : a >= 1000 ? -1 : 1);
+    const num = (id) => (SPECIES[id].no ? String(SPECIES[id].no).padStart(3, '0') : '#' + String(id).padStart(3, '0'));
     let i = 0;
     const seen = new Set(st.dex.seen), caught = new Set(st.dex.caught);
     s.innerHTML = `<div class="dex-left box"><img class="dex-spr" alt=""><div class="dex-info"></div></div><div class="dex-right box"><div class="dex-count">Vus : ${seen.size} · Capturés : ${caught.size}</div><div class="list-items dex-list"></div></div>`;
     const list = s.querySelector('.dex-list'), spr = s.querySelector('.dex-spr'), info = s.querySelector('.dex-info');
-    list.innerHTML = ids.map((id) => `<div class="list-row" data-i="${id}"><span class="cur">▶</span><span class="dexn">${String(id).padStart(3, '0')}</span><span class="lbl">${seen.has(id) ? esc(SPECIES[id].n) : '-----'}</span>${caught.has(id) ? '<span class="ball-mini"></span>' : ''}</div>`).join('');
+    list.innerHTML = ids.map((id) => `<div class="list-row" data-i="${id}"><span class="cur">▶</span><span class="dexn">${num(id)}</span><span class="lbl">${seen.has(id) ? esc(SPECIES[id].n) : '-----'}</span>${caught.has(id) ? '<span class="ball-mini"></span>' : ''}</div>`).join('');
     const rows = [...list.children];
     const draw = () => {
       rows.forEach((r, k) => r.classList.toggle('on', k === i)); rows[i].scrollIntoView({ block: 'nearest' });
       const id = ids[i], S = SPECIES[id];
       if (seen.has(id)) { spr.src = ASSETS.front(id); spr.style.visibility = ''; spr.classList.toggle('shadowed', !caught.has(id)); }
       else spr.style.visibility = 'hidden';
-      info.innerHTML = caught.has(id) ? `<div class="dex-name">${String(id).padStart(3, '0')} ${esc(S.n)}</div><div>${esc(S.genus || '')}</div><div>${S.t.map(typeTag).join(' ')}</div><div>Taille ${(S.h / 10).toLocaleString('fr-FR')} m · Poids ${(S.w / 10).toLocaleString('fr-FR')} kg</div><p>${esc(S.dex)}</p>` : seen.has(id) ? `<div class="dex-name">${String(id).padStart(3, '0')} ${esc(S.n)}</div><p>Capture ce Pokémon pour en savoir plus.</p>` : '<p>Pokémon inconnu.</p>';
+      info.innerHTML = caught.has(id) ? `<div class="dex-name">${num(id)} ${esc(S.n)}</div><div>${esc(S.genus || '')}</div><div>${S.t.map(typeTag).join(' ')}</div><div>Taille ${(S.h / 10).toLocaleString('fr-FR')} m · Poids ${(S.w / 10).toLocaleString('fr-FR')} kg</div><p>${esc(S.dex)}</p>` : seen.has(id) ? `<div class="dex-name">${num(id)} ${esc(S.n)}</div><p>Capture cette créature pour en savoir plus.</p>` : '<p>Créature inconnue.</p>';
     };
     draw();
     const pop = ui.input.push((k) => {
@@ -222,7 +225,7 @@ export async function shopScreen(game, stock) {
   for (;;) {
     const r = await ui.ask('Bonjour ! Que puis-je faire pour toi ?', ['Acheter', 'Vendre', 'Au revoir'], { keep: true, speaker: 'Vendeur' });
     if (r === 1) {
-      const sellable = Object.keys(st.bag).filter((k) => st.bag[k] > 0 && ITEMS[k]);
+      const sellable = Object.keys(st.bag).filter((k) => st.bag[k] > 0 && ITEMS[k] && !ITEMS[k].key && ITEMS[k].price > 0);
       if (!sellable.length) { await ui.say('Tu n\'as rien à vendre.', { keep: true }); continue; }
       const k = await ui.list({ title: 'Vendre', items: sellable.map((it) => ({ label: itemName(it), right: `× ${st.bag[it]}` })).concat([{ label: 'Annuler' }]), cls: 'shop', cancel: sellable.length });
       if (k < 0 || k >= sellable.length) continue;
@@ -257,22 +260,22 @@ export async function shopScreen(game, stock) {
 export async function pcScreen(game) {
   const ui = game.ui, st = game.state;
   ui.sound.sfx('pc');
-  await ui.say(`${st.name} allume le PC.\nAccès au système de stockage des Pokémon.`, { keep: true });
+  await ui.say(`${st.name} allume le PC.\nAccès au système de stockage des créatures.`, { keep: true });
   for (;;) {
-    const r = await ui.ask('Que veux-tu faire ?', ['Retirer un Pokémon', 'Déposer un Pokémon', 'Éteindre'], { keep: true });
+    const r = await ui.ask('Que veux-tu faire ?', ['Retirer une créature', 'Déposer une créature', 'Éteindre'], { keep: true });
     if (r === 0) {
-      if (!st.box.length) { await ui.say('Il n\'y a aucun Pokémon dans la boîte.', { keep: true }); continue; }
+      if (!st.box.length) { await ui.say('Il n\'y a aucune créature dans la boîte.', { keep: true }); continue; }
       if (st.party.length >= 6) { await ui.say('Ton équipe est complète !', { keep: true }); continue; }
       const k = await ui.list({ title: `Boîte (${st.box.length})`, items: st.box.map((m) => ({ label: monName(m), right: `N.${m.lvl}` })).concat([{ label: 'Annuler' }]), cls: 'shop pcbox', cancel: st.box.length });
       if (k < 0 || k >= st.box.length) continue;
       const m = st.box.splice(k, 1)[0]; st.party.push(m);
       await ui.say(`${monName(m)} a rejoint ton équipe.`, { keep: true });
     } else if (r === 1) {
-      if (st.party.length <= 1) { await ui.say('C\'est ton dernier Pokémon !', { keep: true }); continue; }
+      if (st.party.length <= 1) { await ui.say('C\'est ta dernière créature !', { keep: true }); continue; }
       ui.closeDialog();
-      const k = await partyScreen(game, { mode: 'pick', prompt: 'Quel Pokémon déposer ?' });
+      const k = await partyScreen(game, { mode: 'pick', prompt: 'Quelle créature déposer ?' });
       if (k < 0) continue;
-      if (st.party.filter((m, j) => j !== k && m.hp > 0).length === 0) { await ui.say('Il te faut au moins un Pokémon en forme dans ton équipe !', { keep: true }); continue; }
+      if (st.party.filter((m, j) => j !== k && m.hp > 0).length === 0) { await ui.say('Il te faut au moins une créature en forme dans ton équipe !', { keep: true }); continue; }
       const m = st.party.splice(k, 1)[0]; st.box.push(m);
       await ui.say(`${monName(m)} a été déposé dans la boîte.`, { keep: true });
     } else break;

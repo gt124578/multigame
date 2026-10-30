@@ -22,37 +22,42 @@ export function centerInterior(id, name) {
   furn(m, 'healer', 8, 2); m.set(9, 2, T.BLOCK);
   furn(m, 'pc', 11, 2); m.object(11, 2, { type: 'pc' });
   furn(m, 'plant', 1, 2); furn(m, 'plant', 1, 8);
-  furn(m, 'table', 2, 6); furn(m, 'table', 10, 6);
+  furn(m, 'bench', 1, 6); m.set(2, 6, T.BLOCK); furn(m, 'bench', 10, 6); m.set(11, 6, T.BLOCK);
+  furn(m, 'vase', 11, 8);
   return m;
 }
 export function martInterior(id, name, stock) {
   const m = room(id, 11, 9, { floor: 'mart', music: 'mart', wall: 'wall_mart', exitX: 2, name });
   counter(m, 1, 3, 4, 'martfront');
-  m.npc({ id: id + ':vendeur', x: 2, y: 3, sprite: 'clerk', role: 'shop', stock });
+  m.npc({ id: id + ':vendeur', x: 2, y: 3, sprite: 'vendeur', role: 'shop', stock });
   for (const x of [6, 7, 8]) { m.set(x, 3, T.BLOCK); m.deco.push({ k: 'shelf', x, y: 3 }); m.set(x, 6, T.BLOCK); m.deco.push({ k: 'shelf', x, y: 6 }); }
   furn(m, 'plant', 9, 2);
   return m;
 }
 export function houseInterior(id, name, o = {}) {
   const m = room(id, o.w || 9, o.h || 8, { floor: 'wood', music: 'house', name, exitX: o.exitX });
-  furn(m, 'books', 1, 2); furn(m, 'tv', 3, 2); furn(m, 'plant', (o.w || 9) - 2, 2);
-  furn(m, 'table', 4, 4); if (o.bed) furn(m, 'bed', (o.w || 9) - 2, 4);
+  const w = o.w || 9;
+  furn(m, 'books', 1, 2); furn(m, 'tv', 3, 2); furn(m, 'plant', w - 2, 2);
+  furn(m, 'table', 4, 4); if (o.bed) furn(m, 'bed', w - 2, 4);
+  if (o.kitchen) { furn(m, 'fridge', 5, 2); furn(m, 'kitchen', 6, 2); }
+  else furn(m, w > 9 ? 'clock' : 'painting', 5, 2);
   if (o.extraBooks) furn(m, 'books', 6, 2);
+  if (w > 9) { furn(m, 'sofa', 7, 5); m.set(8, 5, T.BLOCK); furn(m, 'boxes', 1, 6); }
   return m;
 }
 export function labInterior(id) {
   const m = room(id, 13, 12, { floor: 'lab', music: 'lab', wall: 'wall_mart', name: 'Labo du Prof. Saule' });
   for (const x of [1, 2, 3, 9, 10, 11]) furn(m, 'books', x, 2);
   furn(m, 'pc', 5, 2); furn(m, 'pc', 7, 2);
-  for (const x of [5, 6, 7]) { m.set(x, 5, T.BLOCK); m.deco.push({ k: 'counter', x, y: 5, front: 'counterfront', top: 'lab' }); }
-  furn(m, 'plant', 1, 9); furn(m, 'plant', 11, 9);
+  for (const x of [5, 6, 7]) { m.set(x, 5, T.BLOCK); m.deco.push({ k: 'counter', x, y: 5, front: 'counterfront', top: 'lab', ball: true }); }
+  furn(m, 'plant', 1, 9); furn(m, 'plant', 11, 9); furn(m, 'labmachine', 1, 6); furn(m, 'labmachine', 11, 6);
   return m;
 }
 const GYM_FLOOR = { bug: 'gymBug', rock: 'gymRock', water: 'gymWater', electric: 'gymElec', grass: 'gymGrass', psychic: 'gymPsy', fire: 'gymFire', dragon: 'gymDragon' };
 export function gymInterior(id, type, name) {
   const w = 15, h = 19;
   const m = room(id, w, h, { floor: GYM_FLOOR[type], music: 'gym', wall: 'wall_gym', name, battleBg: 'gym' });
-  furn(m, 'statue', 5, 16); furn(m, 'statue', 9, 16);
+  furn(m, 'gymstatue', 5, 16); furn(m, 'gymstatue', 9, 16);
   // un petit labyrinthe d'obstacles propre au type
   const obs = { bug: 'bush', rock: 'rock', water: 'pot', electric: 'pc', grass: 'bush', psychic: 'statue', fire: 'rock', dragon: 'statue' }[type];
   const layouts = {
@@ -73,7 +78,7 @@ export function gymInterior(id, type, name) {
 export function leagueInterior(id) {
   const m = room(id, 15, 18, { floor: 'league', music: 'league', wall: 'wall_league', name: 'Ligue Céleste', battleBg: 'league' });
   for (let y = 4; y < 17; y++) for (const x of [6, 8]) m.deco.push({ k: 'carpet', x, y });
-  for (const y of [5, 9, 13]) { furn(m, 'statue', 3, y); furn(m, 'statue', 11, y); }
+  for (const y of [5, 9, 13]) { furn(m, 'gymstatue', 3, y); furn(m, 'gymstatue', 11, y); }
   return m;
 }
 

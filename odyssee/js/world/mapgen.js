@@ -83,16 +83,19 @@ export class GameMap {
   }
 
   /** accessibilité depuis un point (sans tenir compte des PNJ) */
-  reach(x0, y0, passGates = true, withNpcs = false) {
+  // abil : on dispose de toutes les capacités de terrain (Coupe, Éclate-Roc, Surf)
+  reach(x0, y0, passGates = true, withNpcs = false, abil = false) {
     const seen = new Uint8Array(this.w * this.h), q = [[x0, y0]]; seen[y0 * this.w + x0] = 1;
-    const blocked = new Set(); if (!passGates) for (const g of this.gates) for (const [x, y] of g.tiles) blocked.add(key(x, y));
+    // passGates : true (tous), false (aucun) ou un nombre de badges ; abil : true (toutes les capacités) ou un Set de cases franchissables
+    const blocked = new Set(); if (passGates !== true) for (const g of this.gates) if (passGates === false || g.badges > passGates) for (const [x, y] of g.tiles) blocked.add(key(x, y));
+    const can = (t) => (abil === true ? t === T.CUT || t === T.SMASH || t === T.WATER : !!abil && abil.has(t));
     if (withNpcs) { for (const n of this.npcs) if (!n.gate) blocked.add(key(n.x, n.y)); for (const it of this.items) blocked.add(key(it.x, it.y)); }
     while (q.length) {
       const [x, y] = q.pop();
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const nx = x + dx, ny = y + dy; if (!this.in(nx, ny) || seen[ny * this.w + nx]) continue;
         const t = this.get(nx, ny);
-        let ok = walkable(t) && this.height(nx, ny) === this.height(x, y);
+        let ok = (walkable(t) || can(t)) && this.height(nx, ny) === this.height(x, y);
         if (t === T.LEDGE && dy === 1 && walkable(this.get(nx, ny + 1))) { seen[ny * this.w + nx] = 1; if (!seen[(ny + 1) * this.w + nx]) { seen[(ny + 1) * this.w + nx] = 1; q.push([nx, ny + 1]); } continue; }
         if (t === T.LEDGE_E && dx === 1 && walkable(this.get(nx + 1, ny))) { if (!seen[ny * this.w + nx + 1]) { seen[ny * this.w + nx + 1] = 1; q.push([nx + 1, ny]); } continue; }
         if (t === T.LEDGE_W && dx === -1 && walkable(this.get(nx - 1, ny))) { if (!seen[ny * this.w + nx - 1]) { seen[ny * this.w + nx - 1] = 1; q.push([nx - 1, ny]); } continue; }
