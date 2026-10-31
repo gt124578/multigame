@@ -1,5 +1,9 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.43 — 31 octobre 2026
+- **Odyssée** — nouvelles hautes herbes en touffes, comme sur DS : quatre variantes mélangées au hasard (prairie, bois, neige), fini les carrés d'herbe.
+  - Sous l'herbe des bois, le sol est celui du sous-bois.
+
 ## 3.42 — 31 octobre 2026
 - **Odyssée** — les maisons ont de nouvelles façades à colombages redessinées : fenêtres, porte avec son auvent, applique dorée, toit de tuiles.
   - Le rez-de-chaussée garde son socle de pierre, les étages n'en ont plus.

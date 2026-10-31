@@ -742,6 +742,31 @@ def do_nature2():
             if img is None: continue
             save(img, 'nature', key + '.png'); done[key] = [img.width, img.height, 2]
             print('herbe (vraie résolution)', key, img.size)
+    # hautes herbes en touffes (planche 4 × 3 sur magenta : prairie, forêt, neige ; 4 variantes chacune, 32 × 40)
+    if os.path.exists(os.path.join(SRC, 'hautes_herbes.png')):
+        a = load('hautes_herbes.png'); H, W = a.shape[:2]
+        for j, key in enumerate(('tuft', 'darktuft', 'snowtuft')):
+            n = 0
+            for i in range(4):
+                c = a[round(j * H / 3):round((j + 1) * H / 3), round(i * W / 4):round((i + 1) * W / 4)]
+                c = c[3:-3, 3:-3]   # la gouttière entre les cases
+                rgba = np.dstack([c, np.where(magenta(c), 0, 255).astype(np.uint8)])
+                img = np.array(crisp_resize(Image.fromarray(rgba), 32, 40))
+                # pied de la touffe : les lignes presque pleines le deviennent tout à fait (bords gauche et droit compris),
+                # sinon deux cases voisines laissent voir le sol entre elles
+                for y in range(40):
+                    row = img[y]; op = row[:, 3] > 0
+                    if op.mean() > 0.7:
+                        xs = np.nonzero(op)[0]
+                        for x in np.nonzero(~op)[0]: row[x] = row[xs[np.abs(xs - x).argmin()]]
+                # une variante dont la couleur ne suit pas sa ligne (herbe verte dans la ligne de neige) est écartée
+                op = img[..., 3] > 0; col = img[op][:, :3].mean(0) if op.any() else np.zeros(3)
+                if key == 'snowtuft' and col[2] < col[1] - 10: continue
+                # 2 pixels de plus de chaque côté (bords recopiés) : en perspective, une case proche de la caméra fait un peu
+                # plus de 32 pixels à l'écran, et deux touffes posées bord à bord laisseraient voir un filet de sol
+                img = np.concatenate([img[:, :1], img[:, :1], img, img[:, -1:], img[:, -1:]], 1)
+                save(Image.fromarray(img), 'nature', f'{key}{n}.png'); done[f'{key}{n}'] = [36, 40, 2]; n += 1
+            print('hautes herbes', key, n, 'variantes')
     META['nature'] = done
     META['natureV2'] = True
 
