@@ -816,6 +816,69 @@ def do_facades():
         save(out, 'facades', k + '.png')
     META['facades'] = list(FACADES)
 
+# ------------------------------------------------------------------ kits de bâtiments « tileset » (4 × 4 tuiles sur fond magenta)
+# kit_<nom>.png → facades/<nom>.png : 4 colonnes × 5 lignes de tuiles de 32 pixels, avec transparence.
+# Lignes 1 à 4 : mur, fenêtre, fenêtre la nuit, socle · porte, porte la nuit, linteau, côté · toit, rebord, faîte, cheminée ·
+# enseigne (2 moitiés), jardinière, lampe. Ligne 5 (ajoutée ici) : fenêtre et fenêtre la nuit AVEC le socle, pour le rez-de-chaussée.
+KITS = {'maison': 'maison'}
+
+def kit_cells(a):
+    """les 16 tuiles d'un kit : grille régulière, chaque tuile débarrassée de sa gouttière magenta"""
+    H, W = a.shape[:2]; mag = magenta(a)
+    boxes = {}
+    for j in range(4):
+        for i in range(4):
+            y0, y1, x0, x1 = round(j * H / 4), round((j + 1) * H / 4), round(i * W / 4), round((i + 1) * W / 4)
+            m = ~mag[y0:y1, x0:x1]
+            ys = np.nonzero(m.mean(1) > 0.85)[0]; xs = np.nonzero(m.mean(0) > 0.85)[0]
+            boxes[(i, j)] = (y0, y1, x0, x1, ys, xs)
+    # taille d'une tuile pleine (lignes 1 à 3) ; les objets de la ligne 4 prennent la même zone, centrée dans leur case
+    full = [(b[4][-1] - b[4][0] + 1, b[5][-1] - b[5][0] + 1) for (i, j), b in boxes.items() if j < 3 and len(b[4]) and len(b[5])]
+    s = int(np.median([min(h, w) for h, w in full]))
+    tiles = {}
+    for (i, j), (y0, y1, x0, x1, ys, xs) in boxes.items():
+        if j < 3 and len(ys) > s * 0.8 and len(xs) > s * 0.8: ty, tx = y0 + ys[0], x0 + xs[0]
+        else: ty, tx = y0 + (y1 - y0 - s) // 2, x0 + (x1 - x0 - s) // 2
+        c = a[ty:ty + s, tx:tx + s].copy()
+        rgba = np.dstack([c, np.where(magenta(c), 0, 255).astype(np.uint8)])
+        tiles[(i, j)] = np.array(crisp_resize(Image.fromarray(rgba), 32, 32))
+    return tiles
+
+def do_kits():
+    for name, out in KITS.items():
+        fn = 'kit_' + name + '.png'
+        if not os.path.exists(os.path.join(SRC, fn)): continue
+        t = kit_cells(load(fn))
+        grey = lambda row: (row[:, :3].max(1).astype(int) - row[:, :3].min(1)).mean() < 22
+        base = t[(3, 0)]
+        # hauteur du socle : lignes du bas grises (pierre) à la fois sous le mur et sous le « socle »
+        p = 0
+        while p < 12 and grey(base[31 - p]) and grey(t[(0, 0)][31 - p]): p += 1
+        kit = np.zeros((160, 128, 4), np.uint8)
+        for (i, j), tile in t.items(): kit[j * 32:(j + 1) * 32, i * 32:(i + 1) * 32] = tile
+        kit[128:160, 0:32] = t[(1, 0)]; kit[128:160, 32:64] = t[(2, 0)]           # fenêtres du rez-de-chaussée, socle compris
+        if p:
+            # étages : mur, fenêtres et côté sans le socle ; à sa place, le haut de la tuile (la poutre ou la corniche),
+            # si bien que deux étages empilés sont séparés par une bande de bois, comme un plancher vu de dehors
+            for (i, j) in ((0, 0), (1, 0), (2, 0), (3, 1)):
+                y, x = j * 32, i * 32
+                kit[y + 32 - p:y + 32, x:x + 32] = kit[y:y + p, x:x + 32]
+        # toit : les trous du rebord, du faîte et de la cheminée laissent voir les tuiles du toit
+        roof = kit[64:96, 0:32]
+        for i in (1, 2, 3):
+            tile = kit[64:96, i * 32:(i + 1) * 32]; hole = tile[..., 3] == 0; tile[hole] = roof[hole]
+        # lampe murale : dessinée sur toute sa case par le générateur, ramenée à la taille d'une applique (22 pixels)
+        lamp = kit[96:128, 96:128].copy(); ys, xs = np.nonzero(lamp[..., 3])
+        if len(ys):
+            obj = Image.fromarray(lamp[ys.min():ys.max() + 1, xs.min():xs.max() + 1]); h = 22; w = max(4, round(obj.width * h / obj.height))
+            small = np.array(crisp_resize(obj, w, h)); kit[96:128, 96:128] = 0
+            kit[96 + 4:96 + 4 + h, 96 + 2:96 + 2 + w] = small
+        # fumée teintée par le fond magenta : grise
+        r, g, b = kit[..., 0].astype(int), kit[..., 1].astype(int), kit[..., 2].astype(int)
+        pink = (kit[..., 3] > 0) & (r > g + 40) & (b > g + 40)
+        kit[pink, :3] = np.stack([(r + g + b)[pink] // 3] * 3, 1)
+        save(Image.fromarray(kit), 'facades', out + '.png'); print('kit', name, '→', out, 'socle', p, 'px')
+
 # ------------------------------------------------------------------ titre : Odyssor en grand
 def do_title():
     a = load('odyssor.png'); H, W = a.shape[:2]
@@ -846,7 +909,7 @@ if __name__ == '__main__':
         do_nature2()
     if 'mobilier' in want: do_sheet('mobilier.png', MOBILIER, MOBILIER_SIZE, 'mobilier', 'mobilier', dens=2)
     if 'sol' in want: do_sol()
-    if 'facades' in want: do_facades()
+    if 'facades' in want: do_facades(); do_kits()
     if 'title' in want: do_title()
     write_meta()
     print('ok :', ', '.join(sorted(want)))

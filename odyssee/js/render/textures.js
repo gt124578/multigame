@@ -364,7 +364,7 @@ const KITS = {}, SOLS = {};
 export function setArt({ kits = {}, sols = {} } = {}) { Object.assign(KITS, kits); Object.assign(SOLS, sols); }
 const KIT_OF = { house: 'maison', house2: 'maison', house3: 'maison', bighouse: 'maison', tower: 'maison', gate: 'maison', center: 'centre', mart: 'boutique', gym: 'arene', lab: 'labo', league: 'ligue' };
 // position des tuiles dans un kit : [colonne, ligne]
-const KT = { wall: [0, 0], win: [1, 0], winN: [2, 0], base: [3, 0], door: [0, 1], doorN: [1, 1], lintel: [2, 1], side: [3, 1], roof: [0, 2], eave: [1, 2], ridge: [2, 2], chimney: [3, 2], signL: [0, 3], signR: [1, 3], flowers: [2, 3], lamp: [3, 3] };
+const KT = { wall: [0, 0], win: [1, 0], winN: [2, 0], base: [3, 0], door: [0, 1], doorN: [1, 1], lintel: [2, 1], side: [3, 1], roof: [0, 2], eave: [1, 2], ridge: [2, 2], chimney: [3, 2], signL: [0, 3], signR: [1, 3], flowers: [2, 3], lamp: [3, 3], winB: [0, 4], winBN: [1, 4] };
 // un kit fait 4 × 4 tuiles de 16 pixels (première version) ou de 32 pixels (version 2, deux fois plus fin)
 const kitT = (kit) => Math.round(kit.width / 4);
 const kitTile = (ctx, kit, k, x, y) => { const [c, r] = KT[k], T = kitT(kit); ctx.drawImage(kit, c * T, r * T, T, T, x, y, T, T); };
@@ -377,7 +377,9 @@ function kitFacade(style, w, H, door, night) {
   for (let j = 0; j < H; j++) for (let i = 0; i < w; i++) {
     const X = i * T, Y = j * T, bottom = j === H - 1, off = (i - door) % 2 !== 0;
     let k = 'wall';
-    if (bottom) k = i === door ? (night ? 'doorN' : 'door') : off && w > 2 ? (night ? 'winN' : 'win') : 'base';
+    // kit en 5 lignes : les fenêtres du rez-de-chaussée ont leur socle, celles des étages n'en ont pas
+    const tall = kit.height > kit.width;
+    if (bottom) k = i === door ? (night ? 'doorN' : 'door') : off && w > 2 ? (night ? (tall ? 'winBN' : 'winN') : (tall ? 'winB' : 'win')) : 'base';
     else if (j === H - 2 && signCols.includes(i)) k = i === signCols[0] ? 'signL' : 'signR';
     else if (j === H - 2 && i === door) k = 'lintel';
     else k = (i + j) % 2 === (door + 1) % 2 ? (night ? 'winN' : 'win') : 'wall';

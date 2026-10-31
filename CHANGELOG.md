@@ -1,5 +1,9 @@
 # Journal des versions — Game Hub (Duo Drift, DavidSimulator)
 
+## 3.42 — 31 octobre 2026
+- **Odyssée** — les maisons ont de nouvelles façades à colombages redessinées : fenêtres, porte avec son auvent, applique dorée, toit de tuiles.
+  - Le rez-de-chaussée garde son socle de pierre, les étages n'en ont plus.
+
 ## 3.41 — 30 octobre 2026
 - **Odyssée** — les pieds des personnages s'affichent en entier, sur les chemins comme sur les ponts.
 - **Odyssée** — un combat sauvage déclenché sur la dernière case d'herbe se joue bien dans les herbes : le joueur ne fait plus un pas de plus sur la route avant le combat.
