@@ -1,5 +1,19 @@
 # Journal des versions — Arcadia
 
+## 3.89 — 3 novembre 2026
+- **Odyssée** — Nouveaux décors, dessinés au pixel près :
+  - Les routes, villes et grottes ont un nouveau sol : herbe, fleurs, chemins et lacs varient d'un endroit à l'autre, plus de motifs qui se répètent.
+  - L'eau est animée : vaguelettes, reflets et écume qui vient lécher la berge. Nouveaux pontons sur pilotis.
+  - Les rebords qu'on saute ont l'aspect de HeartGold / SoulSilver.
+  - Le passage d'une zone à l'autre (neige, cendre, forêt, sable) se fait en douceur, sans frontière en ligne droite.
+  - Les villages ont des pavés de toutes tailles et couleurs, qui s'égaillent dans les chemins à l'entrée ; Métropole, Voltacité et Forge-Acier ont des rues en bitume avec trottoirs, et un escalier à leur entrée.
+  - On ne voit plus le vide au bord de la région : la mer, la forêt et les montagnes continuent au loin.
+  - Les entrées de grottes sont de vraies montagnes de roche avec une arche, et dedans la sortie s'éclaire de la lumière du jour.
+  - Nouveau panneau de route en bois, vu de trois quarts.
+- **Odyssée** — Corrections :
+  - Dans les grottes, le sol ne clignote plus à travers la roche et la roche ne déborde plus en carrés sur le sol.
+  - Au bord des grottes, on ne voit plus un grand aplat noir.
+
 ## 3.88 — 3 novembre 2026
 - **Odyssée** — Arènes :
   - En entrant dans une arène, le guide t'accueille, présente le Champion et te demande si tu es prêt.
