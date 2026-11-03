@@ -15,8 +15,8 @@ const ROCHES = {
 /** arche de la bouche d'une grotte (48 × 40 px, une case et demie de large) : couronne de pierres festonnée,
  *  pieds évasés, rebord éclairé en haut à gauche, intérieur qui plonge dans le noir, sol bleuté au fond.
  *  jour : vue de dedans, l'ouverture laisse passer la lumière du dehors (tramée vers les bords) */
-export function archeGrotte(bio = 'montagne', jour = false) {
-  const P = ROCHES[bio] || ROCHES.montagne, W = 48, H = 40, cx = 24;
+export function archeGrotte(bio = 'montagne', jour = false, pal = null) {
+  const P = pal || ROCHES[bio] || ROCHES.montagne, W = 48, H = 40, cx = 24;
   const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const px = (x, y, col) => { g.fillStyle = col; g.fillRect(x, y, 1, 1); };
   // silhouette extérieure : dôme qui suit la voûte (bossué pierre par pierre), puis pieds qui s'évasent
@@ -74,3 +74,16 @@ export function archeGrotte(bio = 'montagne', jour = false) {
   return c;
 }
 
+/** lumière du jour qui entre par une sortie de grotte (32 px de large, une case de haut par case) : tramée au pixel,
+ *  rien en haut de la case de la porte, de plus en plus claire vers le dehors (le bas), plus forte au milieu */
+export function jourGrotte(cases) {
+  const W = 32, H = 32 * cases, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+  const bay = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const f = Math.min(1, Math.max(0, (y - 10) / (H - 10))) * (1 - Math.max(0, Math.abs(x + 0.5 - W / 2) - 7) / 9);
+    const b = bay[(y % 4) * 4 + (x % 4)] / 16;
+    if (f > 0.75 + b * 0.25) { g.fillStyle = '#fff6d6'; g.fillRect(x, y, 1, 1); }
+    else if (f > 0.15 + b * 0.5) { g.fillStyle = '#e6cf98'; g.fillRect(x, y, 1, 1); }
+  }
+  return c;
+}

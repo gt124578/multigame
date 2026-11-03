@@ -17,7 +17,10 @@ export const MARGIN = 2;       // cases de contexte autour d'un bloc (raccords)
 export const TRANSPARENT = 255;
 
 // sortes de cases (calculées par le moteur à partir des codes T, voir sol.js)
-export const K = { X: 0, G: 1, F: 2, T: 3, TD: 4, P: 5, V: 6, W: 7, B: 8, C: 9, L: 10, LE: 11, LW: 12, CW: 13 };
+export const K = { X: 0, G: 1, F: 2, T: 3, TD: 4, P: 5, V: 6, W: 7, B: 8, C: 9, L: 10, LE: 11, LW: 12, CW: 13,
+  GF: 14, SN: 15, AS: 16, SA: 17, TS: 18 };   // … hautes herbes enneigées   // herbe de forêt, neige, cendre, sable
+/** sols « d'herbe » : on y marche, le décor (arbres, rochers…) s'y pose ; la zone choisit lequel */
+const SOLS = new Set([K.G, K.GF, K.SN, K.AS, K.SA]);
 
 /** sorte d'une case de la carte du jeu (K.X : le jeu garde son propre sol) */
 export function sorteCase(m, x, y) {
@@ -30,21 +33,27 @@ export function sorteCase(m, x, y) {
     if (t === T.CAVEWALL) return K.CW;                                    // sol fin sous les plateaux de roche du jeu
     return [T.CAVE, T.CAVEDOOR, T.ROCK, T.BOULDER, T.SMASH, T.BLOCK, T.SIGN].includes(t) ? K.C : K.X;
   }
-  const th = m.zoneAt?.(x, y)?.theme, froid = th === 'snow' || th === 'volcanic';   // neige et cendre : sols du jeu
+  const th = m.zoneAt?.(x, y)?.theme;
+  // sol de fond de la zone : herbe, herbe sombre de forêt, neige, cendre du volcan
+  const fond = th === 'snow' ? K.SN : th === 'volcanic' ? K.AS : th === 'forest' ? K.GF : K.G;
+  const herbeux = fond === K.G || fond === K.GF;
   switch (t) {
     case T.WATER: return K.W;
     case T.BRIDGE: return K.B;
     case T.PAVE: return K.V;
     case T.PATH: case T.DOOR: return K.P;
-    case T.TALL: return froid ? K.X : K.T;
+    case T.SNOW: return K.SN;
+    case T.ASH: return K.AS;
+    case T.SAND: return K.SA;
+    case T.TALL: return th === 'snow' ? K.TS : K.T;
     case T.DARKTALL: return K.TD;
-    case T.FLOWER: return froid ? K.X : K.F;
-    case T.LEDGE: return froid ? K.X : K.L;
-    case T.LEDGE_E: return froid ? K.X : K.LE;
-    case T.LEDGE_W: return froid ? K.X : K.LW;
+    case T.FLOWER: return herbeux ? K.F : fond;
+    case T.LEDGE: return K.L;
+    case T.LEDGE_E: return K.LE;
+    case T.LEDGE_W: return K.LW;
     case T.GRASS: case T.TREE: case T.PINE: case T.BUSH: case T.ROCK: case T.FENCE: case T.CUT: case T.SMASH: case T.BOULDER:
-    case T.CAVEWALL:   // montagnes du dehors (plateaux de roche posés sur l'herbe)
-      return froid ? K.X : K.G;
+    case T.CAVEWALL:   // montagnes du dehors (plateaux de roche posés sur le sol)
+      return fond;
     default: return K.X;
   }
 }
@@ -63,6 +72,7 @@ const HEX = {
   g0: '#1f5a2e', g1: '#2c7236', g2: '#3d8c3c', g3: '#52a446', g4: '#6cbb52', g5: '#8ad064', g6: '#b4e47e',
   // hautes herbes, hautes herbes sombres (sous-bois)
   h0: '#173f2a', h1: '#1f5a34', h2: '#2f7a3a', h3: '#45984a', h4: '#6abc5c',
+  j0: '#24443a', j1: '#355a4a', j2: '#5c7e70', j3: '#c8d8e6', j4: '#f4f8fc',   // hautes herbes enneigées
   k0: '#0f2e20', k1: '#163f28', k2: '#205a30', k3: '#2f7a3a', k4: '#4f9c4a',
   // terre des chemins
   d0: '#6e4f33', d1: '#8c6a44', d2: '#a88655', d3: '#c2a06a', d4: '#d6b882', d5: '#e8d0a0',
@@ -80,6 +90,14 @@ const HEX = {
   v0: '#5e5850', v1: '#847c70', v2: '#a49a8a', v3: '#beb4a2', v4: '#d6cebc', m0: '#4a6a3a', m1: '#6a8a4a',
   // rebords façon HeartGold / SoulSilver (bourrelet de roche brune)
   l0: '#3a2a22', l1: '#5e4434', l2: '#7e604c', l3: '#a08066', l4: '#c4a486', l5: '#e2c8a6',
+  // neige (ombres bleutées), cendre du volcan (braises rares), sable des plages
+  n0: '#8fa4c0', n1: '#b2c2d8', n2: '#ccd8e8', n3: '#e2eaf4', n4: '#f2f6fb', n5: '#ffffff',
+  e0: '#3e3a38', e1: '#58524e', e2: '#6f6863', e3: '#857e78', e4: '#9c958f', e5: '#b6afa8', eb: '#e0703a',
+  z0: '#c4a868', z1: '#dcc488', z2: '#ecd8a2', z3: '#f8ecc4', zp: '#f0b8b0',
+  // pavés : pierres chaudes (beige) et froides (bleutées), joints, terre des pavés manquants
+  u0: '#6a5c4a', u1: '#8e7c64', u2: '#ac987c', u3: '#c6b496', u4: '#ddceb2',
+  q0: '#565c62', q1: '#767c84', q2: '#959ba2', q3: '#b2b8be', q4: '#ccd2d6',
+  vj: '#4e4840',
   // flaques des grottes
   cw: '#3a5a7a', cW: '#5a86a8', cg: '#7ac0c8',
 };
@@ -102,6 +120,7 @@ LUT[TRANSPARENT] = 0;
 const ramp = (p, n) => Array.from({ length: n }, (_, i) => I[p + i]);
 const G = ramp('g', 7), H = ramp('h', 5), HK = ramp('k', 5), D = ramp('d', 6), P = ramp('p', 4), S = ramp('s', 3);
 const W = ramp('w', 7), B = ramp('b', 4), V = ramp('v', 5), L = ramp('l', 6);
+const HS = ramp('j', 5), N = ramp('n', 6), E = ramp('e', 6), Zs = ramp('z', 4), U = ramp('u', 5), Q = ramp('q', 5);
 const caveRamp = (b) => ramp(`c_${CAVES[b] ? b : 'terre'}`, 6);
 const isIn = (arr) => { const s = new Uint8Array(256); for (const v of arr) s[v] = 1; return s; };
 const IS_G = isIn(G.slice(2)), IS_S = isIn(S), IS_D = isIn(D);
@@ -290,11 +309,12 @@ function blade(img, Z, y, x, Ln, lean, base, pal, block) {
   }
 }
 
-function herbe(Z, img, mask, block) {
+function herbe(Z, img, mask, block, foret = null) {
   const s = Z.s, c = Z.c, Wd = Z.W;
   const light = Z.field(120, s + 1), patch = Z.field(30, s + 2), colony = Z.field(70, s + 3, 2);
   const lv = new Uint8Array(Z.N);
-  for (let i = 0; i < Z.N; i++) { lv[i] = digitize(0.65 * light[i] + 0.35 * patch[i], [0.42, 0.58]) + 2; if (mask[i]) img[i] = G[lv[i] + 1]; }
+  // forêt : l'herbe y est plus sombre d'un ton (bord tramé, voir foretMasque)
+  for (let i = 0; i < Z.N; i++) { lv[i] = digitize(0.65 * light[i] + 0.35 * patch[i], [0.42, 0.58]) + 2 - (foret && foret[i] ? 1 : 0); if (mask[i]) img[i] = G[lv[i] + 1]; }
   const blades = [], fl = [];
   for (let cy = 0; cy < Z.ch; cy++) for (let cx = 0; cx < Z.cw; cx++) {
     const r = cellRng(cx + Z.rx0, cy + Z.ry0, s + 10), n = Math.floor(c * c / 5.5);
@@ -388,24 +408,93 @@ function chemin(Z, img, mask, block) {
   cailloux(Z, img, inner, s + 34, D[0], 1 / 200);
 }
 
-function paves(Z, img, mask) {
-  const s = Z.s, Wd = Z.W, sh = 8, sw = 11;
-  const moss = Z.field(24, s + 73, 2), area = Z.field(50, s + 72, 2);
+/** pavés de ville : rangées de hauteur variable, pierres de toutes tailles (dont de grandes dalles), trois familles
+ *  de couleurs (gris, beige, bleuté) mêlées par endroits, usure, fissures, mousse dans les joints ; au bord, des pierres
+ *  manquent et d'autres s'égaillent dans l'herbe */
+const RANGS = [[8, 8, 8, 8], [7, 9, 8, 8], [6, 8, 10, 8], [9, 7, 7, 9], [10, 6, 8, 8], [8, 10, 6, 8]];
+const LARGS = [[8, 8, 8, 8], [11, 10, 11], [6, 9, 7, 10], [12, 7, 13], [16, 16], [7, 12, 6, 7], [9, 14, 9], [10, 6, 16]];
+function pierre(X, Y, s) {
+  // rangée : chaque bande de 32 px du monde est coupée selon un motif tiré au sort
+  const by = Math.floor(Y / 32), rs = RANGS[Math.floor(hash2(by, 0, s + 70) * RANGS.length)];
+  let yy = Y - by * 32, r = 0; while (yy >= rs[r]) { yy -= rs[r]; r++; }
+  const row = by * 4 + r, rh = rs[r];
+  // pierres de la rangée : chaque tronçon de 32 px (décalé selon la rangée) a son motif de largeurs
+  const off = Math.floor(hash2(row, 1, s + 71) * 32), xx = X + off, bx = Math.floor(xx / 32), ws = LARGS[Math.floor(hash2(bx, row, s + 72) * LARGS.length)];
+  let lx = xx - bx * 32, k = 0; while (lx >= ws[k]) { lx -= ws[k]; k++; }
+  return { id: hash2(bx * 8 + k, row, s + 73), lx, ly: yy, w: ws[k], h: rh };
+}
+function paves(Z, img, mask, voisins) {
+  const s = Z.s, Wd = Z.W;
+  const fam = Z.field(90, s + 74, 2), moss = Z.field(24, s + 75, 2);
+  const din = edt(mask, Wd, Z.H, 1), dout = edt(mask, Wd, Z.H, 0);
   for (let i = 0; i < Z.N; i++) {
-    if (!mask[i]) continue;
-    const X = Z.X(i), Y = Z.Y(i), row = Math.floor(Y / sh);
-    const off = (row & 1) * (sw >> 1) + Math.floor(hash2(row, 0, s + 70) * 3);
-    const col = Math.floor((X + off) / sw), stone = hash2(col, row, s + 71);
-    const ly = Y - row * sh, lx = (X + off) - col * sw;
-    const tone = Math.min(4, Math.max(1, 1 + Math.floor(stone * 3) + (area[i] > 0.6 ? 1 : 0)));
-    let o = V[tone];
-    if (ly === 0 || lx === 0) o = V[Math.min(4, tone + 1)];
-    if (ly === sh - 1 || lx === sw - 1) { o = V[0]; if (moss[i] > 0.66) o = I.m0; if (ly === sh - 1 && moss[i] > 0.66 && hash2(X, Y, s + 74) < 0.3) o = I.m1; }
-    else if (ly > 0 && lx > 0 && hash2(X, Y, s + 75) < 0.03) o = V[tone - 1];
+    const inside = mask[i];
+    if (!inside && !(voisins[i] && dout[i] < 14)) continue;
+    const X = Z.X(i), Y = Z.Y(i), p = pierre(X, Y, s), id = p.id;
+    // au bord : pierres manquantes dedans, pierres égaillées dehors (de moins en moins loin du bord)
+    if (inside && din[i] < 10 && hash2(Math.floor(id * 1e6), 3, s + 76) < 0.5 * (1 - din[i] / 10) ** 2) { img[i] = p.lx === 0 || p.ly === 0 ? I.vj : D[1 + ((X + Y) & 1)]; continue; }
+    if (!inside && hash2(Math.floor(id * 1e6), 4, s + 77) > 0.22 * (1 - dout[i] / 14) ** 2) continue;
+    if (!inside && (p.w > 12 || p.h > 9)) continue;   // les grandes dalles restent en place
+    // famille de couleur : par quartiers (bruit lent) et un peu par pierre
+    const f = fam[i] + (hash2(Math.floor(id * 1e6), 5, s + 78) - 0.5) * 0.5, R = f < 0.36 ? U : f > 0.66 ? Q : V;
+    let tone = 1 + Math.floor(hash2(Math.floor(id * 1e6), 6, s + 79) * 3);
+    const big = p.w >= 14;
+    let o = R[tone];
+    const ex = p.lx === p.w - 1, ey = p.ly === p.h - 1;
+    if (ex || ey) { o = moss[i] > 0.62 && hash2(X, Y, s + 80) < 0.7 ? (hash2(X, Y, s + 81) < 0.3 ? I.m1 : I.m0) : I.vj; }   // joint
+    else if (p.ly === 0 || p.lx === 0) o = R[Math.min(4, tone + 1)];                       // arête éclairée
+    else if (p.ly === p.h - 2 || p.lx === p.w - 2) o = R[Math.max(0, tone - 1)];           // arête dans l'ombre
+    else {
+      const u = hash2(X, Y, s + 82);
+      if (u < 0.05) o = R[Math.max(0, tone - 1)]; else if (u > 0.97) o = R[Math.min(4, tone + 1)];
+      // fissure en diagonale sur une pierre sur douze, usure plus claire au milieu des grandes dalles
+      if (hash2(Math.floor(id * 1e6), 7, s + 83) < 0.08 && Math.abs(p.lx - p.ly * (p.w / p.h) * 0.8 - p.w * 0.15) < 0.6) o = R[0];
+      if (big && Math.abs(p.lx - p.w / 2) < p.w / 4 && Math.abs(p.ly - p.h / 2) < p.h / 4 && u > 0.6) o = R[Math.min(4, tone + 1)];
+    }
+    if (!inside) { if (ex || ey) o = I.vj; else if (p.ly === 0 || p.lx === 0) o = R[Math.min(4, tone + 1)]; }  // pierre posée dans l'herbe
     img[i] = o;
   }
-  const din = edt(mask, Wd, Z.H, 1);
-  for (let i = 0; i < Z.N; i++) if (mask[i] && din[i] <= 1.5) img[i] = V[0];
+  for (let i = 0; i < Z.N; i++) if (mask[i] && din[i] <= 1.2 && img[i] !== I.vj && !IS_D[img[i]]) img[i] = I.vj;
+}
+
+/** sol de fond d'une zone (neige, cendre, sable), aux bords naturels ; près du bord, il se mêle à l'herbe voisine */
+function fondZone(Z, img, mask, voisin, kind) {
+  const s = Z.s + kind * 13, Wd = Z.W;
+  const R = kind === K.SN ? N : kind === K.AS ? E : Zs, top = R.length - 1;
+  const big = Z.field(60, s + 1), mid = Z.field(18, s + 2), dout = edt(mask, Wd, Z.H, 0);
+  const din = edt(voisin, Wd, Z.H, 0);   // dedans : distance à l'herbe voisine (pas aux pavés ni à l'eau)
+  const bay = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  for (let i = 0; i < Z.N; i++) {
+    const X = Z.X(i), Y = Z.Y(i), b = bay[(Y & 3) * 4 + (X & 3)] / 16;
+    if (!mask[i]) {
+      // dans l'herbe voisine : plaques de neige / de cendre / de sable tramées, de moins en moins loin du bord
+      if (voisin[i] && dout[i] < 9 && mid[i] * (1 - dout[i] / 9) > 0.25 + b * 0.35) img[i] = R[top - 1];
+      continue;
+    }
+    const v = 0.6 * big[i] + 0.4 * mid[i];
+    let o = kind === K.SN ? (v < 0.36 ? N[2] : v < 0.62 ? N[3] : N[4])
+      : kind === K.AS ? (v < 0.36 ? E[2] : v < 0.6 ? E[3] : E[4])
+        : (v < 0.38 ? Zs[1] : v < 0.66 ? Zs[2] : Zs[3]);
+    const u = hash2(X, Y, s + 3);
+    if (kind === K.SN) {
+      if (u > 0.985) o = N[5];                                                 // éclats de givre
+      else if (u < 0.02) o = N[1];
+      // congères : rides du vent, trait clair au-dessus d'un trait bleuté
+      const rid = Math.abs(((Y + Math.floor(fbm1(X, Y, 14, s + 4, 2) * 10)) % 9)) ;
+      if (v > 0.5 && rid === 0 && mid[i] > 0.55) o = N[5]; else if (v > 0.5 && rid === 1 && mid[i] > 0.55) o = N[1];
+    } else if (kind === K.AS) {
+      if (u < 0.05) o = E[1]; else if (u > 0.97) o = E[5];
+      if (u > 0.9985) o = I.eb;                                                // braise
+    } else {
+      // rides du sable et coquillages
+      const rid = (Y + Math.floor(fbm1(X, Y, 20, s + 4, 2) * 12)) % 7;
+      if (rid === 0) o = Zs[3]; else if (rid === 1) o = Zs[1];
+      if (u > 0.9975) o = I.zp; else if (u < 0.015) o = Zs[0];
+    }
+    // près de l'herbe : brins qui percent (neige, cendre) tramés vers l'intérieur
+    if (kind !== K.SA && din[i] < 7 && hash2(X, Y, s + 5) < 0.35 * (1 - din[i] / 7) && b < 0.6) o = (Y & 1) ? G[2] : G[3];
+    img[i] = o;
+  }
 }
 
 function grotte(Z, img, mask, C) {
@@ -608,8 +697,19 @@ export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = n
   const isW = (k) => k === K.W || k === K.B;
   const water = has(K.W) || has(K.B) ? Z.region(isW, seed + 100, { wobble: 0.7, round: 0.45 }) : new Uint8Array(Z.N);
   let path = has(K.P) ? Z.region((k) => k === K.P, seed + 101, { wobble: 0.9, round: 0.55, band: c >> 1 }) : new Uint8Array(Z.N);
-  const pave = has(K.V) ? Z.region((k) => k === K.V, seed + 103, { wobble: 0, round: 0.08 }) : new Uint8Array(Z.N);
-  let tall = has(K.T) || has(K.TD) ? Z.region((k) => k === K.T || k === K.TD, seed + 106, { wobble: 1.6, round: 0.3, freq: 0.25 }) : new Uint8Array(Z.N);
+  const pave = has(K.V) ? Z.region((k) => k === K.V, seed + 103, { wobble: 0.35, round: 0.1, band: c >> 2 }) : new Uint8Array(Z.N);
+  // sols de fond des zones (neige, cendre, sable) : bords naturels sur une demi-case, c'est du décor
+  const fonds = [K.SN, K.AS, K.SA].filter(has).map((k) => [k, Z.region((q) => q === k, seed + 110 + k, { wobble: 1.1, round: 0.5, band: c >> 1, freq: 0.3 })]);
+  // forêt : herbe plus sombre, bord tramé
+  let foret = null;
+  if (has(K.GF)) {
+    const fr = Z.region((q) => q === K.GF, seed + 120, { wobble: 1.2, round: 0.6, band: c >> 1, freq: 0.3 });
+    const din = edt(fr, Z.W, Z.H, 1);
+    foret = new Uint8Array(Z.N);
+    const bay = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+    for (let i = 0; i < Z.N; i++) foret[i] = fr[i] && Math.min(1, din[i] / 10) * 16 > bay[(Z.Y(i) & 3) * 4 + (Z.X(i) & 3)] ? 1 : 0;
+  }
+  let tall = has(K.T) || has(K.TD) || has(K.TS) ? Z.region((k) => k === K.T || k === K.TD || k === K.TS, seed + 106, { wobble: 1.6, round: 0.3, freq: 0.25 }) : new Uint8Array(Z.N);
   let caveM = new Uint8Array(Z.N);
   if (cave) caveM = andNot(Z.px((k) => k !== K.X), water);
   const hard = or(water, pave, caveM);
@@ -618,15 +718,21 @@ export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = n
   let lv = null;
   if (!cave) {
     const grass = new Uint8Array(Z.N); for (let i = 0; i < Z.N; i++) grass[i] = hard[i] | path[i] ? 0 : 1;
-    lv = herbe(Z, img, grass, water);
+    lv = herbe(Z, img, grass, water, foret);
+    let fondAll = new Uint8Array(Z.N);
+    for (const [k, mk] of fonds) {
+      const m2 = andNot(andNot(mk, hard), path); fondZone(Z, img, m2, andNot(grass, or(mk, fondAll)), k); fondAll = or(fondAll, m2);
+    }
     if (anyOf(tall)) {
       // les hautes herbes sombres (sous-bois) ont leur propre vert
-      const tdM = Z.px((k) => k === K.TD), tlM = and(tall, Z.px((k) => k !== K.TD)), tdR = and(tall, tdM);
+      const tdM = Z.px((k) => k === K.TD), tsM = Z.px((k) => k === K.TS);
+      const tlM = andNot(andNot(tall, tdM), tsM), tdR = and(tall, tdM), tsR = and(tall, tsM);
       if (anyOf(tlM)) hautesHerbes(Z, img, tlM, lv);
       if (anyOf(tdR)) hautesHerbes(Z, img, tdR, lv, HK);
+      if (anyOf(tsR)) hautesHerbes(Z, img, tsR, lv, HS);
     }
     if (anyOf(path)) chemin(Z, img, path, or(water, hard));
-    if (anyOf(pave)) paves(Z, img, pave);
+    if (anyOf(pave)) paves(Z, img, pave, andNot(andNot(grass, path), water));
   } else grotte(Z, img, caveM, C);
   // transparence : cases que le jeu dessine lui-même (sable, neige, maisons, parois de grotte…)
   const keep = Z.px((k) => k !== K.X);
