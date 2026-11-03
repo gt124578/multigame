@@ -26,12 +26,14 @@ const SPRITES = [
     fs.writeFileSync(file, Buffer.from(url.split(',')[1], 'base64'));
   };
   for (const [name, b3, o] of SPRITES) {
-    const tall = /tour|pagode|ligue|pavillon/.test(name) ? '&h=18&dz=-3' : '';
+    const tall = /pagode/.test(name) ? '&w=20&h=40&dz=-7' : /tour|ligue|pavillon/.test(name) ? '&h=18&dz=-3' : '';
     await shot(`vue=seul&b=${b3}&o=${encodeURIComponent(JSON.stringify(o))}${tall}`, `${OUT}/sprites/${name}.png`, true);
     console.log('sprite', name);
   }
   for (const [cx, n] of [[12, 1], [33, 2], [52, 3]]) { await shot(`vue=rue&cx=${cx}&cz=9`, `${OUT}/rue_haut_${n}.png`); await shot(`vue=rue&cx=${cx}&cz=16`, `${OUT}/rue_bas_${n}.png`); console.log('rue', n); }
   await shot('vue=interieur&w=13&h=9', `${OUT}/interieur_escaliers.png`);
+  await shot('vue=monument&cx=20&cz=21.5', `${OUT}/pagode_jeu.png`);                       // ce qu'on voit en jeu, au pied
+  await shot('vue=monument&cx=20&cz=17&w=40&h=34', `${OUT}/pagode_vue_large.png`);          // vue d'ensemble (hors jeu)
   console.log(logs.slice(0, 5).join('\n'));
   await b.close();
 })();

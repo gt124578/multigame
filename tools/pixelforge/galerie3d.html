@@ -63,8 +63,19 @@ if (vue === 'seul') {
   const haut = [['maison', 1, {}], ['maisonLongue', 6, {}], ['residence', 12, {}], ['centre', 19, {}], ['boutique', 25, {}], ['labo', 30, {}], ['maison', 37, { toit: '#3a68c8', mur: '#efe4cc', fleurs: ['#7aa0f8', '#fafaf2'] }], ['maison', 42, { toit: '#4a9a4a', mur: '#f4ecd8', fleurs: ['#f08ac0', '#fafaf2'] }], ['maisonLongue', 47, { bardage: '#c8a070', toit: '#7a3a2a' }], ['residence', 53, { mur: '#e8eef4', toit: '#3a4a6a' }]];
   for (const [n, x, o] of haut) poser(n, x, 9 - EMPRISES[n][1], o);
   // rangée du bas (z = 19)
-  const bas = [['arene', 1, { acc: '#e07030' }], ['pagode', 10, {}], ['pavillon', 16, {}], ['ligue', 25, {}], ['tour', 36, { etages: 7 }], ['arene', 46, { acc: '#3a8ce0', pierre: '#b8bec8' }], ['arene', 55, { acc: '#58c060', pierre: '#c8c0a8' }]];
+  const bas = [['arene', 1, { acc: '#e07030' }], ['arene', 9, { acc: '#e8c030', pierre: '#c4c4c4' }], ['pavillon', 17, {}], ['ligue', 25, {}], ['tour', 36, { etages: 7 }], ['arene', 46, { acc: '#3a8ce0', pierre: '#b8bec8' }], ['arene', 55, { acc: '#58c060', pierre: '#c8c0a8' }]];
   for (const [n, x, o] of bas) poser(n, x, 19 - EMPRISES[n][1], o);
+} else if (vue === 'monument') {
+  const SW = 40, SH = 34, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
+  for (let y = 0; y < SH + 2 * MG; y++) for (let x = 0; x < SW + 2 * MG; x++) {
+    const gy = y - MG, gx = x - MG;
+    if (gy >= 20 && gx >= 18 && gx <= 21) kinds[y * (SW + 2 * MG) + x] = K.V;
+    if (gy >= 19 && gy <= 22 && gx >= 13 && gx <= 26) kinds[y * (SW + 2 * MG) + x] = K.V;
+  }
+  sol(kinds, SW, SH, MG, 9); ombres(0, 0, SW, SH);
+  poser('pagode', 15.5, 10.5);
+  for (const [x, z] of [[11, 14], [29, 14], [11, 24], [29, 24], [11, 8], [29, 8]]) poser('maison', x - 2, z - 3, { toit: '#7a3a2a', mur: '#efe0c8' });
+  cx = +(Q.get('cx') || 20); cz = +(Q.get('cz') || 21.5);
 } else if (vue === 'interieur') {
   // pièce de 13 × 9 : parquet, mur du fond, escalier qui monte (à droite) et qui descend (à gauche), comme dans les tours
   const W = 13, Dd = 9, tp = TX.parquet();

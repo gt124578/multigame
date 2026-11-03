@@ -9,11 +9,20 @@ export function atelier(D) {
   const hex = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
   const mix = (c, f) => { const [r, g, b] = hex(c); const m = (v) => Math.max(0, Math.min(255, Math.round(f < 0 ? v * (1 + f) : v + (255 - v) * f))); return `rgb(${m(r)},${m(g)},${m(b)})`; };
   const S = D / 32, cache = new Map();
+  const NETTES = new Set(['verre', 'croix', 'sac', 'etals', 'sol', 'shoji', 'pagodeMur']);
   function tex(key, w, h, draw, rep = true) {
     if (cache.has(key)) return cache.get(key);
     const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
     const px = (x, y, col) => { g.fillStyle = col; g.fillRect(x, y, 1, 1); };
     draw(g, px, w, h);
+    if (!NETTES.has(key)) {
+      // douceur : on rapproche chaque pixel de la teinte moyenne de la texture (motif gardé, contraste divisé par ~2)
+      const im = g.getImageData(0, 0, w, h), d = im.data, n = w * h, moy = [0, 0, 0];
+      for (let i = 0; i < d.length; i += 4) { moy[0] += d[i]; moy[1] += d[i + 1]; moy[2] += d[i + 2]; }
+      for (let k = 0; k < 3; k++) moy[k] /= n;
+      for (let i = 0; i < d.length; i += 4) for (let k = 0; k < 3; k++) d[i + k] = Math.round(moy[k] + (d[i + k] - moy[k]) * 0.55);
+      g.putImageData(im, 0, 0);
+    }
     const t = new THREE.CanvasTexture(c); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
     t.colorSpace = THREE.SRGBColorSpace; if (rep) t.wrapS = t.wrapT = THREE.RepeatWrapping; cache.set(key, t); return t;
   }
@@ -51,7 +60,7 @@ export function atelier(D) {
   };
 
   /* -------------------------------------------------------------- matériaux, primitives ----------------------------- */
-  const paliers = (() => { const d = new Uint8Array([90, 160, 225, 255]); const t = new THREE.DataTexture(d, 4, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+  const paliers = (() => { const d = new Uint8Array([135, 180, 222, 255]); const t = new THREE.DataTexture(d, 4, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
   const M = (o) => new THREE.MeshToonMaterial({ gradientMap: paliers, ...o });
   const COL = (c) => M({ color: new THREE.Color(c) });
   const LUM = (c, e) => M({ color: new THREE.Color(c), emissive: new THREE.Color(e) });
@@ -95,6 +104,18 @@ export function atelier(D) {
     G.add(at(boite(w, 0.12, 0.16, COL(faite)), cx, y + hr + 0.08, cz));
     const sh = new THREE.Shape(); sh.moveTo(-(z1 - z0) / 2, 0); sh.lineTo((z1 - z0) / 2, 0); sh.lineTo(0, hr); sh.closePath();
     for (const xx of [x0 + 0.01, x1 - 0.01]) { const gm = new THREE.Mesh(new THREE.ShapeGeometry(sh), pignon); gm.rotation.y = Math.PI / 2 * (xx < cx ? -1 : 1); gm.position.set(xx, y, cz); gm.castShadow = true; G.add(gm); }
+  }
+  /** toit arrondi (voûte en demi-ellipse, axe le long de x) : x0 → x1, profondeur z0 → z1, hauteur hr, débord deb */
+  function voute(G, x0, x1, z0, z1, y, hr, mat, bout, deb = 0.25) {
+    const a = (z1 - z0) / 2 + deb, sh = new THREE.Shape(), n = 20;
+    sh.moveTo(-a, 0); for (let i = 1; i <= n; i++) { const th = Math.PI * i / n; sh.lineTo(-a * Math.cos(th), hr * Math.sin(th)); }
+    sh.lineTo(-a, 0);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: x1 - x0 + 2 * deb, bevelEnabled: false, curveSegments: n });
+    const m = new THREE.Mesh(g, [bout, mat]); m.castShadow = m.receiveShadow = true;
+    m.rotation.y = Math.PI / 2; m.position.set(x0 - deb, y, (z0 + z1) / 2); G.add(m);
+    // bordure de la voûte (gouttière) devant et derrière
+    for (const s of [-1, 1]) G.add(at(boite(x1 - x0 + 2 * deb, 0.1, 0.12, bout), (x0 + x1) / 2, y + 0.04, (z0 + z1) / 2 + s * a));
+    return m;
   }
   /** toit à quatre pans (pyramide tronquée) : rx, rz demi-côtés en bas, k part du haut (0 = pointe) */
   function toit4(G, cx, cz, y, rx, rz, hr, mat, k = 0.25) {
@@ -174,26 +195,25 @@ export function atelier(D) {
   B.centre = () => {
     const G = new THREE.Group(), w = 5, d = 4, H = 2.4, cx = 2.5;
     G.add(at(boite(w, H, d, M({ map: TX.enduit('#eceef2') })), cx, H / 2, d / 2));
-    G.add(at(boite(w + 0.3, 0.3, d + 0.3, M({ map: TX.tole('#d0403c') })), cx, H + 0.15, d / 2));
-    G.add(at(boite(w + 0.34, 0.2, 0.12, COL('#ffffff')), cx, H + 0.02, d + 0.15));
+    G.add(at(boite(w + 0.3, 0.22, d + 0.3, COL('#f4f4f6')), cx, H + 0.11, d / 2));                    // corniche blanche
+    voute(G, 0, w, 0, d, H + 0.22, 1.3, M({ map: TX.tole('#d0403c') }), COL('#b83434'));
     G.add(at(boite(w, 0.18, 0.04, COL('#d0403c')), cx, 0.45, d + 0.02));
     for (const xx of [0.75, 4.25]) fenetre(G, xx, 1.5, d, 0.9, 0.85, COL('#c6c8d0'));
     G.add(at(boite(w, 0.14, 0.04, COL('#d0403c')), cx, 2.25, d + 0.02));
     portesVitrees(G, cx, d, 1.7, 1.45, COL('#8c8e96'));
     const au = boite(2.3, 0.08, 0.7, COL('#d0403c')); au.rotation.x = 0.25; G.add(at(au, cx, 1.62, d + 0.32));
-    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.14, 24), [COL('#e4e6ec'), M({ map: TX.croix() }), COL('#e4e6ec')]);
-    disc.rotation.x = Math.PI / 2; disc.castShadow = true; G.add(at(disc, cx, H + 0.85, d - 0.2));
-    G.add(at(boite(0.12, 0.6, 0.12, COL('#8c8e96')), cx, H + 0.45, d - 0.3));
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.14, 24), [COL('#e4e6ec'), M({ map: TX.croix() }), COL('#e4e6ec')]);
+    disc.rotation.x = Math.PI / 2; disc.castShadow = true; G.add(at(disc, cx, H + 0.7, d + 0.2));
     return G;
   };
   /** boutique (4 × 4) : toit bleu, enseigne au sac, store rayé, vitrine remplie, portes vitrées de 2 cases */
   B.boutique = () => {
     const G = new THREE.Group(), w = 4, d = 4, H = 2.3;
     G.add(at(boite(w, H, d, M({ map: TX.enduit('#ece4d0') })), w / 2, H / 2, d / 2));
-    G.add(at(boite(w + 0.3, 0.3, d + 0.3, M({ map: TX.tole('#3a68c8') })), w / 2, H + 0.15, d / 2));
-    G.add(at(boite(w + 0.34, 0.24, 0.12, COL('#284a9c')), w / 2, H + 0.02, d + 0.15));
+    G.add(at(boite(w + 0.3, 0.22, d + 0.3, COL('#f4f4f6')), w / 2, H + 0.11, d / 2));
+    voute(G, 0, w, 0, d, H + 0.22, 1.2, M({ map: TX.tole('#3a68c8') }), COL('#2c58b0'));
     const sac = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.65, 0.1), [COL('#1a2e6a'), COL('#1a2e6a'), COL('#1a2e6a'), COL('#1a2e6a'), M({ map: TX.sac() }), COL('#1a2e6a')]);
-    sac.castShadow = true; G.add(at(sac, w / 2, H + 0.7, d - 0.1));
+    sac.castShadow = true; G.add(at(sac, w / 2, H + 0.6, d + 0.18));
     G.add(at(boite(1.6, 0.95, 0.03, M({ map: TX.etals() })), 0.95, 1.0, d + 0.01));
     for (const [dx, dy, ww, hh] of [[0, 0.5, 1.7, 0.08], [0, -0.5, 1.7, 0.08], [-0.82, 0, 0.08, 1.05], [0.82, 0, 0.08, 1.05]]) G.add(at(boite(ww, hh, 0.08, COL('#c4bca8')), 0.95 + dx, 1.0 + dy, d + 0.04));
     const st = boite(4.1, 0.06, 0.8, M({ map: TX.store('#3a68c8') })); st.rotation.x = 0.35; G.add(at(st, w / 2, 1.85, d + 0.36));
@@ -207,7 +227,7 @@ export function atelier(D) {
     const G = new THREE.Group(), w = 7, d = 5, H = 2.6, cx = 3.5, z1 = d;
     G.add(at(boite(w, H, d, M({ map: TX.pierre(pierre) })), cx, H / 2, d / 2));
     G.add(at(boite(w + 0.3, 0.24, d + 0.3, COL(acc)), cx, H + 0.12, d / 2));
-    toit2(G, 0.2, w - 0.2, 0.2, d - 0.2, H + 0.24, 1.5, M({ map: TX.ardoise() }), M({ map: TX.pierre(pierre), side: THREE.DoubleSide }), 0.2, '#262a36');
+    voute(G, 0, w, 0, d, H + 0.24, 1.7, M({ map: TX.ardoise() }), COL(acc), 0.2);
     for (const xx of [0.6, 1.9, w - 1.9, w - 0.6]) {
       G.add(at(cyl(0.2, 0.22, H - 0.3, COL('#e2ddd2')), xx, H / 2, z1 + 0.25));
       G.add(at(boite(0.55, 0.16, 0.55, COL('#cec8bc')), xx, H - 0.08, z1 + 0.25)); G.add(at(boite(0.55, 0.16, 0.55, COL('#cec8bc')), xx, 0.08, z1 + 0.25));
@@ -216,8 +236,8 @@ export function atelier(D) {
     const arc = new THREE.Mesh(new THREE.TorusGeometry(0.82, 0.1, 6, 16, Math.PI), COL(acc)); arc.castShadow = true; G.add(at(arc, cx, 1.65, z1 + 0.06));
     G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.76, 16, 0, Math.PI), M({ map: TX.bois('#7a4e2c') })), cx, 1.68, z1 + 0.02));
     for (const s of [-1, 1]) G.add(at(boite(0.16, 1.7, 0.16, COL(acc)), cx + s * 0.84, 0.85, z1 + 0.06));
-    const lo = boite(0.9, 0.9, 0.12, COL(acc)); lo.rotation.z = Math.PI / 4; G.add(at(lo, cx, H + 0.75, z1 - 0.3));
-    const lo2 = boite(0.45, 0.45, 0.14, COL('#f4f0e6')); lo2.rotation.z = Math.PI / 4; G.add(at(lo2, cx, H + 0.75, z1 - 0.25));
+    const lo = boite(0.9, 0.9, 0.12, COL(acc)); lo.rotation.z = Math.PI / 4; G.add(at(lo, cx, H + 0.8, z1 + 0.1));
+    const lo2 = boite(0.45, 0.45, 0.14, COL('#f4f0e6')); lo2.rotation.z = Math.PI / 4; G.add(at(lo2, cx, H + 0.8, z1 + 0.15));
     for (const s of [-1, 1]) G.add(at(boite(0.38, 1.0, 0.03, COL(acc)), cx + s * 2.55, 1.55, z1 + 0.03));
     for (let k = 0; k < 2; k++) G.add(at(boite(2.2 + k * 0.6, 0.1, 0.32, M({ map: TX.pierre() })), cx, 0.05 + (1 - k) * 0.1, z1 + 0.2 + k * 0.28));
     for (const s of [-1, 1]) { G.add(at(boite(0.12, 0.36, 0.12, COL('#3e3a38')), cx + s * 1.1, 1.3, z1 + 0.12)); G.add(at(boite(0.11, 0.14, 0.11, LUM('#ffb040', '#ff7a00')), cx + s * 1.1, 1.53, z1 + 0.12)); }
@@ -259,29 +279,67 @@ export function atelier(D) {
     for (const s of [-1, 1]) G.add(at(boite(0.5, 1.4, 0.03, COL('#2a4a9c')), cx + s * 1.7, 2.4, d - 0.55));
     return G;
   };
-  /** pagode à étages (4 × 4, Tour de la Grue) : socle de pierre, étages en retrait de bois laqué, toits à coins relevés,
-   *  flèche dorée ; porte d'une case */
-  B.pagode = ({ etages = 5, toit = '#3a7a6a', bord = '#e8c060', bois = '#a8402c' } = {}) => {
-    const G = new THREE.Group(), w = 4, cx = 2, cz = 2;
-    G.add(at(boite(w + 0.3, 0.4, w + 0.3, M({ map: TX.pierre('#b4ae9e') })), cx, 0.2, cz));
-    let y = 0.4, r = 1.55;
+  /** toit courbe de pagode (octogonal, profil concave qui se relève au bord) : rayon r au bord, hauteur hr */
+  function toitCourbe(G, cx, cz, y, r, hr, col, bord, k = 0.3) {
+    // profil concave (f = 0 au bord, 1 au sommet) : la pente se creuse puis se relève en lèvre au bord
+    const pts = [], n = 14;
+    for (let i = 0; i <= n; i++) {
+      const f = i / n, rr = r * (1 - f * (1 - k)), yy = hr * Math.pow(f, 1.7) + (i === 0 ? 0.14 : i === 1 ? 0.03 : 0);
+      pts.push(new THREE.Vector2(rr, yy));
+    }
+    pts.reverse();
+    const g = new THREE.LatheGeometry(pts, 8, Math.PI / 8);
+    const tx = TX.canal(col).clone(); tx.repeat.set(r * 8 * 0.9, Math.hypot(r, hr) * 1.1); tx.needsUpdate = true;
+    const m = new THREE.Mesh(g, M({ map: tx, side: THREE.DoubleSide })); m.castShadow = m.receiveShadow = true;
+    G.add(at(m, cx, y, cz));
+    // rive dorée et crochets relevés aux huit coins
+    const rive = new THREE.Mesh(new THREE.TorusGeometry(r * Math.cos(Math.PI / 8) / Math.cos(Math.PI / 8), 0.07, 4, 8, Math.PI * 2), COL(bord));
+    rive.rotation.x = Math.PI / 2; rive.rotation.z = Math.PI / 8; G.add(at(rive, cx, y - 0.04, cz));
+    for (let i = 0; i < 8; i++) {
+      const th = Math.PI / 8 + i * Math.PI / 4 + Math.PI / 8, x = Math.sin(th) * r, z = Math.cos(th) * r;
+      const c = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.06, 4, 6, Math.PI / 2), COL(bord));
+      c.rotation.y = th + Math.PI / 2; c.castShadow = true; G.add(at(c, cx + x * 1.02, y + 0.12, cz + z * 1.02));
+    }
+  }
+  const pagodeMur = (bois) => tex('pagodeMur' + bois, 2 * D, 2 * D, (g, px, w, h) => {
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const lx = x % w, pil = lx < 5 * S || lx >= w - 5 * S, fy = y / h;
+      let c = pil ? bois : fy < 0.1 || fy > 0.86 ? mix(bois, -0.35) : (x % (6 * S) < S || y % (6 * S) < S ? '#7a4424' : '#f2e8d0');
+      if (pil && (lx === Math.round(2 * S) || lx === w - Math.round(3 * S))) c = mix(bois, 0.2);
+      px(x, y, c);
+    }
+  });
+  /** pagode monumentale (Tour de la Grue, façon Tour Carillon de Ho-Oh) : emprise 9 × 9, grand perron, sept étages
+   *  octogonaux à balcons, toits courbes verts aux crochets dorés, flèche ; porte de 2 cases */
+  B.pagode = ({ etages = 7, toit = '#3a8a72', bord = '#e8c060', bois = '#b0442e' } = {}) => {
+    const G = new THREE.Group(), w = 9, cx = 4.5, cz = 4.5;
+    // socle à deux gradins et grand escalier
+    G.add(at(boite(w, 0.45, w, M({ map: TX.pierre('#b8b0a0') })), cx, 0.22, cz));
+    G.add(at(boite(w - 1.2, 0.45, w - 1.2, M({ map: TX.pierre('#c4bcac') })), cx, 0.67, cz));
+    for (let k = 0; k < 5; k++) G.add(at(boite(2.6, 0.18, 0.3, M({ map: TX.pierre('#c4bcac') })), cx, 0.09 + (4 - k) * 0.18, w - 0.6 + k * 0.3 - 1.0 + 0.95));
+    for (const s of [-1, 1]) { G.add(at(boite(0.5, 1.2, 0.5, M({ map: TX.pierre('#9a948a') })), cx + s * 1.6, 0.6, w + 0.1)); G.add(at(boite(0.34, 0.3, 0.34, LUM('#fff0b0', '#806020')), cx + s * 1.6, 1.35, w + 0.1)); }
+    let y = 0.9, r = 3.4;
     for (let k = 0; k < etages; k++) {
-      const h = k === 0 ? 1.5 : 1.0;
-      G.add(at(boite(2 * r, h, 2 * r, M({ map: TX.laque(bois) })), cx, y + h / 2, cz));
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]) G.add(at(boite(0.14, h, 0.14, COL('#6a2418')), cx + sx * r, y + h / 2, cz + sz * r));
+      const h = k === 0 ? 2.4 : 1.5;
+      const mur = pagodeMur(bois).clone(); mur.repeat.set(8, 1); mur.needsUpdate = true;
+      const tw = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 8, 1, false, Math.PI / 8), M({ map: mur })); tw.castShadow = tw.receiveShadow = true;
+      G.add(at(tw, cx, y + h / 2, cz));
       if (k === 0) {
-        G.add(at(boite(0.8, 1.1, 0.03, M({ map: TX.bois('#4a2414') })), cx, y + 0.55, cz + r + 0.01));
-        for (const s of [-1, 1]) G.add(at(boite(0.7, 0.6, 0.03, M({ map: TX.shoji() })), cx + s * 1.0, y + 0.7, cz + r + 0.01));
+        G.add(at(boite(1.7, 1.9, 0.06, M({ map: TX.bois('#4a2414') })), cx, y + 0.95, cz + r * Math.cos(Math.PI / 8) + 0.02));
+        G.add(at(boite(2.1, 0.16, 0.12, COL(bord)), cx, y + 1.95, cz + r * Math.cos(Math.PI / 8) + 0.05));
       } else {
-        G.add(at(boite(2 * r - 0.5, 0.45, 0.03, M({ map: TX.shoji() })), cx, y + h * 0.5, cz + r + 0.01));
-        G.add(at(boite(2 * r + 0.3, 0.06, 0.06, COL('#6a2418')), cx, y + 0.12, cz + r + 0.15));   // garde-corps
+        // balcon : plancher et garde-corps tout autour
+        const bal = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.45, r + 0.45, 0.12, 8, 1, false, Math.PI / 8), COL('#6a2a1a')); bal.castShadow = true; G.add(at(bal, cx, y + 0.06, cz));
+        const rail = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.42, r + 0.42, 0.35, 8, 1, true, Math.PI / 8), M({ map: TX.laque('#8a2a1a'), side: THREE.DoubleSide, transparent: false })); G.add(at(rail, cx, y + 0.3, cz));
       }
       y += h;
-      toitPagode(G, cx, cz, y, r + 0.5 - k * 0.04, 0.9, toit, bord);
-      y += 0.55; r *= 0.84;
+      toitCourbe(G, cx, cz, y, r + (k === 0 ? 1.6 : 1.15), k === 0 ? 1.4 : 1.1, toit, bord);
+      y += k === 0 ? 0.8 : 0.6; r *= 0.86;
     }
-    G.add(at(cyl(0.06, 0.12, 1.0, COL(bord)), cx, y + 0.5, cz));
-    for (let i = 0; i < 4; i++) G.add(at(cyl(0.16 - i * 0.02, 0.16 - i * 0.02, 0.05, COL(bord), 10), cx, y + 0.3 + i * 0.18, cz));
+    // flèche : anneaux dorés, perle
+    G.add(at(cyl(0.1, 0.18, 2.6, COL(bord)), cx, y + 1.3, cz));
+    for (let i = 0; i < 7; i++) G.add(at(cyl(0.34 - i * 0.03, 0.34 - i * 0.03, 0.09, COL(bord), 12), cx, y + 0.4 + i * 0.3, cz));
+    const perle = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 8), LUM('#f8e8a0', '#806020')); G.add(at(perle, cx, y + 2.8, cz));
     return G;
   };
   /** pavillon (7 × 5, temple à deux toits) : estrade, piliers rouges, double toit à coins relevés, portes coulissantes de 2 cases */
@@ -356,5 +414,5 @@ export function atelier(D) {
 /** emprise au sol (w × d) de chaque modèle, comme dans le jeu */
 export const EMPRISES = {
   maison: [4, 3], maisonLongue: [5, 3], residence: [6, 4], centre: [5, 4], boutique: [4, 4], arene: [7, 5], labo: [6, 4],
-  ligue: [9, 6], pagode: [4, 4], pavillon: [7, 5], tour: [8, 5], escalierMontant: [1, 2], escalierDescendant: [1, 2],
+  ligue: [9, 6], pagode: [9, 9], pavillon: [7, 5], tour: [8, 5], escalierMontant: [1, 2], escalierDescendant: [1, 2],
 };
