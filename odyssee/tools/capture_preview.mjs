@@ -33,7 +33,7 @@ server.listen(8082, () => {
     '--headless',
     '--disable-gpu',
     `--screenshot=${outPath}`,
-    '--window-size=1040,2850',
+    '--window-size=1040,6500',
     '--virtual-time-budget=2500',
     'http://localhost:8082/odyssee/preview_b2w2.html'
   ];

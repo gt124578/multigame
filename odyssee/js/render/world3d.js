@@ -424,7 +424,7 @@ export class WorldView {
     // dessus : liseré clair au bord d'une paroi, roche rugueuse ailleurs ; plus c'est haut, plus c'est sombre (le fond de la grotte)
     if (!tier) return;   // gradin zéro : roche au ras du sol, dessinée avec le sol
     const top = (edge && A[`rr_${b}_0`]) || A[`rt_${b}_${hash(x + 11, y + 13) < 0.7 ? 0 : 1}`] || A[`rt_${b}_0`];
-    flat(G, x, y, x + 1, y + 1, h, top, 1.04 - tier * 0.12);
+    flat(G, x, y, x + 1, y + 1, h, top, 1.02 - tier * 0.06);
   }
   /** détail posé sur une case d'herbe (ou rien) : selon la zone (forêt, neige, cendre) et un tirage fixe par case */
   detailAt(x, y) {
@@ -488,8 +488,22 @@ export class WorldView {
         if (y <= 1) { const south = m.get(x, y + 1) !== T.WALL; box(Wl, x, y, x + 1, y + 1, wallH, A[m.wallStyle] || A.wall_in, A.walltop, A.walltop, { south, east: false, west: false }); }
         else flat(Wl, x, y, x + 1, y + 1, 0.01, A.walltop);
       } else if (t === T.CAVEWALL) {
-        if (this.tiers && A['rw_' + this.biome + '_0']) this.reliefCell(Wl, x, y);
-        else {
+        if (this.tiers && A['rw_' + this.biome + '_0']) {
+          this.reliefCell(Wl, x, y);
+          // rochers pointus (comme dans HeartGold / SoulSilver) : un amas de pointes sur la roche au ras du sol,
+          // et de temps en temps une pointe dressée sur un gradin
+          const b = this.biome, tier = this.tierAt(x, y), v2 = hash(x * 5 + 3, y * 7 + 11);
+          if (!tier) {
+            const r = S[`pic_${b}_${Math.floor(v2 * 3)}`];
+            if (r) {
+              billboard(P, x + 0.5, y + 0.82, SW(r), SH(r), r, 0, v > 0.5);
+              flat(Sh, x + 0.02, y + 0.45, x + 0.98, y + 0.95, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
+            }
+          } else if (v2 < 0.2) {
+            const r = S[`cone_${b}_${Math.floor(hash(x + 41, y + 43) * 3)}`];
+            if (r) billboard(P, x + 0.5 + (v - 0.5) * 0.3, y + 0.7, SW(r), SH(r), r, RLEVEL[tier], v > 0.5);
+          }
+        } else {
           const south = m.get(x, y + 1) !== T.CAVEWALL, east = m.get(x + 1, y) !== T.CAVEWALL, west = m.get(x - 1, y) !== T.CAVEWALL;
           if (south || east || west || m.get(x, y - 1) !== T.CAVEWALL) box(Wl, x, y, x + 1, y + 1, caveH, A.cavewall, A.cavetop, A.cavewall, { south, east, west });
           else flat(Wl, x, y, x + 1, y + 1, caveH, A.cavetop);

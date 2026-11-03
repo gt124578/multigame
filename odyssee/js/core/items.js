@@ -21,7 +21,7 @@ export const ITEMS = {
   'burn-heal': { pocket: 'soin', price: 250, cure: ['brn'], desc: 'Soigne une brûlure.' },
   'ice-heal': { pocket: 'soin', price: 250, cure: ['frz'], desc: 'Dégèle un Pokémon gelé.' },
   'full-heal': { pocket: 'soin', price: 600, cure: 'all', desc: 'Soigne tous les problèmes de statut.' },
-  'oran-berry': { pocket: 'soin', price: 80, heal: 10, desc: 'Une Baie qui restaure 10 PV.' },
+  'oran-berry': { pocket: 'baies', price: 80, heal: 10, desc: 'Une Baie qui restaure 10 PV.' },
   ether: { pocket: 'soin', price: 1200, pp: 10, desc: 'Restaure 10 PP d\'une attaque.' },
   elixir: { pocket: 'soin', price: 3000, ppAll: 10, desc: 'Restaure 10 PP de toutes les attaques.' },
   'escape-rope': { pocket: 'objets', price: 550, desc: 'Une longue corde pour sortir d\'une grotte en un instant.' },
@@ -40,14 +40,14 @@ export const ITEMS = {
   'shiny-stone': { pocket: 'objets', price: 2100, stone: 1, desc: 'Une pierre qui fait évoluer certains Pokémon. Elle brille d\'un éclat aveuglant.' },
   'ice-stone': { pocket: 'objets', price: 2100, stone: 1, desc: 'Une pierre qui fait évoluer certains Pokémon. Elle est froide comme la glace.' },
   // objets rares : les capacités de terrain (on les utilise face à l'obstacle, avec F)
-  'cs-coupe': { pocket: 'cles', price: 0, key: true, field: 'coupe', icon: 'notebook', name: 'CS01 Coupe', desc: 'Tranche les petits arbres qui barrent le chemin. Badge Pétale requis. Place-toi face à l\'arbre et appuie sur F.' },
-  'cs-surf': { pocket: 'cles', price: 0, key: true, field: 'surf', icon: 'notebook', name: 'CS02 Surf', desc: 'Traverse l\'eau sur le dos d\'une créature. Badge Mirage requis. Place-toi face à l\'eau et appuie sur F.' },
-  'cs-eclate': { pocket: 'cles', price: 0, key: true, field: 'eclate', icon: 'notebook', name: 'CS03 Éclate-Roc', desc: 'Brise les rochers fissurés. Badge Granit requis. Place-toi face au rocher et appuie sur F.' },
-  'cs-flash': { pocket: 'cles', price: 0, key: true, field: 'flash', icon: 'notebook', name: 'CS05 Flash', desc: 'Éclaire les grottes plongées dans le noir. Elle agit toute seule dès que tu entres dans une grotte sombre. Badge Élytre requis.' },
-  'cs-force': { pocket: 'cles', price: 0, key: true, field: 'force', icon: 'notebook', name: 'CS06 Force', desc: 'Pousse les gros rochers. Place-toi face au rocher, appuie sur F, puis marche contre lui. Badge Volt requis.' },
+  'cs-coupe': { pocket: 'ct', price: 0, key: true, field: 'coupe', icon: 'notebook', name: 'CS01 Coupe', desc: 'Tranche les petits arbres qui barrent le chemin. Badge Pétale requis. Place-toi face à l\'arbre et appuie sur F.' },
+  'cs-surf': { pocket: 'ct', price: 0, key: true, field: 'surf', icon: 'notebook', name: 'CS02 Surf', desc: 'Traverse l\'eau sur le dos d\'une créature. Badge Mirage requis. Place-toi face à l\'eau et appuie sur F.' },
+  'cs-eclate': { pocket: 'ct', price: 0, key: true, field: 'eclate', icon: 'notebook', name: 'CS03 Éclate-Roc', desc: 'Brise les rochers fissurés. Badge Granit requis. Place-toi face au rocher et appuie sur F.' },
+  'cs-flash': { pocket: 'ct', price: 0, key: true, field: 'flash', icon: 'notebook', name: 'CS05 Flash', desc: 'Éclaire les grottes plongées dans le noir. Elle agit toute seule dès que tu entres dans une grotte sombre. Badge Élytre requis.' },
+  'cs-force': { pocket: 'ct', price: 0, key: true, field: 'force', icon: 'notebook', name: 'CS06 Force', desc: 'Pousse les gros rochers. Place-toi face au rocher, appuie sur F, puis marche contre lui. Badge Volt requis.' },
   medaillon: { pocket: 'cles', price: 0, key: true, icon: 'soothe-bell', name: 'Médaillon', desc: 'Un médaillon gravé d\'une petite fleur. Quelqu\'un de Sylvebourg doit le chercher partout.' },
   'prism-shard': { pocket: 'cles', price: 0, key: true, icon: 'shoal-shell', name: 'Éclat de Prisme', desc: 'Un fragment noir du Prisme de la Team Éclipse. Il est glacé au toucher.' },
-  'cs-vol': { pocket: 'cles', price: 0, key: true, field: 'vol', icon: 'notebook', name: 'CS04 Vol', desc: 'Ramène en un instant dans une ville déjà visitée (depuis le menu, ou en utilisant cet objet). Badge Braise requis.' },
+  'cs-vol': { pocket: 'ct', price: 0, key: true, field: 'vol', icon: 'notebook', name: 'CS04 Vol', desc: 'Ramène en un instant dans une ville déjà visitée (depuis le menu, ou en utilisant cet objet). Badge Braise requis.' },
   // objets de quête des légendaires
   'gs-ball': { pocket: 'cles', price: 0, key: true, icon: 'gift', name: 'Balle GS', desc: 'Une capsule dorée gravée des lettres G et S. Elle semble attirée par l\'autel du Bois Murmure.' },
   'ferry-ticket': { pocket: 'cles', price: 0, key: true, icon: 'letter', name: 'Passe Marin', desc: 'Le passe du bateau de l\'Embarcadère de l\'Aube. Les îles s\'ouvrent au fil des badges.' },
@@ -55,8 +55,8 @@ export const ITEMS = {
   'plume-argent': { pocket: 'cles', price: 0, key: true, icon: 'silver-wing', name: 'Plume Argentée', desc: 'Une plume d\'argent, douce comme l\'écume. Elle apaise les courants de la Grotte des Tourbillons.' },
   // --- OBJETS DE COMBAT & OBJETS TENUS (Held Items) ---
   leftovers: { pocket: 'objets', price: 4000, hold: 'leftovers', name: 'Restes', desc: "Objet à tenir. Restaure 1/16 des PV max du porteur à la fin de chaque tour." },
-  'sitrus-berry': { pocket: 'soin', price: 250, hold: 'sitrus-berry', name: 'Baie Sitrus', desc: "Objet à tenir. Restaure 25% des PV quand le porteur passe sous la moitié de ses PV." },
-  'lum-berry': { pocket: 'soin', price: 350, hold: 'lum-berry', name: 'Baie Prun', desc: "Objet à tenir. Guérit automatiquement toute altération de statut (brûlure, paralysie, sommeil...)." },
+  'sitrus-berry': { pocket: 'baies', price: 250, hold: 'sitrus-berry', name: 'Baie Sitrus', desc: "Objet à tenir. Restaure 25% des PV quand le porteur passe sous la moitié de ses PV." },
+  'lum-berry': { pocket: 'baies', price: 350, hold: 'lum-berry', name: 'Baie Prun', desc: "Objet à tenir. Guérit automatiquement toute altération de statut (brûlure, paralysie, sommeil...)." },
   'life-orb': { pocket: 'objets', price: 5000, hold: 'life-orb', name: 'Orbe Vie', desc: "Objet à tenir. Augmente la puissance des attaques de 30%, mais coûte 10% des PV max par coup réussi." },
   'choice-band': { pocket: 'objets', price: 6000, hold: 'choice-band', name: 'Bandeau Choix', desc: "Objet à tenir. Augmente l'Attaque de 50%, mais bloque sur la première capacité utilisée." },
   'choice-specs': { pocket: 'objets', price: 6000, hold: 'choice-specs', name: 'Lunettes Choix', desc: "Objet à tenir. Augmente l'Atq. Spé. de 50%, mais bloque sur la première capacité utilisée." },
@@ -84,7 +84,7 @@ export const ITEMS = {
   'town-map': { pocket: 'cles', price: 0, key: true, name: 'Carte', desc: 'La carte de la région d\'Odyssée. On peut aussi l\'ouvrir avec la touche C.' },
 };
 export const itemName = (k) => ITEMS[k]?.name || ITEM_NAMES[k] || k;
-export const POCKETS = [['soin', 'Soins'], ['balls', 'Balls'], ['objets', 'Objets'], ['cles', 'Objets rares']];
+export const POCKETS = [['objets', 'Objets'], ['soin', 'Soins'], ['balls', 'Balls'], ['ct', 'CT & CS'], ['baies', 'Baies'], ['cles', 'Objets rares']];
 
 /** l'objet peut-il servir sur ce Pokémon ? */
 export function canUseOn(item, m, maxLvl = 100) {

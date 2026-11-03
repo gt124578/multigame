@@ -857,86 +857,61 @@ Nos regards se sont croisés et mes créatures ont tout donné, mais ton équipe
     }
   </script>
 
-  <!-- 10. SAC D'OBJETS B2W2 (PROPOSITION 1 — DUAL PANEL & ROUE ANIMÉE) -->
+    <!-- 10. SAC D'OBJETS B2W2 (PROPOSITION 1 VALIDÉE — SAC SUR PIÉDESTAL & ARC GLISSANT ANIMÉ) -->
   <div class="preview-section">
-    <div class="preview-title">10. SAC D'OBJETS B2W2 (PROPOSITION 1) — DUAL PANEL &amp; ROUE GLISSANTE ANIMÉE</div>
-    <div class="preview-box" style="height: 490px; position: relative; padding: 0; overflow: hidden;">
+    <div class="preview-title">10. SAC D'OBJETS B2W2 (PROPOSITION 1 OFFICIELLE) — SAC SUR PIÉDESTAL, ARC GLISSANT ANIMÉ &amp; DOUBLE PANNEAU</div>
+    <div class="preview-box" style="height: 520px; position: relative; padding: 0; overflow: hidden;">
       <div class="bag-scr b2w2-bag" id="previewBag">
         <div class="scr-bar">
           <div class="scr-bar-left">
             <img class="scr-bar-ico" src="img/hud/bag.png" alt="">
             <span class="scr-bar-title">SAC D'OBJETS</span>
-            <span class="scr-bar-sub b2w2-pocket-name" id="prevPocketSub">SOINS</span>
+            <span class="scr-bar-sub b2w2-pocket-name" id="prevPocketSub">OBJETS</span>
           </div>
           <div class="scr-bar-right">
             <span class="scr-money-pill"><img src="img/hud/coin.png" alt=""> 24 850 ₽</span>
-            <button type="button" class="scr-close-btn">FERMER ✕</button>
+            <button type="button" class="scr-close-btn" onclick="prevBagCloseDemo()">FERMER ✕</button>
           </div>
         </div>
         <div class="b2w2-bag-body">
-          <!-- PANNEAU GAUCHE : ROUE ANIMÉE & SOCLE SAC -->
+          <!-- PANNEAU GAUCHE : SAC DE BAROUDEUR SUR SOCLE & ARC DE POCHES GLISSANT (CONCEPT 1) -->
           <div class="b2w2-bag-left" id="prevBagLeft">
-            <div class="b2w2-wheel-panel">
-              <button type="button" class="b2w2-wheel-nav up" onclick="prevBagChangePocket(-1)" title="Poche précédente (▲ ou Flèche Gauche)">▲</button>
-              <div class="b2w2-wheel-viewport">
-                <div class="b2w2-wheel-track" id="prevWheelTrack">
-                  <div class="b2w2-wheel-slot" data-slot="0" data-p="3" onclick="prevBagSetPocket(3)" style="--p-col:#ffe058; --p-glow:rgba(255,224,88,0.45)">
-                    <span class="slot-dot"></span>
-                    <img class="slot-ico" src="img/items/town-map.png" alt="">
-                    <span class="slot-lbl">Objets Rares</span>
-                    <span class="slot-cnt">3</span>
-                  </div>
-                  <div class="b2w2-wheel-slot on" data-slot="1" data-p="0" onclick="prevBagSetPocket(0)" style="--p-col:#34d870; --p-glow:rgba(52,216,112,0.45)">
-                    <span class="slot-dot"></span>
-                    <img class="slot-ico" src="img/items/potion.png" alt="">
-                    <span class="slot-lbl">Soins</span>
-                    <span class="slot-cnt">8</span>
-                  </div>
-                  <div class="b2w2-wheel-slot" data-slot="2" data-p="1" onclick="prevBagSetPocket(1)" style="--p-col:#ff4c4c; --p-glow:rgba(255,76,76,0.45)">
-                    <span class="slot-dot"></span>
-                    <img class="slot-ico" src="img/items/poke-ball.png" alt="">
-                    <span class="slot-lbl">Poké Balls</span>
-                    <span class="slot-cnt">5</span>
-                  </div>
-                  <div class="b2w2-wheel-slot" data-slot="3" data-p="2" onclick="prevBagSetPocket(2)" style="--p-col:#00e0ff; --p-glow:rgba(0,224,255,0.45)">
-                    <span class="slot-dot"></span>
-                    <img class="slot-ico" src="img/items/rare-candy.png" alt="">
-                    <span class="slot-lbl">Objets</span>
-                    <span class="slot-cnt">12</span>
-                  </div>
-                  <div class="b2w2-wheel-slot" data-slot="4" data-p="3" onclick="prevBagSetPocket(3)" style="--p-col:#ffe058; --p-glow:rgba(255,224,88,0.45)">
-                    <span class="slot-dot"></span>
-                    <img class="slot-ico" src="img/items/town-map.png" alt="">
-                    <span class="slot-lbl">Objets Rares</span>
-                    <span class="slot-cnt">3</span>
-                  </div>
-                  <div class="b2w2-wheel-slot" data-slot="5" data-p="0" onclick="prevBagSetPocket(0)" style="--p-col:#34d870; --p-glow:rgba(52,216,112,0.45)">
-                    <span class="slot-dot"></span>
-                    <img class="slot-ico" src="img/items/potion.png" alt="">
-                    <span class="slot-lbl">Soins</span>
-                    <span class="slot-cnt">8</span>
-                  </div>
+            <div class="b2w2-backpack-stage" id="prevBackpackStage">
+              <div class="b2w2-backpack-beams"></div>
+              <img class="b2w2-backpack-img" id="prevBackpackImg" src="img/bag/backpack_objets.jpg" alt="Sac de Baroudeur Unys">
+              <!-- ARC EN CROISSANT DES 6 POCHES B2W2 -->
+              <div class="b2w2-arc-wrap">
+                <img class="b2w2-arc-img" src="img/bag/pocket_arc.png" alt="Arc des 6 poches">
+                <!-- CURSEUR LUMINEUX GLISSANT LE LONG DE LA COURBE -->
+                <div class="b2w2-arc-glider" id="prevGlider" style="left:39.5%; top:9.8%; --glider-col:#00e0ff;">
+                  <span class="glider-ring"></span>
+                  <span class="glider-dot"></span>
                 </div>
+                <!-- 6 ZONES INTERACTIVES CLIQUABLES -->
+                <button type="button" class="b2w2-arc-node on" data-pocket="0" onclick="prevBagSetPocket(0)" style="left:39.5%; top:9.8%;" title="Poche Objets"><span class="arc-node-halo"></span></button>
+                <button type="button" class="b2w2-arc-node" data-pocket="1" onclick="prevBagSetPocket(1)" style="left:61.9%; top:26.5%;" title="Poche Soins"><span class="arc-node-halo"></span></button>
+                <button type="button" class="b2w2-arc-node" data-pocket="2" onclick="prevBagSetPocket(2)" style="left:70.7%; top:42.2%;" title="Poche Poké Balls"><span class="arc-node-halo"></span></button>
+                <button type="button" class="b2w2-arc-node" data-pocket="3" onclick="prevBagSetPocket(3)" style="left:71.2%; top:57.8%;" title="Poche CT &amp; CS"><span class="arc-node-halo"></span></button>
+                <button type="button" class="b2w2-arc-node" data-pocket="4" onclick="prevBagSetPocket(4)" style="left:57.7%; top:73.5%;" title="Poche Baies"><span class="arc-node-halo"></span></button>
+                <button type="button" class="b2w2-arc-node" data-pocket="5" onclick="prevBagSetPocket(5)" style="left:30.7%; top:89.2%;" title="Poche Objets Rares"><span class="arc-node-halo"></span></button>
               </div>
-              <button type="button" class="b2w2-wheel-nav down" onclick="prevBagChangePocket(1)" title="Poche suivante (▼ ou Flèche Droite)">▼</button>
             </div>
-            <div class="b2w2-mascot-panel">
-              <div class="b2w2-mascot-glow" id="prevMascotGlow" style="--pedestal-col:#34d870;"></div>
-              <img class="b2w2-mascot-img" src="img/hud/bag.png" alt="Sac d'Unys">
-              <div class="b2w2-mascot-badge" id="prevMascotBadge" style="color:#34d870;">◀ SOINS ▶</div>
-              <div class="b2w2-mascot-sub" id="prevMascotSub">Médicaments, Potions et Baies</div>
+            <!-- BANDEAU D'ÉTAT DE LA POCHE -->
+            <div class="b2w2-pocket-status">
+              <div class="b2w2-pocket-badge" id="prevPocketBadge" style="color:#00e0ff;">◀ OBJETS ▶</div>
+              <div class="b2w2-pocket-sub" id="prevPocketSubDesc">Pierres, Bonbons et Objets tenus</div>
             </div>
           </div>
           <!-- PANNEAU DROIT : LISTE DES OBJETS DE LA POCHE -->
           <div class="b2w2-bag-right">
             <div class="b2w2-list-header">
               <div class="b2w2-list-title">
-                <span class="b2w2-pocket-tag" id="prevPocketTag" style="--tag-col:#34d870;">POCHE SOINS</span>
-                <span class="b2w2-pocket-items-cnt" id="prevPocketCount">8 objets</span>
+                <span class="b2w2-pocket-tag" id="prevPocketTag" style="color:#00e0ff;">POCHE OBJETS</span>
+                <span class="b2w2-pocket-items-cnt" id="prevPocketCount">6 objets</span>
               </div>
               <div class="b2w2-list-hint">
-                <span><kbd>▲</kbd><kbd>▼</kbd> Sélectionner</span>
-                <span><kbd>◀</kbd><kbd>▶</kbd> Roue</span>
+                <span><kbd>▲</kbd><kbd>▼</kbd> Naviguer</span>
+                <span><kbd>◀</kbd><kbd>▶</kbd> Poches</span>
               </div>
             </div>
             <div class="b2w2-items-viewport">
@@ -946,32 +921,38 @@ Nos regards se sont croisés et mes créatures ont tout donné, mais ton équipe
             </div>
           </div>
         </div>
-        <!-- BANDEAU INFÉRIEUR : INSPECTEUR D'OBJET & BOUTONS TACTILES -->
+        <!-- BANDEAU INFÉRIEUR : INSPECTEUR D'OBJET & GRILLE 2X2 DE BOUTONS TACTILES -->
         <div class="b2w2-bag-inspector">
           <div class="b2w2-insp-left">
             <div class="b2w2-insp-frame">
-              <img class="b2w2-insp-img" id="prevInspImg" src="img/items/potion.png" alt="">
+              <img class="b2w2-insp-img" id="prevInspImg" src="img/items/rare-candy.png" alt="">
             </div>
           </div>
           <div class="b2w2-insp-mid">
             <div class="b2w2-insp-topline">
-              <span class="b2w2-insp-name" id="prevInspName">Potion</span>
-              <span class="b2w2-insp-qty" id="prevInspQty">Quantité en sac : × 15</span>
+              <span class="b2w2-insp-name" id="prevInspName">Super Bonbon</span>
+              <span class="b2w2-insp-cat" id="prevInspCat" style="color:#00e0ff;">[Objets]</span>
+              <span class="b2w2-insp-qty" id="prevInspQty">Quantité : × 5</span>
             </div>
-            <div class="b2w2-insp-desc" id="prevInspDesc">Restaure 20 PV d'une créature alliée.</div>
+            <div class="b2w2-insp-desc" id="prevInspDesc">Friandise énergisante faisant instantanément monter d'un niveau.</div>
           </div>
-          <div class="b2w2-insp-actions">
-            <button type="button" class="b2w2-act-btn use">
-              <span class="act-btn-ico">✔</span>
-              <span class="act-btn-lbl">UTILISER</span>
+          <!-- GRILLE 2X2 DE BOUTONS TACTILES DS (CONCEPT 1) -->
+          <div class="b2w2-btn-grid">
+            <button type="button" class="b2w2-touch-btn b2w2-btn-use" id="prevBtnUse" title="Utiliser (Entrée / A)">
+              <span class="touch-btn-ico">⚡</span>
+              <span class="touch-btn-lbl">UTILISER</span>
             </button>
-            <button type="button" class="b2w2-act-btn toss">
-              <span class="act-btn-ico">🗑</span>
-              <span class="act-btn-lbl">JETER</span>
+            <button type="button" class="b2w2-touch-btn b2w2-btn-give" id="prevBtnGive" title="Donner à un Pokémon (D)">
+              <span class="touch-btn-ico">🎁</span>
+              <span class="touch-btn-lbl">DONNER</span>
             </button>
-            <button type="button" class="b2w2-act-btn close">
-              <span class="act-btn-ico">✕</span>
-              <span class="act-btn-lbl">RETOUR</span>
+            <button type="button" class="b2w2-touch-btn b2w2-btn-toss" id="prevBtnToss" title="Jeter une quantité (J)">
+              <span class="touch-btn-ico">🗑</span>
+              <span class="touch-btn-lbl">JETER</span>
+            </button>
+            <button type="button" class="b2w2-touch-btn b2w2-btn-back" id="prevBtnBack" onclick="prevBagCloseDemo()" title="Fermer le sac (Échap / B)">
+              <span class="touch-btn-ico">✕</span>
+              <span class="touch-btn-lbl">RETOUR</span>
             </button>
           </div>
         </div>
@@ -980,23 +961,9 @@ Nos regards se sont croisés et mes créatures ont tout donné, mais ton équipe
   </div>
 
   <script>
-    // Données de démonstration du Sac B2W2
+    // Données de démonstration du Sac B2W2 Concept 1 (6 poches officielles)
     const prevBagData = {
       0: [
-        { id: 'potion', name: 'Potion', qty: 15, desc: "Restaure 20 PV d'une créature alliée.", icon: 'img/items/potion.png' },
-        { id: 'super-potion', name: 'Super Potion', qty: 7, desc: "Restaure 50 PV d'une créature alliée.", icon: 'img/items/super-potion.png' },
-        { id: 'hyper-potion', name: 'Hyper Potion', qty: 4, desc: "Restaure 200 PV d'une créature alliée.", icon: 'img/items/hyper-potion.png' },
-        { id: 'revive', name: 'Rappel', qty: 6, desc: "Ranime une créature K.O. avec 50% de ses PV.", icon: 'img/items/revive.png' },
-        { id: 'full-heal', name: 'Total Soin', qty: 3, desc: "Guérit toutes les altérations de statut d'un Pokémon.", icon: 'img/items/full-heal.png' },
-        { id: 'oran-berry', name: 'Baie Oran', qty: 12, desc: "Baie restaurant 10 PV lorsqu'elle est consommée ou tenue.", icon: 'img/items/oran-berry.png' },
-      ],
-      1: [
-        { id: 'poke-ball', name: 'Poké Ball', qty: 25, desc: "Capsule basique servant à capturer les créatures sauvages.", icon: 'img/items/poke-ball.png' },
-        { id: 'great-ball', name: 'Super Ball', qty: 14, desc: "Ball de qualité supérieure avec un taux de réussite plus élevé.", icon: 'img/items/great-ball.png' },
-        { id: 'ultra-ball', name: 'Ultra Ball', qty: 8, desc: "Excellente Ball offrant un taux de capture remarquable.", icon: 'img/items/ultra-ball.png' },
-        { id: 'master-ball', name: 'Master Ball', qty: 1, desc: "La Ball suprême qui capture à coup sûr n'importe quelle créature !", icon: 'img/items/master-ball.png' },
-      ],
-      2: [
         { id: 'rare-candy', name: 'Super Bonbon', qty: 5, desc: "Friandise énergisante faisant instantanément monter d'un niveau.", icon: 'img/items/rare-candy.png' },
         { id: 'fire-stone', name: 'Pierre Feu', qty: 2, desc: "Pierre chaude et rougeoyante capable de faire évoluer certains Pokémon.", icon: 'img/items/fire-stone.png' },
         { id: 'water-stone', name: 'Pierre Eau', qty: 3, desc: "Pierre bleutée imprégnée d'une onde pure pour l'évolution.", icon: 'img/items/water-stone.png' },
@@ -1004,25 +971,51 @@ Nos regards se sont croisés et mes créatures ont tout donné, mais ton équipe
         { id: 'eviolite', name: 'Évoluroc', qty: 1, desc: "Objet à tenir. Augmente de 50% la Défense et Déf. Spé. d'un Pokémon non évolué.", icon: 'img/items/rare-candy.png', held: true },
         { id: 'leftovers', name: 'Restes', qty: 2, desc: "Objet à tenir. Restaure 1/16 des PV max à chaque fin de tour.", icon: 'img/items/gift.png', held: true },
       ],
+      1: [
+        { id: 'potion', name: 'Potion', qty: 15, desc: "Restaure 20 PV d'une créature alliée.", icon: 'img/items/potion.png' },
+        { id: 'super-potion', name: 'Super Potion', qty: 7, desc: "Restaure 50 PV d'une créature alliée.", icon: 'img/items/super-potion.png' },
+        { id: 'hyper-potion', name: 'Hyper Potion', qty: 4, desc: "Restaure 200 PV d'une créature alliée.", icon: 'img/items/hyper-potion.png' },
+        { id: 'revive', name: 'Rappel', qty: 6, desc: "Ranime une créature K.O. avec 50% de ses PV.", icon: 'img/items/revive.png' },
+        { id: 'full-heal', name: 'Total Soin', qty: 3, desc: "Guérit toutes les altérations de statut d'un Pokémon.", icon: 'img/items/full-heal.png' },
+      ],
+      2: [
+        { id: 'poke-ball', name: 'Poké Ball', qty: 25, desc: "Capsule basique servant à capturer les créatures sauvages.", icon: 'img/items/poke-ball.png' },
+        { id: 'great-ball', name: 'Super Ball', qty: 14, desc: "Ball de qualité supérieure avec un taux de réussite plus élevé.", icon: 'img/items/great-ball.png' },
+        { id: 'ultra-ball', name: 'Ultra Ball', qty: 8, desc: "Excellente Ball offrant un taux de capture remarquable.", icon: 'img/items/ultra-ball.png' },
+        { id: 'master-ball', name: 'Master Ball', qty: 1, desc: "La Ball suprême qui capture à coup sûr n'importe quelle créature !", icon: 'img/items/master-ball.png' },
+      ],
       3: [
+        { id: 'cs-coupe', name: 'CS01 Coupe', qty: 1, desc: "Capsule Secrète permettant de couper les petits arbustes gênants.", icon: 'img/items/letter.png', key: true },
+        { id: 'cs-surf', name: 'CS02 Surf', qty: 1, desc: "Permet de voguer sur l'eau sur le dos d'une créature alliée.", icon: 'img/items/letter.png', key: true },
+        { id: 'cs-vol', name: 'CS04 Vol', qty: 1, desc: "Ramène en un éclair vers n'importe quelle bourgade déjà visitée.", icon: 'img/items/letter.png', key: true },
+      ],
+      4: [
+        { id: 'oran-berry', name: 'Baie Oran', qty: 12, desc: "Baie restaurant 10 PV lorsqu'elle est consommée ou tenue par un Pokémon.", icon: 'img/items/oran-berry.png', held: true },
+        { id: 'sitrus-berry', name: 'Baie Sitrus', qty: 5, desc: "Restaure 25% des PV lorsque les PV tombent sous 50%.", icon: 'img/items/oran-berry.png', held: true },
+        { id: 'lum-berry', name: 'Baie Prun', qty: 3, desc: "Guérit instantanément toute altération de statut au combat.", icon: 'img/items/oran-berry.png', held: true },
+      ],
+      5: [
         { id: 'town-map', name: 'Carte Régionale', qty: 1, desc: "Carte détaillée de l'archipel d'Odyssée indiquant villes et routes.", icon: 'img/items/town-map.png', key: true },
         { id: 'velo', name: 'Bicyclette', qty: 1, desc: "Vélo pliable ultra-rapide pour se déplacer à toute vitesse.", icon: 'img/items/bag.png', key: true },
-        { id: 'cs-coupe', name: 'CS01 Coupe', qty: 1, desc: "Capsule Secrète permettant de couper les arbustes gênants.", icon: 'img/items/letter.png', key: true },
+        { id: 'gs-ball', name: 'Balle GS', qty: 1, desc: "Capsule dorée mystérieuse liée à l'autel de la forêt de Céleste.", icon: 'img/items/gift.png', key: true },
       ]
     };
 
-    const prevPocketMeta = [
-      { name: 'SOINS', tag: 'POCHE SOINS', sub: 'Médicaments, Potions et Baies', color: '#34d870' },
-      { name: 'POKÉ BALLS', tag: 'POCHE BALLS', sub: 'Capsules de capture de créatures', color: '#ff4c4c' },
-      { name: 'OBJETS', tag: 'POCHE OBJETS', sub: 'Objets tenus, Pierres et Bonbons', color: '#00e0ff' },
-      { name: 'OBJETS RARES', tag: 'POCHE RARES', sub: 'Reliques précieuses, Carte et CS', color: '#ffe058' }
+    const prevPocketCfg = [
+      { id: 'objets', label: 'Objets', sub: 'Pierres, Bonbons et Objets tenus', color: '#00e0ff', glow: 'rgba(0, 224, 255, 0.45)', bg: 'img/bag/backpack_objets.jpg', arcX: 39.5, arcY: 9.8 },
+      { id: 'soin', label: 'Soins', sub: 'Médicaments, Potions et Guérisons', color: '#34d870', glow: 'rgba(52, 216, 112, 0.45)', bg: 'img/bag/backpack_soin.jpg', arcX: 61.9, arcY: 26.5 },
+      { id: 'balls', label: 'Poké Balls', sub: 'Capsules de capture de créatures', color: '#ff4c4c', glow: 'rgba(255, 76, 76, 0.45)', bg: 'img/bag/backpack_balls.jpg', arcX: 70.7, arcY: 42.2 },
+      { id: 'ct', label: 'CT & CS', sub: 'Capsules Techniques et Secrètes', color: '#b966ff', glow: 'rgba(185, 102, 255, 0.45)', bg: 'img/bag/backpack_ct.jpg', arcX: 71.2, arcY: 57.8 },
+      { id: 'baies', label: 'Baies', sub: 'Baies naturelles et remèdes doux', color: '#ff77a8', glow: 'rgba(255, 119, 168, 0.45)', bg: 'img/bag/backpack_baies.jpg', arcX: 57.7, arcY: 73.5 },
+      { id: 'cles', label: 'Objets Rares', sub: 'Objets précieux, Carte et Bicyclette', color: '#ffe058', glow: 'rgba(255, 224, 88, 0.45)', bg: 'img/bag/backpack_cles.jpg', arcX: 30.7, arcY: 89.2 },
     ];
 
     let prevActiveP = 0;
     let prevActiveI = 0;
 
     function prevBagSetPocket(p) {
-      prevActiveP = (p + 4) % 4;
+      const count = prevPocketCfg.length;
+      prevActiveP = (p % count + count) % count;
       prevActiveI = 0;
       prevBagUpdateUI();
     }
@@ -1043,31 +1036,37 @@ Nos regards se sont croisés et mes créatures ont tout donné, mais ton équipe
     }
 
     function prevBagUpdateUI() {
-      const meta = prevPocketMeta[prevActiveP];
-      const track = document.getElementById('prevWheelTrack');
-      // Translation calculée pour le glissement fluide de la roue
-      track.style.transform = `translateY(calc(var(--px, 3px) * ${ -prevActiveP * 14 }))`;
+      const cfg = prevPocketCfg[prevActiveP];
 
-      const slots = track.querySelectorAll('.b2w2-wheel-slot');
-      slots.forEach((s) => {
-        const slotPos = +s.dataset.slot;
-        s.classList.toggle('on', slotPos === prevActiveP + 1);
+      // 1. Déplacement physique fluide du curseur glider le long de l'arc incurvé
+      const glider = document.getElementById('prevGlider');
+      glider.style.left = cfg.arcX + '%';
+      glider.style.top = cfg.arcY + '%';
+      glider.style.setProperty('--glider-col', cfg.color);
+
+      // 2. Nœuds de l'arc
+      document.querySelectorAll('#prevBagLeft .b2w2-arc-node').forEach((node) => {
+        const p = +node.dataset.pocket;
+        node.classList.toggle('on', p === prevActiveP);
       });
 
-      document.getElementById('prevPocketSub').textContent = meta.name;
-      document.getElementById('prevPocketTag').textContent = meta.tag;
-      document.getElementById('prevPocketTag').style.setProperty('--tag-col', meta.color);
+      // 3. Sac HD correspondant avec rétro-éclairage coloré
+      document.getElementById('prevBackpackImg').src = cfg.bg;
+      document.getElementById('prevBackpackStage').style.setProperty('--stage-glow', cfg.glow);
 
-      const glow = document.getElementById('prevMascotGlow');
-      glow.style.setProperty('--pedestal-col', meta.color);
+      // 4. Badges et sous-titres
+      document.getElementById('prevPocketSub').textContent = cfg.label.toUpperCase();
+      document.getElementById('prevPocketTag').textContent = 'POCHE ' + cfg.label.toUpperCase();
+      document.getElementById('prevPocketTag').style.color = cfg.color;
 
-      const badge = document.getElementById('prevMascotBadge');
-      badge.textContent = `◀ ${meta.name} ▶`;
-      badge.style.color = meta.color;
+      const badge = document.getElementById('prevPocketBadge');
+      badge.textContent = `◀ ${cfg.label.toUpperCase()} ▶`;
+      badge.style.color = cfg.color;
+      badge.style.textShadow = `0 0 10px ${cfg.color}`;
 
-      document.getElementById('prevMascotSub').textContent = meta.sub;
+      document.getElementById('prevPocketSubDesc').textContent = cfg.sub;
 
-      // Render items list
+      // 5. Render items list
       const items = prevBagData[prevActiveP] || [];
       document.getElementById('prevPocketCount').textContent = `${items.length} objet${items.length > 1 ? 's' : ''}`;
 
@@ -1096,25 +1095,39 @@ Nos regards se sont croisés et mes créatures ont tout donné, mais ton équipe
     }
 
     function prevBagUpdateInspector() {
+      const cfg = prevPocketCfg[prevActiveP];
       const items = prevBagData[prevActiveP] || [];
       const it = items[prevActiveI];
       if (it) {
         document.getElementById('prevInspImg').src = it.icon;
         document.getElementById('prevInspImg').style.display = '';
         document.getElementById('prevInspName').textContent = it.name;
-        document.getElementById('prevInspQty').textContent = it.key ? 'Objet Unique Rare' : `Quantité en sac : × ${it.qty}`;
+        document.getElementById('prevInspCat').textContent = `[${cfg.label}]`;
+        document.getElementById('prevInspCat').style.color = cfg.color;
+        document.getElementById('prevInspQty').textContent = it.key ? 'Objet Unique Rare' : `Quantité : × ${it.qty}`;
         document.getElementById('prevInspDesc').textContent = it.desc;
       } else {
         document.getElementById('prevInspImg').style.display = 'none';
         document.getElementById('prevInspName').textContent = 'Fermer le Sac';
+        document.getElementById('prevInspCat').textContent = '';
         document.getElementById('prevInspQty').textContent = '';
         document.getElementById('prevInspDesc').textContent = "Revenir à l'aventure sans utiliser d'objet.";
       }
     }
 
-    // Initialisation immédiate du Sac B2W2
+    function prevBagCloseDemo() {
+      alert("Fermeture du sac (simulation). Dans le jeu, cela revient à l'aventure !");
+    }
+
+    // Support de la molette sur le panneau gauche
+    document.getElementById('prevBagLeft')?.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (e.deltaY > 15) prevBagChangePocket(1);
+      else if (e.deltaY < -15) prevBagChangePocket(-1);
+    }, { passive: false });
+
+    // Initialisation immédiate du Sac B2W2 Concept 1
     prevBagUpdateUI();
   </script>
-
 </body>
 </html>

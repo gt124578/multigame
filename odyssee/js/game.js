@@ -50,8 +50,9 @@ const FACES = {
   'Prof. Saule': 'saule', 'Professeur Saule': 'saule', 'Saule': 'saule',
   [RIVAL_NAME]: 'theo', 'Théo': 'theo', 'Theo': 'theo', 'Rival': 'theo',
   // Famille & PNJ récurrents
-  'Maman': 'habitante', 'Mère de Théo': 'habitante', 'Infirmière': 'topdresseuse',
-  'Vendeur': 'topdresseur', 'Garde': 'garde', 'Capitaine': 'marin', 'Capitaine Corentin': 'marin',
+  'Maman': 'maman', 'Mère de Théo': 'habitante', 'Infirmière': 'nurse',
+  'Vendeur': 'vendeur', 'Garde': 'garde', 'Capitaine': 'capitaine', 'Capitaine Corentin': 'capitaine',
+  'Architecte': 'topdresseur', 'Pierre': 'pierre', 'Croupier': 'croupier', 'Facteur': 'facteur',
   'Gardien du phare': 'scientifique', 'Ermite': 'montagnard', 'Styliste': 'topdresseuse',
   'Gardien du savoir': 'scientifique', 'Inspectrice Morvan': 'topdresseuse', 'Morvan': 'topdresseuse',
   // Champions du Continent
@@ -118,6 +119,23 @@ export class Game {
     this.session = null; // échange ou combat en cours avec un autre joueur
     installSocial(this);
     input.onFree = (k) => this.onKey(k);
+    // visage d'un personnage : son portrait peint s'il en a un, sinon le haut de son dessin de la carte (de face)
+    const bustes = new Map();
+    const visage = (k) => {
+      if (!k) return null;
+      const p = ASSETS.portrait(k); if (p) return p;
+      if (bustes.has(k)) return bustes.get(k);
+      const row = CHAR_ROWS[k], src = this.view?.charsCanvas; if (row == null || !src) return null;
+      const c = document.createElement('canvas'); c.width = c.height = 40;
+      const x = c.getContext('2d'); x.imageSmoothingEnabled = false;
+      // le haut du personnage : première rangée dessinée de l'image de face, immobile
+      const f = src.getContext('2d').getImageData(64, row * 64, 64, 64).data;
+      let top = 0; for (let y = 0; y < 64 && !top; y++) for (let i = 0; i < 64; i++) if (f[(y * 64 + i) * 4 + 3] > 100) { top = Math.max(0, y - 2); break; }
+      x.drawImage(src, 64 + 12, row * 64 + top, 40, 40, 0, 0, 40, 40);
+      const big = document.createElement('canvas'); big.width = big.height = 160;
+      const bx = big.getContext('2d'); bx.imageSmoothingEnabled = false; bx.drawImage(c, 0, 0, 160, 160);
+      const url = big.toDataURL(); bustes.set(k, url); return url;
+    };
     ui.faceOf = (who, o = {}) => {
       if (!who && !o?.face) return null;
       if (o?.face) {
@@ -127,19 +145,19 @@ export class Game {
       }
       const s = String(who || '').trim();
       if (!s) return null;
-      if (FACES[s]) { const p = ASSETS.portrait(FACES[s]); if (p) return p; }
+      if (FACES[s]) { const p = visage(FACES[s]); if (p) return p; }
       const low = s.toLowerCase();
-      if (FACES[low]) { const p = ASSETS.portrait(FACES[low]); if (p) return p; }
-      if (TRAINER_NAME_TO_SPRITE[low]) { const p = ASSETS.portrait(TRAINER_NAME_TO_SPRITE[low]); if (p) return p; }
-      if (CLASS_TO_SPRITE[low]) { const p = ASSETS.portrait(CLASS_TO_SPRITE[low]); if (p) return p; }
+      if (FACES[low]) { const p = visage(FACES[low]); if (p) return p; }
+      if (TRAINER_NAME_TO_SPRITE[low]) { const p = visage(TRAINER_NAME_TO_SPRITE[low]); if (p) return p; }
+      if (CLASS_TO_SPRITE[low]) { const p = visage(CLASS_TO_SPRITE[low]); if (p) return p; }
       const words = s.split(/\s+/);
       for (const w of words) {
         const wLow = w.toLowerCase();
-        if (FACES[w]) { const p = ASSETS.portrait(FACES[w]); if (p) return p; }
-        if (TRAINER_NAME_TO_SPRITE[wLow]) { const p = ASSETS.portrait(TRAINER_NAME_TO_SPRITE[wLow]); if (p) return p; }
-        if (CLASS_TO_SPRITE[wLow]) { const p = ASSETS.portrait(CLASS_TO_SPRITE[wLow]); if (p) return p; }
+        if (FACES[w]) { const p = visage(FACES[w]); if (p) return p; }
+        if (TRAINER_NAME_TO_SPRITE[wLow]) { const p = visage(TRAINER_NAME_TO_SPRITE[wLow]); if (p) return p; }
+        if (CLASS_TO_SPRITE[wLow]) { const p = visage(CLASS_TO_SPRITE[wLow]); if (p) return p; }
       }
-      return ASSETS.portrait(low);
+      return visage(low);
     };
   }
 
@@ -763,10 +781,13 @@ export class Game {
     try {
       if (d.trainer) {
         if (!st.flags['T:' + n.id]) await this.trainerBattle(n, false);
-        else await this.ui.say(d.trainer.after || 'Quel combat !', {
-          speaker: d.trainer.cls ? `${d.trainer.cls} ${d.trainer.name}` : d.trainer.name,
-          face: d.trainer.bs || d.trainer.ow || n.sprite
-        });
+        else {
+          await this.ui.say(d.trainer.after || 'Quel combat !', {
+            speaker: d.trainer.cls ? `${d.trainer.cls} ${d.trainer.name}` : d.trainer.name,
+            face: d.trainer.bs || d.trainer.ow || n.sprite
+          });
+          if (d.leader != null) await this.retourEntreeArene();
+        }
       }
       else if (d.role === 'nurse') await this.nurse();
       else if (d.role === 'shop') await shopScreen(this, d.stock);
@@ -1174,6 +1195,7 @@ export class Game {
       if (d.winScript) await storyWin(this, d.winScript, n);
       if (d.beatenPos || d.vanish || d.winScript) this.refreshNpcs();
       if (d.champion) await this.ending();
+      if (d.leader != null) await this.retourEntreeArene();
       // battu, il retourne à sa place pour ne pas boucher le passage (couloirs des arènes)
       if (n.back && !d.beatenPos && !d.vanish && this.npcs.includes(n)) { const B = n.back; await this.npcWalk(n, OPP[B.dir], B.steps); n.dir = B.dir; }
     }
@@ -1181,6 +1203,12 @@ export class Game {
     this.updateZone();
     this.busy = false;
     return res;
+  }
+  /** après le Champion : un raccourci jusqu'à la sortie de l'arène, pour ne pas refaire l'énigme à l'envers */
+  async retourEntreeArene() {
+    const m = this.mapObj; if (m.gymLock == null || m.exitX == null) return;
+    if (!(await this.ui.yesNo('Retourner directement à l\'entrée de l\'arène ?'))) return;
+    await this.warp({ map: m.id, x: m.exitX, y: m.exitY - 1, dir: 'down' }, 'select');
   }
   async badgeScene(g, name) {
     const st = this.state, ui = this.ui;

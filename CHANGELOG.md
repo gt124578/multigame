@@ -1,5 +1,13 @@
 # Journal des versions — Arcadia
 
+## 3.84 — 3 novembre 2026
+- **Odyssée** — Décors et confort :
+  - Les grottes ont de vraies parois de roche, en gradins comme sur DS, hérissées de rochers pointus.
+  - Nouveaux chemins et nouvelle pelouse sur les routes et dans les villes, plus nets et moins pixelisés.
+  - Les rebords qu'on saute d'un seul côté ont un nouveau dessin.
+  - Après avoir battu le Champion, on peut revenir directement à l'entrée de l'arène.
+  - L'infirmière, le vendeur, ta mère et plusieurs habitants ont enfin leur propre visage dans les dialogues.
+
 ## 3.83 — 3 novembre 2026
 - **Odyssée** — Corrections :
   - En entrant dans un bâtiment, l'écran ne reste plus noir : le cercle se referme puis se rouvre proprement, comme sur DS.
