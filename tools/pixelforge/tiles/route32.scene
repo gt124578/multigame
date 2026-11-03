@@ -1,0 +1,26 @@
+# route : 2 fonds d'herbe mélangés, chemin bordé, calques de décor
+tile 32
+layer
+  herbe_a herbe_b herbe_a herbe_a herbe_b herbe_a herbe_b herbe_a herbe_a herbe_b
+  herbe_b herbe_a herbe_a herbe_b herbe_a herbe_a herbe_a herbe_b herbe_a herbe_a
+  herbe_a herbe_a chemin_a chemin_b chemin_a chemin_a chemin_b chemin_a herbe_b herbe_a
+  herbe_b herbe_a chemin_b chemin_a chemin_a chemin_b chemin_a chemin_a herbe_a herbe_b
+  herbe_a herbe_b herbe_a herbe_a herbe_b herbe_a herbe_a herbe_a herbe_b herbe_a
+  hautes_herbes hautes_herbes herbe_b herbe_a herbe_a herbe_b herbe_a hautes_herbes hautes_herbes hautes_herbes
+  hautes_herbes hautes_herbes hautes_herbes herbe_a herbe_b herbe_a herbe_a hautes_herbes hautes_herbes hautes_herbes
+layer
+  - - - - - - - - - -
+  - - - - - - - - - -
+  - - chemin_coin_NO chemin_bord_N chemin_bord_N chemin_bord_N chemin_bord_N chemin_coin_NE - -
+  - - chemin_coin_SO chemin_bord_S chemin_bord_S chemin_bord_S chemin_bord_S chemin_coin_SE - -
+  - - - - - - - - - -
+  - - - - - - - - - -
+  - - - - - - - - - -
+layer
+  deco_fleurs_rouges - - deco_cailloux - deco_fleurs_blanches - - deco_touffes -
+  - deco_touffes - - - - - deco_souche - deco_fleurs_rouges
+  deco_fleurs_blanches - - - - - - - - -
+  - - - - - - - - deco_cailloux -
+  - deco_fleurs_rouges - deco_touffes - - deco_fleurs_blanches - - deco_touffes
+  - - - - deco_souche - - - - -
+  - - - deco_fleurs_rouges - - deco_cailloux - - -
