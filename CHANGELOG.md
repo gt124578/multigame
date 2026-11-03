@@ -1,5 +1,10 @@
 # Journal des versions — Arcadia
 
+## 3.83 — 3 novembre 2026
+- **Odyssée** — Corrections :
+  - En entrant dans un bâtiment, l'écran ne reste plus noir : le cercle se referme puis se rouvre proprement, comme sur DS.
+  - Une Super Ball ou une Hyper Ball garde son dessin quand elle se secoue pendant la capture (elle ne redevient plus une Poké Ball).
+
 ## 3.82 — 3 novembre 2026
 - **Odyssée** — Le Domaine, seconde partie, façon Pokémon Pokopia : le terrain du frigo coûte maintenant 50 000 ₽, et c'est une terre desséchée à faire revivre.
   - Choisis DOMAINE dans le menu pour t'y téléporter de n'importe où, et REVENIR pour retourner là où tu étais.

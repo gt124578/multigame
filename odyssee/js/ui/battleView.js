@@ -16,7 +16,7 @@ const TYPE_FX = {
   water: ['#58a0ff', '#c0e0ff'], grass: ['#58c040', '#b0f080'], electric: ['#ffe040', '#ffffff'], psychic: ['#ff70b0', '#ffc0e0'], ice: ['#a0e8ff', '#ffffff'],
   dragon: ['#7050f0', '#c0a0ff'], dark: ['#403030', '#a08070'], fairy: ['#ff9ad0', '#ffe0f0'],
 };
-const BALL_COL = { 'poke-ball': ['#e83838', '#f4f4f4'], 'great-ball': ['#3870e8', '#f4f4f4'], 'ultra-ball': ['#303030', '#f0c830'] };
+const BALL_COL = { 'poke-ball': ['#e83838', '#f4f4f4'], 'great-ball': ['#3870e8', '#f4f4f4'], 'ultra-ball': ['#303030', '#f0c830'], 'master-ball': ['#8a3ac8', '#f4f4f4'], 'gs-ball': ['#d8a830', '#c8c8d0'] };
 const BALL_SPRITE_PATHS = {
   'poke-ball': 'img/battle/poke_ball_32.png',
   'great-ball': 'img/battle/great_ball_32.png',
@@ -178,8 +178,11 @@ export class BattleView {
   };
   drawBall(x, b) {
     const itemKey = b.item || 'poke-ball';
-    const imgKey = b.state ? b.state : itemKey;
-    const img = this.ballImgs?.[imgKey] || this.ballImgs?.[itemKey] || this.ballImgs?.['poke-ball'];
+    // les images inclinée / ouverte n'existent que pour la Poké Ball : les autres Balls gardent leur dessin, penché
+    const propre = itemKey === 'poke-ball';
+    const imgKey = b.state && propre ? b.state : itemKey;
+    const img = this.ballImgs?.[imgKey] || this.ballImgs?.[itemKey] || null;
+    const penche = !propre && (b.state === 'tilt-l' ? -0.45 : b.state === 'tilt-r' ? 0.45 : 0);
     if (b.groundY != null && b.groundY > b.y) {
       const dist = Math.max(0, b.groundY - b.y);
       const alpha = Math.max(0.12, 0.45 - dist * 0.0035);
@@ -194,7 +197,7 @@ export class BattleView {
     }
     x.save();
     x.translate(Math.round(b.x), Math.round(b.y));
-    if (b.rot) x.rotate(b.rot);
+    if (b.rot || penche) x.rotate((b.rot || 0) + penche);
     const size = 18;
     if (img) {
       x.imageSmoothingEnabled = false;

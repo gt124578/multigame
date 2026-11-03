@@ -227,18 +227,9 @@ img { image-rendering: pixelated; }
 .wipe.on::before, .wipe.on::after { height: 51%; }
 
 /* 1. Transition de porte / bâtiment (Iris Diaphragm Wipe Pokémon DS) */
-.door-iris {
-  position: absolute;
-  inset: 0;
-  z-index: 60;
-  pointer-events: none;
-  background: #000;
-  clip-path: circle(140% at 50% 50%);
-  will-change: clip-path;
-}
-.door-iris.closed {
-  clip-path: circle(0% at 50% 50%);
-}
+.door-iris { position: absolute; inset: 0; z-index: 60; pointer-events: none; overflow: hidden; display: none; }
+.door-iris.on { display: block; }
+.door-iris .door-hole { position: absolute; left: 50%; top: 50%; width: 170vmax; height: 170vmax; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 200vmax #000; }
 
 /* 2. Transition de rencontre de combat (Wild Battle Shards 5G) */
 .battle-wipe {
@@ -2604,8 +2595,8 @@ img { image-rendering: pixelated; }
   border-radius: calc(var(--px) * 3); padding: calc(var(--px) * 1) calc(var(--px) * 4); text-shadow: var(--px) var(--px) 0 rgba(0,0,0,.4); }
 .keyhint b { display: inline-block; min-width: 1.2em; text-align: center; background: rgba(255,255,255,.22); border-radius: calc(var(--px) * 1.5); margin-right: calc(var(--px) * 2); }
 .keyhint:hover { background: rgba(40,44,56,.62); }
-#ui:has(> .dlg, > .screen, > .wipe, > .battle-wipe, > .door-iris.closed, > .battle, > .title-scr) .keybar { opacity: 0; }
-#ui:has(> .dlg, > .screen, > .wipe, > .battle-wipe, > .door-iris.closed, > .battle, > .title-scr) .keyhint { pointer-events: none; }
+#ui:has(> .dlg, > .screen, > .wipe, > .battle-wipe, > .door-iris.on, > .battle, > .title-scr) .keybar { opacity: 0; }
+#ui:has(> .dlg, > .screen, > .wipe, > .battle-wipe, > .door-iris.on, > .battle, > .title-scr) .keyhint { pointer-events: none; }
 .keypanel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 56; padding: calc(var(--px) * 6) calc(var(--px) * 10); display: none; width: min(94vw, calc(var(--px) * 330)); font-size: .85em; }
 .keypanel.on { display: block; }
 .keypanel td:first-child { width: 46%; }
@@ -2662,8 +2653,8 @@ kbd { display: inline-block; font: inherit; font-size: .85em; min-width: 1.4em; 
 
 /* ---------- HUD en jeu (Mix A + C : capsules pixel-art Nano Banana à gauche + Pokégear en haut à droite) ---------- */
 .hud { position: absolute; inset: 0; z-index: 14; pointer-events: none; transition: opacity .18s ease; }
-#ui:has(> .screen, > .wipe, > .battle-wipe, > .door-iris.closed, > .battle, > .title-scr, > .intro-scr, > .list, > .dlg, > .keypanel.on) .hud { opacity: 0; pointer-events: none; }
-#ui:has(> .screen, > .wipe, > .battle-wipe, > .door-iris.closed, > .battle, > .title-scr, > .intro-scr, > .list, > .dlg, > .keypanel.on) .hud * { pointer-events: none !important; }
+#ui:has(> .screen, > .wipe, > .battle-wipe, > .door-iris.on, > .battle, > .title-scr, > .intro-scr, > .list, > .dlg, > .keypanel.on) .hud { opacity: 0; pointer-events: none; }
+#ui:has(> .screen, > .wipe, > .battle-wipe, > .door-iris.on, > .battle, > .title-scr, > .intro-scr, > .list, > .dlg, > .keypanel.on) .hud * { pointer-events: none !important; }
 
 /* Colonne d'équipe à gauche — capsules pixel-art biseautées (slot_lead.png & slot_normal.png) */
 .hud-party { position: absolute; left: calc(var(--px) * 4); top: calc(var(--px) * 18); display: flex; flex-direction: column; gap: calc(var(--px) * 2.5); width: calc(var(--px) * 136); pointer-events: auto; transition: transform .22s ease, opacity .2s ease; }

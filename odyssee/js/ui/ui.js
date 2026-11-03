@@ -148,24 +148,24 @@ export class UI {
     this.fadeEl.style.opacity = black ? 1 : 0;
     return wait(ms + 20);
   }
-  /** Transition de porte / bâtiment façon Pokémon DS (diaphragme circulaire rétro) */
+  /**
+   * Transition de porte / bâtiment façon Pokémon DS : un cercle transparent au milieu d'un écran noir se referme
+   * (closing), puis se rouvre une fois la nouvelle carte en place. Hors transition, rien n'est affiché.
+   */
   async doorTransition(closing, ms = 240) {
     if (!this.doorEl) {
-      this.doorEl = el('div', 'door-iris');
+      this.doorEl = el('div', 'door-iris'); this.doorEl.appendChild(this.doorHole = el('div', 'door-hole'));
       this.root.appendChild(this.doorEl);
     }
-    this.doorEl.style.transition = `clip-path ${ms}ms cubic-bezier(0.4, 0, 0.2, 1)`;
-    if (closing) {
-      this.doorEl.classList.remove('closed');
-      void this.doorEl.offsetHeight;
-      this.doorEl.classList.add('closed');
-      await wait(ms + 20);
-    } else {
-      this.doorEl.classList.add('closed');
-      void this.doorEl.offsetHeight;
-      this.doorEl.classList.remove('closed');
-      await wait(ms + 20);
-    }
+    const d = this.doorEl, h = this.doorHole, OUVERT = '170vmax';
+    d.classList.add('on');
+    h.style.transition = 'none';
+    h.style.width = h.style.height = closing ? OUVERT : '0px';
+    void h.offsetWidth;
+    h.style.transition = `width ${ms}ms cubic-bezier(0.4, 0, 0.2, 1), height ${ms}ms cubic-bezier(0.4, 0, 0.2, 1)`;
+    h.style.width = h.style.height = closing ? '0px' : OUVERT;
+    await wait(ms + 30);
+    if (!closing) d.classList.remove('on');   // ouvert : plus rien à l'écran
   }
   async flash(times = 3, color = '#fff', ms = 90) {
     this.flashEl.style.background = color;

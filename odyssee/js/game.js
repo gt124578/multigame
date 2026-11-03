@@ -1102,6 +1102,7 @@ export class Game {
 
   async trainerBattle(n, spotted) {
     const d = n.def, tr = d.trainer, st = this.state;
+    if (this.noTrainers) { await this.ui.say(`${tr.cls || 'Dresseur'} ${tr.name} : (version de test, combats de dresseurs désactivés)`); return 'skip'; }
     this.busy = true;
     const music = d.leader != null ? 'leader' : d.champion ? 'champion' : d.rival ? 'rival' : 'trainer';
     if (spotted) {
@@ -1201,6 +1202,7 @@ export class Game {
   }
 
   async checkTrainers() {
+    if (this.noTrainers) return false;   // version de test : pas de combats de dresseurs
     const p = this.player, m = this.mapObj;
     for (const n of this.npcs) {
       const tr = n.def.trainer; if (!tr || !tr.sight || this.state.flags['T:' + n.id]) continue;
@@ -1233,7 +1235,7 @@ export class Game {
   async runBattle(o) {
     try { return await this.runBattleSafe(o); } catch (e) {
       console.error('combat interrompu', e);
-      document.querySelectorAll('.wipe').forEach((c) => c.remove());
+      document.querySelectorAll('.wipe, .battle-wipe').forEach((c) => c.remove());
       try { this.bv.close(); } catch { /* déjà fermé */ }
       this.sound.stopMusic?.(0.1); this.sound.current = null; this.musicLock = false;
       await this.ui.say('Le combat a été interrompu. Réessaie !');
