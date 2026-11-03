@@ -2,6 +2,7 @@
 // Tout est dans des tampons fixes réutilisés : rien n'est créé ni jeté pendant le vol.
 import * as THREE from '../../shared/vendor/three/three.module.min.js';
 import { BULLET_SPEED, BULLET_LIFETIME, BULLET_GRAVITY, FIRE_RATE } from '../engine/weapons.js';
+import { GUNS } from './plane.js';
 
 const MAX_TRACERS = 320, MAX_PUFFS = 1400;
 const TRAIL_STEP = 5;   // une bouffée tous les 5 m : la traînée reste continue quelle que soit la cadence d'images
@@ -66,12 +67,13 @@ export class FxManager {
   // Traçantes tirées par `p` (même balistique que le moteur), une sur deux visible
   emitTracers(p, dt) {
     let acc = (this.fireAcc.get(p.id) || 0) + dt * FIRE_RATE * 0.5;
+    const G = GUNS[p.type] || GUNS.f16;
     while (acc >= 1) {
       acc -= 1;
       if (this.bullets.length >= MAX_TRACERS) this.bullets.shift();
       const j = 0.004;
       const dx = p.fx + (Math.random() - 0.5) * j, dy = p.fy + (Math.random() - 0.5) * j, dz = p.fz + (Math.random() - 0.5) * j;
-      this.bullets.push({ x: p.x + p.fx * 3.6, y: p.y + p.fy * 3.6, z: p.z + p.fz * 3.6, vx: dx * BULLET_SPEED + p.fx * p.speed, vy: dy * BULLET_SPEED + p.fy * p.speed, vz: dz * BULLET_SPEED + p.fz * p.speed, age: 0 });
+      this.bullets.push({ x: p.x + p.fx * G[2] + p.lx * G[0] + p.ux * G[1], y: p.y + p.fy * G[2] + p.ly * G[0] + p.uy * G[1], z: p.z + p.fz * G[2] + p.lz * G[0] + p.uz * G[1], vx: dx * BULLET_SPEED + p.fx * p.speed, vy: dy * BULLET_SPEED + p.fy * p.speed, vz: dz * BULLET_SPEED + p.fz * p.speed, age: 0 });
     }
     this.fireAcc.set(p.id, acc);
   }

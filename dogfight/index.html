@@ -39,6 +39,7 @@
       <button type="button" data-plane="f16" aria-pressed="true"><b>F-16</b><span>Fighting Falcon</span></button>
       <button type="button" data-plane="f22" aria-pressed="false"><b>F-22</b><span>Raptor</span></button>
     </div>
+    <p class="h-mode" id="modeBrief"></p>
     <p class="h-blurb" id="planeBlurb"></p>
     <dl class="h-stats">
       <dt>Vitesse</dt><dd><i id="stat-speed"></i></dd>
@@ -64,9 +65,10 @@
       <h1 id="endTitle"></h1>
       <p id="endSub"></p>
       <table>
-        <thead><tr><th></th><th>Pilote</th><th>Avion</th><th>Élim.</th><th>Morts</th></tr></thead>
+        <thead><tr><th></th><th>Pilote</th><th>Avion</th><th>Élim.</th><th>Aide</th><th>Morts</th></tr></thead>
         <tbody id="endRows"></tbody>
       </table>
+      <ul class="end-awards" id="endAwards"></ul>
       <p id="endWait" hidden>En attente de l'hôte…</p>
       <div class="end-actions">
         <button id="btnReplay" class="btn-launch" type="button">Rejouer</button>

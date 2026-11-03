@@ -1,7 +1,8 @@
 /* Arcadia — ce qui entoure chaque jeu, le même pour tous :
    - l'écran de chargement commun : l'affiche du jeu, ses commandes, une astuce et une barre de progression,
      posé par-dessus le jeu jusqu'à ce qu'il soit vraiment affiché (message « shown » du pont), puis « C'est parti ! » ;
-   - le menu Arcadia en jeu : un petit onglet sur le bord gauche → reprendre, commandes, son, plein écran, retour au salon. */
+   - « C'est parti ! » n'arrive que quand tous les joueurs du salon ont chargé le jeu (60 s au plus d'attente) ;
+   - le menu Arcadia en jeu : un petit onglet sur le bord droit → reprendre, commandes, son, plein écran, retour au salon. */
 (function () {
   const INFO = window.HUB_GAME_INFO || {};
   const GENRES = Object.fromEntries(window.HUB_GENRES || []);
@@ -50,17 +51,36 @@
     cur.safety = setTimeout(() => shown(), 35000);
     tab(true);
   }
-  function shown() {
-    if (!cur || cur.shown || !L) return;
-    cur.shown = true; clearTimeout(cur.safety);
-    const btn = L.querySelector('.gl-go');
+  // les autres joueurs ont-ils fini de charger ? (en solo : toujours oui) ; au bout de 60 s, on peut partir quand même
+  function others() {
+    const st = cur && cur.opts && cur.opts.loading ? cur.opts.loading() : null;
+    if (!st || st.total <= 1 || st.done >= st.total) return null;
+    if (cur.shownAt && performance.now() - cur.shownAt > 60000) return null;
+    return st;
+  }
+  function refresh() {
+    if (!cur || !cur.shown || !L || cur.go) return;
+    const st = others(), btn = L.querySelector('.gl-go');
+    if (st) {
+      btn.disabled = true; btn.textContent = `En attente… ${st.done}/${st.total}`; btn.classList.remove('ready');
+      L.querySelector('.gl-st').textContent = `Chargement chez ${st.waiting.slice(0, 3).join(', ')}${st.waiting.length > 3 ? '…' : ''}`;
+      clearTimeout(cur.wait); cur.wait = setTimeout(refresh, 1000);   // filet : on revérifie (et on débloque au bout de 60 s)
+      return;
+    }
+    clearTimeout(cur.wait);
+    cur.go = true;
     btn.disabled = false; btn.textContent = 'C\'est parti !'; btn.classList.add('ready');
-    L.querySelector('.gl-st').textContent = 'Prêt !';
+    L.querySelector('.gl-st').textContent = cur.opts && cur.opts.loading && (cur.opts.loading() || {}).total > 1 ? 'Tout le monde est prêt !' : 'Prêt !';
     sfx('confirm', 0.4);
     // assez de temps pour lire les commandes, sans faire attendre : 4,8 s au moins après l'ouverture
     const wait = Math.max(2200, 4800 - (performance.now() - cur.t0));
     cur.auto = setTimeout(dismiss, wait);
     L.addEventListener('pointerenter', () => { clearTimeout(cur.auto); }, { once: true });   // on lit : on attend le clic
+  }
+  function shown() {
+    if (!cur || cur.shown || !L) return;
+    cur.shown = true; cur.shownAt = performance.now(); clearTimeout(cur.safety);
+    refresh();
   }
   function dismiss() {
     if (!cur || !L) return;
@@ -71,7 +91,7 @@
     tabEl && tabEl.classList.add('peek'); setTimeout(() => tabEl && tabEl.classList.remove('peek'), 2600);
   }
   function close() {
-    if (cur) { cur.closed = true; clearTimeout(cur.auto); clearTimeout(cur.safety); }
+    if (cur) { cur.closed = true; clearTimeout(cur.auto); clearTimeout(cur.safety); clearTimeout(cur.wait); }
     if (L) { L.remove(); L = null; }
     menu(false); tab(false); cur = null;
   }
@@ -128,5 +148,5 @@
   }
   addEventListener('keydown', (e) => { if (e.key === 'Escape' && M) { e.preventDefault(); menu(false); } });
 
-  window.HubInGame = { open, shown, close, menu };
+  window.HubInGame = { open, shown, close, menu, refresh };
 })();

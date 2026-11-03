@@ -29,11 +29,19 @@ export class UI {
     }
     const nm = this.dlg.querySelector('.dlg-name'); nm.textContent = o.speaker || ''; nm.style.display = o.speaker ? '' : 'none';
     this.dlg.classList.toggle('battle', !!o.battle);
-    // portrait de celui qui parle (hors combat), à gauche de la boîte
-    const src = !o.battle && o.speaker && this.faceOf ? this.faceOf(o.speaker) : null;
+    // portrait de celui qui parle (hors combat), dans la boîte sous le nom
+    const src = !o.battle && this.faceOf ? this.faceOf(o.speaker || o.face, o) : (!o.battle && o.face ? o.face : null);
     let face = this.dlg.querySelector('.dlg-face');
-    if (src) { if (!face) { face = el('img', 'dlg-face'); face.alt = ''; this.dlg.appendChild(face); } if (face.getAttribute('src') !== src) face.src = src; }
-    else if (face) face.remove();
+    if (src) {
+      if (!face) {
+        face = el('img', 'dlg-face');
+        face.alt = '';
+        this.dlg.appendChild(face);
+      }
+      if (face.getAttribute('src') !== src) face.src = src;
+    } else if (face) {
+      face.remove();
+    }
     this.dlg.classList.toggle('has-face', !!src);
     return this.dlg;
   }

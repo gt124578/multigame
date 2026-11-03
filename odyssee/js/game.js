@@ -38,8 +38,60 @@ void R;
 const GYM_HINTS = { bug: 'le Feu, le Vol et la Roche', rock: 'l\'Eau, la Plante, le Combat et le Sol', water: 'l\'Électrik et la Plante', electric: 'le Sol', grass: 'le Feu, la Glace, le Vol, le Poison et l\'Insecte', psychic: 'l\'Insecte et les Ténèbres', fire: 'l\'Eau, la Roche et le Sol', dragon: 'la Glace et le Dragon' };
 // capacité de terrain donnée par chaque Champion après sa victoire
 const GYM_GIFT = { 3: 'coupe', 4: 'surf', 5: 'eclate', 6: 'vol' };
-// portrait affiché à côté de la boîte de dialogue, selon qui parle
-const FACES = { 'Prof. Saule': 'saule', [RIVAL_NAME]: 'theo', Hector: 'hector', Marine: 'marine', Volta: 'volta', Flora: 'flora', Sibylle: 'sibylle', Basalte: 'basalte', Pyros: 'pyros', Drakos: 'drakos', Célestine: 'celestine', Capitaine: 'marin', 'Gardien du phare': 'scientifique', Ermite: 'montagnard' };
+// portrait affiché à côté de la boîte de dialogue 5G, selon qui parle
+const FACES = {
+  // Professeur & Rivaux
+  'Prof. Saule': 'saule', 'Professeur Saule': 'saule', 'Saule': 'saule',
+  [RIVAL_NAME]: 'theo', 'Théo': 'theo', 'Theo': 'theo', 'Rival': 'theo',
+  // Famille & PNJ récurrents
+  'Maman': 'habitante', 'Mère de Théo': 'habitante', 'Infirmière': 'topdresseuse',
+  'Vendeur': 'topdresseur', 'Garde': 'garde', 'Capitaine': 'marin', 'Capitaine Corentin': 'marin',
+  'Gardien du phare': 'scientifique', 'Ermite': 'montagnard', 'Styliste': 'topdresseuse',
+  'Gardien du savoir': 'scientifique', 'Inspectrice Morvan': 'topdresseuse', 'Morvan': 'topdresseuse',
+  // Champions du Continent
+  'Hector': 'hector', 'Marine': 'marine', 'Volta': 'volta', 'Flora': 'flora',
+  'Sibylle': 'sibylle', 'Basalte': 'basalte', 'Pyros': 'pyros', 'Drakos': 'drakos',
+  'Célestine': 'celestine',
+  // Champions des Terres du Sud
+  'Margot': 'margot', 'Aurèle': 'aurele', 'Morgane': 'morgane', 'Gaspard': 'gaspard',
+  'Ferdinand': 'ferdinand', 'Lilas': 'lilas', 'Corbin': 'corbin',
+  // Team Éclipse & Brume
+  'Nyx': 'nyx', 'Érèbe': 'erebe', 'Erebe': 'erebe', 'Nocturne': 'nocturne',
+  'Frimas': 'frimas', 'Spectrel': 'spectrel', 'Brutus': 'brutus', 'Sylas': 'sylas',
+  'Ariane': 'ariane', 'Nox': 'nox', 'Sbire': 'brume_f', 'Sbire de la Brume': 'brume', 'Sbire Éclipse': 'eclipse_m',
+};
+
+const TRAINER_NAME_TO_SPRITE = {
+  'léo': 'gamin', 'malo': 'gamin', 'sacha': 'gamin', 'joris': 'gamin', 'nathan': 'gamin',
+  'inès': 'fillette', 'mila': 'fillette', 'jade': 'fillette', 'lise': 'fillette', 'romane': 'fillette', 'capucine': 'fillette', 'églantine': 'fillette', 'nora': 'fillette',
+  'noé': 'insectomane', 'adam': 'insectomane', 'timothée': 'insectomane', 'hugo': 'insectomane',
+  'clara': 'randonneuse', 'célia': 'randonneuse', 'maëlle': 'randonneuse', 'élise': 'randonneuse', 'nina': 'randonneuse', 'iris': 'randonneuse', 'sahra': 'randonneuse',
+  'gaston': 'montagnard', 'bastien': 'montagnard', 'gaspard': 'montagnard', 'erwan': 'montagnard', 'caravane': 'montagnard', 'touareg': 'montagnard', 'boulon': 'montagnard', 'écrou': 'montagnard',
+  'yves': 'pecheur', 'gaël': 'pecheur', 'albin': 'pecheur', 'loïc': 'marin',
+  'alba': 'topdresseuse', 'zoé': 'topdresseuse', 'lou': 'topdresseuse', 'solène': 'topdresseuse', 'maya': 'topdresseuse', 'céleste': 'topdresseuse', 'alice': 'topdresseuse', 'nuit': 'topdresseuse', 'garance': 'topdresseuse',
+  'yanis': 'topdresseur', 'kylian': 'topdresseur', 'axel': 'topdresseur', 'éloi': 'topdresseur', 'florent': 'topdresseur', 'valentin': 'topdresseur', 'ilan': 'topdresseur', 'mirage': 'topdresseur',
+  'pierre': 'scientifique', 'vipère': 'scientifique', 'dr vipère': 'scientifique',
+  'kenji': 'karateka', 'bruno': 'karateka', 'tao': 'karateka', 'kaito': 'karateka', 'masao': 'karateka',
+  'ophélie': 'medium', 'séléné': 'medium', 'bérénice': 'medium', 'ronan': 'garde',
+  'neige': 'randonneuse', 'flocon': 'randonneuse', 'hayate': 'voleur', 'raiden': 'voleur', 'arsène': 'voleur', 'sakura': 'kimono',
+  'nils': 'gamin', 'timéo': 'gamin', 'rosalie': 'fillette', 'lison': 'fillette', 'fernand': 'habitant', 'm. fernand': 'habitant',
+  'rose': 'habitante', 'mme rose': 'habitante', 'héliotrope': 'habitante', 'mme héliotrope': 'habitante',
+  'opaline': 'habitante', 'madame opaline': 'habitante', 'jules': 'insectomane', 'watt': 'scientifique', 'mlle watt': 'scientifique',
+  'gustave': 'vieil_homme', 'papi gustave': 'vieil_homme', 'léon': 'vieil_homme', 'vieux léon': 'vieil_homme', 'firmin': 'montagnard',
+  'séraphine': 'medium', 'sven': 'pecheur', 'corentin': 'marin',
+};
+
+const CLASS_TO_SPRITE = {
+  gamin: 'gamin', fillette: 'fillette', montagnard: 'montagnard', marin: 'marin',
+  topdresseur: 'topdresseur', topdresseuse: 'topdresseuse', scientifique: 'scientifique',
+  pecheur: 'pecheur', pêcheur: 'pecheur', insectomane: 'insectomane', randonneuse: 'randonneuse',
+  medium: 'medium', médium: 'medium', karateka: 'karateka', karatéka: 'karateka',
+  garde: 'garde', 'garde d\'écaille': 'garde', voleur: 'voleur', moine: 'pretre',
+  prêtre: 'pretre', pretre: 'pretre', kimono: 'kimono', 'dame kimono': 'kimono',
+  skieuse: 'randonneuse', alpiniste: 'montagnard', pilote: 'marin', ninja: 'voleur',
+  ouvrier: 'montagnard', sage: 'medium', 'grand sage': 'medium', habitant: 'habitant',
+  habitante: 'habitante', enfant: 'enfant', 'vieil homme': 'vieil_homme',
+};
 
 export class Game {
   static SAVE_KEY = SAVE_KEY;
@@ -55,7 +107,29 @@ export class Game {
     this.session = null; // échange ou combat en cours avec un autre joueur
     installSocial(this);
     input.onFree = (k) => this.onKey(k);
-    ui.faceOf = (speaker) => (FACES[speaker] ? ASSETS.portrait(FACES[speaker]) : null);
+    ui.faceOf = (who, o = {}) => {
+      if (!who && !o?.face) return null;
+      if (o?.face) {
+        const p = ASSETS.portrait(o.face);
+        if (p) return p;
+        if (typeof o.face === 'string' && (o.face.startsWith('http') || o.face.startsWith('data:') || o.face.includes('/'))) return o.face;
+      }
+      const s = String(who || '').trim();
+      if (!s) return null;
+      if (FACES[s]) { const p = ASSETS.portrait(FACES[s]); if (p) return p; }
+      const low = s.toLowerCase();
+      if (FACES[low]) { const p = ASSETS.portrait(FACES[low]); if (p) return p; }
+      if (TRAINER_NAME_TO_SPRITE[low]) { const p = ASSETS.portrait(TRAINER_NAME_TO_SPRITE[low]); if (p) return p; }
+      if (CLASS_TO_SPRITE[low]) { const p = ASSETS.portrait(CLASS_TO_SPRITE[low]); if (p) return p; }
+      const words = s.split(/\s+/);
+      for (const w of words) {
+        const wLow = w.toLowerCase();
+        if (FACES[w]) { const p = ASSETS.portrait(FACES[w]); if (p) return p; }
+        if (TRAINER_NAME_TO_SPRITE[wLow]) { const p = ASSETS.portrait(TRAINER_NAME_TO_SPRITE[wLow]); if (p) return p; }
+        if (CLASS_TO_SPRITE[wLow]) { const p = ASSETS.portrait(CLASS_TO_SPRITE[wLow]); if (p) return p; }
+      }
+      return ASSETS.portrait(low);
+    };
   }
 
   /* ================= sauvegarde ================= */
@@ -63,7 +137,7 @@ export class Game {
   newState(name, gender) {
     return {
       v: 2, name, gender, id: Math.floor(Math.random() * 65536), money: 3000, badges: Array(BADGES.length).fill(false), flags: {},
-      party: [], box: [], bag: { potion: 1 }, dex: { seen: [], caught: [] }, time: 0, visited: ['aube'], repel: 0,
+      party: [], box: [], bag: { potion: 1 }, dex: { seen: [], caught: [], seenCount: {} }, time: 0, visited: ['aube'], repel: 0,
       cleared: {}, surf: false, explored: [], journal: {},
       lastCenter: { map: 'aube:maison', x: 4, y: 5, dir: 'up' }, ...this.world.start,
     };
@@ -78,6 +152,8 @@ export class Game {
   load(from) {
     const s = from ? JSON.parse(JSON.stringify(from)) : JSON.parse(localStorage.getItem(SAVE_KEY));
     s.cleared ||= {}; s.explored ||= [];
+    s.dex ||= { seen: [], caught: [], seenCount: {} };
+    s.dex.seenCount ||= {};
     let maxUid = 0; for (const m of s.party.concat(s.box)) maxUid = Math.max(maxUid, m.uid || 0);
     setUidBase(maxUid + 1);
     // Pokémon d'avant les natures : chacun reçoit la sienne (toujours la même), ses stats sont recalculées
@@ -635,13 +711,22 @@ export class Game {
     n.dir = OPP[this.player.dir];
     const d = n.def, st = this.state;
     try {
-      if (d.trainer) { if (!st.flags['T:' + n.id]) await this.trainerBattle(n, false); else await this.ui.say(d.trainer.after || 'Quel combat !', { speaker: d.trainer.name }); }
+      if (d.trainer) {
+        if (!st.flags['T:' + n.id]) await this.trainerBattle(n, false);
+        else await this.ui.say(d.trainer.after || 'Quel combat !', {
+          speaker: d.trainer.cls ? `${d.trainer.cls} ${d.trainer.name}` : d.trainer.name,
+          face: d.trainer.bs || d.trainer.ow || n.sprite
+        });
+      }
       else if (d.role === 'nurse') await this.nurse();
       else if (d.role === 'shop') await shopScreen(this, d.stock);
       else if (d.role === 'relearner') await moveRelearnerScreen(this);
       else if (d.talk) await d.talk(this.api(), n);
       else if (d.script) await this.script(d.script, n);
-      else if (d.text) await this.ui.say(d.text);
+      else if (d.text) await this.ui.say(d.text, {
+        speaker: d.name || n.name || (d.who ? d.who : null),
+        face: d.sprite || n.sprite
+      });
     } finally { this.save(true); this.busy = was; }
   }
   async pickItem(it) {
@@ -929,8 +1014,35 @@ export class Game {
   give(item, n = 1) { this.state.bag[item] = (this.state.bag[item] || 0) + n; }
 
   /* ================= combats ================= */
-  markSeen(sp) { if (!this.state.dex.seen.includes(sp)) this.state.dex.seen.push(sp); }
-  markCaught(sp) { this.markSeen(sp); if (!this.state.dex.caught.includes(sp)) this.state.dex.caught.push(sp); }
+  seenCount(sp) {
+    if (!sp) return 0;
+    const dex = this.state?.dex;
+    if (!dex) return 0;
+    if (dex.seenCount && dex.seenCount[sp] != null) return dex.seenCount[sp];
+    return dex.seen?.includes(sp) ? 1 : 0;
+  }
+  isSpeciesKnown(sp) {
+    if (!sp) return false;
+    const dex = this.state?.dex;
+    if (!dex) return false;
+    if (dex.caught?.includes(sp)) return true;
+    for (const m of (this.state.party || []).concat(this.state.box || [])) {
+      if (m && m.sp === sp) return true;
+    }
+    return this.seenCount(sp) >= 3;
+  }
+  markSeen(sp) {
+    if (!sp) return;
+    const dex = this.state.dex;
+    dex.seenCount ||= {};
+    dex.seenCount[sp] = (dex.seenCount[sp] || 0) + 1;
+    if (!dex.seen.includes(sp)) dex.seen.push(sp);
+  }
+  markCaught(sp) {
+    this.markSeen(sp);
+    const dex = this.state.dex;
+    if (!dex.caught.includes(sp)) dex.caught.push(sp);
+  }
   lead() { return this.state.party.find((m) => m.hp > 0); }
 
   async encounterIntro(kind) {
@@ -980,7 +1092,10 @@ export class Game {
       p.dir = OPP[n.dir];
     }
     this.musicLock = true; this.sound.play(music);
-    await this.ui.say(tr.intro, { speaker: tr.name });
+    await this.ui.say(tr.intro, {
+      speaker: tr.cls ? `${tr.cls} ${tr.name}` : tr.name,
+      face: tr.bs || tr.ow || n.sprite
+    });
     const party = tr.team.map(([sp, lvl]) => createMon(sp, lvl, { iv: Array(6).fill(Math.min(31, 8 + lvl / 2 | 0)), shiny: false }));
     const res = await this.runBattle({ trainer: { ...tr, items: { ...(tr.items || {}) } }, party, music, id: n.id, leader: d.leader, champion: d.champion, rival: d.rival });
     this.musicLock = false;
@@ -1304,12 +1419,12 @@ export class Game {
       /** combat contre un dresseur de quête ; renvoie 'win' ou 'lose' */
       fight: async (tr) => {
         const t = { cls: 'Dresseur', prize: 40, ai: 'smart', ...tr, bs: tr.bs || tr.ow || 'garde' };
-        if (t.intro) await ui().say(t.intro, { speaker: t.name });
+        if (t.intro) await ui().say(t.intro, { speaker: t.cls ? `${t.cls} ${t.name}` : t.name, face: t.bs || t.ow });
         const party = t.team.map(([sp, lvl]) => createMon(sp, lvl, { iv: Array(6).fill(Math.min(31, 10 + lvl / 2 | 0)), shiny: false }));
         g.musicLock = true;
         const res = await g.runBattle({ trainer: { ...t, items: { ...(t.items || {}) } }, party, music: t.music || 'trainer', rival: true, noWhiteout: t.noWhiteout });
         g.musicLock = false; g.updateZone();
-        if (res === 'win' && t.after) await ui().say(t.after, { speaker: t.name });
+        if (res === 'win' && t.after) await ui().say(t.after, { speaker: t.cls ? `${t.cls} ${t.name}` : t.name, face: t.bs || t.ow });
         return res;
       },
       /** rencontre d'un Pokémon (sauvage ou légendaire) */

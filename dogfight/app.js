@@ -3,7 +3,8 @@
 import { generateMap, ILE } from '../royale/engine/map.js';
 import { createWorld } from './engine/world.js';
 import { createFlight, stepFlight, computeAxes, TYPES, TYPE_IDS } from './engine/flight.js';
-import { createGame, startCountdown, stepGame, drainEvents, addPlayer, replaceByBot, snapRows, snapMissiles, worldOf, restoreGame, applyRow, ranking, DT, COLORS, TEAM_COLORS } from './engine/rules.js';
+import { MODE_IDS, MODE_NAMES, isTeamMode, ZONE_CEIL } from './engine/modes.js';
+import { createGame, startCountdown, stepGame, drainEvents, addPlayer, replaceByBot, snapRows, snapMissiles, snapZones, worldOf, restoreGame, applyRow, ranking, DT, COLORS, TEAM_COLORS } from './engine/rules.js';
 import { DogfightScene } from './view/scene.js';
 import { CockpitHUD } from './view/hud.js';
 import { DogfightAudio } from './view/sfx.js';
@@ -18,6 +19,15 @@ const SEND_EVERY = 3;    // état des avions : vingt fois par seconde
 const INPUT_EVERY = 2;   // commandes : trente fois par seconde
 const INTERP = 0.11;     // les autres avions sont montrés avec ce retard (s)
 const AUTOLAUNCH = 30;   // à plusieurs, le hangar n'attend pas au-delà (s)
+const MODE_BRIEF = {
+  chacun: () => 'Chacun pour soi : le premier à l\'objectif gagne, ou le meilleur à la fin du temps.',
+  equipes: () => 'Équipes : chaque élimination compte pour ton camp.',
+  domination: (me, target) => `Domination : tiens les zones A, B et C. Vole sous ${ZONE_CEIL} m au-dessus du sol pour les capturer. Chaque zone tenue rapporte un point par seconde, la première équipe à ${target} points gagne.`,
+  duel: (me, target) => `Duel (${target} manches pour gagner) : un contre un, face à face. Le gagnant reste en piste, le perdant passe derrière ceux qui attendent. Après 90 s, le moins abîmé gagne la manche. Seul, un bot vient en face.`,
+  escorte: (me) => (me && me.team === 2 ? 'Escorte : tu attaques. Abats le gros transport avant la fin du temps.' : 'Escorte : tu protèges le gros transport. S\'il tient jusqu\'à la fin du temps, ton équipe gagne.'),
+};
+const planeName = (type) => (TYPES[type] || TYPES.f16).name;
+const tagColorOf = (p, mode) => (p.type !== 'cargo' && isTeamMode(mode) ? TEAM_COLORS[p.team] : p.color);
 
 const S = {
   alive: true, role: 'solo', myId: 0, cfg: {}, run: 0,
@@ -46,7 +56,7 @@ function setupPanel() {
   window.DDVolume.panel(btn, {
     accent: '#2563eb', kinds: ['fx'], test: () => sfx.hitConfirm(),
     sections: [
-      { title: 'Image', items: [{ label: 'Qualité', get: () => pref.quality, set: (v) => { pref.quality = v; store.set('quality', v); applyPrefs(); }, options: [['auto', 'Auto'], ['bas', 'Bas'], ['moyen', 'Moyen'], ['eleve', 'Élevé']] }], hint: 'Élevé : de vrais nuages volumétriques, à réserver à une bonne carte graphique. Auto baisse d\'un cran si l\'image rame.' },
+      { title: 'Image', items: [{ label: 'Qualité', get: () => pref.quality, set: (v) => { pref.quality = v; store.set('quality', v); applyPrefs(); }, options: [['auto', 'Auto'], ['bas', 'Bas'], ['moyen', 'Moyen'], ['eleve', 'Élevé']] }], hint: 'Élevé : de vrais nuages volumétriques, à réserver à une bonne carte graphique. Auto l\'essaie quand la machine suit, et baisse d\'un cran si l\'image rame.' },
       { title: 'Pilotage', items: [
         { label: 'Aide au vol', get: () => pref.assist, set: (v) => { pref.assist = v; store.set('assist', v); applyPrefs(); } },
         { label: 'Inverser le tangage', get: () => pref.invert, set: (v) => { pref.invert = v; store.set('invert', v); applyPrefs(); } },
@@ -104,7 +114,7 @@ async function init() {
 function readCfg(settings = {}) {
   const src = H.embedded ? settings : Object.fromEntries(QS);
   const num = (v, d) => (v === undefined || v === '' || !Number.isFinite(+v) ? d : +v);
-  return { kills: num(src.kills, 8), bots: num(src.bots, 3), level: LEVELS.includes(src.level) ? src.level : 'normal', mode: src.mode === 'equipes' ? 'equipes' : 'chacun', time: num(src.time, 300) };
+  return { kills: num(src.kills, 8), bots: num(src.bots, 3), level: LEVELS.includes(src.level) ? src.level : 'normal', mode: MODE_IDS.includes(src.mode) ? src.mode : 'chacun', time: num(src.time, 300) };
 }
 function localProfile() {
   const g = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
@@ -129,7 +139,8 @@ function boot(info) {
   S.role = H.embedded ? info.role : 'solo';
   S.myId = H.embedded ? info.myId : 0;
   S.cfg = readCfg(info.settings || {});
-  S.type = TYPES[QS.get('type')] ? QS.get('type') : store.get('type', 'f16');
+  const wanted = QS.get('type') || store.get('type', 'f16');
+  S.type = TYPE_IDS.includes(wanted) ? wanted : 'f16';
   H.on('msg', onMsg);
   H.on('roster', onRoster);
   if (H.embedded) H.signalReady();  // après on('msg') : sinon les premiers messages de l'hôte se perdent
@@ -159,7 +170,7 @@ function bindScreens() {
   for (const id of ['#btnQuit', '#btnExit']) $(id).addEventListener('click', exitToLobby);
 }
 function pick(type) {
-  if (!TYPES[type]) return;
+  if (!TYPE_IDS.includes(type)) return;
   sfx.unlock();
   S.type = type; store.set('type', type);
   if (S.g) { const p = S.g.planes.find((q) => q.id === S.myId); if (p) { p.type = type; S.g.rev++; } }
@@ -178,9 +189,11 @@ function updateHangar() {
   const T = TYPES[S.type];
   $('#planeBlurb').textContent = T.blurb;
   const stat = (k, v) => { $(`#stat-${k}`).style.width = `${Math.round(v * 100)}%`; };
-  stat('speed', T.boost / 240); stat('roll', T.roll / 3.8); stat('pitch', T.pitch / 2); stat('hp', T.hp / 130); stat('gun', T.gun / 3.6); stat('sig', T.sig);
-  const list = S.role === 'guest' ? (S.w ? S.w.pl : []) : (S.g ? S.g.planes : []);
-  const rows = list.map((p) => `<li><i style="background:${p.color}"></i>${esc(p.name)}${p.bot ? ' <em>bot</em>' : ''}<span>${(TYPES[p.id === S.myId ? S.type : p.type] || TYPES.f16).name}${p.team ? ` · équipe ${p.team === 1 ? 'bleue' : 'rouge'}` : ''}${p.bot || p.id === S.myId ? '' : p.ready ? ' · prêt' : ' · choisit…'}</span></li>`).join('');
+  stat('speed', T.boost / 240); stat('roll', T.roll / 3.8); stat('pitch', T.pitch / 2); stat('hp', T.hp / 130); stat('gun', T.gun / 5); stat('sig', T.sig);
+  const list = (S.role === 'guest' ? (S.w ? S.w.pl : []) : (S.g ? S.g.planes : [])).filter((p) => p.type !== 'cargo');
+  const set = S.role === 'guest' ? (S.w && S.w.settings) : (S.g && S.g.settings);
+  $('#modeBrief').textContent = set && MODE_BRIEF[set.mode] ? MODE_BRIEF[set.mode](list.find((p) => p.id === S.myId), set.target) : '';
+  const rows = list.map((p) => `<li><i style="background:${p.color}"></i>${esc(p.name)}${p.bot ? ' <em>bot</em>' : ''}<span>${planeName(p.id === S.myId ? S.type : p.type)}${p.team ? ` · équipe ${p.team === 1 ? 'bleue' : 'rouge'}` : ''}${p.bot || p.id === S.myId ? '' : p.ready ? ' · prêt' : ' · choisit…'}</span></li>`).join('');
   $('#hangarRoster').innerHTML = rows || '<li>En attente de l\'hôte…</li>';
   const btn = $('#btnStart');
   if (S.role === 'guest') btn.textContent = S.ready ? 'Prêt ! En attente de l\'hôte…' : 'Je suis prêt';
@@ -192,7 +205,10 @@ function launch() {
   if (S.role === 'guest' || !S.g || S.g.ph !== 'hangar') return;
   const me = S.g.planes.find((p) => p.id === S.myId);
   if (me) me.type = S.type;
+  // ces modes n'ont pas de sens sans adversaire
+  if (['duel', 'escorte', 'domination'].includes(S.g.settings.mode) && S.g.planes.filter((p) => p.type !== 'cargo').length < 2) addPlayer(S.g, { id: 'bot-1', name: BOT_NAMES[0], bot: true, lvl: S.cfg.level, color: COLORS[1], type: TYPE_IDS[0] }, world);
   startCountdown(S.g, world);
+  if (S.autoQ && store.get('high', null) === true && scene.quality === 'moyen') scene.setQuality('eleve');
   broadcastWorld(true);
   hideHangar();
 }
@@ -212,8 +228,12 @@ function frame(now = performance.now()) {
   const view = S.role === 'guest' ? guestFrame(dt) : hostFrame(dt);
   if (view) { S.view = view; present(view, dt); }
   if (S.autoQ && S.playT > 6) {
-    if (S.ms > 24 && view && view.ph === 'play') { S.slow += dt; if (S.slow > 3) { S.slow = 0; const w = scene.lowerQuality(); if (w && QS.has('debug')) hud.toast(`Qualité baissée : ${w}`); } }
-    else S.slow = Math.max(0, S.slow - dt);
+    if (S.ms > 24 && view && view.ph === 'play') {
+      S.slow += dt;
+      if (S.slow > 3) { S.slow = 0; if (scene.quality === 'eleve') store.set('high', false); const w = scene.lowerQuality(); if (w && QS.has('debug')) hud.toast(`Qualité baissée : ${w}`); }
+    } else S.slow = Math.max(0, S.slow - dt);
+    // une partie entière bien fluide en Moyen : on tentera Élevé au prochain décollage, et on s'en souviendra si ça rame
+    if (S.playT > 30 && S.ms < 17.8 && scene.quality === 'moyen' && store.get('high', null) === null) store.set('high', true);
   }
 }
 
@@ -264,7 +284,7 @@ function hostFrame(dt, maxSteps = 8) {
     if (S.netEv.length && S.tick - S.lastSend >= SEND_EVERY - 1) { H.send('all', { t: 'e', run: S.run, e: S.netEv }); S.netEv = []; }
     if (S.tick - S.lastSend >= SEND_EVERY) {
       S.lastSend = S.tick;
-      H.send('all', { t: 's', run: S.run, ts: Math.round(g.clock * 1000), r: snapRows(g), m: snapMissiles(g) }, { volatile: true });
+      H.send('all', { t: 's', run: S.run, ts: Math.round(g.clock * 1000), r: snapRows(g), m: snapMissiles(g), z: snapZones(g) }, { volatile: true });
     }
   }
   const view = buildHostView(g);
@@ -277,7 +297,7 @@ function broadcastWorld(force) {
   S.sentRev = g.rev; S.lastWorldAt = performance.now();
   H.send('all', { t: 'w', run: S.run, w: worldOf(g) });
 }
-const SHOWN = ['id', 'name', 'color', 'team', 'type', 'bot', 'kills', 'deaths', 'alive', 'speed', 'health', 'maxHp', 'boosting', 'braking', 'firing', 'over', 'warn', 'load', 'ab', 'abOut', 'heat', 'lockT', 'lockId', 'ms', 'fl', 'dE', 'dL', 'dR', 'dT', 'respawn', 'killedBy', 'deathCause', 'inv', 'ready'];
+const SHOWN = ['id', 'name', 'color', 'team', 'type', 'bot', 'kills', 'deaths', 'alive', 'speed', 'health', 'maxHp', 'boosting', 'braking', 'firing', 'over', 'warn', 'load', 'ab', 'abOut', 'heat', 'lockT', 'lockId', 'ms', 'fl', 'dE', 'dL', 'dR', 'dT', 'respawn', 'killedBy', 'deathCause', 'inv', 'ready', 'out', 'helps', 'shots', 'hits', 'mhits', 'best', 'zt', 'cdmg'];
 function buildHostView(g) {
   const f = S.acc / DT, list = [];
   for (const p of g.planes) {
@@ -285,10 +305,10 @@ function buildHostView(g) {
     for (const k of SHOWN) r[k] = p[k];
     const far = p._px === undefined || Math.abs(p._px - p.x) + Math.abs(p._pz - p.z) > 30;
     lerpPose(r, far ? p : { x: p._px, y: p._py, z: p._pz, qx: p._qx, qy: p._qy, qz: p._qz, qw: p._qw }, p, far ? 1 : f);
-    r.tagColor = g.settings.mode === 'equipes' ? TEAM_COLORS[p.team] : p.color;
+    r.tagColor = tagColorOf(p, g.settings.mode);
     list.push(r);
   }
-  return { ph: g.ph, t: g.t, left: g.left, target: g.settings.target, mode: g.settings.mode, tk: g.tk, winner: g.winner, winTeam: g.winTeam, planes: list, missiles: g.missiles.map((m) => ({ key: m.key, x: m.x, y: m.y, z: m.z })), me: list.find((p) => p.id === S.myId) || null };
+  return { ph: g.ph, t: g.t, left: g.left, target: g.settings.target, mode: g.settings.mode, tk: g.tk, winner: g.winner, winTeam: g.winTeam, zones: g.zones, duel: g.duel, planes: list, missiles: g.missiles.map((m) => ({ key: m.key, x: m.x, y: m.y, z: m.z })), me: list.find((p) => p.id === S.myId) || null };
 }
 function lerpPose(r, a, b, f) {
   r.x = a.x + (b.x - a.x) * f; r.y = a.y + (b.y - a.y) * f; r.z = a.z + (b.z - a.z) * f;
@@ -342,7 +362,8 @@ function guestFrame(dt) {
   for (const info of w.pl) {
     let r = S.vp.get(info.id); if (!r) S.vp.set(info.id, r = {});
     Object.assign(r, info);
-    r.tagColor = w.settings.mode === 'equipes' ? TEAM_COLORS[info.team] : info.color;
+    if (info.st) [r.shots, r.hits, r.mhits, r.best, r.zt, r.cdmg] = info.st;
+    r.tagColor = tagColorOf(info, w.settings.mode);
     const last = latest ? latest.rows.get(info.id) : null;
     if (!last) { r.alive = false; list.push(r); continue; }
     applyRow(r, last);
@@ -363,7 +384,7 @@ function guestFrame(dt) {
     list.push(r);
   }
   // missiles : le dernier état reçu
-  const view = { ph: w.ph, t: w.t, left: w.left, target: w.settings.target, mode: w.settings.mode, tk: w.tk, winner: w.winner, winTeam: w.winTeam, planes: list, missiles: S.missileRows, me: list.find((p) => p.id === S.myId) || null };
+  const view = { ph: w.ph, t: w.t, left: w.left, target: w.settings.target, mode: w.settings.mode, tk: w.tk, winner: w.winner, winTeam: w.winTeam, zones: w.zones, duel: w.duel, planes: list, missiles: S.missileRows, me: list.find((p) => p.id === S.myId) || null };
   if (w.ph === 'over') showEnd(view);
   return view;
 }
@@ -376,6 +397,7 @@ function receiveRows(m) {
   if (S.snaps.length > 30) S.snaps.shift();
   S.lastRows = m.r;
   S.missileRows = (m.m || []).map((q) => ({ key: q[0], x: q[1], y: q[2], z: q[3] }));
+  if (m.z && S.w && S.w.zones) S.w.zones.forEach((z, i) => { z.cap = m.z[i] / 100; });
   // réconciliation : on repart de l'état de l'hôte et on rejoue les commandes qu'il n'a pas encore vues
   const r = rows.get(S.myId);
   const info = S.w ? S.w.pl.find((p) => p.id === S.myId) : null;
@@ -418,7 +440,7 @@ function onMsg(from, m) {
       broadcastWorld(true);
     } else if (m.t === 'pick') {
       const q = g.planes.find((x) => x.id === from);
-      if (q && g.ph === 'hangar') { if (TYPES[m.type]) q.type = m.type; q.ready = !!m.ready; g.rev++; updateHangar(); }
+      if (q && g.ph === 'hangar') { if (TYPE_IDS.includes(m.type)) q.type = m.type; q.ready = !!m.ready; g.rev++; updateHangar(); }
     } else if (m.t === 'i') {
       const q = g.planes.find((x) => x.id === from);   // `from` vient du Hub : seule identité fiable
       if (q && !q.bot) { const prev = q.inp || {}, inp = cleanInput(m); inp.msl = inp.msl || prev.msl; inp.flare = inp.flare || prev.flare; q.inp = inp; q.ack = m.s | 0; }
@@ -502,6 +524,41 @@ function onEvent(e, view) {
     case 'mboom': scene.fx.explosion(e.x, e.y, e.z, false); sfx.explosion(e.x, e.y, e.z, false); break;
     case 'mlost': if (e.id === mine) hud.toast('Le missile a perdu ta trace', 1.8); break;
     case 'flare': { const p = view.planes.find((q) => q.id === e.id); scene.fx.flare(e.x, e.y, e.z, p ? p.fx * p.speed : 0, p ? p.fy * p.speed : 0, p ? p.fz * p.speed : 0); if (e.id === mine) sfx.flare(); break; }
+    case 'help': if (e.by === mine) { hud.award(`Aide sur ${e.name}`); sfx.reward(); } break;
+    case 'first': hud.addFeed(`Premier sang : ${e.name}`, e.by === mine); if (e.by === mine) hud.award('Premier sang'); break;
+    case 'streak': {
+      const t = e.n === 2 ? 'Doublé' : e.n === 3 ? 'Triplé' : `Série de ${e.n}`;
+      hud.addFeed(`${e.name} : ${t.toLowerCase()}`, e.by === mine);
+      if (e.by === mine) { hud.award(`${t} !`); sfx.reward(); }
+      break;
+    }
+    case 'revenge': if (e.by === mine) { hud.award(`Revanche sur ${e.name}`); sfx.reward(); } break;
+    case 'zone': {
+      const z = view.zones && view.zones.find((q) => q.id === e.z), name = z ? `${e.z} (${z.name})` : e.z, team = me && me.team;
+      if (e.own) hud.addFeed(`Zone ${name} : équipe ${e.own === 1 ? 'bleue' : 'rouge'}`, e.own === team);
+      if (e.own && e.own === team) { hud.big(`Zone ${e.z} prise`); sfx.zoneWon(); }
+      else if (e.was && e.was === team) { hud.big(`Zone ${e.z} perdue`); sfx.zoneLost(); }
+      break;
+    }
+    case 'cargo':
+      for (let i = 0; i < 3; i++) scene.fx.explosion(e.x + (i - 1) * 9, e.y, e.z);
+      sfx.explosion(e.x, e.y, e.z);
+      hud.addFeed(e.byName ? `${e.byName} abat le transport` : 'Le transport est détruit', e.by === mine);
+      break;
+    case 'roundEnd':
+      hud.addFeed(e.byName ? `Manche ${e.n}${e.time ? ' au temps' : ''} : ${e.byName}` : `Manche ${e.n} : personne`, e.by === mine);
+      if (e.by === mine) hud.big(`Manche ${e.n} gagnée`);
+      else if (e.time && e.loser === mine) hud.big('Temps écoulé : tu es le plus abîmé');
+      break;
+    case 'round': {
+      if (S.role === 'guest') { S.pred = null; S.predPrev = null; S.hist = []; }
+      else { const p = S.g.planes.find((q) => q.id === mine); if (p && p.alive) controls.aimFrom(p.fx, p.fy, p.fz); }
+      scene.camInit = false;
+      const name = (id) => { const p = view.planes.find((q) => q.id === id); return !p ? '?' : p.id === mine ? 'toi' : p.name; };
+      hud.toast(`Manche ${e.n} : ${name(e.a)} contre ${name(e.b)}`, 2.6);
+      sfx.count();
+      break;
+    }
     case 'left': hud.addFeed(`${e.name} est parti : un bot reprend son avion`); break;
     case 'start': sfx.start(); break;
     case 'count': sfx.count(); break;
@@ -514,6 +571,7 @@ function present(view, dt) {
   const me = view.me;
   if (view.ph === 'hangar') {
     scene.syncPlanes([]);
+    scene.syncZones(null);
     scene.showPreview(S.type, me ? (me.tagColor || me.color) : '#3f7fe8', dt);
     scene.fx.update(dt, [], world);
     scene.draw();
@@ -531,14 +589,16 @@ function present(view, dt) {
   S.lastAlive = aliveNow;
   if (view.ph === 'countdown' && me) controls.aimFrom(me.fx, me.fy, me.fz);
 
-  scene.syncPlanes(view.planes);
+  scene.syncPlanes(view.planes, dt);
+  scene.syncZones(view.zones);
   for (const p of view.planes) scene.firing(p, dt);
   const aim = aliveNow ? controls.aim() : null;
   if (aliveNow) {
     S.boostAmt = (S.boostAmt || 0) + ((me.boosting ? 1 : 0) - (S.boostAmt || 0)) * Math.min(1, dt * 4);
     scene.updateCamera(me, aim, dt, S.boostAmt);
   } else if (me) {
-    const by = view.planes.find((p) => p.alive && p.name === me.killedBy);
+    // en duel, on suit la manche ; ailleurs, celui qui nous a abattu, ou l'épave
+    const by = view.duel ? view.planes.find((p) => p.alive && (p.id === view.duel.a || p.id === view.duel.b)) : view.planes.find((p) => p.alive && p.name === me.killedBy);
     if (by) scene.watch(by.x, by.y, by.z, dt);
     else scene.watch(me.x, me.y, me.z, dt);
   }
@@ -559,7 +619,10 @@ function present(view, dt) {
   }
   const terrain = aliveNow && lowTerrain(me);
   sfx.alarms(dt, { ground: terrain, missile: aliveNow && me.warn, lock: aliveNow ? me.lockT : 0, locked: aliveNow && me.lockT >= 1 && me.ms > 0 });
-  hud.render(view, me, cam, aim, dt, { terrain, inCloud: world.inCloud(cam.position.x, cam.position.y, cam.position.z), scoreboard: controls.scoreboard });
+  // la zone survolée, et de combien il faut descendre pour la capturer
+  const zone = aliveNow && view.zones ? view.zones.find((z) => Math.hypot(me.x - z.x, me.z - z.z) < z.r) : null;
+  const zoneHigh = zone ? me.y - world.obstacleAt(me.x, me.z) - ZONE_CEIL : 0;
+  hud.render(view, me, cam, aim, dt, { terrain, inCloud: world.inCloud(cam.position.x, cam.position.y, cam.position.z), scoreboard: controls.scoreboard, zone, zoneHigh });
 }
 // L'alerte de relief regarde devant : collines et toits compris
 function lowTerrain(p) {
@@ -572,20 +635,43 @@ function lowTerrain(p) {
 }
 
 // ------------------------------------------------------------------ fin de partie
+// Les titres de fin : ce que chacun a fait de mieux, pas seulement le score
+function awards(list, mode) {
+  const best = (score, min) => { let top = null, v = min; for (const p of list) { const x = score(p); if (x >= v && (!top || x > score(top))) { top = p; v = x; } } return top; };
+  const out = [], add = (title, p, what) => { if (p) out.push({ title, name: p.name, what: what(p) }); };
+  add('Inarrêtable', best((p) => p.best || 0, 3), (p) => `${p.best} d'affilée sans tomber`);
+  if (mode === 'domination') add('Maître des lieux', best((p) => p.zt || 0, 30), (p) => `${Math.round(p.zt)} s dans les zones`);
+  if (mode === 'escorte') {
+    add('Chasseur de gros', best((p) => (p.team === 2 ? p.cdmg || 0 : 0), 1), (p) => `${Math.round(p.cdmg)} dégâts au transport`);
+    add('Garde du corps', best((p) => (p.team === 1 ? p.kills : 0), 2), (p) => `${p.kills} attaquants abattus`);
+  }
+  add('Œil de lynx', best((p) => ((p.shots || 0) >= 40 ? p.hits / p.shots : 0), 0.01), (p) => `${Math.round(p.hits / p.shots * 100)} % de précision`);
+  add('As du missile', best((p) => p.mhits || 0, 2), (p) => `${p.mhits} missiles au but`);
+  add('Ailier en or', best((p) => p.helps || 0, 2), (p) => `${p.helps} aides`);
+  add('Increvable', best((p) => (p.deaths === 0 ? p.kills : 0), 1), () => 'aucune mort');
+  return out.slice(0, 4);
+}
+
 function showEnd(view) {
   if (S.endShown) return;
   S.endShown = true;
-  const me = view.me, rows = view.planes.map((p) => ({ ...p })).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
+  const me = view.me, team = isTeamMode(view.mode), rows = view.planes.filter((p) => p.type !== 'cargo').map((p) => ({ ...p })).sort((a, b) => b.kills - a.kills || (b.helps || 0) - (a.helps || 0) || a.deaths - b.deaths);
   let title, sub;
-  if (view.mode === 'equipes') {
-    if (!view.winTeam) { title = 'Match nul'; sub = `${view.tk[1]} partout`; }
-    else { const won = me && me.team === view.winTeam; title = won ? 'Victoire !' : 'Défaite'; sub = `Équipe ${view.winTeam === 1 ? 'bleue' : 'rouge'} : ${view.tk[1]} — ${view.tk[2]}`; }
+  if (view.mode === 'escorte') {
+    const won = me && me.team === view.winTeam;
+    title = won ? 'Victoire !' : 'Défaite';
+    sub = view.winTeam === 1 ? 'Le transport a tenu jusqu\'au bout.' : 'Le transport a été abattu.';
+  } else if (team) {
+    const a = Math.round(view.tk[1]), b = Math.round(view.tk[2]);
+    if (!view.winTeam) { title = 'Match nul'; sub = `${a} partout`; }
+    else { const won = me && me.team === view.winTeam; title = won ? 'Victoire !' : 'Défaite'; sub = `Équipe ${view.winTeam === 1 ? 'bleue' : 'rouge'} : ${a} — ${b}`; }
   } else if (view.winner === null) { title = 'Match nul'; sub = 'Personne ne se détache : retentez votre chance.'; }
-  else { const win = view.planes.find((p) => p.id === view.winner); const won = me && view.winner === me.id; title = won ? 'Victoire !' : `${win ? win.name : '?'} gagne`; sub = won ? 'Le ciel est à toi.' : 'Tu feras mieux au prochain vol.'; }
-  const won = me && (view.mode === 'equipes' ? me.team === view.winTeam : view.winner === me.id);
+  else { const win = view.planes.find((p) => p.id === view.winner); const won = me && view.winner === me.id; title = won ? 'Victoire !' : `${win ? win.name : '?'} gagne`; sub = won ? (view.mode === 'duel' ? 'Le roi du ciel, c\'est toi.' : 'Le ciel est à toi.') : 'Tu feras mieux au prochain vol.'; }
+  const won = me && (team ? me.team === view.winTeam : view.winner === me.id);
   if (won) sfx.win(); else sfx.lose();
   $('#endTitle').textContent = title; $('#endSub').textContent = sub;
-  $('#endRows').innerHTML = rows.map((p, i) => `<tr class="${me && p.id === me.id ? 'me' : ''}"><td>${i + 1}</td><td><i style="background:${p.tagColor || p.color}"></i>${esc(p.name)}${p.bot ? ' <em>bot</em>' : ''}</td><td>${(TYPES[p.type] || TYPES.f16).name}</td><td>${p.kills}</td><td>${p.deaths}</td></tr>`).join('');
+  $('#endRows').innerHTML = rows.map((p, i) => `<tr class="${me && p.id === me.id ? 'me' : ''}"><td>${i + 1}</td><td><i style="background:${p.tagColor || p.color}"></i>${esc(p.name)}${p.bot ? ' <em>bot</em>' : ''}</td><td>${planeName(p.type)}</td><td>${p.kills}</td><td>${p.helps || 0}</td><td>${p.deaths}</td></tr>`).join('');
+  $('#endAwards').innerHTML = awards(rows, view.mode).map((a) => `<li><b>${a.title}</b><span>${esc(a.name)} · ${a.what}</span></li>`).join('');
   const host = S.role !== 'guest';
   $('#btnReplay').hidden = !host;
   $('#endWait').hidden = host;
@@ -603,7 +689,7 @@ function reportResult() {
   const ranked = ranking(g);
   H.report({
     id: `dogfight-${S.run}-${Date.now()}-${ranked.filter((p) => !p.bot).map((p) => p.id).join('.')}`,
-    mode: g.settings.mode === 'equipes' ? 'Équipes' : 'Chacun pour soi',
+    mode: MODE_NAMES[g.settings.mode] || 'Chacun pour soi',
     players: ranked.map((p, i) => ({ id: p.bot ? null : p.id, name: p.name, color: p.color, bot: p.bot, rank: i + 1, score: p.kills })),
   });
 }

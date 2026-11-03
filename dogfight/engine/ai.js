@@ -2,19 +2,34 @@
 // Trois niveaux, de vraies différences de visée, de discipline de tir et de réflexes.
 import { computeLead, stepLock } from './weapons.js';
 import { CENTER, ZONE_WARN, TYPES } from './flight.js';
+import { ZONE_CEIL } from './modes.js';
 
 export const LEVELS = {
-  facile: { react: 0.9, err: 0.02, wobble: 0.5, range: 430, cone: 0.985, burst: 0.55, rest: 1.1, sight: 900, pull: 0.62, missiles: false, flares: 0, evade: 0, heat: 0.5, margin: 90 },
-  normal: { react: 0.45, err: 0.03, wobble: 0.9, range: 480, cone: 0.9955, burst: 0.8, rest: 0.8, sight: 1300, pull: 0.82, missiles: true, flares: 0.45, evade: 0.25, heat: 0.7, margin: 70 },
-  expert: { react: 0.2, err: 0.011, wobble: 1.3, range: 640, cone: 0.9975, burst: 1.3, rest: 0.35, sight: 1800, pull: 1, missiles: true, flares: 0.9, evade: 0.45, heat: 0.85, margin: 55 },
+  facile: { react: 0.8, err: 0.014, wobble: 0.5, range: 420, cone: 0.995, burst: 0.8, rest: 0.75, sight: 1100, pull: 0.72, missiles: false, flares: 0, evade: 0, heat: 0.6, margin: 90, patience: 3.5, extend: 3.2 },
+  normal: { react: 0.4, err: 0.01, wobble: 0.9, range: 500, cone: 0.9965, burst: 1, rest: 0.45, sight: 1500, pull: 0.86, missiles: true, flares: 0.45, evade: 0.2, heat: 0.75, margin: 70, patience: 4.5, extend: 2.8 },
+  expert: { react: 0.2, err: 0.006, wobble: 1.3, range: 640, cone: 0.998, burst: 1.3, rest: 0.3, sight: 1800, pull: 1, missiles: true, flares: 0.9, evade: 0.4, heat: 0.85, margin: 55, patience: 6, extend: 2.2 },
 };
 
 const norm = (x, y, z) => { const n = Math.hypot(x, y, z) || 1; return { x: x / n, y: y / n, z: z / n }; };
 
+// Domination : la zone à rejoindre. Les zones à prendre d'abord, les proches, et on ne s'y met pas tous
+function chooseZone(b, g, a) {
+  a.zoneT = (a.zoneT || 0) - 1;
+  if (a.zone && a.zoneT > 0) return g.zones.find((z) => z.id === a.zone);
+  let best = null, score = Infinity;
+  for (const z of g.zones) {
+    let s = Math.hypot(z.x - b.x, z.z - b.z) / 500 + (z.own === b.team ? 1.8 : z.own ? 0.3 : 0) + Math.random() * 0.4;
+    for (const q of g.planes) if (q !== b && q.alive && q.team === b.team && q.ai && q.ai.zone === z.id) s += 0.9;
+    if (s < score) { score = s; best = z; }
+  }
+  a.zone = best ? best.id : null; a.zoneT = 180;
+  return best;
+}
+
 export function botInput(b, g, world, dt) {
   const L = LEVELS[b.lvl] || LEVELS.normal;
   const inp = { p: 0, r: 0, y: 0, boost: false, brake: false, fire: false, msl: false, flare: false, lim: L.pull };
-  const a = b.ai || (b.ai = { t: Math.random() * L.react, target: null, seed: Math.random() * 100, burst: 0, rest: 0, way: null, wayT: 0, evade: 0, ex: 0, ey: 0, ez: 0 });
+  const a = b.ai || (b.ai = { t: Math.random() * L.react, target: null, seed: Math.random() * 100, burst: 0, rest: 0, way: null, wayT: 0, evade: 0, ex: 0, ey: 0, ez: 0, stuck: 0, ext: 0, xx: 0, xz: 0 });
   a.t -= dt;
 
   // 1. Le sol d'abord : on regarde devant soi, d'autant plus loin qu'on va vite
@@ -33,15 +48,18 @@ export function botInput(b, g, world, dt) {
     return inp;
   }
 
-  // 2. Pas de collision : un avion qui fonce sur nous, on s'écarte
+  // 2. Pas de collision : on calcule le point de croisement, et on s'écarte tant qu'il reste du temps
   for (const q of g.planes) {
     if (!q.alive || q.id === b.id) continue;
     const dx = q.x - b.x, dy = q.y - b.y, dz = q.z - b.z, d = Math.hypot(dx, dy, dz);
-    if (d > 170 || d < 1) continue;
-    const rvx = q.fx * q.speed - b.fx * b.speed, rvy = q.fy * q.speed - b.fy * b.speed, rvz = q.fz * q.speed - b.fz * b.speed;
-    const closing = -(dx * rvx + dy * rvy + dz * rvz) / d;
-    if (closing > 20 && d / closing < 1.5) {
-      const away = b.id < q.id ? 1 : -1, e = norm(b.fx - dx / d * 0.7 + b.lx * away * 0.5, b.fy - dy / d * 0.7 + (b.y < 200 ? 0.5 : 0), b.fz - dz / d * 0.7 + b.lz * away * 0.5);
+    if (d > 520 || d < 1) continue;
+    const rvx = q.fx * q.speed - b.fx * b.speed, rvy = q.fy * q.speed - b.fy * b.speed, rvz = q.fz * q.speed - b.fz * b.speed, rv2 = rvx * rvx + rvy * rvy + rvz * rvz;
+    const tc = rv2 > 1 ? -(dx * rvx + dy * rvy + dz * rvz) / rv2 : -1;
+    if (tc < 0 || tc > 1.9) continue;
+    const miss = Math.hypot(dx + rvx * tc, dy + rvy * tc, dz + rvz * tc);
+    if (miss < 26) {
+      const away = b.id < q.id ? 1 : -1, cx = dx + rvx * tc, cy = dy + rvy * tc, cz = dz + rvz * tc, cn = Math.hypot(cx, cy, cz) || 1;
+      const e = norm(b.fx - cx / cn * 0.8 + b.lx * away * 0.6, b.fy - cy / cn * 0.8 + (b.y - here < 200 ? 0.5 : 0), b.fz - cz / cn * 0.8 + b.lz * away * 0.6);
       inp.ax = e.x; inp.ay = e.y; inp.az = e.z; inp.lim = 1;
       return inp;
     }
@@ -59,13 +77,16 @@ export function botInput(b, g, world, dt) {
   if (a.t <= 0) {
     a.t = L.react;
     let best = null, bestScore = -Infinity;
+    const cargo = g.cargo ? g.planes.find((q) => q.type === 'cargo') : null;
     for (const q of g.planes) {
       if (!q.alive || q.id === b.id || (b.team && b.team === q.team)) continue;
       const dx = q.x - b.x, dy = q.y - b.y, dz = q.z - b.z, d = Math.hypot(dx, dy, dz) || 1;
       const sight = L.sight * (TYPES[q.type] || TYPES.f16).sig ** 0.5;
       if (d > sight || (d > 260 && world.inCloud(q.x, q.y, q.z))) continue;
       const dot = (dx * b.fx + dy * b.fy + dz * b.fz) / d;
-      const score = dot * 1.6 - d / 700 + (q.id === a.target ? 0.5 : 0) + (q.health < 40 ? 0.3 : 0);
+      let score = dot * 1.6 - d / 700 + (q.id === a.target ? 0.5 : 0) + (q.health < 40 ? 0.3 : 0);
+      if (q.type === 'cargo') score += 1.2;
+      else if (cargo && cargo.alive && b.team === cargo.team && Math.hypot(q.x - cargo.x, q.z - cargo.z) < 650) score += 0.7;
       if (score > bestScore) { bestScore = score; best = q; }
     }
     a.target = best ? best.id : null;
@@ -97,12 +118,49 @@ export function botInput(b, g, world, dt) {
 
   const t = a.target !== null ? g.planes.find((q) => q.id === a.target && q.alive) : null;
 
-  // 5. Personne en vue : patrouille autour de l'île
+  // Domination : on descend sur la zone, et on ne quitte sa route que pour un ennemi tout proche
+  if (g.zones) {
+    const z = chooseZone(b, g, a), td = t ? Math.hypot(t.x - b.x, t.y - b.y, t.z - b.z) : Infinity;
+    if (z && td > 380) {
+      const dx = z.x - b.x, dz = z.z - b.z, d = Math.hypot(dx, dz) || 1, inside = d < z.r * 0.75;
+      // sur place, on tourne autour du centre pour rester dedans
+      const side = String(b.id).length % 2 ? 1 : -1, tx = inside ? -dz / d * side + dx / d * 0.35 : dx / d, tz = inside ? dx / d * side + dz / d * 0.35 : dz / d;
+      const ahead = Math.max(world.obstacleAt(b.x + b.fx * 150, b.z + b.fz * 150), here), want = d < 750 ? ahead + Math.min(ZONE_CEIL - 30, L.margin + 40) : Math.max(ahead + 170, 230);
+      const dir = norm(tx, Math.max(-0.45, Math.min(0.5, (want - b.y) / 160)), tz);
+      inp.ax = dir.x; inp.ay = dir.y; inp.az = dir.z; inp.boost = d > 700 && b.ab > 0.4; inp.lim = Math.max(L.pull, 0.85);
+      return inp;
+    }
+  }
+
+  // 5. Personne en vue : on part vers l'adversaire le plus proche, le ciel n'est jamais vide longtemps
   if (!t) {
+    let near = null, nd = Infinity;
+    for (const q of g.planes) {
+      if (!q.alive || q.id === b.id) continue;
+      // l'escorte reste près du transport ; les autres cherchent l'adversaire le plus proche
+      const friend = b.team && b.team === q.team;
+      if (friend && q.type !== 'cargo') continue;
+      const d = Math.hypot(q.x - b.x, q.y - b.y, q.z - b.z);
+      if (friend) { near = q; nd = d; break; }
+      if (d < nd) { nd = d; near = q; }
+    }
     a.wayT -= dt;
-    if (!a.way || a.wayT <= 0) { const an = Math.random() * 6.283, r = 200 + Math.random() * 500; a.way = { x: CENTER + Math.cos(an) * r, y: 200 + Math.random() * 180, z: CENTER + Math.sin(an) * r }; a.wayT = 8; }
+    if (!a.way || a.wayT <= 0) {
+      const an = Math.random() * 6.283, r = near ? (near.type === 'cargo' && near.team === b.team ? 140 : 60) + Math.random() * 120 : 200 + Math.random() * 500;
+      a.way = near ? { x: near.x + Math.cos(an) * r, y: Math.max(here + 160, Math.min(380, near.y + 20)), z: near.z + Math.sin(an) * r } : { x: CENTER + Math.cos(an) * r, y: 200 + Math.random() * 180, z: CENTER + Math.sin(an) * r };
+      a.wayT = near ? 2.5 : 8;
+    }
     const dir = norm(a.way.x - b.x, (a.way.y - b.y) * 0.8, a.way.z - b.z);
-    inp.ax = dir.x; inp.ay = dir.y; inp.az = dir.z;
+    inp.ax = dir.x; inp.ay = dir.y; inp.az = dir.z; inp.boost = nd > 900 && b.ab > 0.4;
+    return inp;
+  }
+
+  // Deux avions qui tournent l'un derrière l'autre sans jamais s'aligner ne se touchent pas : au bout d'un moment,
+  // l'un casse le cercle et file tout droit pour reprendre de la vitesse. C'est là que l'autre peut le tirer.
+  if (a.ext > 0) {
+    a.ext -= dt;
+    const dir = norm(a.xx, alt < 170 ? 0.18 : b.y > 420 ? -0.12 : 0, a.xz);
+    inp.ax = dir.x; inp.ay = dir.y; inp.az = dir.z; inp.boost = b.speed < 170 && b.ab > 0.3;
     return inp;
   }
 
@@ -112,12 +170,14 @@ export function botInput(b, g, world, dt) {
   let dir = norm(l.x - b.x, l.y - b.y, l.z - b.z);
   dir = norm(dir.x + Math.sin(time * L.wobble * 1.3) * e, dir.y + Math.sin(time * L.wobble * 1.9 + 1) * e, dir.z + Math.cos(time * L.wobble * 1.7 + 2) * e);
   // à basse altitude, on ne plonge pas sur une cible
-  if (alt < 130 && dir.y < 0) dir = norm(dir.x, 0.02, dir.z);
+  if (alt < (g.zones ? L.margin + 35 : 130) && dir.y < 0) dir = norm(dir.x, 0.02, dir.z);
   // le combat reste au-dessus de l'île : on ne suit pas une cible jusqu'au plafond
   if (b.y > 380 && (l.dist > 450 || dir.x * b.fx + dir.y * b.fy + dir.z * b.fz < 0.97)) dir = norm(dir.x, dir.y - Math.min(0.8, (b.y - 380) / 320), dir.z);
   inp.ax = dir.x; inp.ay = dir.y; inp.az = dir.z;
 
   const align = dir.x * b.fx + dir.y * b.fy + dir.z * b.fz;
+  a.stuck = align < 0.9 ? a.stuck + dt : Math.max(0, a.stuck - dt * 2);
+  if (a.stuck > L.patience) { const n = Math.hypot(b.fx, b.fz) || 1; a.stuck = 0; a.ext = L.extend * (0.8 + Math.random() * 0.4); a.xx = b.fx / n; a.xz = b.fz / n; a.target = null; a.t = a.ext; return inp; }
   // 7. Gaz
   inp.boost = l.dist > 520 && b.ab > 0.25;
   inp.brake = l.dist < 130 && align > 0.5;

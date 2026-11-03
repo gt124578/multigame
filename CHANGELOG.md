@@ -1,6 +1,6 @@
 # Journal des versions — Arcadia
 
-## 3.78 — 3 novembre 2026
+## 3.81 — 3 novembre 2026
 - **Odyssée** — Le frigo de la maison cache une petite annonce : un très grand terrain à acheter juste derrière chez toi. On y entre par la porte du jardin, au fond de la chambre.
   - Avec l'architecte, bâtis ton propre coin : chemins, pavés, fleurs, hautes herbes (avec des Pokémon sauvages), bassins, ponts, arbres, clôtures, lampadaires, bancs, fontaine, statues…
   - Construis des maisons, ton Centre de soins, ta boutique, et invite des habitants à s'installer.
@@ -14,6 +14,29 @@
 - **Odyssée** — Maj fait toujours courir, même avec la course continue.
 - **Odyssée** — Dans les arènes, un dresseur battu retourne à sa place : il ne bouche plus le couloir.
 - **Odyssée** — Si un combat se passe mal au lancement, on revient à la carte au lieu de rester devant un écran noir.
+## 3.80 — 3 novembre 2026
+- **Arcadia** — Les menus se pilotent à la manette (Xbox, PlayStation, Switch…), dans le Hub comme dans tous les jeux.
+  - La croix ou le stick gauche passe d'un bouton à l'autre, A valide, B revient en arrière, et gauche / droite règle les volumes.
+  - Ça marche sur l'accueil, dans le salon, sur l'écran de chargement (« C'est parti ! ») et dans les écrans de préparation des jeux (« Lancer la manche »…).
+  - Le bouton Vue / Share / Select ouvre et ferme le menu Arcadia : son, plein écran, retour au salon.
+  - En pleine partie, la manette reste au jeu : les menus ne réagissent que quand ils sont affichés.
+
+## 3.79 — 3 novembre 2026
+- **Arcadia** — À plusieurs, le bouton « C'est parti ! » de l'écran de chargement attend que tous les joueurs du salon aient fini de charger le jeu : plus de départ en décalé.
+  - En attendant, l'écran montre combien de joueurs sont prêts (« En attente… 2/4 ») et chez qui ça charge encore.
+  - Au bout d'une minute, on peut partir quand même, pour ne pas rester bloqué par un joueur dont le jeu ne charge pas.
+
+## 3.78 — 3 novembre 2026
+- **Dogfight 3D** — trois nouveaux modes, des combats bien plus vivants et des récompenses
+  - **Domination** : deux équipes se disputent trois zones au-dessus des villages de l'île. Pour capturer, il faut voler bas, sous le plafond de la zone : on s'expose. Chaque zone tenue rapporte un point par seconde, chaque élimination aussi.
+  - **Duel** : un contre un, face à face. Le gagnant reste en piste, le perdant passe derrière ceux qui attendent et regarde la manche. Après 90 secondes, le moins abîmé l'emporte. Le premier à l'objectif est le roi du ciel.
+  - **Escorte** : un gros transport fait le tour de l'île. Une équipe le protège jusqu'à la fin du temps, l'autre doit l'abattre avant.
+  - Les bots tirent enfin vraiment : ils cassent les poursuites sans fin et s'évitent mieux. Les parties comptent près de deux fois plus d'éliminations, et le niveau Facile n'est plus inoffensif.
+  - Le canon frappe plus fort et touche un peu plus facilement, et un avion touché reste pilotable plus longtemps.
+  - Nouvelles annonces en vol : premier sang, doublé, triplé, série, revanche sur celui qui t'a abattu, aide quand tu as bien touché la cible d'un autre.
+  - En fin de partie, des titres pour chacun : Inarrêtable, Œil de lynx, As du missile, Ailier en or, Increvable, Maître des lieux, Chasseur de gros, Garde du corps.
+  - La flamme de la postcombustion monte et retombe en douceur, l'éclair et les traçantes partent de la vraie bouche du canon, et le dessous des nuages paraît moins plat.
+  - En qualité Auto, après une partie bien fluide, le jeu essaie les nuages volumétriques au décollage suivant, et revient en arrière si l'image rame.
 
 ## 3.77 — 3 novembre 2026
 - **Odyssée** — En combat, les attaques n'affichent plus les dégâts prévus en % : à toi de juger, comme dans les jeux.

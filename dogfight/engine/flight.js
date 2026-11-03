@@ -4,10 +4,11 @@
 // Repère de l'avion : +Z le nez, +Y le dos, +X l'aile gauche du pilote.
 
 export const TYPES = {
-  f16: { name: 'F-16', full: 'F-16 Fighting Falcon', cruise: 125, boost: 208, pitch: 1.75, roll: 3.5, yaw: 0.55, hp: 100, gun: 3.4, missiles: 4, flares: 6, sig: 1, blurb: 'Agile et nerveux : le meilleur roulis et le canon qui frappe le plus fort.' },
-  f22: { name: 'F-22', full: 'F-22 Raptor', cruise: 130, boost: 228, pitch: 1.5, roll: 2.7, yaw: 0.45, hp: 125, gun: 3, missiles: 4, flares: 6, sig: 0.6, blurb: 'Plus rapide et plus solide, moins vif, et plus long à accrocher pour les missiles.' },
+  f16: { name: 'F-16', full: 'F-16 Fighting Falcon', cruise: 125, boost: 208, pitch: 1.75, roll: 3.5, yaw: 0.55, hp: 100, gun: 4.6, missiles: 4, flares: 6, sig: 1, blurb: 'Agile et nerveux : le meilleur roulis et le canon qui frappe le plus fort.' },
+  f22: { name: 'F-22', full: 'F-22 Raptor', cruise: 130, boost: 228, pitch: 1.5, roll: 2.7, yaw: 0.45, hp: 125, gun: 4.2, missiles: 4, flares: 6, sig: 0.6, blurb: 'Plus rapide et plus solide, moins vif, et plus long à accrocher pour les missiles.' },
+  cargo: { name: 'Transport', full: 'Avion de transport', cruise: 96, boost: 96, pitch: 0.5, roll: 0.8, yaw: 0.2, hp: 600, gun: 0, missiles: 0, flares: 0, sig: 1.6, blurb: '' },
 };
-export const TYPE_IDS = Object.keys(TYPES);
+export const TYPE_IDS = ['f16', 'f22'];   // ceux qu'on choisit au hangar
 
 export const CENTER = 800;      // centre de l'île
 export const ZONE_WARN = 1900;  // au-delà : alerte « retour dans la zone »

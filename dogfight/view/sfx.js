@@ -106,6 +106,11 @@ export class DogfightAudio {
   win() { if (!this.unlocked) return; [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.unlocked && this.tone(this.fx, 'triangle', f, f, 0.22, 0.28), i * 130)); }
   lose() { if (!this.unlocked) return; [392, 330, 262].forEach((f, i) => setTimeout(() => this.unlocked && this.tone(this.fx, 'triangle', f, f, 0.3, 0.25), i * 180)); }
 
+  // Une récompense : deux notes qui montent
+  reward() { if (!this.unlocked) return; [880, 1320].forEach((f, i) => setTimeout(() => this.unlocked && this.tone(this.fx, 'triangle', f, f, 0.14, 0.2), i * 80)); }
+  zoneWon() { if (!this.unlocked) return; [587, 784, 988].forEach((f, i) => setTimeout(() => this.unlocked && this.tone(this.fx, 'sine', f, f, 0.2, 0.24), i * 90)); }
+  zoneLost() { if (!this.unlocked) return; [494, 370].forEach((f, i) => setTimeout(() => this.unlocked && this.tone(this.fx, 'sine', f, f, 0.26, 0.24), i * 130)); }
+
   // Alarmes en bips réguliers
   alarms(dt, { ground, missile, lock, locked }) {
     if (!this.unlocked) return;

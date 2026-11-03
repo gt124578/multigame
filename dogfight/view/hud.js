@@ -3,8 +3,10 @@
 import * as THREE from '../../shared/vendor/three/three.module.min.js';
 import { computeLead, BULLET_SPEED, BULLET_GRAVITY } from '../engine/weapons.js';
 import { ZONE_WARN, CENTER, TYPES } from '../engine/flight.js';
+import { ZONE_CEIL, isTeamMode } from '../engine/modes.js';
 
-const GREEN = '#3dff5c', RED = '#ff5a4d', BLUE = '#6f9dff', WHITE = 'rgba(255,255,255,.92)';
+const GREEN = '#3dff5c', RED = '#ff5a4d', BLUE = '#6f9dff', GOLD = '#ffc53d', WHITE = 'rgba(255,255,255,.92)';
+const SIDE = ['rgba(235,238,242,.9)', '#4f8dff', '#ff5a4d'];
 const CAUSE = { mer: 'a fini à la mer', sol: 's\'est écrasé', collision: 'collision', force: 'forcé au crash' };
 const v = new THREE.Vector3();
 
@@ -13,7 +15,7 @@ const project = (x, y, z, camera, W, H) => { v.set(x, y, z).project(camera); ret
 export class CockpitHUD {
   constructor(canvas, radarSource) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d');
-    this.feed = []; this.hitT = 0; this.hurtT = 0; this.toastText = ''; this.toastT = 0; this.bigText = ''; this.bigT = 0; this.veil = 0;
+    this.feed = []; this.hitT = 0; this.hurtT = 0; this.toastText = ''; this.toastT = 0; this.bigText = ''; this.bigT = 0; this.veil = 0; this.awardText = ''; this.awardT = 0;
     this.mini = document.createElement('canvas'); this.mini.width = this.mini.height = 320;
     this.mini.getContext('2d').drawImage(radarSource, 0, 0, 320, 320);
     this.W = 0; this.H = 0;
@@ -30,6 +32,8 @@ export class CockpitHUD {
   hurt() { this.hurtT = 0.45; }
   toast(t, d = 2.4) { this.toastText = t; this.toastT = d; }
   big(t, d = 1.6) { this.bigText = t; this.bigT = d; }
+  // Une récompense s'affiche sous la grande annonce ; plusieurs au même instant s'enchaînent sur la ligne
+  award(t, d = 2.6) { this.awardText = this.awardT > 0.5 && this.awardText !== t ? `${this.awardText}  ·  ${t}` : t; this.awardT = d; }
   addFeed(text, mine) { this.feed.unshift({ text, t: 5, mine }); if (this.feed.length > 5) this.feed.pop(); }
   clear() { this.ctx.clearRect(0, 0, this.W, this.H); }
 
@@ -41,7 +45,7 @@ export class CockpitHUD {
     const c = this.ctx, W = this.W, H = this.H;
     c.clearRect(0, 0, W, H);
     c.lineJoin = 'round';
-    this.hitT = Math.max(0, this.hitT - dt); this.hurtT = Math.max(0, this.hurtT - dt); this.toastT = Math.max(0, this.toastT - dt); this.bigT = Math.max(0, this.bigT - dt);
+    this.hitT = Math.max(0, this.hitT - dt); this.hurtT = Math.max(0, this.hurtT - dt); this.toastT = Math.max(0, this.toastT - dt); this.bigT = Math.max(0, this.bigT - dt); this.awardT = Math.max(0, this.awardT - dt);
     for (let i = this.feed.length - 1; i >= 0; i--) { this.feed[i].t -= dt; if (this.feed[i].t <= 0) this.feed.splice(i, 1); }
 
     // voile dans les nuages
@@ -57,14 +61,16 @@ export class CockpitHUD {
     this.drawScores(view, me);
     if (me) {
       this.drawTags(view, me, camera, opts);
+      if (view.zones) this.drawZoneMarks(view, me, camera);
       if (me.alive) {
         this.drawReticles(view, me, camera, aim);
         this.drawOffscreen(view, me, camera);
         this.drawTelemetry(me);
         this.drawGauges(me);
-        this.drawAlerts(view, me, opts);
+        if (view.ph !== 'over') this.drawAlerts(view, me, opts);
+        if (view.zones) this.drawZoneHint(view, me, opts);
       }
-      this.drawRadar(view, me, camera);
+      if (!me.out) this.drawRadar(view, me, camera);
     }
     this.drawFeed();
     this.drawCenterMessages(view, me);
@@ -85,13 +91,14 @@ export class CockpitHUD {
     list.sort((a, b) => a.d - b.d);
     const boxes = [];
     for (const { p, d, s } of list) {
-      const col = this.isEnemy(me, p) ? RED : BLUE, full = d < 2200;
+      const big = p.type === 'cargo', col = big ? GOLD : this.isEnemy(me, p) ? RED : BLUE, full = d < 2200;
       let top = s.y - (full ? 30 : 18);
       // on écarte les étiquettes qui se chevauchent
       for (let k = 0; k < 4; k++) { const hit = boxes.find((b) => Math.abs(b.x - s.x) < 78 && Math.abs(b.y - top) < 38); if (hit) top = hit.y - 38; else break; }
       boxes.push({ x: s.x, y: top });
       this.text(p.name, s.x, top, col, '700 12px system-ui,sans-serif', 'center');
-      if (full) this.text((TYPES[p.type] || TYPES.f16).name, s.x, top + 13, col, '600 11px system-ui,sans-serif', 'center');
+      if (big) this.text(`${Math.round(p.health / p.maxHp * 100)} %`, s.x, top + 13, col, '600 11px system-ui,sans-serif', 'center');
+      else if (full) this.text((TYPES[p.type] || TYPES.f16).name, s.x, top + 13, col, '600 11px system-ui,sans-serif', 'center');
       this.text((d / 1000).toFixed(2) + ' km', s.x, s.y + 19, col, '600 11px system-ui,sans-serif', 'center');
       this.ctx.strokeStyle = col; this.ctx.lineWidth = 1.2; this.ctx.beginPath(); this.ctx.moveTo(s.x - 5, s.y + 6); this.ctx.lineTo(s.x, s.y + 2); this.ctx.lineTo(s.x + 5, s.y + 6); this.ctx.stroke();
     }
@@ -149,19 +156,20 @@ export class CockpitHUD {
     const c = this.ctx, W = this.W, H = this.H, cx = W / 2, cy = H / 2;
     const list = [];
     for (const p of view.planes) {
-      if (!p.alive || !this.isEnemy(me, p)) continue;
+      if (!p.alive || (p.type !== 'cargo' && !this.isEnemy(me, p))) continue;
       const s = project(p.x, p.y, p.z, camera, W, H);
       if (s.front && s.x > 0 && s.x < W && s.y > 0 && s.y < H) continue;
-      list.push({ p, s, d: Math.hypot(p.x - me.x, p.y - me.y, p.z - me.z) });
+      list.push({ p, s, d: p.type === 'cargo' ? 0 : Math.hypot(p.x - me.x, p.y - me.y, p.z - me.z) });
     }
-    list.sort((a, b) => a.d - b.d);
-    for (const { s, d } of list.slice(0, 3)) {
+    list.sort((a, b) => a.d - b.d);   // le transport d'abord : c'est l'objectif de tout le monde
+    for (const { s, p } of list.slice(0, 3)) {
+      const col = p.type === 'cargo' ? GOLD : RED, d = Math.hypot(p.x - me.x, p.y - me.y, p.z - me.z);
       let dx = s.x - cx, dy = s.y - cy;
       if (!s.front) { dx = -dx; dy = -dy; }
       const a = Math.atan2(dy, dx), R = Math.min(W, H) * 0.38, x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R;
-      c.save(); c.translate(x, y); c.rotate(a); c.fillStyle = RED; c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 1.5;
+      c.save(); c.translate(x, y); c.rotate(a); c.fillStyle = col; c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 1.5;
       c.beginPath(); c.moveTo(11, 0); c.lineTo(-6, 7); c.lineTo(-3, 0); c.lineTo(-6, -7); c.closePath(); c.stroke(); c.fill(); c.restore();
-      this.text((d / 1000).toFixed(1) + ' km', x, y + 22, RED, '600 10px system-ui,sans-serif', 'center');
+      this.text((d / 1000).toFixed(1) + ' km', x, y + 22, col, '600 10px system-ui,sans-serif', 'center');
     }
   }
 
@@ -216,12 +224,26 @@ export class CockpitHUD {
     c.translate(mx, my); c.rotate(yaw + Math.PI); c.scale(1 * R / range, -1 * R / range * -1);
     c.translate(-me.x, -me.z);
     c.globalAlpha = 0.92; c.drawImage(this.mini, 0, 0, 1600, 1600); c.globalAlpha = 1;
+    if (view.zones) for (const z of view.zones) {
+      c.strokeStyle = SIDE[z.own]; c.lineWidth = 20; c.fillStyle = z.own === 1 ? 'rgba(79,141,255,.28)' : z.own === 2 ? 'rgba(255,90,77,.28)' : 'rgba(235,238,242,.16)';
+      c.beginPath(); c.arc(z.x, z.z, z.r, 0, 6.283); c.fill(); c.stroke();
+    }
     for (const p of view.planes) {
       if (!p.alive || p.id === me.id) continue;
-      c.fillStyle = this.isEnemy(me, p) ? RED : BLUE; c.strokeStyle = '#10151c'; c.lineWidth = 8;
-      c.beginPath(); c.arc(p.x, p.z, 36, 0, 6.283); c.stroke(); c.fill();
+      const big = p.type === 'cargo';
+      c.fillStyle = big ? GOLD : this.isEnemy(me, p) ? RED : BLUE; c.strokeStyle = '#10151c'; c.lineWidth = 8;
+      c.beginPath(); c.arc(p.x, p.z, big ? 58 : 36, 0, 6.283); c.stroke(); c.fill();
     }
     c.restore();
+    if (view.zones) {
+      // la lettre reste à plat : on la place à la main, et au bord du radar si la zone est loin
+      const a = yaw + Math.PI, k = R / range;
+      for (const z of view.zones) {
+        const dx = z.x - me.x, dz = z.z - me.z; let x = (dx * Math.cos(a) - dz * Math.sin(a)) * k, y = (dx * Math.sin(a) + dz * Math.cos(a)) * k;
+        const n = Math.hypot(x, y); if (n > R - 9) { x *= (R - 9) / n; y *= (R - 9) / n; }
+        this.text(z.id, mx + x, my + y + 4, '#fff', '800 11px system-ui,sans-serif', 'center');
+      }
+    }
     c.strokeStyle = 'rgba(255,255,255,.78)'; c.lineWidth = 1.5; c.beginPath(); c.arc(mx, my, R, 0, 6.283); c.stroke();
     c.fillStyle = '#fff'; c.strokeStyle = 'rgba(0,0,0,.6)'; c.lineWidth = 1; c.beginPath(); c.moveTo(mx, my - 7); c.lineTo(mx + 5, my + 5); c.lineTo(mx, my + 2.5); c.lineTo(mx - 5, my + 5); c.closePath(); c.stroke(); c.fill();
     for (const [t, a] of [['N', Math.PI], ['E', Math.PI / 2], ['S', 0], ['O', -Math.PI / 2]]) {
@@ -230,23 +252,65 @@ export class CockpitHUD {
     }
   }
 
+  // Domination : où sont les zones, à qui, et à combien
+  drawZoneMarks(view, me, camera) {
+    for (const z of view.zones) {
+      const s = project(z.x, z.y + ZONE_CEIL, z.z, camera, this.W, this.H);
+      if (!s.front || s.x < 0 || s.x > this.W || s.y < 0 || s.y > this.H) continue;
+      this.text(z.id, s.x, s.y, SIDE[z.own], '800 18px system-ui,sans-serif', 'center');
+      this.text(`${(Math.hypot(z.x - me.x, z.z - me.z) / 1000).toFixed(1)} km`, s.x, s.y + 14, SIDE[z.own], '600 11px system-ui,sans-serif', 'center');
+    }
+  }
+
+  drawZoneBadges(view, me) {
+    const c = this.ctx, size = 26, gap = 8, n = view.zones.length, y = 66;
+    let x = this.W / 2 - (n * size + (n - 1) * gap) / 2;
+    for (const z of view.zones) {
+      const f = Math.min(1, Math.abs(z.cap)), side = z.cap >= 0 ? 1 : 2, here = me && me.alive && Math.hypot(z.x - me.x, z.z - me.z) < z.r;
+      c.fillStyle = 'rgba(10,14,22,.62)'; c.fillRect(x, y, size, size);
+      c.fillStyle = SIDE[side]; c.globalAlpha = z.own ? 0.9 : 0.55; c.fillRect(x, y + size * (1 - f), size, size * f); c.globalAlpha = 1;
+      c.strokeStyle = here ? '#fff' : SIDE[z.own]; c.lineWidth = here ? 2 : 1.2; c.strokeRect(x, y, size, size);
+      this.text(z.id, x + size / 2, y + 18, '#fff', '800 13px system-ui,sans-serif', 'center');
+      x += size + gap;
+    }
+  }
+
+  drawZoneHint(view, me, opts) {
+    const z = opts.zone; if (!z) return;
+    const y = this.H * 0.2;
+    if (opts.zoneHigh > 0) this.text(`Descends pour capturer ${z.id} : encore ${Math.ceil(opts.zoneHigh)} m`, this.W / 2, y, '#ffb04d', '700 14px system-ui,sans-serif', 'center');
+    else if (z.own !== me.team) this.text(`Capture de ${z.id} (${z.name})`, this.W / 2, y, GREEN, '700 14px system-ui,sans-serif', 'center');
+    else this.text(`Tu gardes ${z.id} (${z.name})`, this.W / 2, y, 'rgba(255,255,255,.8)', '600 13px system-ui,sans-serif', 'center');
+  }
+
   drawScores(view, me) {
     const c = this.ctx, W = this.W, bw = Math.min(250, W * 0.3), x = W / 2 - bw / 2;
     const mm = Math.floor(view.left / 60), ss = Math.floor(view.left % 60).toString().padStart(2, '0'), target = view.target;
     c.fillStyle = 'rgba(10,14,22,.62)'; c.fillRect(x - 2, 12, bw + 4, 12);
-    if (view.mode === 'equipes') {
-      const a = view.tk[1] || 0, b = view.tk[2] || 0;
+    const cargo = view.mode === 'escorte' ? view.planes.find((p) => p.type === 'cargo') : null;
+    if (cargo) {
+      const f = cargo.alive && cargo.maxHp ? cargo.health / cargo.maxHp : 0;
+      c.fillStyle = f < 0.3 ? RED : GOLD; c.fillRect(x, 14, bw * Math.max(0, f), 8);
+      this.text(`Transport ${Math.ceil(f * 100)} %`, W / 2, 40, '#fff', '700 13px system-ui,sans-serif', 'center');
+      if (me && view.ph === 'play') this.text(me.team === 1 ? 'Protège-le jusqu\'à la fin du temps' : 'Abats-le avant la fin du temps', W / 2, 74, 'rgba(255,255,255,.8)', '600 12px system-ui,sans-serif', 'center');
+    } else if (isTeamMode(view.mode)) {
+      const a = Math.round(view.tk[1] || 0), b = Math.round(view.tk[2] || 0);
       c.fillStyle = '#3f6fe0'; c.fillRect(x, 14, bw / 2 * Math.min(1, a / target), 8);
       c.fillStyle = '#dd3b30'; c.fillRect(x + bw - bw / 2 * Math.min(1, b / target), 14, bw / 2 * Math.min(1, b / target), 8);
       c.fillStyle = 'rgba(255,255,255,.7)'; c.fillRect(W / 2 - 0.5, 12, 1, 12);
       this.text(`${a} — ${b}`, W / 2, 40, '#fff', '700 13px system-ui,sans-serif', 'center');
     } else {
-      const lead = [...view.planes].sort((p, q) => q.kills - p.kills)[0], mine = me ? me.kills : 0;
+      const lead = view.planes.filter((p) => p.type !== 'cargo').sort((p, q) => q.kills - p.kills)[0], mine = me ? me.kills : 0;
       c.fillStyle = '#3f6fe0'; c.fillRect(x, 14, bw * Math.min(1, mine / target), 8);
       c.fillStyle = 'rgba(221,59,48,.8)'; if (lead && lead.kills > mine) c.fillRect(x + bw * Math.min(1, mine / target), 14, bw * Math.min(1, (lead.kills - mine) / target), 8);
       this.text(`${mine} / ${target}${lead && me && lead.id !== me.id && lead.kills ? `  ·  ${lead.name} ${lead.kills}` : ''}`, W / 2, 40, '#fff', '700 13px system-ui,sans-serif', 'center');
     }
     if (view.ph === 'play' || view.ph === 'countdown') this.text(`${mm}:${ss}`, W / 2, 56, 'rgba(255,255,255,.85)', '600 12px ui-monospace,Menlo,monospace', 'center');
+    if (view.zones) this.drawZoneBadges(view, me);
+    if (view.duel && (view.ph === 'play' || view.ph === 'countdown')) {
+      const name = (id) => { const p = view.planes.find((q) => q.id === id); return !p ? '?' : me && p.id === me.id ? 'Toi' : p.name; };
+      this.text(`Manche ${view.duel.round} : ${name(view.duel.a)} contre ${name(view.duel.b)}${view.duel.pause > 0 ? '' : ` · ${Math.max(0, Math.ceil(view.duel.t))} s`}`, W / 2, 74, 'rgba(255,255,255,.85)', '600 12px system-ui,sans-serif', 'center');
+    }
   }
 
   drawFeed() {
@@ -266,8 +330,13 @@ export class CockpitHUD {
       this.text('Prêts au combat', W / 2, H * 0.42 + 34, '#fff', '700 16px system-ui,sans-serif', 'center');
     }
     if (this.bigT > 0) { this.ctx.globalAlpha = Math.min(1, this.bigT * 2); this.text(this.bigText, W / 2, H * 0.36, '#ffd24d', '800 24px system-ui,sans-serif', 'center'); this.ctx.globalAlpha = 1; }
+    if (this.awardT > 0) { this.ctx.globalAlpha = Math.min(1, this.awardT * 2); this.text(this.awardText, W / 2, H * 0.36 + 26, '#fff', '700 15px system-ui,sans-serif', 'center'); this.ctx.globalAlpha = 1; }
     if (this.toastT > 0) { this.ctx.globalAlpha = Math.min(1, this.toastT * 2); this.text(this.toastText, W / 2, H * 0.72, '#fff', '700 15px system-ui,sans-serif', 'center'); this.ctx.globalAlpha = 1; }
-    if (me && !me.alive && view.ph === 'play') {
+    if (me && !me.alive && view.ph === 'play' && view.duel) {
+      const left = view.duel.q.indexOf(me.id);
+      this.text(me.out ? 'Tu regardes le duel' : 'Manche perdue', W / 2, H * 0.14, '#fff', '800 20px system-ui,sans-serif', 'center');
+      if (me.out) this.text(left === 0 ? 'Le gagnant t\'affronte à la prochaine manche' : `Encore ${left + 1} manches avant ton tour`, W / 2, H * 0.14 + 22, 'rgba(255,255,255,.85)', '600 13px system-ui,sans-serif', 'center');
+    } else if (me && !me.alive && view.ph === 'play') {
       const c = this.ctx; c.fillStyle = 'rgba(20,6,6,.28)'; c.fillRect(0, 0, W, H);
       const by = me.killedBy ? `Abattu par ${me.killedBy}` : (CAUSE[me.deathCause] ? `Tu ${me.deathCause === 'mer' ? 'as fini à la mer' : me.deathCause === 'collision' ? 'es entré en collision' : 't\'es écrasé'}` : 'Avion détruit');
       this.text(by, W / 2, H * 0.38, '#fff', '800 28px system-ui,sans-serif', 'center');
@@ -276,7 +345,7 @@ export class CockpitHUD {
   }
 
   drawScoreboard(view) {
-    const c = this.ctx, rows = [...view.planes].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths), w = Math.min(420, this.W - 32), h = 56 + rows.length * 26, x = this.W / 2 - w / 2, y = Math.max(70, this.H / 2 - h / 2);
+    const c = this.ctx, rows = view.planes.filter((p) => p.type !== 'cargo').sort((a, b) => b.kills - a.kills || a.deaths - b.deaths), w = Math.min(420, this.W - 32), h = 56 + rows.length * 26, x = this.W / 2 - w / 2, y = Math.max(70, this.H / 2 - h / 2);
     c.fillStyle = 'rgba(9,13,22,.8)'; c.fillRect(x, y, w, h);
     this.text('Pilote', x + 14, y + 24, 'rgba(255,255,255,.65)', '700 12px system-ui,sans-serif');
     this.text('Élim.', x + w - 86, y + 24, 'rgba(255,255,255,.65)', '700 12px system-ui,sans-serif', 'right');

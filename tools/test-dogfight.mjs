@@ -1,10 +1,11 @@
 // Tests du moteur de Dogfight 3D : node tools/test-dogfight.mjs
 import { generateMap, ILE } from '../royale/engine/map.js';
-import { createFlight, stepFlight, computeAxes, bankOf, keyRamp, keyCurve, KEY_ATTACK, TYPES, ZONE_MAX, CENTER, CEILING } from '../dogfight/engine/flight.js';
+import { createFlight, stepFlight, computeAxes, bankOf, keyRamp, keyCurve, KEY_ATTACK, TYPES, TYPE_IDS, ZONE_MAX, CENTER, CEILING } from '../dogfight/engine/flight.js';
 import { computeLead, BULLET_SPEED, BULLET_GRAVITY, FIRE_RATE, stepGun, hitZone } from '../dogfight/engine/weapons.js';
 import { createWorld } from '../dogfight/engine/world.js';
 import { createGame, startCountdown, stepGame, drainEvents, DT, snapRows, worldOf, restoreGame, replaceByBot, applyRow, ranking, addPlayer } from '../dogfight/engine/rules.js';
 import { botInput, LEVELS } from '../dogfight/engine/ai.js';
+import { ZONE_CEIL, CAPTURE_TIME, KILL_POINTS, ROUND_TIME, routeAt } from '../dogfight/engine/modes.js';
 
 let passed = 0;
 function assert(c, msg) { if (!c) { console.error(`ÉCHEC : ${msg}`); process.exit(1); } passed++; }
@@ -146,8 +147,8 @@ function play(n, lvl, sec, settings = {}) {
 }
 {
   const res = {};
-  for (const lvl of ['facile', 'normal', 'expert']) { res[lvl] = play(4, lvl, 240).stats; const s = res[lvl]; console.log(`  ${lvl} : ${s.kills} élim., ${s.crashes} crashs, ${s.shots} images de tir, ${s.hits} touches en 4 min`); assert(s.shots > 100, `${lvl} : les bots tirent`); assert(s.ceil / s.n < 0.02, `${lvl} : les bots ne restent pas au plafond`); assert(s.crashes <= 6, `${lvl} : les bots se crashent peu (${s.crashes})`); assert(s.maxD < ZONE_MAX + 200, `${lvl} : les bots restent dans la zone`); }
-  assert(res.expert.hits > res.facile.hits * 1.5, `les niveaux se distinguent (facile ${res.facile.hits} touches, expert ${res.expert.hits})`);
+  for (const lvl of ['facile', 'normal', 'expert']) { res[lvl] = play(4, lvl, 240).stats; const s = res[lvl], more = play(4, lvl, 240).stats; s.kills2 = s.kills + more.kills; console.log(`  ${lvl} : ${s.kills} élim., ${s.crashes} crashs, ${s.shots} images de tir, ${s.hits} touches en 4 min`); assert(s.shots > 100, `${lvl} : les bots tirent`); assert(s.ceil / s.n < 0.02, `${lvl} : les bots ne restent pas au plafond`); assert(s.crashes <= 6, `${lvl} : les bots se crashent peu (${s.crashes})`); assert(s.maxD < ZONE_MAX + 200, `${lvl} : les bots restent dans la zone`); }
+  assert(res.expert.kills2 > res.facile.kills2 * 1.3, `les niveaux se distinguent (facile ${res.facile.kills2} élim., expert ${res.expert.kills2} en deux parties)`);
   // contre une cible qui vole droit, sur plusieurs départs : le niveau change le temps pour l'abattre
   const duel = (lvl) => {
     let total = 0;
@@ -223,6 +224,145 @@ function play(n, lvl, sec, settings = {}) {
   for (let i = 0; i < 120; i++) { const inp = { p: i % 40 < 20 ? 1 : 0, r: i % 60 < 30 ? 1 : 0 }; stepFlight(a, inp, DT); stepFlight(b, inp, DT); }
   assert(a.x === b.x && a.qw === b.qw, 'prédiction : le vol est déterministe');
   console.log('✓ Réseau : instantané compact, reprise d\'hôte, prédiction');
+}
+
+// ---------------------------------------------------------------- modes et récompenses
+{
+  const roster = (n) => Array.from({ length: n }, (_, i) => ({ id: `b${i}`, name: `B${i}`, bot: true, lvl: 'normal', type: 'f16' }));
+  const start = (mode, n = 4, extra = {}) => { const g = createGame({ settings: { mode, kills: 8, time: 300, level: 'normal', ...extra }, players: roster(n), world }); startCountdown(g, world); g.t = 0; stepGame(g, DT, world); return g; };
+  // abat `v` : l'avion touché juste avant s'écrase, le point revient au tireur
+  const down = (g, v, by) => { v.inv = 0; if (by) { v.lastHitBy = by.id; v.lastHitT = g.clock; } else v.lastHitBy = null; v.y = -5; stepGame(g, DT, world); return drainEvents(g); };
+  const parked = (g) => { for (const p of g.planes) { p.bot = false; p.inp = { p: 0, r: 0, y: 0, boost: false, brake: false, fire: false, msl: false, flare: false, free: false, lim: 1 }; } };
+  const network = (g) => { const w = JSON.parse(JSON.stringify(worldOf(g))), r = JSON.parse(JSON.stringify(snapRows(g))); return restoreGame(w, r, world); };
+
+  // Domination
+  {
+    const g = start('domination');
+    assert(g.zones.length === 3 && new Set(g.zones.map((z) => z.name)).size === 3, 'domination : trois zones distinctes');
+    for (const a of g.zones) for (const b of g.zones) if (a !== b) assert(Math.hypot(a.x - b.x, a.z - b.z) > 2 * a.r, 'domination : les zones ne se touchent pas');
+    assert(g.settings.target === 240, 'domination : l\'objectif se compte en points');
+    assert(g.planes[0].team !== g.planes[1].team, 'domination : se joue en équipes');
+    parked(g);
+    const z = g.zones[0], a = g.planes.find((p) => p.team === 1), far = () => { for (const p of g.planes) { p.x = 3000; p.z = 3000; p.y = 400; p.speed = 130; p.inv = 9; } };
+    far(); a.x = z.x; a.z = z.z; a.y = z.y + ZONE_CEIL + 80;
+    const hold = (sec) => { for (let i = 0; i < sec * 60 && g.ph === 'play'; i++) { const x = a.x, y = a.y, zz = a.z; stepGame(g, DT, world); a.x = x; a.y = y; a.z = zz; for (const p of g.planes) if (p !== a) { p.x = 3000; p.z = 3000; p.y = 400; } } drainEvents(g); };
+    hold(2);
+    assert(z.cap === 0, 'domination : trop haut, on ne capture pas');
+    a.y = world.obstacleAt(a.x, a.z) + ZONE_CEIL - 40;
+    hold(CAPTURE_TIME - 1);
+    assert(z.own === 0 && z.cap > 0.5, 'domination : la capture prend du temps');
+    const t0 = g.tk[1];
+    hold(1.5);
+    assert(z.own === 1, 'domination : la zone change de camp');
+    hold(5);
+    assert(g.tk[1] - t0 >= 4 && g.tk[1] - t0 <= 7, `domination : une zone rapporte un point par seconde (${g.tk[1] - t0})`);
+    const before = g.tk[1], foe = g.planes.find((p) => p.team === 2);
+    a.y = world.obstacleAt(a.x, a.z) + ZONE_CEIL - 40; down(g, foe, a);
+    assert(g.tk[1] >= before + KILL_POINTS, 'domination : une élimination rapporte aussi');
+    const r = network(g);
+    assert(r.zones[0].own === 1 && r.zones[0].y === z.y, 'domination : un nouvel hôte reprend les zones');
+    g.tk[1] = g.settings.target - 1; hold(1.2);
+    assert(g.ph === 'over' && g.winTeam === 1, 'domination : l\'objectif atteint termine la partie');
+  }
+
+  // Duel
+  {
+    const g = start('duel');
+    const [a, b, c, d] = g.planes;
+    assert(g.duel.a === a.id && g.duel.b === b.id && g.duel.q.length === 2, 'duel : deux en piste, les autres attendent');
+    assert(a.alive && b.alive && !c.alive && c.out && !d.alive, 'duel : les autres ne volent pas');
+    assert(Math.hypot(a.x - b.x, a.z - b.z) > 1000, 'duel : on part de loin, face à face');
+    let ev = down(g, b, a);
+    assert(a.kills === 1 && ev.some((e) => e.e === 'roundEnd' && e.by === a.id), 'duel : la manche va au tireur');
+    for (let i = 0; i < 2 * 60; i++) stepGame(g, DT, world);
+    assert(!c.alive && !b.alive, 'duel : personne ne réapparaît avant la fin de la pause');
+    ev = [];
+    for (let i = 0; i < 2 * 60; i++) { stepGame(g, DT, world); ev.push(...drainEvents(g)); }
+    assert(ev.some((e) => e.e === 'round' && e.n === 2), 'duel : la manche suivante démarre');
+    assert(g.duel.a === a.id && g.duel.b === c.id && g.duel.q[g.duel.q.length - 1] === b.id, 'duel : le gagnant reste, le perdant passe derrière');
+    assert(a.alive && c.alive && !b.alive && b.out, 'duel : les bons pilotes sont en piste');
+    assert(a.health === a.maxHp, 'duel : le gagnant repart réparé');
+    a.inv = 0; a.y = -5; stepGame(g, DT, world); drainEvents(g);
+    assert(c.kills === 1, 'duel : s\'écraser donne la manche à l\'autre');
+    const r = network(g);
+    assert(r.duel && r.duel.a === g.duel.a && r.planes.find((p) => p.id === b.id).out, 'duel : un nouvel hôte reprend les manches');
+    const h = start('duel', 2, { kills: 1 });
+    down(h, h.planes[1], h.planes[0]);
+    assert(h.ph === 'over' && h.winner === h.planes[0].id, 'duel : l\'objectif atteint désigne le gagnant');
+    const tm = start('duel', 3);
+    parked(tm);
+    tm.planes[0].health = 40; tm.duel.t = 0.01;
+    const before = [tm.planes[0].deaths, tm.planes[1].kills];
+    stepGame(tm, DT, world); stepGame(tm, DT, world);
+    const evT = drainEvents(tm);
+    assert(tm.planes[1].kills === before[1] + 1 && !tm.planes[0].alive && tm.planes[0].deaths === before[0], 'duel : au temps, le moins abîmé gagne la manche');
+    assert(evT.some((e) => e.e === 'roundEnd' && e.time) && tm.duel.pause > 0, 'duel : la fin au temps ouvre la pause');
+    for (let i = 0; i < 4 * 60; i++) stepGame(tm, DT, world);
+    assert(tm.duel.round === 2 && tm.duel.t > ROUND_TIME - 2, 'duel : la manche suivante repart avec tout son temps');
+    const late = start('duel', 2);
+    addPlayer(late, { id: 'new', name: 'New', type: 'f16' }, world);
+    assert(late.duel.q.includes('new') && !late.planes.find((p) => p.id === 'new').alive, 'duel : qui arrive en route attend son tour');
+  }
+
+  // Escorte
+  {
+    assert(!TYPE_IDS.includes('cargo'), 'escorte : le transport ne se choisit pas au hangar');
+    for (let u = 0; u < 6.3; u += 0.02) { const q = routeAt(u); assert(q.y > world.obstacleAt(q.x, q.z) + 100, 'escorte : la route passe au-dessus du relief'); }
+    const g = start('escorte');
+    const c = g.planes.find((p) => p.type === 'cargo');
+    assert(c && c.team === 1 && c.health === c.maxHp && c.maxHp > 1000, 'escorte : le transport vole avec les défenseurs');
+    assert(!ranking(g).includes(c), 'escorte : le transport n\'est pas au classement');
+    assert(g.planes.filter((p) => p.team === 1 && p !== c).length === 2 && g.planes.filter((p) => p.team === 2).length === 2, 'escorte : deux équipes égales');
+    parked(g);
+    // seul, il suit sa route sans jamais s'écraser ni sortir de la zone
+    for (const p of g.planes) if (p !== c) { p.alive = false; p.respawn = 1e6; }
+    let low = 1e9, high = 0, wide = 0, tilt = 1, px = c.x, pz = c.z, fast = 0;
+    for (let i = 0; i < 280 * 60 && g.ph === 'play'; i++) {
+      stepGame(g, DT, world);
+      low = Math.min(low, c.y - world.obstacleAt(c.x, c.z)); high = Math.max(high, c.y); wide = Math.max(wide, Math.hypot(c.x - CENTER, c.z - CENTER)); tilt = Math.min(tilt, c.uy);
+      fast = Math.max(fast, Math.hypot(c.x - px, c.z - pz) / DT); px = c.x; pz = c.z;
+    }
+    drainEvents(g);
+    assert(c.alive && low > 100 && high < 400, `escorte : le transport tient sa route (entre ${low.toFixed(0)} m du sol et ${high.toFixed(0)} m d'altitude)`);
+    assert(tilt > 0.6, `escorte : il vire sans se mettre sur la tranche (${tilt.toFixed(2)})`);
+    assert(fast < 110, `escorte : sa vitesse reste régulière (${fast.toFixed(0)} m/s)`);
+    assert(wide < ZONE_MAX, 'escorte : le transport reste dans la zone de vol');
+    for (let i = 0; i < 30 * 60 && g.ph === 'play'; i++) stepGame(g, DT, world);
+    assert(g.ph === 'over' && g.winTeam === 1, 'escorte : s\'il survit au temps, les défenseurs gagnent');
+    const k = start('escorte'), kc = k.planes.find((p) => p.type === 'cargo'), foe = k.planes.find((p) => p.team === 2);
+    kc.health = 1; k.bullets.push({ x: kc.x, y: kc.y, z: kc.z + 1, vx: 0, vy: 0, vz: -50, by: foe.id, dmg: 5, age: 0 });
+    for (let i = 0; i < 12 && k.ph === 'play'; i++) stepGame(k, DT, world);
+    assert(k.ph === 'over' && k.winTeam === 2, 'escorte : s\'il tombe, les attaquants gagnent');
+    const n = start('escorte'), r = network(n);
+    assert(r.cargo && r.planes.find((p) => p.type === 'cargo').hitR > 5, 'escorte : un nouvel hôte reprend le transport');
+    for (let i = 0; i < 60; i++) stepGame(r, DT, world);
+    assert(r.ph === 'play', 'escorte : la partie continue après la reprise');
+  }
+
+  // Récompenses
+  {
+    const g = start('chacun');
+    const [a, b, c] = g.planes;
+    b.dmgBy[c.id] = { d: 30, t: g.clock };
+    let ev = down(g, b, a);
+    assert(ev.some((e) => e.e === 'first' && e.by === a.id), 'récompenses : premier sang');
+    assert(c.helps === 1 && ev.some((e) => e.e === 'help' && e.by === c.id), 'récompenses : qui a bien touché avant compte une aide');
+    assert(a.helps === 0, 'récompenses : le tireur ne s\'aide pas lui-même');
+    assert(b.nemesis === a.id, 'récompenses : on retient qui nous a abattu');
+    const d = g.planes[3];
+    d.inv = 0; ev = down(g, d, a);
+    assert(a.streak === 2 && ev.some((e) => e.e === 'streak' && e.n === 2), 'récompenses : doublé');
+    assert(!ev.some((e) => e.e === 'first'), 'récompenses : un seul premier sang');
+    a.inv = 0; b.alive = true; b.inv = 0; b.y = 400; b.lastHitBy = null;
+    ev = down(g, a, b);
+    assert(a.streak === 0 && a.best === 2, 'récompenses : mourir coupe la série, le record reste');
+    assert(ev.some((e) => e.e === 'revenge' && e.by === b.id), 'récompenses : la revanche');
+    c.dmgBy[d.id] = { d: 5, t: g.clock }; c.dmgBy[a.id] = { d: 50, t: g.clock - 20 };
+    const h = c.helps + d.helps + a.helps; c.inv = 0; down(g, c, b);
+    assert(c.helps + d.helps + a.helps === h, 'récompenses : pas d\'aide pour une égratignure ni un tir trop ancien');
+    assert(worldOf(g).pl[1].st.length === 6, 'récompenses : les statistiques voyagent sur le réseau');
+  }
+  console.log('✓ Modes : Domination, Duel, Escorte, récompenses');
 }
 
 console.log(`\nTOUS LES TESTS SONT VALIDES (${passed} vérifications)`);

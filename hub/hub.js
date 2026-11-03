@@ -1,7 +1,7 @@
 /* Hub : profil, salon commun et lancement des jeux dans une iframe.
    Le salon (DDRoom) vit ici pendant toute la session : changer de jeu ne coupe pas la connexion. */
 (function () {
-  const VERSION = '3.78';
+  const VERSION = '3.81';
   const $ = (s) => document.querySelector(s);
   const ORIGIN = location.origin === 'null' ? '*' : location.origin;
   const GAMES = window.HUB_GAMES;
@@ -382,7 +382,7 @@
     $('#chatLog').innerHTML = '';
     room = DDRoom.create({
       joined() { busy(false); $('#btnHost').textContent = 'Créer un salon'; $('#btnJoin').textContent = 'Rejoindre'; showScreen(frame ? 'play' : 'room'); renderRoom(); },
-      update() { renderRoom(); syncFrame(); postRoster(); },
+      update() { renderRoom(); syncFrame(); postRoster(); if (window.HubInGame) window.HubInGame.refresh(); },
       chat(c) { appendChat(c); },
       game(from, m) { if (frame && frame.loaded) frame.el.contentWindow.postMessage({ dd: 'hub', k: 'msg', from, m }, ORIGIN); },
       error(msg) { if ($('#home').classList.contains('on')) goHome(msg); else toast(msg, 4000); },
@@ -659,7 +659,10 @@ const watchdog = setTimeout(() => {
     }, 15000);
     frame = { game: g.id, n: g.n, el, loaded: false, role, watchdog };
     // écran de chargement commun (avec « Démarrer ») et menu Arcadia à droite : plein écran, son, quitter
-    if (window.HubInGame) window.HubInGame.open(def, { players: room.players.length, exit: leaveGame, vol: () => el.contentWindow.DDVolume, focus: () => { try { el.contentWindow.focus(); } catch (e) {} } });
+    // « C'est parti ! » seulement quand tous les joueurs du salon ont chargé le jeu (pas de départ désynchronisé)
+    const loading = () => { if (!room || !frame) return null; const ps = room.players; const ok = ps.filter((p) => room.ready[p.id] === frame.game);
+      return { done: ok.length, total: ps.length, waiting: ps.filter((p) => room.ready[p.id] !== frame.game).map((p) => DDRoom.cleanName(p.name)) }; };
+    if (window.HubInGame) window.HubInGame.open(def, { players: room.players.length, loading, exit: leaveGame, vol: () => el.contentWindow.DDVolume, focus: () => { try { el.contentWindow.focus(); } catch (e) {} } });
     el.addEventListener('load', () => { try { el.contentWindow.focus(); } catch (e) {} });
     showScreen('play');
     renderRoom(); pubState();

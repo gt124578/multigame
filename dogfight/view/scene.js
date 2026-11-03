@@ -4,6 +4,7 @@ import { buildGround } from './ground.js';
 import { buildSky, buildClouds, buildVolumetric, noiseTexture, HAZE, FOG_DENSITY, SUN } from './sky.js';
 import { buildPlane, loadPlanes, makeEnvironment } from './plane.js';
 import { FxManager } from './fx.js';
+import { ZONE_CEIL } from '../engine/modes.js';
 
 const QUALITY = {
   bas: { pr: 1, clouds: 0.33, trees: 0.5, vol: false },
@@ -12,6 +13,8 @@ const QUALITY = {
 };
 const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3(), basis = new THREE.Matrix4();
 const worldUp = new THREE.Vector3(0, 1, 0);
+const ZONE_COLORS = [[0.92, 0.93, 0.95], [0.31, 0.55, 1], [1, 0.35, 0.3]];
+const ZONE_DEPTH = 60;   // la colonne s'enfonce sous le sol : le relief n'est pas plat sous une zone
 
 export class DogfightScene {
   constructor(container, world) {
@@ -46,6 +49,7 @@ export class DogfightScene {
     this.shake = 0; this.orbit = 0;
     this.preview = null; this.previewType = null;
     this.quality = 'moyen'; this.prCap = 1.5;
+    this.zones = new Map();
 
     this.onResize = () => this.resize();
     window.addEventListener('resize', this.onResize);
@@ -83,7 +87,26 @@ export class DogfightScene {
     return null;
   }
 
-  syncPlanes(list) {
+  // Domination : une colonne translucide par zone, dont le haut marque le plafond de capture, à la couleur de son camp
+  syncZones(zones) {
+    if (!zones) { if (this.zones.size) { for (const m of this.zones.values()) { this.scene.remove(m); m.geometry.dispose(); m.material.dispose(); } this.zones.clear(); } return; }
+    for (const z of zones) {
+      let m = this.zones.get(z.id);
+      if (!m) {
+        const h = ZONE_CEIL + ZONE_DEPTH;
+        m = new THREE.Mesh(new THREE.CylinderGeometry(z.r, z.r, h, 72, 1, true), new THREE.ShaderMaterial({
+          transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: { uC: { value: new THREE.Vector3() }, uA: { value: 1 } },
+          vertexShader: 'varying float vH; void main(){ vH=uv.y; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+          fragmentShader: 'varying float vH; uniform vec3 uC; uniform float uA; void main(){ float a=.03+.2*vH*vH+smoothstep(.975,.995,vH)*.75; gl_FragColor=vec4(uC,a*uA); }',
+        }));
+        m.position.set(z.x, z.y - ZONE_DEPTH + h / 2, z.z); m.renderOrder = 4; this.scene.add(m); this.zones.set(z.id, m);
+      }
+      const c = ZONE_COLORS[z.own] || ZONE_COLORS[0];
+      m.material.uniforms.uC.value.set(c[0], c[1], c[2]);
+    }
+  }
+
+  syncPlanes(list, dt = 0.016) {
     const ids = new Set(list.map((p) => p.id));
     for (const [id, m] of this.planes) if (!ids.has(id)) { this.scene.remove(m.root); m.dispose(); this.planes.delete(id); }
     for (const p of list) {
@@ -97,7 +120,7 @@ export class DogfightScene {
       if (!p.alive) continue;
       m.root.position.set(p.x, p.y, p.z);
       m.root.quaternion.set(p.qx, p.qy, p.qz, p.qw);
-      m.setBoost(p.boosting);
+      m.setBoost(p.boosting, dt);
     }
   }
   firing(p, dt) { const m = this.planes.get(p.id); if (m) m.setFiring(p.firing, dt); }

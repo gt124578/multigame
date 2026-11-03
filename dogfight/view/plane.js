@@ -9,8 +9,11 @@ const FILES = {
   f16: { url: 'f-16.glb', len: 15.09, fins: [[0, 2.47, -6.9]], tip: [4.66, -0.66, -2.4], nozzles: [[0, -0.7, -6.85, 0.34, 0.34]] },
   f22: { url: 'f-22.glb', len: 18.99, fins: [[2.93, 1.93, -5.55], [-2.93, 1.93, -5.55]], tip: [6.7, -1.18, -3.7], nozzles: [[0.65, -1.1, -6.85, 0.42, 0.14], [-0.65, -1.1, -6.85, 0.42, 0.14]] },
 };
+// La bouche du canon, relevée sur les modèles : à gauche du fuselage sur le F-16, à droite sur le F-22
+export const GUNS = { f16: [0.52, 0.1, 3], f22: [-0.58, -0.2, 4], cargo: [0, 0, 0] };
 const FAR_LOD = 480;   // au-delà : modèle simple
 const templates = {};
+let skyEnv = null;
 
 // Les deux modèles viennent de Sketchfab : axe du nez sur +X, envergure sur Z. Une rotation de -90° autour de Y met le nez sur +Z.
 function prepare(gltf, def, env) {
@@ -30,6 +33,7 @@ function prepare(gltf, def, env) {
 }
 
 export function loadPlanes(env, onProgress) {
+  skyEnv = env;
   const loader = new GLTFLoader();
   return Promise.all(Object.entries(FILES).map(([type, def]) => new Promise((resolve) => {
     loader.load(def.url, (gltf) => { templates[type] = prepare(gltf, def, env); if (onProgress) onProgress(type); resolve(); }, undefined, (err) => { console.warn(`Modèle ${def.url} indisponible, modèle simple utilisé :`, err); resolve(); });
@@ -69,12 +73,35 @@ const glowMat = new THREE.ShaderMaterial({
   transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, vertexShader: 'varying vec2 vU; void main(){ vU=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
   fragmentShader: 'varying vec2 vU; void main(){ float r=length(vU-.5)*2.; gl_FragColor=vec4(mix(vec3(1.,.92,.78),vec3(1.,.42,.2),r),smoothstep(1.,.35,r)*.95); }',
 });
-const flashGeo = new THREE.SphereGeometry(0.28, 6, 6);
+const flashGeo = new THREE.SphereGeometry(0.2, 6, 6);
 const flashMat = new THREE.MeshBasicMaterial({ color: 0xffea70, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
 const finGeo = new THREE.BoxGeometry(0.1, 0.2, 1);
 const tipGeo = new THREE.BoxGeometry(0.13, 0.08, 1.15);
 
+// Le transport d'Escorte : quatre moteurs à hélices, une aile haute, une grosse dérive. Nez sur +Z, comme les chasseurs
+let cargoParts = null;
+function cargoGeometry() {
+  if (cargoParts) return cargoParts;
+  const cyl = (r0, r1, len) => { const g = new THREE.CylinderGeometry(r0, r1, len, 12); g.rotateX(Math.PI / 2); return g; };
+  cargoParts = {
+    body: cyl(2.7, 2.7, 22), nose: cyl(0.9, 2.7, 5).translate(0, -0.25, 13.5), tail: cyl(2.7, 0.7, 9).translate(0, 0.9, -15.5),
+    wing: new THREE.BoxGeometry(42, 0.55, 6).translate(0, 2.7, 2), fin: new THREE.BoxGeometry(0.5, 8.5, 5.5).translate(0, 6, -17.5), stab: new THREE.BoxGeometry(15, 0.4, 3.6).translate(0, 1.4, -18),
+    pod: cyl(0.75, 0.95, 4.4), disc: new THREE.CircleGeometry(1.9, 18), glass: new THREE.BoxGeometry(2.8, 0.8, 1.7).translate(0, 1.2, 12.6),
+  };
+  return cargoParts;
+}
+function buildCargo(color) {
+  const G = cargoGeometry(), root = new THREE.Group();
+  const hull = new THREE.MeshStandardMaterial({ color: 0xc2c9cf, roughness: 0.6, metalness: 0.1, envMap: skyEnv, envMapIntensity: 0.75 }), band = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.55, emissive: new THREE.Color(color), emissiveIntensity: 0.3 });
+  const blade = new THREE.MeshBasicMaterial({ color: 0x20252b, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }), dark = new THREE.MeshStandardMaterial({ color: 0x17222e, roughness: 0.2, metalness: 0.5, envMap: skyEnv });
+  const add = (g, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); root.add(o); return o; };
+  add(G.body, hull); add(G.nose, hull); add(G.tail, hull); add(G.wing, hull); add(G.fin, band); add(G.stab, hull); add(G.glass, dark);
+  for (const x of [-14, -7, 7, 14]) { add(G.pod, hull, x, 2.2, 3.8); add(G.disc, blade, x, 2.2, 6.1); }
+  return { root, type: 'cargo', setBoost() {}, setFiring() {}, dispose() { hull.dispose(); band.dispose(); blade.dispose(); dark.dispose(); } };
+}
+
 export function buildPlane(type, color) {
+  if (type === 'cargo') return buildCargo(color);
   const def = FILES[type] || FILES.f16, tpl = templates[type] || templates.f16;
   const root = new THREE.Group(), lod = new THREE.LOD();
   root.add(lod);
@@ -95,12 +122,16 @@ export function buildPlane(type, color) {
     root.add(flame);
     return flame;
   });
-  const flash = new THREE.Mesh(flashGeo, flashMat); flash.position.set(-0.46, 0.1, 3.6); flash.visible = false; root.add(flash);
+  const flash = new THREE.Mesh(flashGeo, flashMat); flash.position.fromArray(GUNS[type] || GUNS.f16); flash.visible = false; root.add(flash);
 
-  let flashT = 0;
+  let flashT = 0, burn = 0;
   return {
     root, type,
-    setBoost(on) { for (const f of flames) { f.visible = on; if (on) f.scale.z = 0.85 + Math.random() * 0.3; } },
+    // la postcombustion s'allume en un quart de seconde et s'éteint un peu plus vite
+    setBoost(on, dt) {
+      burn += ((on ? 1 : 0) - burn) * Math.min(1, dt * (on ? 9 : 13));
+      for (const f of flames) { f.visible = burn > 0.03; f.scale.z = burn * (0.85 + Math.random() * 0.3); }
+    },
     setFiring(on, dt) { if (on) flashT = 0.03; else if (flashT > 0) flashT -= dt; flash.visible = flashT > 0; },
     dispose() { accent.dispose(); },
   };

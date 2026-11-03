@@ -12,6 +12,11 @@
      HubBridge.exit()                   retour au salon
      HubBridge.patchNet(Net)            remplace un objet Net façon Duo Drift par le canal du Hub */
 (function () {
+  // navigation des menus à la manette (même dossier que ce fichier)
+  try {
+    const me = document.currentScript && document.currentScript.src;
+    if (me && !window.ArcadiaPad) { const sc = document.createElement('script'); sc.src = me.replace(/bridge\.js(\?.*)?$/, 'padnav.js$1'); sc.async = true; (document.head || document.documentElement).appendChild(sc); }
+  } catch (e) {}
   const qs = new URLSearchParams(location.search);
   const embedded = qs.get('hub') === '1' && window.parent !== window;
   const target = location.origin === 'null' ? '*' : location.origin;

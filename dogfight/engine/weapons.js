@@ -6,7 +6,7 @@ import { TYPES } from './flight.js';
 export const BULLET_SPEED = 780;     // m/s, en plus de la vitesse du tireur
 export const BULLET_LIFETIME = 1.6;
 export const FIRE_RATE = 25;         // tirs par seconde
-export const HIT_RADIUS = 4;
+export const HIT_RADIUS = 5;
 export const BULLET_GRAVITY = 4.9;
 
 export const HEAT_PER_SHOT = 0.035;
@@ -67,6 +67,7 @@ export function stepGun(p, fire, dt, bullets, events) {
     p.fireAcc -= 1;
     p.firing = true;
     p.heat += HEAT_PER_SHOT;
+    p.shots = (p.shots || 0) + 1;
     if (p.heat >= 1) { p.heat = 1; p.over = true; p.overT = OVERHEAT_LOCK; events.push({ e: 'hot', id: p.id }); p.fireAcc = 0; }
     const sx = (Math.random() - 0.5) * 0.008, sy = (Math.random() - 0.5) * 0.008;
     const dx = p.fx + p.lx * sx + p.ux * sy, dy = p.fy + p.ly * sx + p.uy * sy, dz = p.fz + p.lz * sx + p.uz * sy;
@@ -87,7 +88,7 @@ export function stepBullets(bullets, planes, world, dt, onHit, events) {
     let hit = null, at = null;
     for (const t of planes) {
       if (!t.alive || t.id === b.by || t.inv > 0 || (b.team && b.team === t.team)) continue;
-      at = inSeg(b.x, b.y, b.z, nx, ny, nz, t.x, t.y, t.z, HIT_RADIUS);
+      at = inSeg(b.x, b.y, b.z, nx, ny, nz, t.x, t.y, t.z, t.hitR || HIT_RADIUS);
       if (at) { hit = t; break; }
     }
     if (hit) { bullets.splice(i, 1); onHit(hit, hitZone(hit, at.x, at.y, at.z), b, at); continue; }

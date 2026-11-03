@@ -355,14 +355,21 @@
 
   <!-- 4. BOÎTE DE DIALOGUE PIXEL-ART -->
   <div class="preview-section">
-    <div class="preview-title">4. BOÎTE DE DIALOGUE — OBSIDIENNE PIXEL-ART (SANS ARRONDIS LISSES VECTORIELS NI FLOU)</div>
-    <div class="preview-box" style="height: 250px; background: url('img/battle/bg_grass.png') center/cover; padding-top: 30px; box-sizing: border-box;">
-      <div class="dlg has-face" style="display: block; position: relative; bottom: auto; left: auto; right: auto; margin: 20px auto 0;">
+    <div class="preview-title">4. BOÎTE DE DIALOGUE — 5G RETRO PIXEL-ART AVEC PORTRAIT D'INTERLOCUTEUR (SANS COUPURE DU NOM)</div>
+    <div class="preview-box" style="min-height: 340px; background: url('img/battle/bg_grass.png') center/cover; padding: 25px 20px; box-sizing: border-box;">
+      <div class="dlg has-face" style="display: block; position: relative; bottom: auto; left: auto; right: auto; margin: 20px auto 35px;">
         <span class="dlg-name">Prof. Saule</span>
         <img class="dlg-face" src="img/portraits/saule.png" alt="">
         <div class="dlg-txt">Bienvenue dans l'archipel d'Odyssée, jeune dresseur !
 Chaque recoin de ces îles abrite des créatures légendaires prêtes à se joindre à ton équipe.
 Prends ces Poké Balls et pars à l'aventure !</div>
+        <div class="dlg-arrow">▼</div>
+      </div>
+      <div class="dlg has-face" style="display: block; position: relative; bottom: auto; left: auto; right: auto; margin: 20px auto 0;">
+        <span class="dlg-name">Gamin Léo</span>
+        <img class="dlg-face" src="img/portraits/gamin-l.png" alt="">
+        <div class="dlg-txt">Tu es vraiment fort !
+Nos regards se sont croisés et mes créatures ont tout donné, mais ton équipe est impressionnante !</div>
         <div class="dlg-arrow">▼</div>
       </div>
     </div>
@@ -672,6 +679,102 @@ Prends ces Poké Balls et pars à l'aventure !</div>
           </button>
           <button type="button" class="hud-btn">
             <img src="img/hud/quest.png" alt=""><span>QUÊTES</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. COMBAT B2W2 — MASQUAGE CONDITIONNEL DES TYPES ET DE L'EFFICACITÉ -->
+  <div class="preview-section">
+    <div class="preview-title">8. COMBAT 5G — MASQUAGE CONDITIONNEL DU TYPE ET DE L'EFFICACITÉ (VU &lt; 3 FOIS &amp; NON CAPTURÉ)</div>
+    <div class="preview-box" style="height: 380px; background: url('img/battle/bg_grass.png') center/cover; display: flex; flex-direction: column; justify-content: space-between; padding: 16px;">
+      <!-- HUD adverse inconnu -->
+      <div style="position: relative; height: 100px;">
+        <div class="bhud foe" style="position: absolute; left: 20px; top: 10px; visibility: visible;">
+          <div class="bh-head">
+            <div class="bh-balls"><span class="bh-wild-tag">SAUVAGE</span></div>
+            <div class="bh-types">
+              <span class="bh-type unknown" title="Type inconnu (vu 1/3 - capturez-le pour révéler)">???</span>
+            </div>
+          </div>
+          <div class="bh-top"><span class="bh-name">Créature Inconnue</span><span class="bh-lv">N.12</span></div>
+          <div class="bh-mid"><span class="bh-st" style="display:none"></span><div class="bh-hp"><b>PV</b><i><u style="width:100%; background:#20d860"></u></i></div></div>
+          <div class="bh-caught"></div>
+        </div>
+      </div>
+
+      <!-- Menu des attaques avec indicateurs ??? masqués -->
+      <div class="bcmd on moves" style="position: relative; right: auto; bottom: auto; width: 100%; height: 130px; display: block;">
+        <div class="mv-layout">
+          <div class="mv-grid">
+            <div class="mbtn sel" style="--tc:#a8a878">
+              <div class="mbtn-top">
+                <span class="mn">Charge</span>
+                <div class="mbtn-top-right">
+                  <span class="bm-eff eff-unk" title="Efficacité inconnue (vu 1/3)">???</span>
+                  <img class="mcat" src="img/battle/cat_physical.png" alt="physical">
+                </div>
+              </div>
+              <div class="mbtn-bot">
+                <div class="mbtn-bot-left">
+                  <span class="mt">NORMAL</span>
+                  <span class="mpw">Puis. 50</span>
+                </div>
+                <span class="mpp">PP 35/35</span>
+              </div>
+            </div>
+            <div class="mbtn" style="--tc:#a8a878">
+              <div class="mbtn-top">
+                <span class="mn">Armure</span>
+                <div class="mbtn-top-right">
+                  <img class="mcat" src="img/battle/cat_status.png" alt="status">
+                </div>
+              </div>
+              <div class="mbtn-bot">
+                <div class="mbtn-bot-left">
+                  <span class="mt">NORMAL</span>
+                  <span class="mpw">Statut</span>
+                </div>
+                <span class="mpp">PP 30/30</span>
+              </div>
+            </div>
+            <div class="mbtn" style="--tc:#b8a038">
+              <div class="mbtn-top">
+                <span class="mn">Jet-Pierres</span>
+                <div class="mbtn-top-right">
+                  <span class="bm-eff eff-unk" title="Efficacité inconnue (vu 1/3)">???</span>
+                  <img class="mcat" src="img/battle/cat_physical.png" alt="physical">
+                </div>
+              </div>
+              <div class="mbtn-bot">
+                <div class="mbtn-bot-left">
+                  <span class="mt">ROCHE</span>
+                  <span class="mpw">Puis. 50</span>
+                </div>
+                <span class="mpp">PP 15/15</span>
+              </div>
+            </div>
+            <div class="mbtn" style="--tc:#c03028">
+              <div class="mbtn-top">
+                <span class="mn">Force Poigne</span>
+                <div class="mbtn-top-right">
+                  <span class="bm-eff eff-unk" title="Efficacité inconnue (vu 1/3)">???</span>
+                  <img class="mcat" src="img/battle/cat_physical.png" alt="physical">
+                </div>
+              </div>
+              <div class="mbtn-bot">
+                <div class="mbtn-bot-left">
+                  <span class="mt">COMBAT</span>
+                  <span class="mpw">Puis. 55</span>
+                </div>
+                <span class="mpp">PP 30/30</span>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="mv-back-btn" title="Retour (Échap / B)">
+            <span class="mv-back-ico">✕</span>
+            <span class="mv-back-lbl">RETOUR</span>
           </button>
         </div>
       </div>

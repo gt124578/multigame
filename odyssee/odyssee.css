@@ -18,10 +18,32 @@ img { image-rendering: pixelated; }
   left: calc(var(--px) * 8);
   right: calc(var(--px) * 8);
   bottom: calc(var(--px) * 6);
-  min-height: calc(var(--px) * 44);
+  min-height: calc(var(--px) * 48);
   max-width: calc(var(--px) * 470);
   margin: 0 auto;
-  padding: calc(var(--px) * 7) calc(var(--px) * 14);
+  padding: calc(var(--px) * 8) calc(var(--px) * 14);
+  color: #f6faff;
+  font-size: calc(var(--px) * 10);
+  text-shadow: calc(var(--px) * 1) calc(var(--px) * 1) 0 #000;
+  line-height: 1.35;
+  box-sizing: border-box;
+}
+
+/* Le fond et le biseau sont sur ::before pour que .dlg-name (top: -12px) et .dlg-face ne soient JAMAIS coupés par le clip-path */
+.dlg:not(.btext) {
+  overflow: visible !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+}
+.dlg:not(.btext)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background:
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 calc(var(--px) * 1), transparent calc(var(--px) * 1) calc(var(--px) * 2)),
     linear-gradient(180deg, #182436 0%, #101824 60%, #080e16 100%) !important;
@@ -41,15 +63,13 @@ img { image-rendering: pixelated; }
     inset calc(var(--px) * 1) calc(var(--px) * 1) 0 #4a709c,
     inset calc(var(--px) * -1) calc(var(--px) * -1) 0 #050a10,
     calc(var(--px) * 3) calc(var(--px) * 3) 0 #000 !important;
-  color: #f6faff;
-  font-size: calc(var(--px) * 10);
-  text-shadow: calc(var(--px) * 1) calc(var(--px) * 1) 0 #000;
-  line-height: 1.35;
 }
+
 .dlg-name {
   position: absolute;
-  top: calc(var(--px) * -11);
-  left: calc(var(--px) * 14);
+  top: calc(var(--px) * -12);
+  left: calc(var(--px) * 12);
+  z-index: 5;
   background:
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.04) 0 calc(var(--px) * 0.8), transparent calc(var(--px) * 0.8) calc(var(--px) * 2)),
     linear-gradient(180deg, #223854 0%, #142234 100%);
@@ -57,7 +77,7 @@ img { image-rendering: pixelated; }
   font-weight: 800;
   font-size: calc(var(--px) * 8);
   letter-spacing: 0.04em;
-  padding: calc(var(--px) * 1.2) calc(var(--px) * 7);
+  padding: calc(var(--px) * 1.5) calc(var(--px) * 8);
   border: calc(var(--px) * 1.2) solid #00e0ff;
   border-radius: 0;
   clip-path: polygon(
@@ -72,11 +92,20 @@ img { image-rendering: pixelated; }
     inset calc(var(--px) * 0.8) calc(var(--px) * 0.8) 0 #80f0ff,
     calc(var(--px) * 2) calc(var(--px) * 2) 0 #000;
   text-shadow: calc(var(--px) * 0.8) calc(var(--px) * 0.8) 0 #000;
+  white-space: nowrap;
 }
+
+.dlg.has-face .dlg-name {
+  left: calc(var(--px) * 8);
+}
+
 .dlg-txt {
   white-space: pre-wrap;
   min-height: 2.5em;
+  position: relative;
+  z-index: 2;
 }
+
 .dlg-arrow {
   position: absolute;
   right: calc(var(--px) * 10);
@@ -85,27 +114,37 @@ img { image-rendering: pixelated; }
   font-size: calc(var(--px) * 8);
   text-shadow: var(--px) 0 0 #000, 0 var(--px) 0 #000;
   animation: dlgBob 0.6s steps(2) infinite;
+  z-index: 3;
 }
 @keyframes dlgBob { 50% { transform: translateY(calc(var(--px) * 2)); } }
+
 .dlg.has-face {
-  padding-left: calc(var(--px) * 60);
+  padding-left: calc(var(--px) * 64);
+  min-height: calc(var(--px) * 52);
 }
+
+/* Portrait pixel art de l'interlocuteur dans la boîte de dialogue (façon DS / Noir 2 Blanc 2) */
 .dlg .dlg-face {
   position: absolute;
-  left: calc(var(--px) * 6);
+  left: calc(var(--px) * 8);
   top: 50%;
   transform: translateY(-50%);
-  width: calc(var(--px) * 44);
-  height: calc(var(--px) * 44);
+  width: calc(var(--px) * 48);
+  height: calc(var(--px) * 48);
   border-radius: 0;
-  background: #0c1420;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.04) 0 calc(var(--px) * 0.8), transparent calc(var(--px) * 0.8) calc(var(--px) * 2)),
+    radial-gradient(circle at center, #1c2e46 0%, #0c1420 100%);
   border: calc(var(--px) * 1.2) solid #000;
+  outline: calc(var(--px) * 1) solid #00e0ff;
   box-shadow:
-    inset calc(var(--px) * 1) calc(var(--px) * 1) 0 #385880,
+    inset calc(var(--px) * 1) calc(var(--px) * 1) 0 rgba(255, 255, 255, 0.35),
     inset calc(var(--px) * -1) calc(var(--px) * -1) 0 #050a10,
-    calc(var(--px) * 1.5) calc(var(--px) * 1.5) 0 #000;
+    calc(var(--px) * 2) calc(var(--px) * 2) 0 #000;
   object-fit: contain;
+  object-position: center center;
   image-rendering: pixelated;
+  z-index: 4;
 }
 
 /* ---------- listes ---------- */
@@ -1624,6 +1663,15 @@ img { image-rendering: pixelated; }
   line-height: 1.3;
   text-shadow: calc(var(--bp) * 0.7) calc(var(--bp) * 0.7) 0 #080a10;
 }
+.bh-type.unknown {
+  background: #242c3c !important;
+  color: #9ab2d8 !important;
+  border-color: #080a10 !important;
+  box-shadow: inset 0 calc(var(--bp) * 0.7) 0 rgba(255, 255, 255, 0.15) !important;
+  letter-spacing: 0.12em;
+  font-weight: 800;
+  padding: 0 calc(var(--bp) * 2.5);
+}
 
 /* Ligne Nom + Sexe + Niveau 5G */
 .bh-top {
@@ -1810,15 +1858,84 @@ img { image-rendering: pixelated; }
   width: 54%;
   display: none;
   z-index: 21;
+  box-sizing: border-box;
 }
 .bcmd.on { display: block; }
-.cmd-grid, .mv-grid {
+
+/* Quand le menu des attaques est ouvert : plein bandeau tactile B2W2 */
+.bcmd.moves {
+  left: calc(var(--bp) * 3.5);
+  right: calc(var(--bp) * 3.5);
+  width: auto;
+  bottom: calc(var(--bp) * 3);
+  height: calc(var(--bp) * 45);
+}
+.battle.moves-open .btext {
+  display: none !important;
+}
+
+.mv-layout {
+  display: flex;
+  gap: calc(var(--bp) * 2);
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.cmd-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   gap: calc(var(--bp) * 2.2);
   height: 100%;
+  box-sizing: border-box;
 }
+
+.mv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: calc(var(--bp) * 1.8);
+  height: 100%;
+  flex: 1;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+/* Bouton Retour B2W2 */
+.mv-back-btn {
+  width: calc(var(--bp) * 22);
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--bp) * 1.2);
+  background:
+    repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 calc(var(--bp) * 1.2), rgba(0,0,0,0.18) calc(var(--bp) * 1.2) calc(var(--bp) * 2.4)),
+    linear-gradient(180deg, #323a4c 0%, #1a1e28 100%);
+  border: calc(var(--bp) * 1.2) solid #7084a4;
+  outline: calc(var(--bp) * 1.1) solid #080a10;
+  box-shadow:
+    inset 0 calc(var(--bp) * 1) 0 rgba(255, 255, 255, 0.35),
+    calc(var(--bp) * 1.6) calc(var(--bp) * 1.6) 0 rgba(0, 0, 0, 0.65);
+  color: #fff;
+  cursor: pointer;
+  text-shadow: calc(var(--bp) * 0.8) calc(var(--bp) * 0.8) 0 #080a10;
+  border-radius: 0;
+  flex-shrink: 0;
+  padding: 0;
+}
+.mv-back-btn:hover, .mv-back-btn.sel {
+  border-color: #ffe858 !important;
+  color: #ffe858 !important;
+  outline: calc(var(--bp) * 1.3) solid #080a10;
+  box-shadow:
+    inset 0 0 0 calc(var(--bp) * 1) #fff,
+    calc(var(--bp) * 2) calc(var(--bp) * 2) 0 #080a10;
+}
+.mv-back-ico { font-size: 1.1em; font-weight: 900; line-height: 1; }
+.mv-back-lbl { font-size: 0.62em; font-weight: 800; letter-spacing: 0.5px; }
 
 /* Boutons d'action 5G (ATTAQUE / SAC / ÉQUIPE / FUITE) */
 .cbtn {
@@ -1899,12 +2016,13 @@ img { image-rendering: pixelated; }
 /* Cartes de capacités 5G (bandeau supérieur coloré + rail inférieur carbone) */
 .mbtn {
   position: relative;
+  box-sizing: border-box;
   border-radius: 0;
   background:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--tc) 68%, #202634) 0 54%,
-      #161a24 54% 100%
+      color-mix(in srgb, var(--tc) 68%, #202634) 0 52%,
+      #161a24 52% 100%
     );
   border: calc(var(--bp) * 1.1) solid color-mix(in srgb, var(--tc) 75%, #e0e8f8);
   outline: calc(var(--bp) * 1.1) solid #080a10;
@@ -1914,11 +2032,13 @@ img { image-rendering: pixelated; }
   color: #fff;
   cursor: pointer;
   text-shadow: calc(var(--bp) * 0.8) calc(var(--bp) * 0.8) 0 #080a10;
-  padding: calc(var(--bp) * 1.4) calc(var(--bp) * 4);
+  padding: calc(var(--bp) * 1) calc(var(--bp) * 3);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  line-height: 1.1;
+  line-height: 1.05;
+  overflow: hidden;
+  height: 100%;
 }
 .mbtn.empty {
   background: #181c26;
@@ -1933,18 +2053,25 @@ img { image-rendering: pixelated; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: calc(var(--bp) * 2);
+  gap: calc(var(--bp) * 1.5);
+  min-height: 0;
 }
 .mbtn .mn {
   font-weight: 700;
-  font-size: 0.84em;
+  font-size: 0.82em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.mbtn-top-right {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--bp) * 1.5);
+  flex-shrink: 0;
+}
 .mbtn .mcat {
-  width: calc(var(--bp) * 9);
-  height: calc(var(--bp) * 5.5);
+  width: calc(var(--bp) * 8.5);
+  height: calc(var(--bp) * 5.2);
   image-rendering: pixelated;
   flex-shrink: 0;
   border: calc(var(--bp) * 0.5) solid #080a10;
@@ -1954,19 +2081,31 @@ img { image-rendering: pixelated; }
   align-items: center;
   justify-content: space-between;
   gap: calc(var(--bp) * 2);
-  font-size: 0.62em;
-  padding-top: calc(var(--bp) * 0.8);
+  font-size: 0.60em;
+  min-height: 0;
+}
+.mbtn-bot-left {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--bp) * 2);
 }
 .mbtn .mt {
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
-  padding: 0 calc(var(--bp) * 1.8);
+  padding: calc(var(--bp) * 0.15) calc(var(--bp) * 1.8);
+  line-height: 1.15;
   background: var(--tc);
+  color: #ffffff;
   border: calc(var(--bp) * 0.6) solid #080a10;
-  box-shadow: inset 0 calc(var(--bp) * 0.5) 0 rgba(255, 255, 255, 0.35);
+  box-shadow: inset 0 calc(var(--bp) * 0.4) 0 rgba(255, 255, 255, 0.35);
+  text-shadow: calc(var(--bp) * 0.5) calc(var(--bp) * 0.5) 0 #000;
+  font-size: 0.9em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
-.mbtn .mpw { color: #ced8ec; font-weight: 600; }
-.mbtn .mpp { font-weight: 700; color: #ffe058; font-variant-numeric: tabular-nums; }
+.mbtn .mpw { color: #ced8ec; font-weight: 600; font-size: 0.95em; }
+.mbtn .mpp { font-weight: 700; color: #ffe058; font-variant-numeric: tabular-nums; font-size: 0.95em; }
 .mbtn .mpp.zero { color: #ff5858; }
 /* dégâts prévus sur le Pokémon d'en face (% de ses PV max) : petite étiquette en haut à droite de la carte */
 /* (à la place de la puissance, dans le rail du bas : la puissance reste dans l'infobulle) */
@@ -2004,8 +2143,6 @@ img { image-rendering: pixelated; }
 .keypanel .hint { margin-top: calc(var(--px) * 4); text-align: center; }
 kbd { display: inline-block; font: inherit; font-size: .85em; min-width: 1.4em; text-align: center; padding: 0 calc(var(--px) * 1.5); margin: 0 1px; border-radius: calc(var(--px) * 1.5); background: #eef1f6; border: var(--px) solid #8898b0; border-bottom-width: calc(var(--px) * 2); text-shadow: none; color: var(--ink); }
 
-/* portrait de l'interlocuteur à côté de la boîte de dialogue */
-.dlg-face { position: absolute; z-index: 34; left: calc(var(--px) * 10); bottom: calc(var(--px) * 46); width: calc(var(--px) * 64); height: calc(var(--px) * 64); pointer-events: none; image-rendering: pixelated; filter: drop-shadow(var(--px) var(--px) 0 rgba(0,0,0,.35)); }
 .surf-ride { position: absolute; }
 
 /* ---------- jeu à plusieurs (autres joueurs, échanges) et code de sauvegarde ---------- */
@@ -2748,22 +2885,17 @@ kbd { display: inline-block; font: inherit; font-size: .85em; min-width: 1.4em; 
 .pastille { display: inline-block; width: calc(var(--px) * 7); height: calc(var(--px) * 7); border-radius: 50%; border: 1px solid #2228; vertical-align: middle; margin-right: calc(var(--px) * 2); }
 .appar-aide { text-align: center; color: #fff; text-shadow: var(--px) var(--px) 0 #283850; font-size: calc(var(--px) * 7); }
 /* ================= BADGES D'EFFICACITÉ DES TYPES EN COMBAT ================= */
-.mbtn-mid {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  margin: calc(var(--bp) * 0.4) 0;
-}
 .bm-eff {
-  font-size: 0.58em;
+  font-size: 0.54em;
   font-weight: 800;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.3px;
   text-transform: uppercase;
-  padding: calc(var(--bp) * 0.3) calc(var(--bp) * 1.5);
+  padding: calc(var(--bp) * 0.25) calc(var(--bp) * 1.4);
   border-radius: 0;
   border: calc(var(--bp) * 0.6) solid #080a10;
   box-shadow: inset 0 calc(var(--bp) * 0.4) 0 rgba(255, 255, 255, 0.35);
   white-space: nowrap;
+  line-height: 1;
 }
 .bm-eff.eff-super {
   background: #2cb34a;
@@ -2784,6 +2916,14 @@ kbd { display: inline-block; font: inherit; font-size: .85em; min-width: 1.4em; 
   background: #2b548b;
   color: #e0ecff;
   text-shadow: calc(var(--bp) * 0.6) calc(var(--bp) * 0.6) 0 #10203a;
+}
+.bm-eff.eff-unk {
+  background: #2b3548;
+  color: #98b0d4;
+  border-color: #080a10;
+  box-shadow: inset 0 calc(var(--bp) * 0.4) 0 rgba(255, 255, 255, 0.15);
+  text-shadow: calc(var(--bp) * 0.6) calc(var(--bp) * 0.6) 0 #0d121c;
+  letter-spacing: 0.08em;
 }
 
 /* ================= BADGE MÉTÉO EN COMBAT ================= */

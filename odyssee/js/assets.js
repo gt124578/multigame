@@ -27,7 +27,13 @@ export const ASSETS = {
   cry: (id) => (orig(id) ? 'synth:' + id : params.has('sprites') ? null : `${CRIES}/${id}.ogg`),
   // dresseur en combat : dessins HeartGold / SoulSilver (provisoires), sinon nos portraits, sinon ceux de Poké Duel
   trainer: (k) => (!DRESSEURS.has(k) && !PORTRAITS.has(k) && SOSIES[k] ? ASSETS.trainer(SOSIES[k]) : DRESSEURS.has(k) ? `${IMG}dresseurs/${k}.png` : PORTRAITS.has(k) ? `${IMG}portraits/${k}.png` : `../pokemon/assets/trainers/${k}.png`),
-  portrait: (k) => (PORTRAITS.has(k) ? `${IMG}portraits/${k}-l.png` : null),
+  portrait: (k) => {
+    if (!k) return null;
+    if (PORTRAITS.has(k)) return `${IMG}portraits/${k}-l.png`;
+    if (DRESSEURS.has(k)) return `${IMG}dresseurs/${k}.png`;
+    if (SOSIES[k] && (PORTRAITS.has(SOSIES[k]) || DRESSEURS.has(SOSIES[k]))) return ASSETS.portrait(SOSIES[k]);
+    return null;
+  },
   chars: `${IMG}chars.png`,
   suiveurs: `${IMG}suiveurs.png`,
   relief: `${IMG}relief.png`,
