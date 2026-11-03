@@ -3,11 +3,11 @@
 .labo-box {
   background: linear-gradient(180deg, #243246, #141c28); color: #fff; border: calc(var(--px) * 1.4) solid #080b10;
   box-shadow: inset 0 0 0 calc(var(--px) * 1) #5878a0; border-radius: calc(var(--px) * 4); padding: calc(var(--px) * 6);
-  width: min(92vw, calc(var(--px) * 300)); font-size: calc(var(--px) * 6.5);
+  width: min(96vw, calc(var(--px) * 380)); font-size: calc(var(--px) * 6);
 }
 .labo-title { font-weight: 700; font-size: 1.5em; color: #ffe058; margin-bottom: 0.4em; }
 .labo-title small { display: block; font-size: 0.55em; color: #a8b8d0; font-weight: 500; }
-.labo-cols { display: grid; grid-template-columns: 1.1fr 1fr; gap: calc(var(--px) * 6); }
+.labo-cols { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: calc(var(--px) * 6); }
 .labo-col { display: flex; flex-direction: column; gap: 0.35em; }
 .labo-col b { color: #8fd0ff; margin-top: 0.3em; }
 .labo-col select { font: inherit; font-size: 0.9em; background: #0e141e; color: #fff; border: 1px solid #5878a0; min-height: 18em; }
@@ -44,3 +44,24 @@
 .edit-keys { color: #8090a8; font-size: 0.85em; line-height: 1.3; }
 .edit-cursor { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 35; }
 .edit-cursor polygon { fill: rgba(255, 224, 88, 0.22); stroke: #ffe058; stroke-width: 2; }
+.labo-cherche, .labo-col input[type=number], .labo-col select[name], .labo-panneau input, .labo-panneau select { font: inherit; background: #0e141e; color: #fff; border: 1px solid #5878a0; border-radius: 0.2em; padding: 0.2em 0.4em; }
+.labo-col input[type=number] { width: 4em; }
+.labo-panneau { position: absolute; top: calc(var(--px) * 18); right: calc(var(--px) * 4); width: min(60vw, calc(var(--px) * 160)); max-height: 80%; overflow: auto; z-index: 45;
+  display: flex; flex-direction: column; gap: 0.45em; background: #141c28f2; color: #fff; border: 2px solid #080b10; box-shadow: inset 0 0 0 1px #5878a0; border-radius: 0.4em; padding: 0.7em; font-size: calc(var(--px) * 5.2); }
+.labo-panneau .labo-title { display: flex; justify-content: space-between; font-size: 1.2em; }
+.labo-panneau .labo-title button { font: inherit; color: #fff; background: #243246; border: 1px solid #5878a0; border-radius: 0.25em; cursor: pointer; }
+.labo-panneau .labo-lieu { font: inherit; background: #0e141e; color: #fff; border: 1px solid #5878a0; }
+.labo-panneau .labo-eq { justify-content: space-between; align-items: center; }
+.labo-badges { display: flex; flex-wrap: wrap; gap: 0.3em; }
+.labo-badges label { display: flex; align-items: center; gap: 0.15em; cursor: pointer; }
+.labo-badges i { width: 0.9em; height: 0.9em; border-radius: 50%; border: 1px solid #000; display: inline-block; }
+/* éditeur : vignettes cliquables (décor, habitants, objets, bâtiments) */
+.edit-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(3.6em, 1fr)); gap: 0.3em; }
+.edit-icons button { font: inherit; font-size: 0.72em; display: flex; flex-direction: column; align-items: center; gap: 0.15em; padding: 0.25em 0.1em; color: #cfe0f8; background: #1b283c; border: 1px solid #34465e; border-radius: 0.25em; cursor: pointer; overflow: hidden; }
+.edit-icons button.on { border-color: #ffe058; background: #2c3c56; color: #fff; }
+.edit-icons button:hover { border-color: #8fd0ff; }
+.edit-icons canvas, .edit-icons img { width: 2.6em; height: 2.6em; image-rendering: pixelated; object-fit: contain; }
+.edit-icons span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.edit-filtre { font: inherit; background: #0e141e; color: #fff; border: 1px solid #5878a0; border-radius: 0.2em; padding: 0.2em 0.4em; }
+.labo-scr, .labo-scr *, .labo-panneau, .labo-panneau *, .labo-bar, .labo-bar *, .edit-panel, .edit-panel * { pointer-events: auto; }
+.labo-col select[name] { min-height: 0; }

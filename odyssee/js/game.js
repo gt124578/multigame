@@ -410,7 +410,7 @@ export class Game {
     if (m.get(p.x, p.y) === T.MAT && d === 'down') {
       const w = m.warpAt(p.x, p.y);
       // arène : on n'en ressort pas avant d'avoir affronté le Champion (une défaite ramène au Centre de soins)
-      if (w && m.gymLock != null && !this.state.badges[m.gymLock] && this.state.flags['IN:' + m.id]) { this.gymLocked(); return; }
+      if (w && !this.libre && m.gymLock != null && !this.state.badges[m.gymLock] && this.state.flags['IN:' + m.id]) { this.gymLocked(); return; }
       if (w) { this.warp(w, 'exit'); return; }
     }
     const run = this.autoRun || this.input.isDown('run');   // Maj fait toujours courir, même en course continue

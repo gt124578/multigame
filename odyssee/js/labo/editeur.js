@@ -12,6 +12,8 @@ import { CHAR_ROWS } from '../render/world3d.js';
 import { buildWorld } from '../world/region.js';
 import { applyOps } from '../world/retouches.js';
 import { el, esc } from '../ui/ui.js';
+import { ITEMS, itemName } from '../core/items.js';
+import { ASSETS } from '../assets.js';
 
 const LOCAL_KEY = 'odyssee-retouches';
 // terrain proposé dans la palette (code T, nom affiché, couleur de la pastille)
@@ -130,11 +132,11 @@ export class Editeur {
       <div class="edit-tabs">${[['sol', 'Terrain'], ['decor', 'Décor'], ['pnj', 'Habitant'], ['panneau', 'Panneau'], ['objet', 'Objet'], ['batiment', 'Bâtiment'], ['gomme', 'Gomme']].map(([k, l]) => `<button type="button" data-tab="${k}" class="${t.kind === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div class="edit-body">${
   t.kind === 'sol' ? `<div class="edit-sols">${SOLS.map(([v, n, c]) => `<button type="button" data-sol="${v}" class="${t.v === v ? 'on' : ''}" title="${esc(n)}"><i style="background:${c}"></i>${esc(n)}</button>`).join('')}</div>`
-  : t.kind === 'decor' ? `<select data-f="v" size="12">${props.map((k) => `<option${k === t.v ? ' selected' : ''}>${k}</option>`).join('')}</select>`
-  : t.kind === 'pnj' ? `<label>Apparence <select data-f="v">${sprites.map((k) => `<option${k === t.v ? ' selected' : ''}>${k}</option>`).join('')}</select></label><label>Regard <select data-f="dir">${['down', 'up', 'left', 'right'].map((d) => `<option${d === t.dir ? ' selected' : ''}>${d}</option>`).join('')}</select></label><label>Ce qu'il dit (une phrase par ligne)<textarea data-f="text" rows="4">${esc(t.text || '')}</textarea></label>`
+  : t.kind === 'decor' ? `<input class="edit-filtre" placeholder="Chercher un décor…"><div class="edit-icons" data-icons="decor">${props.map((k) => `<button type="button" data-v="${k}" class="${k === t.v ? 'on' : ''}" title="${k}"><canvas data-ico="d:${k}"></canvas><span>${k}</span></button>`).join('')}</div>`
+  : t.kind === 'pnj' ? `<input class="edit-filtre" placeholder="Chercher un personnage…"><div class="edit-icons" data-icons="pnj">${sprites.map((k) => `<button type="button" data-v="${k}" class="${k === t.v ? 'on' : ''}" title="${k}"><canvas data-ico="c:${k}"></canvas><span>${k}</span></button>`).join('')}</div><label>Regard <select data-f="dir">${['down', 'up', 'left', 'right'].map((d) => `<option${d === t.dir ? ' selected' : ''}>${d}</option>`).join('')}</select></label><label>Ce qu'il dit (une phrase par ligne)<textarea data-f="text" rows="4">${esc(t.text || '')}</textarea></label>`
   : t.kind === 'panneau' ? `<label>Texte du panneau<textarea data-f="text" rows="3">${esc(t.text || 'NOUVEAU LIEU\nUne petite phrase.')}</textarea></label>`
-  : t.kind === 'objet' ? `<label>Objet <input data-f="v" value="${esc(t.v || 'potion')}"></label><label>Quantité <input data-f="qty" type="number" min="1" value="${t.qty || 1}"></label>`
-  : t.kind === 'batiment' ? `<label>Type <select data-f="v">${BATIMENTS.map(([k, n]) => `<option value="${k}"${k === t.v ? ' selected' : ''}>${n}</option>`).join('')}</select></label><label>Toit <select data-f="roof">${TOITS.map((k) => `<option${k === t.roof ? ' selected' : ''}>${k}</option>`).join('')}</select></label><label>Nom <input data-f="name" value="${esc(t.name || 'Maison')}"></label><small>Le coin en haut à gauche du bâtiment se pose sur la case visée ; on entre par la porte.</small>`
+  : t.kind === 'objet' ? `<input class="edit-filtre" placeholder="Chercher un objet…"><div class="edit-icons" data-icons="objet">${Object.keys(ITEMS).map((k) => `<button type="button" data-v="${k}" class="${k === t.v ? 'on' : ''}" title="${esc(itemName(k))}"><img loading="lazy" src="${ASSETS.item(k)}" alt=""><span>${esc(itemName(k))}</span></button>`).join('')}</div><label>Quantité <input data-f="qty" type="number" min="1" value="${t.qty || 1}"></label>`
+  : t.kind === 'batiment' ? `<div class="edit-icons" data-icons="batiment">${BATIMENTS.map(([k, n]) => `<button type="button" data-v="${k}" class="${k === t.v ? 'on' : ''}"><b style="font-size:2em">${{ house: '🏠', house2: '🏡', bighouse: '🏘️', center: '🏥', mart: '🏪' }[k] || '🏠'}</b><span>${n}</span></button>`).join('')}</div><label>Toit <select data-f="roof">${TOITS.map((k) => `<option${k === t.roof ? ' selected' : ''}>${k}</option>`).join('')}</select></label><label>Nom <input data-f="name" value="${esc(t.name || 'Maison')}"></label><small>Le coin en haut à gauche du bâtiment se pose sur la case visée ; on entre par la porte.</small>`
   : '<small>Clic : retire le décor, le panneau, l\'habitant ou l\'objet de la case (le terrain reste).</small>'}
       </div>
       <div class="edit-foot">
@@ -146,11 +148,31 @@ export class Editeur {
     P.querySelector('[data-close]').onclick = () => this.close();
     P.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { const k = b.dataset.tab; this.tool = { kind: k, v: k === 'sol' ? T.PATH : k === 'decor' ? 'lamp' : k === 'pnj' ? 'habitant' : k === 'batiment' ? 'house' : k === 'objet' ? 'potion' : null, dir: 'down', roof: 'red' }; this.drawPanel(); }));
     P.querySelectorAll('[data-sol]').forEach((b) => (b.onclick = () => { this.tool.v = +b.dataset.sol; this.drawPanel(); }));
+    // vignettes : un clic choisit l'élément (décor, habitant, objet, bâtiment)
+    P.querySelectorAll('.edit-icons [data-v]').forEach((b) => (b.onclick = () => { this.tool.v = b.dataset.v; P.querySelectorAll('.edit-icons [data-v]').forEach((q) => q.classList.toggle('on', q === b)); }));
+    const filtre = P.querySelector('.edit-filtre');
+    if (filtre) filtre.oninput = () => { const q = filtre.value.toLowerCase(); P.querySelectorAll('.edit-icons [data-v]').forEach((b) => { b.hidden = q && !b.title.toLowerCase().includes(q) && !b.dataset.v.includes(q); }); };
+    this.dessinerVignettes(P);
     P.querySelectorAll('[data-f]').forEach((i) => (i.oninput = i.onchange = () => { const f = i.dataset.f; this.tool[f] = i.type === 'number' ? +i.value : i.value; }));
     P.querySelector('[data-undo]').onclick = () => this.undo();
     P.querySelector('[data-export]').onclick = () => this.exporter();
     P.querySelector('[data-reset]').onclick = () => { if (confirm('Effacer toutes les retouches de ce navigateur ?')) { this.edits = {}; this.saveLocal(); this.rebuild(); } };
     for (const i of P.querySelectorAll('input, textarea, select')) i.addEventListener('keydown', (e) => e.stopPropagation());
+  }
+  /** dessine les vignettes du décor (atlas des sprites) et des personnages (planche, de face) */
+  dessinerVignettes(P) {
+    const v = this.game.view, S = v.S, chars = v.charsCanvas;
+    for (const cv of P.querySelectorAll('canvas[data-ico]')) {
+      const [kind, k] = cv.dataset.ico.split(/:(.*)/s); const x = cv.getContext('2d'); x.imageSmoothingEnabled = false;
+      if (kind === 'd') {
+        const r = S?.rects?.[k]; if (!r) continue;
+        const sc = Math.min(48 / r.w, 48 / r.h); cv.width = 48; cv.height = 48; x.imageSmoothingEnabled = false;
+        x.drawImage(S.canvas, r.x, r.y, r.w, r.h, (48 - r.w * sc) / 2, 48 - r.h * sc, r.w * sc, r.h * sc);
+      } else if (kind === 'c' && chars) {
+        const row = CHAR_ROWS[k]; if (row == null) continue;
+        cv.width = 64; cv.height = 64; x.drawImage(chars, 64, row * 64, 64, 64, 0, 0, 64, 64);
+      }
+    }
   }
   pipette() { const c = this.cursor; if (!c) return; this.tool = { kind: 'sol', v: this.game.mapObj.get(c.x, c.y) }; this.drawPanel(); }
 
