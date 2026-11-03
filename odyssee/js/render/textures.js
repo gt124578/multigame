@@ -342,7 +342,7 @@ function detailDecal(kind, seed) {
   else if (kind === 'brindilles') spots(1, (a, b) => { for (let i = 0; i < 5; i++) p(a + i, b - (i >> 1), i % 2 ? '#8a6a40' : '#6e5230'); p(a + 2, b + 1, '#5a4228'); });
   return up2(c);
 }
-export const RELIEF = { biomes: ['terre', 'montagne', 'mer', 'magma', 'glace', 'lune'], cols: ['s0', 's1', 's2', 's3', 'w0', 'w1', 'w2', 't0', 't1', 'r0', 'p00', 'p01', 'p02', 'p10', 'p11', 'p12', 'p20', 'p21', 'p22'] };
+export const RELIEF = { biomes: ['terre', 'montagne', 'mer', 'magma', 'glace', 'lune'], cols: ['s0', 's1', 's2', 's3', 'w0', 'w1', 'w2', 't0', 't1', 'r0', 'p00', 'p01', 'p02', 'p10', 'p11', 'p12', 'p20', 'p21', 'p22', 'f0', 'f1', 'f2', 'f3', 'n0', 'n1', 'n2', 'n3', 'l0', 'e0', 'l1', 'e1', 'l2', 'e2', 'q0', 'q1', 'q2', 'q3', 'q4', 'q5'] };
 export const HERBE_PIECES = ['a', 'b', 'c', 't', 'tl', 'tr', 'l', 'r', 'bot', 'bl', 'br', 'in_nw', 'in_ne', 'in_sw', 'in_se'];
 
 /* ---------------- atlas animé (eau, fleurs) ---------------- */

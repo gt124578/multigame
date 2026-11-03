@@ -1,5 +1,11 @@
 # Journal des versions — Arcadia
 
+## 3.87 — 3 novembre 2026
+- **Odyssée** — Grottes :
+  - Le dessus des parois varie : fissures, cailloux, creux et gravier, comme le sol des grottes.
+  - Les falaises et les bords de roche alternent plusieurs dessins pour ne plus se répéter.
+  - Dans les coins rentrants, le dessus de la roche ne dépasse plus de la falaise.
+
 ## 3.86 — 3 novembre 2026
 - **Odyssée** — Talents, Repousses et grottes :
   - Chaque Pokémon a maintenant son vrai talent (Engrais, Statik, Lévitation, Intimidation, Turbo…), visible dans son résumé, et plus d'une centaine de talents agissent vraiment en combat.

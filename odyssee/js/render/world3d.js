@@ -499,8 +499,19 @@ export class WorldView {
     const W = !rock(-1, 0), E = !rock(1, 0), N = !rock(0, -1), S = !rock(0, 1);
     const cols = W && E ? [0, 5] : W ? [0, 1] : E ? [4, 5] : [2, 3];
     const rows = N && S ? [0, 5] : N ? [0, 1] : S ? [4, 5] : [2, 3];
+    // coin rentrant tourné vers la caméra (roche à côté et en dessous, sol en diagonale en bas) : la falaise du voisin
+    // continue jusqu'au milieu de la case au lieu de laisser dépasser le dessus de la roche
+    const inner = [rock(-1, 0) && rock(0, 1) && !rock(-1, 1), rock(1, 0) && rock(0, 1) && !rock(1, 1)];
+    // une case entière de rechange (falaise, bord ou dessus décoré) pour que la roche ne se répète pas
+    const v = hash(x * 13 + 5, y * 7 + 3), pick = (k, n, p) => A[`r${k}_${b}_${Math.floor(v * n)}`] && v < p ? A[`r${k}_${b}_${Math.floor(v * n / p) % n}`] : null;
+    const open = (W ? 1 : 0) + (E ? 1 : 0) + (N ? 1 : 0) + (S ? 1 : 0);
+    if (!inner[0] && !inner[1] && open <= 1) {
+      const alt = S ? pick('f', 4, 0.8) : N ? pick('n', 4, 0.8) : W ? pick('l', 3, 0.75) : E ? pick('e', 3, 0.75) : pick('q', 6, 0.4);
+      if (alt) { flat(G, x, y, x + 1, y + 1, 0.004, alt); return; }
+    }
     for (let qy = 0; qy < 2; qy++) for (let qx = 0; qx < 2; qx++) {
-      const c = cols[qx], r = rows[qy];
+      let c = cols[qx], r = rows[qy];
+      if (inner[qx] && !S) { if (qy === 1) { r = 5; c = qx ? 3 : 2; } else if (!N) { r = 4; c = qx ? 3 : 2; } }
       const cell = A[`rp_${b}_${r >> 1}${c >> 1}`]; if (!cell) continue;
       const hu = (cell[2] - cell[0]) / 2, hv = (cell[3] - cell[1]) / 2, u0 = cell[0] + (c & 1) * hu, v0 = cell[1] + (r & 1) * hv;
       flat(G, x + qx / 2, y + qy / 2, x + (qx + 1) / 2, y + (qy + 1) / 2, 0.004, [u0, v0, u0 + hu, v0 + hv]);
