@@ -93,7 +93,7 @@ export function listerLieux(world) {
 /* ---------------- démarrage ---------------- */
 export async function startLabo({ game, world, view, ui, input, sound, setMode }) {
   let lieux = listerLieux(world);
-  let choix = { lieu: 0, equipe: 'moyenne', perso: 'm', badges: BADGES.length, histoire: 'normale', libre: true, domaine: true };
+  let choix = { lieu: 0, equipe: 'moyenne', perso: 'm', badges: BADGES.length, histoire: 'normale', libre: true, domaine: true, dresseurs: false };
   try { Object.assign(choix, JSON.parse(localStorage.getItem(CHOIX_KEY) || '{}')); } catch (e) { /* premier passage */ }
   if (!EQUIPES.some((e) => e.id === choix.equipe)) choix.equipe = 'moyenne';
   // la partie de test n'est jamais sauvegardée
@@ -118,6 +118,7 @@ export async function startLabo({ game, world, view, ui, input, sound, setMode }
           <label class="labo-eq"><span>Histoire</span><select name="histoire">${HISTOIRES.map((h) => `<option value="${h.id}"${h.id === choix.histoire ? ' selected' : ''}>${esc(h.nom)}</option>`).join('')}</select></label>
           <label class="labo-eq"><input type="checkbox" name="libre"${choix.libre ? ' checked' : ''}><span>Mode libre<small>gardes et arènes ouverts, pas de plafond de niveau</small></span></label>
           <label class="labo-eq"><input type="checkbox" name="domaine"${choix.domaine ? ' checked' : ''}><span>Domaine acheté<small>le terrain à bâtir derrière la maison</small></span></label>
+          <label class="labo-eq"><input type="checkbox" name="dresseurs"${choix.dresseurs ? ' checked' : ''}><span>Combats de dresseurs<small>décoché : les dresseurs ne t'arrêtent plus</small></span></label>
           <small>Toujours : toutes les CS, vélo, permis bateau, sac plein, 9 999 999 ₽, Pokédex et journal.</small></div>
       </div>
       <div class="labo-go"><button type="button" class="labo-btn" data-go>▶ APPARAÎTRE ICI</button></div>
@@ -133,7 +134,7 @@ export async function startLabo({ game, world, view, ui, input, sound, setMode }
       choix.perso = s.querySelector('input[name=pp]:checked')?.value || 'm';
       choix.badges = Math.max(0, Math.min(BADGES.length, +s.querySelector('[name=badges]').value || 0));
       choix.histoire = s.querySelector('[name=histoire]').value;
-      choix.libre = s.querySelector('[name=libre]').checked; choix.domaine = s.querySelector('[name=domaine]').checked;
+      choix.libre = s.querySelector('[name=libre]').checked; choix.domaine = s.querySelector('[name=domaine]').checked; choix.dresseurs = s.querySelector('[name=dresseurs]').checked;
       garde(); pop(); s.remove(); resolve();
     };
     s.querySelector('[data-go]').addEventListener('click', go);
@@ -149,6 +150,7 @@ export async function startLabo({ game, world, view, ui, input, sound, setMode }
     const lieu = lieux[choix.lieu] || lieux[0];
     const st = partieTest(game, eq, choix.perso, lieu, { ...choix, domaine: choix.domaine || lieu.domaine });
     modeLibre(game, choix.libre);
+    game.noTrainers = !choix.dresseurs;
     setMode('game');
     await game.start(st);
     bar = barre();
@@ -226,6 +228,7 @@ export async function startLabo({ game, world, view, ui, input, sound, setMode }
       ['✏️ Éditeur (B)', () => editeur.toggle()],
       ['🕑 ' + hours[0][1], (btn) => { h = (h + 1) % hours.length; game.hourOverride = hours[h][0]; game.view.setTimeOfDay(game.hour()); btn.textContent = '🕑 ' + hours[h][1]; }],
       ['🌿 Rencontres : oui', (btn) => { game.noEnc = !game.noEnc; btn.textContent = '🌿 Rencontres : ' + (game.noEnc ? 'non' : 'oui'); }],
+      ['⚔️ Dresseurs : ' + (game.noTrainers ? 'non' : 'oui'), (btn) => { game.noTrainers = !game.noTrainers; choix.dresseurs = !game.noTrainers; garde(); btn.textContent = '⚔️ Dresseurs : ' + (game.noTrainers ? 'non' : 'oui'); }],
       ['🗺️ Tout dévoiler', () => { const W = world.maps.monde, n = Math.ceil(W.w / 8) * Math.ceil(W.h / 8); st().explored = Array.from({ length: n }, (_, i) => i); game._seen = null; st().mapView = null; ui.toast('Carte entièrement dévoilée'); }],
       ['🗺️ Rien dévoilé', () => { st().explored = []; game._seen = null; st().mapView = null; game.explore(); ui.toast('Exploration remise à zéro'); }],
       ['💖 Soigner', () => { for (const m of st().party) healFull(m); game.hud?.update(true); ui.toast('Équipe soignée'); }],
