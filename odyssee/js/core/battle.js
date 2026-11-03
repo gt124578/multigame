@@ -244,37 +244,150 @@ export class Battle {
     const usable = this.usableMoves(1);
     if (!usable.length) return { type: 'move', id: 165 };
     if (this.wild) { const k = usable[this.r(usable.length)]; return { type: 'move', id: m.moves[k].id, slot: k }; }
-    // objets de soin du dresseur
+
+    const isSmart = t.ai === 'smart';
+    // 1. Utilisation stratégique des objets de soin par les Champions / Dresseurs
     if (t.items) {
       const ratio = m.hp / m.stats[0];
-      for (const it of ['hyper-potion', 'super-potion', 'potion', 'full-restore']) {
-        if (t.items[it] > 0 && ratio < 0.28 && this.rng() < 0.75) { t.items[it]--; return { type: 'item', item: it, foe: true }; }
+      const hasStatus = !!m.status;
+      const isAceOrLast = !side.party.some((p, idx) => idx !== side.active && p.hp > 0);
+      const healThreshold = isSmart ? (isAceOrLast ? 0.48 : 0.40) : 0.28;
+
+      // Si altéré par un statut grave (sommeil, gel, poison, brûlure, paralysie) et qu'on a un Guérison
+      if (hasStatus && t.items['full-restore'] > 0 && (ratio < 0.75 || this.rng() < 0.85)) {
+        t.items['full-restore']--;
+        return { type: 'item', item: 'full-restore', foe: true };
+      }
+
+      // Si les PV sont en zone critique, choisir le meilleur soin disponible
+      if (ratio <= healThreshold) {
+        const canUse = !isSmart ? this.rng() < 0.85 : true;
+        if (canUse) {
+          const needed = m.stats[0] - m.hp;
+          let chosen = null;
+          if (t.items['full-restore'] > 0 && (hasStatus || needed > 120)) chosen = 'full-restore';
+          else if (t.items['hyper-potion'] > 0 && needed > 90) chosen = 'hyper-potion';
+          else if (t.items['super-potion'] > 0 && needed > 35) chosen = 'super-potion';
+          else if (t.items['potion'] > 0) chosen = 'potion';
+          else if (t.items['hyper-potion'] > 0) chosen = 'hyper-potion';
+          else if (t.items['full-restore'] > 0) chosen = 'full-restore';
+
+          if (chosen) {
+            t.items[chosen]--;
+            return { type: 'item', item: chosen, foe: true };
+          }
+        }
       }
     }
+
+    // 2. Évaluation tactique avancée des capacités (IA de très haut niveau)
+    const playerMon = this.me;
+    const playerType = SPECIES[playerMon.sp]?.t || ['normal'];
+    const mySpeed = this.stat(1, 5);
+    const playerSpeed = this.stat(0, 5);
+    const amFaster = mySpeed >= playerSpeed;
+
     const scores = usable.map((k) => {
       const mv = MOVES[m.moves[k].id];
-      let s;
+      let s = 10;
       if (mv.c !== 'status' && (mv.p > 0 || mv.m?.u)) {
+        const mvType = this.moveType(1, mv);
+        const eff = typeEff(mvType, playerType);
+
+        // Si l'attaque n'a AUCUN effet (immunité de type), ne JAMAIS la choisir
+        if (eff === 0) return { k, s: 0.0001 };
+
         const d = this.estimate(1, 0, mv);
-        s = d * ((mv.a || 100) / 100);
-        if (d >= this.me.hp) s *= 1.6;
-        if (mv.m?.recharge || mv.m?.boom) s *= 0.6;
+        const acc = (mv.a || 100) / 100;
+        s = d * acc;
+
+        // KO stratégique : coup fatal prioritaire absolu
+        if (d >= playerMon.hp) {
+          s *= 3.8;
+          // Si c'est une attaque prioritaire (+1) et qu'on est plus lent, énorme priorité de finition
+          if (mv.pr && mv.pr > 0 && !amFaster) s *= 2.0;
+        }
+
+        // Pénalités de contrecoup / recharge
+        if (mv.m?.recharge) s *= 0.5;
+        if (mv.m?.boom) {
+          s = (m.hp < m.stats[0] * 0.22 && d >= playerMon.hp) ? s * 1.5 : s * 0.04;
+        }
+
+        // Bonus STAB (même type que le lanceur)
+        const myTypes = SPECIES[m.sp]?.t || [];
+        if (myTypes.includes(mvType)) s *= 1.3;
+
+        // Bonus d'apeurement si plus rapide
+        if (mv.m?.flinch && amFaster) s *= 1.25;
+
+        // Bonus coup critique
+        if (mv.m?.crit) s *= 1.15;
       } else {
+        // Capacités de statut
         const x = mv.m || {};
-        if (x.ail && !['conf', 'seed', 'trap'].includes(x.ail)) s = this.me.status ? 0 : this.me.stats[0] * 0.28;
-        else if (x.ail === 'conf') s = this.sides[0].v.conf ? 0 : this.me.stats[0] * 0.18;
-        else if (x.ail === 'seed') s = this.sides[0].v.seed || this.me && SPECIES[this.me.sp].t.includes('grass') ? 0 : this.me.stats[0] * 0.2;
-        else if (x.heal || x.u === 'rest') s = m.hp < m.stats[0] * 0.45 ? m.stats[0] * 0.5 : 0;
-        else if (x.st) s = this.sides[1].v.turns < 2 ? this.me.stats[0] * 0.15 : this.me.stats[0] * 0.03;
-        else s = this.me.stats[0] * 0.05;
+
+        // Soin
+        if (x.heal || x.u === 'rest') {
+          if (m.hp < m.stats[0] * 0.45) s = playerMon.stats[0] * 1.4;
+          else if (m.hp < m.stats[0] * 0.65) s = playerMon.stats[0] * 0.55;
+          else s = 0.001;
+        }
+        // Statut pénalisant (sommeil, paralysie, poison, brûlure)
+        else if (x.ail && !['conf', 'seed', 'trap'].includes(x.ail)) {
+          if (playerMon.status) {
+            s = 0.001; // déjà altéré
+          } else {
+            const cannot = (x.ail === 'psn' && (playerType.includes('poison') || playerType.includes('steel'))) ||
+                           (x.ail === 'brn' && playerType.includes('fire')) ||
+                           (x.ail === 'par' && playerType.includes('electric'));
+            if (cannot) s = 0.001;
+            else s = playerMon.stats[0] * (x.ail === 'slp' ? 1.65 : 1.25);
+          }
+        }
+        // Confusion
+        else if (x.ail === 'conf') {
+          s = this.sides[0].v.conf ? 0.001 : playerMon.stats[0] * 0.7;
+        }
+        // Vampigraine
+        else if (x.ail === 'seed') {
+          s = (this.sides[0].v.seed || playerType.includes('grass')) ? 0.001 : playerMon.stats[0] * 0.95;
+        }
+        // Boost de statistiques
+        else if (x.st) {
+          const turn = this.sides[1].v.turns;
+          const isAtkBoost = x.st.some(([stat, amt]) => (stat === 1 || stat === 3) && amt > 0);
+          if (turn <= 2 && m.hp >= m.stats[0] * 0.65) {
+            s = isAtkBoost ? playerMon.stats[0] * 1.3 : playerMon.stats[0] * 0.85;
+          } else {
+            s = playerMon.stats[0] * 0.1;
+          }
+        }
+        // Protection / Abri
+        else if (mv.key === 'protect' || mv.key === 'detect') {
+          if (this.sides[1].v.protChain > 0) s = 0.001;
+          else if (this.sides[0].v.seed || playerMon.status === 'tox') s = playerMon.stats[0] * 1.0;
+          else s = playerMon.stats[0] * 0.35;
+        }
+        else {
+          s = playerMon.stats[0] * 0.2;
+        }
       }
       return { k, s: Math.max(0.01, s) };
     });
+
     let pick;
-    if (t.ai === 'smart' && this.rng() < 0.8) pick = scores.reduce((a, b) => (b.s > a.s ? b : a));
-    else {
-      const tot = scores.reduce((a, x) => a + x.s * x.s, 0); let r = this.rng() * tot; pick = scores[0];
-      for (const x of scores) { r -= x.s * x.s; if (r <= 0) { pick = x; break; } }
+    if (isSmart) {
+      // Pour une IA très forte : prend TOUJOURS la décision la plus optimale
+      pick = scores.reduce((a, b) => (b.s > a.s ? b : a));
+    } else {
+      const tot = scores.reduce((a, x) => a + x.s * x.s, 0);
+      let r = this.rng() * tot;
+      pick = scores[0];
+      for (const x of scores) {
+        r -= x.s * x.s;
+        if (r <= 0) { pick = x; break; }
+      }
     }
     return { type: 'move', id: m.moves[pick.k].id, slot: pick.k };
   }

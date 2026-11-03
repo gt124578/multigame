@@ -8,6 +8,7 @@ import { ITEMS, canUseOn, itemName } from '../core/items.js';
 import { ASSETS, loadImg } from '../assets.js';
 import { TYPE_COL, TYPE_FR, STATUS_FR, hpCol, partyScreen, bagScreen } from './screens.js';
 import { typeEff } from '../core/battle.js';
+import { moveDesc } from '../data/moveDescriptions.js';
 
 const BH = 192;
 const TYPE_FX = {
@@ -442,8 +443,7 @@ export class BattleView {
 
   async loadSide(side) {
     const m = this.battle.act(side), o = side === 1 ? this.st.foe : this.st.me;
-    o.img = await loadImg(side === 1 ? ASSETS.front(m.sp, m.shiny) : ASSETS.back(m.sp, m.shiny));
-    if (o.img && m.shadow) o.img = shadowCanvas(o.img);   // Pokémon Obscur (Lugia du Sanctuaire)
+    o.img = await loadImg(side === 1 ? ASSETS.front(m.sp, m.shiny, m.shadow) : ASSETS.back(m.sp, m.shiny, m.shadow));   // Pokémon Obscur (Lugia du Sanctuaire)
     o.whiteImg = null; o.darkImg = null;
     if (!o.img) { const c = document.createElement('canvas'); c.width = c.height = 80; const x = c.getContext('2d'); x.fillStyle = TYPE_COL[SPECIES[m.sp].t[0]]; x.beginPath(); x.arc(40, 50, 24, 0, 7); x.fill(); x.fillStyle = '#fff'; x.font = '20px sans-serif'; x.fillText('?', 34, 58); o.img = c; }
   }
@@ -527,56 +527,123 @@ export class BattleView {
       const foeMon = this.battle.foe;
       const foeKnown = foeMon ? this.game.isSpeciesKnown(foeMon.sp) : false;
       const foeTypes = (foeMon && foeKnown) ? (SPECIES[foeMon.sp]?.t || ['normal']) : null;
-      this.cmd.innerHTML = `<div class="mv-layout">
-        <div class="mv-grid">${[0, 1, 2, 3].map((k) => {
-          const x = m.moves[k];
-          if (!x) return '<div class="mbtn empty"><span class="mn">—</span></div>';
-          const M = MOVES[x.id];
-          const catIcon = `img/battle/cat_${M.c || 'physical'}.png`;
-          const pwTxt = M.p ? `Puis. ${M.p}` : 'Statut';
-          let effBadge = '';
-          if (foeMon && (M.p || M.c !== 'status')) {
-            if (foeKnown && foeTypes) {
-              const eff = typeEff(M.t, foeTypes);
-              if (eff === 0) effBadge = '<span class="bm-eff eff-nul">SANS EFFET</span>';
-              else if (eff >= 2) effBadge = `<span class="bm-eff eff-super">SUPER EFF.${eff > 2 ? ' ×4' : ''}</span>`;
-              else if (eff < 1) effBadge = `<span class="bm-eff eff-weak">PEU EFF.${eff < 0.5 ? ' ×¼' : ''}</span>`;
-              else effBadge = '<span class="bm-eff eff-norm">EFFICACE</span>';
-            } else {
-              const count = this.game.seenCount(foeMon.sp);
-              effBadge = `<span class="bm-eff eff-unk" title="Efficacité inconnue (vu ${count}/3)">???</span>`;
+      this.cmd.innerHTML = `
+        <div class="mv-desc-banner">
+          <div class="mv-desc-head">
+            <span class="mv-desc-name"></span>
+            <span class="mv-desc-type"></span>
+            <span class="mv-desc-cat"></span>
+            <span class="mv-desc-pow"></span>
+            <span class="mv-desc-acc"></span>
+            <span class="mv-desc-pp"></span>
+          </div>
+          <div class="mv-desc-text"></div>
+        </div>
+        <div class="mv-layout">
+          <div class="mv-grid">${[0, 1, 2, 3].map((k) => {
+            const x = m.moves[k];
+            if (!x) return '<div class="mbtn empty"><span class="mn">—</span></div>';
+            const M = MOVES[x.id];
+            const catIcon = `img/battle/cat_${M.c || 'physical'}.png`;
+            const pwTxt = M.p ? `Puis. ${M.p}` : 'Statut';
+            let effBadge = '';
+            if (foeMon && (M.p || M.c !== 'status')) {
+              if (foeKnown && foeTypes) {
+                const eff = typeEff(M.t, foeTypes);
+                if (eff === 0) effBadge = '<span class="bm-eff eff-nul">SANS EFFET</span>';
+                else if (eff >= 2) effBadge = `<span class="bm-eff eff-super">SUPER EFF.${eff > 2 ? ' ×4' : ''}</span>`;
+                else if (eff < 1) effBadge = `<span class="bm-eff eff-weak">PEU EFF.${eff < 0.5 ? ' ×¼' : ''}</span>`;
+                else effBadge = '<span class="bm-eff eff-norm">EFFICACE</span>';
+              } else {
+                const count = this.game.seenCount(foeMon.sp);
+                effBadge = `<span class="bm-eff eff-unk" title="Efficacité inconnue (vu ${count}/3)">???</span>`;
+              }
             }
-          }
-          return `<div class="mbtn" data-i="${k}" style="--tc:${TYPE_COL[M.t]}">
-            <div class="mbtn-top">
-              <span class="mn">${esc(M.n)}</span>
-              <div class="mbtn-top-right">
-                ${effBadge}
-                <img class="mcat" src="${catIcon}" alt="${M.c}">
+            return `<div class="mbtn" data-i="${k}" style="--tc:${TYPE_COL[M.t]}">
+              <div class="mbtn-top">
+                <span class="mn">${esc(M.n)}</span>
+                <div class="mbtn-top-right">
+                  ${effBadge}
+                  <img class="mcat" src="${catIcon}" alt="${M.c}">
+                </div>
               </div>
-            </div>
-            <div class="mbtn-bot">
-              <div class="mbtn-bot-left">
-                <span class="mt">${TYPE_FR[M.t]}</span>
-                <span class="mpw">${pwTxt}</span>
+              <div class="mbtn-bot">
+                <div class="mbtn-bot-left">
+                  <span class="mt">${TYPE_FR[M.t]}</span>
+                  <span class="mpw">${pwTxt}</span>
+                </div>
+                <span class="mpp${x.pp === 0 ? ' zero' : ''}">PP ${x.pp}/${M.pp}</span>
               </div>
-              <span class="mpp${x.pp === 0 ? ' zero' : ''}">PP ${x.pp}/${M.pp}</span>
-            </div>
-          </div>`;
-        }).join('')}</div>
-        <button type="button" class="mv-back-btn" title="Retour (Échap / B)">
-          <span class="mv-back-ico">✕</span>
-          <span class="mv-back-lbl">RETOUR</span>
-        </button>
-      </div>`;
+            </div>`;
+          }).join('')}</div>
+          <button type="button" class="mv-back-btn" title="Retour (Échap / B)">
+            <span class="mv-back-ico">✕</span>
+            <span class="mv-back-lbl">RETOUR</span>
+          </button>
+        </div>`;
       this.cmd.classList.add('on', 'moves');
       this.root.classList.add('cmdon', 'moves-open');
       let i = this.lastMove || 0; if (!m.moves[i]) i = 0;
       const btns = [...this.cmd.querySelectorAll('.mbtn')];
       const backBtn = this.cmd.querySelector('.mv-back-btn');
+      const descName = this.cmd.querySelector('.mv-desc-name');
+      const descType = this.cmd.querySelector('.mv-desc-type');
+      const descCat = this.cmd.querySelector('.mv-desc-cat');
+      const descPow = this.cmd.querySelector('.mv-desc-pow');
+      const descAcc = this.cmd.querySelector('.mv-desc-acc');
+      const descPp = this.cmd.querySelector('.mv-desc-pp');
+      const descText = this.cmd.querySelector('.mv-desc-text');
       const show = () => {
         btns.forEach((b, k) => b.classList.toggle('sel', k === i));
         backBtn?.classList.toggle('sel', i === 4);
+        if (i === 4) {
+          if (descName) descName.textContent = 'RETOUR ✕';
+          if (descType) descType.style.display = 'none';
+          if (descCat) descCat.style.display = 'none';
+          if (descPow) descPow.style.display = 'none';
+          if (descAcc) descAcc.style.display = 'none';
+          if (descPp) descPp.style.display = 'none';
+          if (descText) descText.textContent = 'Annuler et revenir au menu principal des actions (Attaque, Sac, Pokémon, Fuite).';
+        } else {
+          const x = m.moves[i];
+          if (x) {
+            const M = MOVES[x.id];
+            if (descName) {
+              descName.style.display = 'inline-block';
+              descName.textContent = M.n;
+            }
+            if (descType) {
+              descType.style.display = 'inline-block';
+              descType.textContent = TYPE_FR[M.t];
+              descType.style.background = TYPE_COL[M.t];
+            }
+            if (descCat) {
+              descCat.style.display = 'inline-flex';
+              descCat.innerHTML = `<img src="img/battle/cat_${M.c || 'physical'}.png" alt=""><span>${M.c === 'special' ? 'Spécial' : M.c === 'status' ? 'Statut' : 'Physique'}</span>`;
+            }
+            if (descPow) {
+              descPow.style.display = 'inline-block';
+              descPow.textContent = M.p ? `Puis. ${M.p}` : 'Statut';
+            }
+            if (descAcc) {
+              descAcc.style.display = 'inline-block';
+              descAcc.textContent = M.a ? `Préc. ${M.a}%` : 'Préc. —';
+            }
+            if (descPp) {
+              descPp.style.display = 'inline-block';
+              descPp.textContent = `PP ${x.pp}/${M.pp}`;
+            }
+            if (descText) descText.textContent = moveDesc(M);
+          } else {
+            if (descName) descName.textContent = 'Emplacement vide';
+            if (descType) descType.style.display = 'none';
+            if (descCat) descCat.style.display = 'none';
+            if (descPow) descPow.style.display = 'none';
+            if (descAcc) descAcc.style.display = 'none';
+            if (descPp) descPp.style.display = 'none';
+            if (descText) descText.textContent = 'Aucune capacité apprise sur cet emplacement.';
+          }
+        }
       };
       show();
       let done = false;

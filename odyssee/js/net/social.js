@@ -235,7 +235,7 @@ async function tradeSession(game, from, name, rid, peerCap = 100) {
 
   // les deux Pokémon face à face
   const s = el('div', 'screen trade-scr');
-  const card = (m, who) => `<div class="box trade-card"><div class="trade-who">${esc(who)}</div><img class="${m.shadow ? 'shadowmon' : ''}" src="${ASSETS.front(m.sp, m.shiny)}" alt=""><b>${esc(monName(m))}</b><div>N.${m.lvl} · ${SPECIES[m.sp].t.map((t) => TYPE_FR[t]).join(' / ')}</div></div>`;
+  const card = (m, who) => `<div class="box trade-card"><div class="trade-who">${esc(who)}</div><img class="${m.shadow ? 'shadowmon' : ''}" src="${ASSETS.front(m.sp, m.shiny, m.shadow)}" alt=""><b>${esc(monName(m))}</b><div>N.${m.lvl} · ${SPECIES[m.sp].t.map((t) => TYPE_FR[t]).join(' / ')}</div></div>`;
   s.innerHTML = `<div class="scr-title">ÉCHANGE</div><div class="trade-row">${card(mine, 'Toi')}<div class="trade-arrows">⇄</div>${card(theirs, name)}</div>`;
   ui.root.appendChild(s);
   const yes = await ui.yesNo(`Échanger ton ${monName(mine)} contre le ${monName(theirs)} de ${name} ?`);

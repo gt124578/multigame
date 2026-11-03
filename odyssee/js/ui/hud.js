@@ -171,7 +171,7 @@ export class Hud {
             (isSwap ? ' swap' : '');
           return `<div class="${cls}" data-idx="${k}" title="Clic : Résumé de ${esc(monName(m))} (${m.hp}/${m.stats[0]} PV) · Clic droit ou ⇅ : Réordonner">
             <div class="hud-spr-wrap">
-              <img class="hud-ico${m.shadow ? ' shadowmon' : ''}" src="${ASSETS.front(m.sp, m.shiny)}" alt="" onerror="this.src='${ASSETS.icon(m.sp)}'">
+              <img class="hud-ico${m.shadow ? ' shadowmon' : ''}" src="${ASSETS.front(m.sp, m.shiny, m.shadow)}" alt="" onerror="this.src='${ASSETS.icon(m.sp, m.shadow)}'">
             </div>
             <div class="hud-main">
               <div class="hud-top">

@@ -1,5 +1,11 @@
 # Journal des versions — Arcadia
 
+## 3.88 — 3 novembre 2026
+- **Odyssée** — Arènes :
+  - En entrant dans une arène, le guide t'accueille, présente le Champion et te demande si tu es prêt.
+  - Si tu acceptes, les portes se ferment jusqu'à la victoire ou la défaite ; sinon, tu ressors pour te préparer.
+  - Le guide donne maintenant un conseil pour toutes les arènes, y compris celles des Terres du Sud.
+
 ## 3.87 — 3 novembre 2026
 - **Odyssée** — Grottes :
   - Le dessus des parois varie : fissures, cailloux, creux et gravier, comme le sol des grottes.

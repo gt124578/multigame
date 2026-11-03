@@ -888,11 +888,11 @@ export function buildWorld() {
       const [x, y, dir] = spots[i]; trainerNpc(g, x, y, dir, cls, name, team.concat(more).slice(0, 4), { sight: 3, intro: 'Tu veux défier notre Champion ? Passe d\'abord par moi !', after: 'Notre Champion est bien plus fort que moi.' });
     });
     const fem = L2.fem || ['Marine', 'Volta', 'Flora', 'Sibylle'].includes(L2.name);
-    g.npc({ id: g.id + ':leader', x: ar.leader[0], y: ar.leader[1], dir: 'down', sprite: L2.ow, leader: t.gym, trainer: { cls: fem ? 'Championne' : 'Champion', name: L2.name, team: L2.team, prize: 100, bs: L2.ow, ai: 'smart', items: { 'super-potion': t.gym < 3 ? 1 : 0, 'hyper-potion': t.gym >= 3 ? 2 : 0, 'full-restore': t.gym === 7 ? 1 : 0 }, intro: L2.intro, lose: L2.lose, sight: 0 } });
+    g.npc({ id: g.id + ':leader', x: ar.leader[0], y: ar.leader[1], dir: 'down', sprite: L2.ow, leader: t.gym, trainer: { cls: fem ? 'Championne' : 'Champion', name: L2.name, team: L2.team, prize: 100, bs: L2.ow, ai: 'smart', items: { 'potion': t.gym === 0 ? 1 : 0, 'super-potion': (t.gym < 3 ? 2 : 0), 'hyper-potion': (t.gym >= 3 ? 2 : 0), 'full-restore': (t.gym >= 6 ? 2 : (t.gym >= 4 ? 1 : 0)) }, intro: L2.intro, lose: L2.lose, sight: 0 } });
   }
   // Ligue : la Maître
   const league = maps['plateau:ligue'];
-  league.npc({ id: 'champion', x: 7, y: 3, dir: 'down', sprite: CHAMPION.ow, champion: true, trainer: { cls: 'Maître', name: CHAMPION.name, team: CHAMPION.team, prize: 200, bs: CHAMPION.ow, ai: 'smart', items: { 'full-restore': 2 }, intro: CHAMPION.intro, lose: CHAMPION.lose, sight: 0 } });
+  league.npc({ id: 'champion', x: 7, y: 3, dir: 'down', sprite: CHAMPION.ow, champion: true, trainer: { cls: 'Maître', name: CHAMPION.name, team: CHAMPION.team, prize: 200, bs: CHAMPION.ow, ai: 'smart', items: { 'full-restore': 3 }, intro: CHAMPION.intro, lose: CHAMPION.lose, sight: 0 } });
   league.npc({ id: 'ligue-garde', x: 5, y: 15, sprite: 'garde', dir: 'right', text: ['Bienvenue à la Ligue Céleste.', 'La Maître t\'attend au bout du tapis. Bonne chance !'] });
 
   // Labo : professeur, assistant

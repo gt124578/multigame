@@ -3,6 +3,7 @@ import { el, esc } from './ui.js';
 import { SPECIES } from '../data/species.js';
 import { ORIGINALES } from '../data/remplacants.js';
 import { MOVES } from '../data/moves.js';
+import { moveDesc } from '../data/moveDescriptions.js';
 import { ITEMS, itemName, POCKETS, canUseOn, giveHeldItem, takeHeldItem } from '../core/items.js';
 import { getAbility, abilityName } from '../data/abilities.js';
 import { monName, expProgress, STAT_NAMES, levelCap, GYM_CAPS, NATURES, natureName, natureEffect, refreshStats } from '../core/mon.js';
@@ -20,7 +21,7 @@ export const hpCol = (r) => (r > 0.5 ? '#48d058' : r > 0.2 ? '#f0c020' : '#f0483
 export function hpBar(m) { const r = m.hp / m.stats[0]; return `<div class="hp"><b>PV</b><i><u style="width:${Math.max(0, r * 100)}%;background:${hpCol(r)}"></u></i></div>`; }
 export const statusTag = (m) => (m.hp <= 0 ? '<span class="st" style="background:#c03838">K.O.</span>' : m.status ? `<span class="st" style="background:${STATUS_FR[m.status][1]}">${STATUS_FR[m.status][0]}</span>` : '');
 const gender = (m) => (m.gender === 'm' ? '<span class="g m">♂</span>' : m.gender === 'f' ? '<span class="g f">♀</span>' : '');
-const iconImg = (m) => `<img class="ico" src="${ASSETS.icon(m.sp)}" alt="" onerror="this.src='${ASSETS.front(m.sp)}';this.classList.add('fallback')">`;
+const iconImg = (m) => `<img class="ico${m?.shadow ? ' shadowmon' : ''}" src="${ASSETS.icon(m.sp, m?.shadow)}" alt="" onerror="this.src='${ASSETS.front(m.sp, false, m?.shadow)}';this.classList.add('fallback')">`;
 
 function screen(ui, cls, title) {
   const s = el('div', 'screen ' + cls);
@@ -141,7 +142,7 @@ export function partyScreen(game, o = {}) {
             </div>
             <div class="pslot-lead-pedestal">
               <div class="pslot-ped-ring"></div>
-              <img class="pslot-lead-spr${m.shadow ? ' shadowmon' : ''}" src="${ASSETS.front(m.sp, m.shiny)}" alt="" onerror="this.src='${ASSETS.icon(m.sp)}'">
+              <img class="pslot-lead-spr${m.shadow ? ' shadowmon' : ''}" src="${ASSETS.front(m.sp, m.shiny, m.shadow)}" alt="" onerror="this.src='${ASSETS.icon(m.sp, m.shadow)}'">
             </div>
             <div class="pslot-lead-info">
               <div class="pslot-lead-name-row">
@@ -177,7 +178,7 @@ export function partyScreen(game, o = {}) {
               </div>
               <span class="pslot-sub-num">#${k + 1}</span>
               <div class="pslot-sub-ped">
-                <img class="pslot-sub-spr${m.shadow ? ' shadowmon' : ''}" src="${ASSETS.front(m.sp, m.shiny)}" alt="" onerror="this.src='${ASSETS.icon(m.sp)}'">
+                <img class="pslot-sub-spr${m.shadow ? ' shadowmon' : ''}" src="${ASSETS.front(m.sp, m.shiny, m.shadow)}" alt="" onerror="this.src='${ASSETS.icon(m.sp, m.shadow)}'">
               </div>
             </div>
             <div class="pslot-sub-mid">
@@ -480,7 +481,7 @@ export function summaryScreen(game, list, idx) {
               <span class="sum-lvl">N.${m.lvl}</span>
             </div>
             <div class="sum-stage">
-              <img class="sum-spr${m.shadow ? ' shadowmon' : ''}" src="${ASSETS.front(m.sp, m.shiny)}" alt="">
+              <img class="sum-spr${m.shadow ? ' shadowmon' : ''}" src="${ASSETS.front(m.sp, m.shiny, m.shadow)}" alt="">
             </div>
             <div class="sum-types-row">${S.t.map(typeTag).join(' ')} ${statusTag(m)}</div>
             ${hpBar(m)}
@@ -541,12 +542,12 @@ export function bagScreen(game, o = {}) {
 
     // Poches officielles B2W2 Concept 1 avec arc sci-fi, arrière-plans réactifs et coordonnées exactes sur l'arc
     const POCKET_CFG = [
-      { id: 'objets', label: 'Objets', sub: 'Pierres, Bonbons et Objets tenus', color: '#00e0ff', glow: 'rgba(0, 224, 255, 0.45)', bg: 'img/bag/backpack_objets.jpg', icon: 'img/bag/icon_objets.png', arcX: 39.5, arcY: 9.8 },
-      { id: 'soin', label: 'Soins', sub: 'Médicaments, Potions et Guérisons', color: '#34d870', glow: 'rgba(52, 216, 112, 0.45)', bg: 'img/bag/backpack_soin.jpg', icon: 'img/bag/icon_soin.png', arcX: 61.9, arcY: 26.5 },
-      { id: 'balls', label: 'Poké Balls', sub: 'Capsules de capture de créatures', color: '#ff4c4c', glow: 'rgba(255, 76, 76, 0.45)', bg: 'img/bag/backpack_balls.jpg', icon: 'img/bag/icon_balls.png', arcX: 70.7, arcY: 42.2 },
-      { id: 'ct', label: 'CT & CS', sub: 'Capsules Techniques et Secrètes', color: '#b966ff', glow: 'rgba(185, 102, 255, 0.45)', bg: 'img/bag/backpack_ct.jpg', icon: 'img/bag/icon_ct.png', arcX: 71.2, arcY: 57.8 },
-      { id: 'baies', label: 'Baies', sub: 'Baies naturelles et remèdes doux', color: '#ff77a8', glow: 'rgba(255, 119, 168, 0.45)', bg: 'img/bag/backpack_baies.jpg', icon: 'img/bag/icon_baies.png', arcX: 57.7, arcY: 73.5 },
-      { id: 'cles', label: 'Objets Rares', sub: 'Objets précieux, Carte et Bicyclette', color: '#ffe058', glow: 'rgba(255, 224, 88, 0.45)', bg: 'img/bag/backpack_cles.jpg', icon: 'img/bag/icon_cles.png', arcX: 30.7, arcY: 89.2 },
+      { id: 'objets', label: 'Objets', sub: 'Pierres, Bonbons et Objets tenus', color: '#00e0ff', glow: 'rgba(0, 224, 255, 0.45)', bg: 'img/bag/backpack_objets.jpg', icon: 'img/bag/icon_objets.png', arcX: 40.2, arcY: 11.6 },
+      { id: 'soin', label: 'Soins', sub: 'Médicaments, Potions et Guérisons', color: '#34d870', glow: 'rgba(52, 216, 112, 0.45)', bg: 'img/bag/backpack_soin.jpg', icon: 'img/bag/icon_soin.png', arcX: 62.1, arcY: 25.2 },
+      { id: 'balls', label: 'Poké Balls', sub: 'Capsules de capture de créatures', color: '#ff4c4c', glow: 'rgba(255, 76, 76, 0.45)', bg: 'img/bag/backpack_balls.jpg', icon: 'img/bag/icon_balls.png', arcX: 70.9, arcY: 40.1 },
+      { id: 'ct', label: 'CT & CS', sub: 'Capsules Techniques et Secrètes', color: '#b966ff', glow: 'rgba(185, 102, 255, 0.45)', bg: 'img/bag/backpack_ct.jpg', icon: 'img/bag/icon_ct.png', arcX: 70.5, arcY: 54.8 },
+      { id: 'baies', label: 'Baies', sub: 'Baies naturelles et remèdes doux', color: '#ff77a8', glow: 'rgba(255, 119, 168, 0.45)', bg: 'img/bag/backpack_baies.jpg', icon: 'img/bag/icon_baies.png', arcX: 59.1, arcY: 74.4 },
+      { id: 'cles', label: 'Objets Rares', sub: 'Objets précieux, Carte et Bicyclette', color: '#ffe058', glow: 'rgba(255, 224, 88, 0.45)', bg: 'img/bag/backpack_cles.jpg', icon: 'img/bag/icon_cles.png', arcX: 34.2, arcY: 87.8 },
     ];
 
     let pocket = 0;
@@ -652,19 +653,15 @@ export function bagScreen(game, o = {}) {
         <!-- GRILLE 2X2 DE BOUTONS TACTILES DS (CONCEPT 1) -->
         <div class="b2w2-btn-grid">
           <button type="button" class="b2w2-touch-btn b2w2-btn-use" data-act="use" title="Utiliser (Entrée / A)">
-            <span class="touch-btn-ico">⚡</span>
             <span class="touch-btn-lbl">UTILISER</span>
           </button>
           <button type="button" class="b2w2-touch-btn b2w2-btn-give" data-act="give" title="Donner à un Pokémon (D)">
-            <span class="touch-btn-ico">🎁</span>
             <span class="touch-btn-lbl">DONNER</span>
           </button>
           <button type="button" class="b2w2-touch-btn b2w2-btn-toss" data-act="toss" title="Jeter une quantité (J)">
-            <span class="touch-btn-ico">🗑</span>
             <span class="touch-btn-lbl">JETER</span>
           </button>
           <button type="button" class="b2w2-touch-btn b2w2-btn-back" data-act="back" title="Fermer le sac (Échap / B)">
-            <span class="touch-btn-ico">✕</span>
             <span class="touch-btn-lbl">RETOUR</span>
           </button>
         </div>
@@ -958,8 +955,14 @@ export function bagScreen(game, o = {}) {
     // Clics sur les 4 boutons tactiles DS
     useBtn?.addEventListener('click', () => {
       const es = entries();
-      if (i === es.length) { ui.sound.sfx('cancel'); close(null); }
-      else triggerRow(i);
+      if (i >= es.length) { ui.sound.sfx('cancel'); close(null); return; }
+      const item = es[i], it = ITEMS[item];
+      // Si c'est un objet purement tenu (ex: baies de tenue, restes, orbe vie), rediriger naturellement vers Donner
+      if (it && it.hold && !it.heal && !it.candy && !it.stone && !it.field) {
+        handleGive();
+      } else {
+        triggerRow(i);
+      }
     });
     giveBtn?.addEventListener('click', handleGive);
     tossBtn?.addEventListener('click', handleToss);
@@ -1431,7 +1434,7 @@ function renderPCPokemonPreview(m) {
         <span class="pc-prev-lvl">N.${m.lvl}</span>
       </div>
       <div class="pc-prev-art">
-        <img class="pc-prev-spr${m.shadow ? ' shadowmon' : ''}" src="${ASSETS.front(m.sp, m.shiny)}" alt="" onerror="this.src='${ASSETS.icon(m.sp)}'">
+        <img class="pc-prev-spr${m.shadow ? ' shadowmon' : ''}" src="${ASSETS.front(m.sp, m.shiny, m.shadow)}" alt="" onerror="this.src='${ASSETS.icon(m.sp, m.shadow)}'">
       </div>
       <div class="pc-prev-types">
         ${(S.t || ['normal']).map(typeTag).join(' ')}
@@ -1924,7 +1927,7 @@ function openMoveRelearnerUI(game, m, moveIds, scales) {
                     <span class="rr-acc">${M.a ? `Préc. ${M.a}%` : 'Préc. —'}</span>
                     <span class="rr-pp">PP ${M.pp}/${M.pp}</span>
                   </div>
-                  <div class="rr-desc">${esc(M.d || 'Une attaque puissante qui inflige des dégâts à l\'ennemi.')}</div>
+                  <div class="rr-desc">${esc(moveDesc(M))}</div>
                 </div>`;
               }).join('')}
             </div>
@@ -2281,5 +2284,169 @@ export function questsScreen(game) {
     });
     syncJournal(game);
     render();
+  });
+}
+
+
+/* ================= ÉCRAN D'APPRENTISSAGE DE CAPACITÉ 5G ================= */
+/** Écran B2W2 pour remplacer une attaque quand le Pokémon en connaît déjà 4 */
+export function learnMoveScreen(game, m, moveId) {
+  return new Promise((resolve) => {
+    const ui = game.ui;
+    const newM = MOVES[moveId];
+    const s = screen(ui, 'learn-move-scr');
+    let sel = 0; // 0..3: anciennes capacités, 4: abandonner
+
+    const draw = () => {
+      const activeMove = sel < 4 ? MOVES[m.moves[sel].id] : null;
+      const activeDesc = sel < 4 ? moveDesc(activeMove) : "Conserver les 4 capacités actuelles et abandonner l'apprentissage de cette nouvelle capacité.";
+
+      s.innerHTML = `
+        <div class="scr-bar">
+          <div class="scr-bar-left">
+            <img class="scr-bar-ico" src="img/hud/team.png" alt="">
+            <span class="scr-bar-title">APPRENTISSAGE D'UNE CAPACITÉ</span>
+            <span class="scr-bar-sub">${esc(monName(m))} (N.${m.lvl})</span>
+          </div>
+          <div class="scr-bar-right">
+            <button type="button" class="scr-close-btn" data-act="cancel">ABANDONNER ✕</button>
+          </div>
+        </div>
+
+        <div class="lm-body">
+          <!-- Carte Haute : Nouvelle Capacité -->
+          <div class="lm-new-card">
+            <div class="lm-card-label">NOUVELLE CAPACITÉ À APPRENDRE</div>
+            <div class="lm-move-row new" style="--tc:${TYPE_COL[newM.t]}">
+              <div class="lm-move-main">
+                <span class="lm-move-name">${esc(newM.n)}</span>
+                <span class="lm-type" style="background:${TYPE_COL[newM.t]}">${TYPE_FR[newM.t]}</span>
+                <span class="lm-cat"><img src="img/battle/cat_${newM.c || 'physical'}.png" alt=""><span>${newM.c === 'special' ? 'Spécial' : newM.c === 'status' ? 'Statut' : 'Physique'}</span></span>
+              </div>
+              <div class="lm-move-stats">
+                <span class="lm-stat-pw">${newM.p ? 'Puissance : ' + newM.p : 'Statut'}</span>
+                <span class="lm-stat-acc">${newM.a ? 'Précision : ' + newM.a + '%' : 'Précision : —'}</span>
+                <span class="lm-stat-pp">PP : <b>${newM.pp}</b>/${newM.pp}</span>
+              </div>
+            </div>
+            <div class="lm-desc-box new">
+              <div class="lm-desc-tag">EFFET :</div>
+              <div class="lm-desc-content">${esc(moveDesc(newM))}</div>
+            </div>
+          </div>
+
+          <!-- Section Basse : Capacités Actuelles & Choix -->
+          <div class="lm-current-section">
+            <div class="lm-section-title">
+              <span>Sélectionne la capacité à oublier :</span>
+              <span class="lm-instruct">▲ ▼ ◀ ▶ Naviguer · Entrée / Clic : Valider</span>
+            </div>
+
+            <div class="lm-moves-grid">
+              ${m.moves.map((mv, idx) => {
+                const M = MOVES[mv.id];
+                const isSel = idx === sel;
+                return `
+                  <div class="lm-cur-move ${isSel ? 'sel' : ''}" data-idx="${idx}" style="--tc:${TYPE_COL[M.t]}">
+                    <div class="lm-cm-header">
+                      <span class="lm-cm-num">${idx + 1}</span>
+                      <span class="lm-cm-name">${esc(M.n)}</span>
+                      <span class="lm-type" style="background:${TYPE_COL[M.t]}">${TYPE_FR[M.t]}</span>
+                    </div>
+                    <div class="lm-cm-stats">
+                      <span class="lm-cat"><img src="img/battle/cat_${M.c || 'physical'}.png" alt=""></span>
+                      <span class="lm-stat-pw">${M.p ? 'Puis. ' + M.p : 'Statut'}</span>
+                      <span class="lm-stat-pp">PP ${mv.pp}/${M.pp}</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+              <div class="lm-cur-move abandon ${sel === 4 ? 'sel' : ''}" data-idx="4">
+                <span class="lm-abandon-ico">✕</span>
+                <span class="lm-abandon-txt">Conserver les attaques actuelles</span>
+              </div>
+            </div>
+
+            <!-- Encadré comparatif dynamique pour l'attaque sélectionnée -->
+            <div class="lm-comparison-box">
+              <div class="lm-comp-head">
+                ${sel < 4 ? `
+                  <span class="lm-comp-tag">CAPACITÉ ACTUELLE SÉLECTIONNÉE (${sel + 1}/4) :</span>
+                  <span class="lm-comp-name">${esc(activeMove.n)}</span>
+                  <span class="lm-comp-acc">${activeMove.a ? 'Précision : ' + activeMove.a + '%' : 'Précision : —'}</span>
+                ` : `
+                  <span class="lm-comp-tag">OPTION :</span>
+                  <span class="lm-comp-name">Abandonner</span>
+                `}
+              </div>
+              <div class="lm-comp-desc">${esc(activeDesc)}</div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      s.querySelector('[data-act="cancel"]')?.addEventListener('click', () => doCancel());
+      s.querySelectorAll('.lm-cur-move').forEach((elRow) => {
+        const idx = +elRow.dataset.idx;
+        elRow.addEventListener('pointerenter', () => {
+          if (sel !== idx) {
+            sel = idx;
+            game.sound.sfx('blip');
+            draw();
+          }
+        });
+        elRow.addEventListener('click', () => {
+          if (idx === 4) doCancel();
+          else doReplace(idx);
+        });
+      });
+    };
+
+    const doReplace = async (k) => {
+      const oldMove = MOVES[m.moves[k].id];
+      const confirm = await ui.yesNo(`Oublier ${oldMove.n} pour apprendre ${newM.n} ?`);
+      if (!confirm) return;
+      s.remove();
+      pop();
+      resolve(k);
+    };
+
+    const doCancel = async () => {
+      const confirm = await ui.yesNo(`Abandonner l'apprentissage de ${newM.n} ?`);
+      if (!confirm) return;
+      s.remove();
+      pop();
+      resolve(-1);
+    };
+
+    const pop = ui.input.push((k) => {
+      let j = sel;
+      if (k === 'up') {
+        if (sel >= 2 && sel < 4) j = sel - 2;
+        else if (sel === 4) j = 2;
+      } else if (k === 'down') {
+        if (sel <= 1) j = sel + 2;
+        else if (sel === 2 || sel === 3) j = 4;
+      } else if (k === 'left') {
+        if (sel === 1 || sel === 3) j = sel - 1;
+      } else if (k === 'right') {
+        if (sel === 0 || sel === 2) j = sel + 1;
+      } else if (k === 'a') {
+        if (sel === 4) doCancel();
+        else doReplace(sel);
+        return;
+      } else if (k === 'b') {
+        doCancel();
+        return;
+      } else return;
+
+      if (j !== sel) {
+        sel = j;
+        game.sound.sfx('blip');
+        draw();
+      }
+    });
+
+    draw();
   });
 }

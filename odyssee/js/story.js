@@ -287,9 +287,9 @@ export async function placeLugia(g) {
     if (g.mapObj.id === LUGIA_ALTAR.map && g.mapObj.get(LUGIA_ALTAR.x, LUGIA_ALTAR.y) === T.BLOCK) g.mapObj.set(LUGIA_ALTAR.x, LUGIA_ALTAR.y, T.CAVE);
     return;
   }
-  const img = await loadImg(ASSETS.front(LUGIA));
+  const img = await loadImg(ASSETS.front(LUGIA, false, true));
   if (g.mapObj.id !== LUGIA_ALTAR.map || !img) return;
-  const a = g.view.imageActor('lugia', shadowCanvas(img), 0.55);
+  const a = g.view.imageActor('lugia', img, 0.55);
   g.view.place(a, LUGIA_ALTAR.x, LUGIA_ALTAR.y - 0.1);
 }
 
