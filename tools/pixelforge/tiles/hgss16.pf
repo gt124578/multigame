@@ -1,0 +1,122 @@
+# Odyssée — sol à l'échelle exacte HGSS : tuiles 16x16 (écran DS 256x192 = 16x12 cases).
+# Rendu : python3 tools/pixelforge/render.py tools/pixelforge/tiles/hgss16.pf --out out16 --preview
+
+palette
+  . = transparent
+  g = #78c860
+  G = #58a848
+  h = #94d878
+  d = #2e7a34
+  s = #ecd9a2
+  S = #c8ac6c
+  E = #2a64c4
+  w = #4a98f4
+  W = #3482e0
+  b = #8ccaff
+  f = #f2f8ff
+  t = #d8b878
+  T = #b89858
+  u = #c8a868
+
+# herbe : touffes en « v » comme sur les routes de Johto
+tile herbe 16x16
+  gggggggggggggggg
+  ggGgGggggggghggg
+  gggGgggggggggggg
+  gggggggggGgGgggg
+  ggggggggggGggggg
+  ghgggggggggggggg
+  ggggggggggggggGg
+  gggggGgGgggggggg
+  ggggggGggggggggg
+  gggggggggggggggg
+  ggggggggggggGgGg
+  gGgGggghgggggGgg
+  ggGggggggggggggg
+  gggggggggggggggg
+  ggggggggGgGggggg
+  gggggggggGgggggg
+
+# chemin de terre : sable clair, cailloux sombres
+tile chemin 16x16
+  tttttttttttttttt
+  ttuttttttTtttttt
+  tttttttttttttttt
+  ttttttuttttttttt
+  tttttttttttttutt
+  tTtttttttttttttt
+  ttttttttttuttttt
+  tttttttttttttttt
+  ttttuttttttTtttt
+  tttttttttttttttt
+  tttttttttttttttt
+  ttttttttTttttutt
+  tutttttttttttttt
+  tttttttttttttttt
+  tttttttuttttttTt
+  tttttttttttttttt
+
+# eau : vaguelettes claires + creux sombres
+tile eau 16x16
+  wwwwwwwwwwwwwwww
+  wwbbwwwwwwwwwwww
+  wbwwbwwwwwwwbbww
+  wwwwwwwwwwwbwwbw
+  wwwwwwwwwwwwwwww
+  wwwwwwWWwwwwwwww
+  wwwwwWwwWwwwwwww
+  wwwwwwwwwwwwwwww
+  wwwwwwwwwwwwwwww
+  wwwwwwwwwwbbbwww
+  wwbbwwwwwbwwwbww
+  wbwwbwwwwwwwwwww
+  wwwwwwwwwwwwwwww
+  wwwwwwwWWwwwwwww
+  wwwwwwWwwWwwwwww
+  wwwwwwwwwwwwwwww
+
+# rivage nord : herbe en haut, berge, transparent en bas
+tile rivage_N 16x16
+  gggggggggggggggg
+  ggGgGggggggghggg
+  gggGgggggggggggg
+  gggggggggGgGgggg
+  ggggggggggGggggg
+  ddgddddddgdddddd
+  sssSssssssssSsss
+  SSSSSSSSSSSSSSSS
+  EEEEEEEEEEEEEEEE
+  .f......f.......
+  ................
+  ................
+  ................
+  ................
+  ................
+  ................
+
+derive rivage_S = flipv rivage_N
+derive rivage_O = rot90 rivage_N
+derive rivage_E = rot270 rivage_N
+
+# coin concave nord-ouest d'un lac
+tile coin_NO 16x16
+  gggggggggggggggg
+  ggGgGggggggghggg
+  gggGgggggggggggg
+  gggggggggGgGgggg
+  ggggggggggGggggg
+  gggggddddgdddddd
+  gggggdsssssSssss
+  gggggdsSSSSSSSSS
+  gggggdsSEEEEEEEE
+  gggggdsSE...f...
+  gggggdsSE.......
+  ggGggdsSE.......
+  gGgGgdsSE.......
+  gggggdsSE.......
+  gggggdsSE.......
+  gggggdsSE.......
+
+derive coin_NE = fliph coin_NO
+derive coin_SO = flipv coin_NO
+derive coin_SE = rot180 coin_NO

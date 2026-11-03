@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { T } from '../world/tiles.js';
 import { buildAtlas, buildAnimAtlas, buildSprites, applySpriteImages, facade, sideWall, roofTex, roofColors, kitColor, PAL, SOL16 } from './textures.js';
 import { SPRITES } from '../data/sprites.js';
+import { Sol } from './sol.js';
+import { sorteCase, K as SORTE } from './solgen.js';
 
 export const EL = 55 * Math.PI / 180, FOV = 13;
 
@@ -362,6 +364,7 @@ export class WorldView {
     this.matGlow = new THREE.MeshBasicMaterial({ map: this.glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     this.tint = new THREE.Color(1, 1, 1); this.night = 0;
     this.animFrame = 0; this.animT = 0;
+    this.sol = new Sol(this);   // sol en pixel art généré, posé sur chaque bloc (sol.js)
     this.focus = new THREE.Vector3(); this.shake = 0;
     this.actors = new Map();
     this.root = null;
@@ -383,6 +386,7 @@ export class WorldView {
     this.actors.clear();
     this.map = map; this.root = new THREE.Group(); this.scene.add(this.root);
     this.chunks = new Map(); this.glows = new THREE.Group(); this.root.add(this.glows);
+    this.sol.setMap(map);
     this.decoAt = new Map(); for (const d of map.deco) this.decoAt.set(d.x + ',' + d.y, d);
     this.tiers = map.outdoor ? null : caveTiers(map); this.biome = caveBiome(map);
     this.rh = this.tiers && !this.A?.cells?.[`rp_${this.biome}_00`] ? caveHeights(map, this.tiers) : null;
@@ -473,8 +477,11 @@ export class WorldView {
     const water = (x, y) => { const q = m.get(Math.max(0, Math.min(m.w - 1, x)), Math.max(0, Math.min(m.h - 1, y))); return q === T.WATER || q === T.BRIDGE; };
     const ORDER = ['herbes_neige', 'herbes_bois', 'sable', 'pave', 'neige', 'cendre', 'chemin'];
     const xe = x0 + CH >= m.w ? m.w + 1 : x0 + CH, ye = y0 + CH >= m.h ? m.h + 1 : y0 + CH;
+    const couvert = this.sol.couvre() ? (a, b) => sorteCase(m, a, b) !== SORTE.X : null;
     for (let y = y0; y < ye; y++) for (let x = x0; x < xe; x++) {
       const cs = [[x - 1, y - 1], [x, y - 1], [x - 1, y], [x, y]];
+      // le sol généré dessine lui-même les transitions entre les sols qu'il couvre
+      if (couvert && cs.every(([a, b]) => couvert(a, b))) continue;
       // rivages : la terre (sable ou herbe) par-dessus l'eau animée
       const wm = cs.map(([a, b]) => (water(a, b) ? 0 : 1)), wmask = wm[0] << 3 | wm[1] << 2 | wm[2] << 1 | wm[3];
       if (wmask && wmask !== 15) {
@@ -495,6 +502,8 @@ export class WorldView {
    *  de case prend le morceau du plateau qui va avec ses voisins (coin arrondi, bord en pente, face de roche au sud) */
   paroiCell(G, x, y) {
     const m = this.map, A = this.A.cells, b = this.biome;
+    // au-dessus du sol généré (sol.js) : ses coins arrondis laissent voir le sol fin, pas l'ancien sol de la case
+    const yh = this.sol.couvre() ? 0.0049 : 0.004;
     const rock = (dx, dy) => { const a = x + dx, c = y + dy; return a < 0 || c < 0 || a >= m.w || c >= m.h || m.get(a, c) === T.CAVEWALL; };
     const W = !rock(-1, 0), E = !rock(1, 0), N = !rock(0, -1), S = !rock(0, 1);
     const cols = W && E ? [0, 5] : W ? [0, 1] : E ? [4, 5] : [2, 3];
@@ -507,14 +516,14 @@ export class WorldView {
     const open = (W ? 1 : 0) + (E ? 1 : 0) + (N ? 1 : 0) + (S ? 1 : 0);
     if (!inner[0] && !inner[1] && open <= 1) {
       const alt = S ? pick('f', 4, 0.8) : N ? pick('n', 4, 0.8) : W ? pick('l', 3, 0.75) : E ? pick('e', 3, 0.75) : pick('q', 6, 0.4);
-      if (alt) { flat(G, x, y, x + 1, y + 1, 0.004, alt); return; }
+      if (alt) { flat(G, x, y, x + 1, y + 1, yh, alt); return; }
     }
     for (let qy = 0; qy < 2; qy++) for (let qx = 0; qx < 2; qx++) {
       let c = cols[qx], r = rows[qy];
       if (inner[qx] && !S) { if (qy === 1) { r = 5; c = qx ? 3 : 2; } else if (!N) { r = 4; c = qx ? 3 : 2; } }
       const cell = A[`rp_${b}_${r >> 1}${c >> 1}`]; if (!cell) continue;
       const hu = (cell[2] - cell[0]) / 2, hv = (cell[3] - cell[1]) / 2, u0 = cell[0] + (c & 1) * hu, v0 = cell[1] + (r & 1) * hv;
-      flat(G, x + qx / 2, y + qy / 2, x + (qx + 1) / 2, y + (qy + 1) / 2, 0.004, [u0, v0, u0 + hu, v0 + hv]);
+      flat(G, x + qx / 2, y + qy / 2, x + (qx + 1) / 2, y + (qy + 1) / 2, yh, [u0, v0, u0 + hu, v0 + hv]);
     }
   }
   /** roche de grotte en pentes : la case est découpée en RN × RN facettes posées sur le champ de hauteur ; une facette
@@ -580,7 +589,7 @@ export class WorldView {
       const t = m.get(x, y), g = this.groundCell(x, y), v = hash(x + 7, y + 3);
       if (g.c) flat(G, x, y, x + 1, y + 1, 0, g.c, g.shade);
       if (g.anim) flat(N, x, y, x + 1, y + 1, 0, g.anim);
-      if (g.bridge) flat(G, x - 0.02, y, x + 1.02, y + 1, 0.012, g.bridge);
+      if (g.bridge && !this.sol.couvre()) flat(G, x - 0.02, y, x + 1.02, y + 1, 0.012, g.bridge);   // le sol généré dessine ses pontons
       // détails de l'herbe (touffes, trèfles, cailloux, fleurettes…) : une case d'herbe sur six environ, jamais deux
       // fois le même détail côte à côte ; des feuilles mortes et des champignons en forêt
       if (m.outdoor && (t === T.GRASS || t === T.FENCE) && this.detailAt(x, y)) {
@@ -679,6 +688,7 @@ export class WorldView {
       const me = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), this.matGlow); me.position.set(gx, gy, gz + 0.05); me.rotation.x = -0.3; me.userData.lampGlow = true; this.glows.add(me);
     }
     this.root.add(grp);
+    this.sol.demande(ci, cj, grp);
     return grp;
   }
 
@@ -686,6 +696,7 @@ export class WorldView {
   rebuildAt(x, y) {
     const k = Math.floor(x / CH) + ',' + Math.floor(y / CH), g = this.chunks.get(k);
     if (g) { this.root.remove(g); g.traverse((o) => o.geometry?.dispose()); this.chunks.delete(k); }
+    this.sol.invalider(x, y);
     this.lastChunk = null;
   }
   ensureChunks(px, py) {
@@ -966,6 +977,7 @@ export class WorldView {
   /* ---------------- image ---------------- */
   update(dt, fx, fy) {
     this.ensureChunks(fx, fy);
+    this.sol.update(dt, Math.floor(fx / CH), Math.floor(fy / CH));
     this.animT += dt;
     if (this.animT > 0.2) {
       this.animT = 0; this.animFrame = (this.animFrame + 1) % this.N.frames.length;

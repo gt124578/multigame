@@ -1,0 +1,22 @@
+# scène 16x9 cases de 16 px = 256x144 ; x15 = 3840x2160 (4K exact)
+tile 16
+layer
+  herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe
+  herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe
+  herbe herbe eau   eau   eau   eau   eau   herbe herbe herbe herbe herbe herbe herbe herbe herbe
+  herbe herbe eau   eau   eau   eau   eau   herbe herbe herbe chemin chemin chemin chemin chemin chemin
+  herbe herbe eau   eau   eau   eau   eau   herbe herbe herbe chemin chemin chemin chemin chemin chemin
+  herbe herbe eau   eau   eau   eau   eau   herbe herbe herbe herbe herbe herbe herbe herbe herbe
+  herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe
+  herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe
+  herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe herbe
+layer
+  - - - - - - - - - - - - - - - -
+  - - - - - - - - - - - - - - - -
+  - - coin_NO rivage_N rivage_N rivage_N coin_NE - - - - - - - - -
+  - - rivage_O - - - rivage_E - - - - - - - - -
+  - - rivage_O - - - rivage_E - - - - - - - - -
+  - - coin_SO rivage_S rivage_S rivage_S coin_SE - - - - - - - - -
+  - - - - - - - - - - - - - - - -
+  - - - - - - - - - - - - - - - -
+  - - - - - - - - - - - - - - - -
