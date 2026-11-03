@@ -583,7 +583,7 @@ export class Game {
       await this.warp(w, t === T.CAVEDOOR || w.step ? 'exit' : 'door'); return;
     }
     this.updateZone();
-    if (this.state.repel > 0) { this.state.repel--; if (this.state.repel === 0) { this.busy = true; await this.ui.say('L\'effet du Repousse s\'est dissipé...'); this.busy = false; } }
+    if (this.state.repel > 0) { this.state.repel--; if (this.state.repel === 0) { this.busy = true; try { await this.repelFini(); } finally { this.busy = false; } } }
     const z = this.zone;
     // Cap des Étoiles : Odyssor
     if (m.objectAt(p.x, p.y)?.type === 'odyssor') { if (await this.odyssorEvent()) return; }
@@ -1048,6 +1048,16 @@ export class Game {
     st.velo = !st.velo; this.sound.sfx(st.velo ? 'select' : 'cancel');
     return true;
   }
+  /** fin d'un Repousse : on propose d'en utiliser un autre tout de suite (le même s'il en reste, sinon un autre) */
+  async repelFini() {
+    const st = this.state, ui = this.ui;
+    await ui.say('L\'effet du Repousse s\'est dissipé...');
+    const order = [st.lastRepel, 'repel', 'super-repel', 'max-repel'].filter(Boolean);
+    const k = order.find((id) => st.bag[id] > 0); if (!k) return;
+    if (!(await ui.yesNo(`Utiliser un autre ${itemName(k)} ?\n(il t'en reste ${st.bag[k]})`))) return;
+    st.repel = ITEMS[k].repel; st.lastRepel = k; this.take(k); this.sound.sfx('item');
+    await ui.say(`${st.name} utilise ${itemName(k)}.\nLes créatures sauvages faibles fuiront pendant ${st.repel} pas.`);
+  }
   /** sac hors combat ; renvoie true si l'objet utilisé ferme le menu (Corde Sortie, Vol…) */
   async fieldBag() {
     for (;;) {
@@ -1061,7 +1071,11 @@ export class Game {
         await this.ui.say([`${FIELD[it.field].name} : ${FIELD[it.field].desc}`, this.canField(it.field) ? 'Place-toi face à l\'obstacle et appuie sur F pour l\'utiliser.' : `Il faut le ${BADGES[FIELD[it.field].badge - 1].name} pour l'utiliser hors combat.`]);
         continue;
       }
-      if (it.repel) { st.repel = it.repel; this.take(r.item); this.sound.sfx('item'); await this.ui.say(`${st.name} utilise ${itemName(r.item)}.\nLes créatures sauvages faibles fuiront pendant ${it.repel} pas.`); return true; }
+      // Repousses : on peut en utiliser plusieurs d'affilée, les pas s'additionnent (le sac reste ouvert)
+      if (it.repel) {
+        st.repel = Math.min(9999, (st.repel || 0) + it.repel); st.lastRepel = r.item; this.take(r.item); this.sound.sfx('item');
+        await this.ui.say(`${st.name} utilise ${itemName(r.item)}.\nLes créatures sauvages faibles fuiront pendant ${st.repel} pas.`); continue;
+      }
       if (r.item === 'escape-rope') {
         if (this.mapObj.floor === 'cave' && st.lastOutdoor) { this.take(r.item); await this.ui.say(`${st.name} utilise la Corde Sortie !`); await this.warp({ map: 'monde', x: st.lastOutdoor.x, y: st.lastOutdoor.y, dir: 'down' }, 'exit'); return true; }
         await this.ui.say('Ce n\'est pas le moment d\'utiliser ça !'); continue;

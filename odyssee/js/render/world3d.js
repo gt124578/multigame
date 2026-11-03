@@ -385,7 +385,7 @@ export class WorldView {
     this.chunks = new Map(); this.glows = new THREE.Group(); this.root.add(this.glows);
     this.decoAt = new Map(); for (const d of map.deco) this.decoAt.set(d.x + ',' + d.y, d);
     this.tiers = map.outdoor ? null : caveTiers(map); this.biome = caveBiome(map);
-    this.rh = this.tiers ? caveHeights(map, this.tiers) : null;
+    this.rh = this.tiers && !this.A?.cells?.[`rp_${this.biome}_00`] ? caveHeights(map, this.tiers) : null;
     this.scene.background = new THREE.Color(map.outdoor ? '#1d4f2a' : '#0c0a10');
     if (map.id === 'monde') this.scene.background = new THREE.Color('#1d4f2a');
     this.buildBuildings();
@@ -439,7 +439,8 @@ export class WorldView {
       // une couleur par massif (par carré de 3 × 3 cases), avec parfois une fleur d'une autre couleur
       case T.FLOWER: { const nf = this.N.cells.flower5 ? 6 : 4, pv = hash(Math.floor(x / 3) + 101, Math.floor(y / 3) + 37), k = v < 0.85 ? Math.floor(pv * nf) : Math.floor(v * 97) % nf; return { anim: this.N.cells['flower' + k] || this.N.cells.flower0 }; }
       case T.LEDGE: return { c: A.ledge }; case T.LEDGE_E: return { c: A.ledgeE }; case T.LEDGE_W: return { c: A.ledgeW };
-      case T.CAVEWALL: if (this.tiers && A[`rt_${this.biome}_0`] && !this.tierAt(x, y)) return { c: A[`rt_${this.biome}_${v < 0.7 ? 0 : 1}`], shade: 0.95 };
+      case T.CAVEWALL: if (this.tiers && A[`rp_${this.biome}_00`]) { const k = reliefKey(A, this.biome, 's', v); return { c: A[k] }; }
+        if (this.tiers && A[`rt_${this.biome}_0`] && !this.tierAt(x, y)) return { c: A[`rt_${this.biome}_${v < 0.7 ? 0 : 1}`], shade: 0.95 };
       // falls through
       case T.CAVE: { const k = reliefKey(A, this.biome, 's', v); return { c: k ? A[k] : A['cave' + (v < 0.5 ? 0 : 1)] }; }
       case T.CAVEDOOR: return { c: A.cavestairs };
@@ -490,6 +491,21 @@ export class WorldView {
     }
   }
 
+  /** paroi de grotte dessinée à plat comme dans HeartGold / SoulSilver (jeu de tuiles du plateau 3 × 3) : chaque quart
+   *  de case prend le morceau du plateau qui va avec ses voisins (coin arrondi, bord en pente, face de roche au sud) */
+  paroiCell(G, x, y) {
+    const m = this.map, A = this.A.cells, b = this.biome;
+    const rock = (dx, dy) => { const a = x + dx, c = y + dy; return a < 0 || c < 0 || a >= m.w || c >= m.h || m.get(a, c) === T.CAVEWALL; };
+    const W = !rock(-1, 0), E = !rock(1, 0), N = !rock(0, -1), S = !rock(0, 1);
+    const cols = W && E ? [0, 5] : W ? [0, 1] : E ? [4, 5] : [2, 3];
+    const rows = N && S ? [0, 5] : N ? [0, 1] : S ? [4, 5] : [2, 3];
+    for (let qy = 0; qy < 2; qy++) for (let qx = 0; qx < 2; qx++) {
+      const c = cols[qx], r = rows[qy];
+      const cell = A[`rp_${b}_${r >> 1}${c >> 1}`]; if (!cell) continue;
+      const hu = (cell[2] - cell[0]) / 2, hv = (cell[3] - cell[1]) / 2, u0 = cell[0] + (c & 1) * hu, v0 = cell[1] + (r & 1) * hv;
+      flat(G, x + qx / 2, y + qy / 2, x + (qx + 1) / 2, y + (qy + 1) / 2, 0.004, [u0, v0, u0 + hu, v0 + hv]);
+    }
+  }
   /** roche de grotte en pentes : la case est découpée en RN × RN facettes posées sur le champ de hauteur ; une facette
    *  plate prend le dessus de roche, une facette en pente la paroi striée, les stries dans le sens de la pente ;
    *  la lumière vient d'en haut à gauche */
@@ -593,7 +609,16 @@ export class WorldView {
         if (y <= 1) { const south = m.get(x, y + 1) !== T.WALL; box(Wl, x, y, x + 1, y + 1, wallH, A[m.wallStyle] || A.wall_in, A.walltop, A.walltop, { south, east: false, west: false }); }
         else flat(Wl, x, y, x + 1, y + 1, 0.01, A.walltop);
       } else if (t === T.CAVEWALL) {
-        if (this.tiers && A['rw_' + this.biome + '_0']) {
+        if (this.tiers && A['rp_' + this.biome + '_00']) {
+          this.paroiCell(O0, x, y);
+          // de temps en temps un rocher pointu au milieu d'un plateau
+          const b = this.biome, v2 = hash(x * 5 + 3, y * 7 + 11), m2 = this.map;
+          const inner = [[1, 0], [-1, 0], [0, 1], [0, -1], [0, 2]].every(([dx, dy]) => m2.get(x + dx, y + dy) === T.CAVEWALL || m2.get(x + dx, y + dy) == null);
+          if (inner && v2 < 0.1) {
+            const r = v2 < 0.04 ? S[`pic_${b}_${Math.floor(hash(x + 41, y + 43) * 3)}`] : S[`cone_${b}_${Math.floor(hash(x + 41, y + 43) * 3)}`];
+            if (r) billboard(P, x + 0.5 + (v - 0.5) * 0.25, y + 0.62, SW(r), SH(r), r, 0, v > 0.5);
+          }
+        } else if (this.tiers && A['rw_' + this.biome + '_0']) {
           this.reliefCell(Wl, x, y);
           // rochers pointus (comme dans HeartGold / SoulSilver) : de temps en temps un amas de pointes ou une pointe dressée
           // sur le haut de la roche (là où il est plat)

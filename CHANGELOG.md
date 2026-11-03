@@ -1,5 +1,13 @@
 # Journal des versions — Arcadia
 
+## 3.86 — 3 novembre 2026
+- **Odyssée** — Talents, Repousses et grottes :
+  - Chaque Pokémon a maintenant son vrai talent (Engrais, Statik, Lévitation, Intimidation, Turbo…), visible dans son résumé, et plus d'une centaine de talents agissent vraiment en combat.
+  - Deux Pokémon de la même espèce peuvent avoir des talents différents ; certains, plus rares, ont un talent caché.
+  - On peut utiliser plusieurs Repousses d'affilée : leurs pas s'additionnent et le sac reste ouvert.
+  - Quand un Repousse s'épuise, le jeu propose d'en utiliser un autre tout de suite.
+  - Les parois des grottes reprennent le style des jeux DS : plateaux de roche aux coins arrondis, bords en pente et petite falaise au pied.
+
 ## 3.85 — 3 novembre 2026
 - **Odyssée** — Des grottes en vraie roche :
   - Les parois ne sont plus des blocs carrés : la roche monte en pentes, avec des coins en biais et des terrasses, comme sur DS.
