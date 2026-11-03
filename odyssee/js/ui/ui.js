@@ -227,10 +227,11 @@ export class UI {
     hudBtn.addEventListener('click', () => { if (!this.input.helpOpen) this.input.emit('hud'); });
     const runBtn = el('button', 'keyhint', '<b>R</b> Course'); runBtn.type = 'button'; runBtn.tabIndex = -1;
     runBtn.addEventListener('click', () => { if (!this.input.helpOpen) this.input.emit('autorun'); });
+    this.keyRunBtn = runBtn;
     bar.append(btn, escBtn, hudBtn, runBtn);
     const panel = el('div', 'keypanel box', `<div class="list-title">Commandes</div><table class="kv">
       <tr><td>Se déplacer</td><td><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> ou <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></td></tr>
-      <tr><td>Courir / Course continue</td><td><kbd>Maj</kbd> maintenue · <kbd>R</kbd> (ou bouton COURSE) pour courir en continu</td></tr>
+      <tr><td>Courir / Vitesse</td><td><kbd>Maj</kbd> maintenue · <kbd>R</kbd> (ou bouton COURSE) pour alterner Marche / Rapide (1.7×) / Turbo (2.5×) · Maj pour sprint</td></tr>
       <tr><td>Parler, interagir, valider</td><td><kbd>F</kbd> (ou <kbd>Espace</kbd>, <kbd>Entrée</kbd>)</td></tr>
       <tr><td>Annuler, revenir</td><td><kbd>Échap</kbd> (ou <kbd>Retour arrière</kbd>)</td></tr>
       <tr><td>Menu (équipe, sac, sauvegarde…)</td><td><kbd>Échap</kbd>, <kbd>Tab</kbd> ou <kbd>M</kbd></td></tr>
@@ -244,6 +245,21 @@ export class UI {
     btn.addEventListener('click', toggle);
     this.input.onHelp = toggle;
   }
+  updateRunKeyHint(autoRun, runSpeed) {
+    if (!this.keyRunBtn) return;
+    if (!autoRun) {
+      this.keyRunBtn.innerHTML = '<b>R</b> Course';
+      this.keyRunBtn.classList.remove('active', 'turbo');
+    } else if (runSpeed === 2) {
+      this.keyRunBtn.innerHTML = '<b>R</b> Turbo ⚡';
+      this.keyRunBtn.classList.add('active', 'turbo');
+    } else {
+      this.keyRunBtn.innerHTML = '<b>R</b> Course 1.7×';
+      this.keyRunBtn.classList.add('active');
+      this.keyRunBtn.classList.remove('turbo');
+    }
+  }
+
   toast(text, ms = 1600) {
     const t = el('div', 'toast box', esc(text)); this.root.appendChild(t);
     setTimeout(() => t.remove(), ms);

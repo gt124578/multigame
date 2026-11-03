@@ -12,7 +12,7 @@ import { BADGES } from '../world/region.js';
 import { el, esc, wait } from '../ui/ui.js';
 import { tenueCode, tenueDecode, composer } from '../render/tenue.js';
 
-const WALK = 0.26, RUN = 0.135;
+const WALK = 0.20, RUN = 0.068;
 const trainerSprite = (gender) => (gender === 'f' ? 'serena' : 'calem');
 
 export function installSocial(game) {

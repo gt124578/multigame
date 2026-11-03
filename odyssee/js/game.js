@@ -28,7 +28,13 @@ import { composer } from './render/tenue.js';
 // v2 : nouvelle région (arènes dans un autre ordre, archipel, créatures originales) — les sauvegardes v1 ne sont pas reprises
 const SAVE_KEY = 'odyssee-save-v2';
 const SUIVEUR = 0.75;   // taille du Pokémon qui suit (1 = celle de son dessin)
-const WALK = 0.26, RUN = 0.135, SURF = 0.2, VELO = 0.085;
+export const WALK = 0.20, SURF = 0.11, VELO = 0.042;
+export const RUN_SPEEDS = [
+  { id: 'norm', label: 'Normale (1×)', dur: 0.100 },
+  { id: 'fast', label: 'Rapide (1.7×)', dur: 0.068 },
+  { id: 'turbo', label: 'Turbo (2.5×)', dur: 0.046 },
+];
+export const RUN = RUN_SPEEDS[1].dur;
 const key = (x, y) => x + ',' + y;
 // le rival prend le partenaire qui a l'avantage sur le tien (Plante → Feu, Feu → Eau, Eau → Plante), de la même
 // lignée que le tien : l'original d'Odyssée, celui de Rouge / Bleu ou celui d'Or / Argent
@@ -101,6 +107,11 @@ export class Game {
     this.bv = new BattleView(this);
     this.autoRun = false;
     try { this.autoRun = localStorage.getItem('odyssee-autorun') === '1'; } catch (e) {}
+    this.runSpeed = 1; // 0: Normale (1×), 1: Rapide (1.7×), 2: Turbo (2.5×)
+    try {
+      const rs = localStorage.getItem('odyssee-runspeed');
+      if (rs != null) this.runSpeed = Math.max(0, Math.min(2, +rs));
+    } catch (e) {}
     this.followOff = false;   // le Pokémon de tête suit le dresseur (option)
     try { this.followOff = localStorage.getItem('odyssee-suiveur') === '0'; } catch (e) {}
     this.hud = new Hud(this);
@@ -485,6 +496,11 @@ export class Game {
     return this.gateBlock.has(key(x, y));
   }
 
+  runDur(isTurbo = false) {
+    if (isTurbo) return RUN_SPEEDS[2].dur;
+    return (RUN_SPEEDS[this.runSpeed] || RUN_SPEEDS[1]).dur;
+  }
+
   tryStep(d) {
     const p = this.player, m = this.mapObj, [dx, dy] = DIRS[d];
     p.dir = d;
@@ -496,11 +512,13 @@ export class Game {
       if (w && !this.libre && m.gymLock != null && !this.state.badges[m.gymLock] && this.state.flags['IN:' + m.id]) { this.gymLocked(); return; }
       if (w) { this.warp(w, 'exit'); return; }
     }
-    const run = this.autoRun || this.input.isDown('run');   // Maj fait toujours courir, même en course continue
+    const isShift = this.input.isDown('run');
+    const isRunning = this.autoRun || isShift;
+    const isTurbo = (this.autoRun && isShift) || (this.runSpeed === 2 && isRunning);
     // en surf : on glisse sur l'eau, et on descend sur la berge
     if (p.surf) {
       if (m.in(tx, ty) && t === T.WATER && !this.occupied(tx, ty)) { p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur: SURF }; p.walking = true; return; }
-      if (m.in(tx, ty) && walkable(t) && t !== T.DOOR && t !== T.BRIDGE && !this.occupied(tx, ty)) { p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur: 0.3, jump: true, land: true }; p.walking = true; this.sound.sfx('ledge'); return; }
+      if (m.in(tx, ty) && walkable(t) && t !== T.DOOR && t !== T.BRIDGE && !this.occupied(tx, ty)) { p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur: 0.25, jump: true, land: true }; p.walking = true; this.sound.sfx('ledge'); return; }
       p.walking = false; if (p.bumpT <= 0) { this.sound.sfx('bump'); p.bumpT = 0.3; } return;
     }
     // Force : pousser un rocher
@@ -518,7 +536,8 @@ export class Game {
       if (walkable(m.get(lx, ly)) && !this.occupied(lx, ly)) { p.move = { fx: p.x, fy: p.y, tx: lx, ty: ly, t: 0, dur: 0.42, jump: true }; p.walking = true; this.sound.sfx('ledge'); return; }
     }
     if (m.in(tx, ty) && walkable(t) && !this.occupied(tx, ty) && m.height(tx, ty) === m.height(p.x, p.y)) {
-      p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur: this.onBike() ? VELO : run ? RUN : WALK }; p.walking = true;
+      const dur = this.onBike() ? VELO : isRunning ? this.runDur(isTurbo) : WALK;
+      p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur }; p.walking = true;
       return;
     }
     if (this.gateBlock.has(key(tx, ty))) { const g = m.gates.find((q) => q.tiles.some(([x, y]) => x === tx && y === ty)); if (g) { const n = this.npcs.find((q) => q.id === g.npc); if (n) { this.talk(n); return; } } }
@@ -660,11 +679,35 @@ export class Game {
 
   /* ================= touches ================= */
   toggleAutoRun() {
-    this.autoRun = !this.autoRun;
-    try { localStorage.setItem('odyssee-autorun', this.autoRun ? '1' : '0'); } catch (e) {}
+    // Cycle : Désactivé -> Course Rapide (1.7×) -> Turbo (2.5×) -> Désactivé
+    if (!this.autoRun) {
+      this.autoRun = true;
+      if (this.runSpeed == null || this.runSpeed === 0) this.runSpeed = 1;
+    } else if (this.runSpeed === 1) {
+      this.runSpeed = 2; // passe en Turbo
+    } else {
+      this.autoRun = false;
+      this.runSpeed = 1; // réinitialise sur Rapide
+    }
+    try {
+      localStorage.setItem('odyssee-autorun', this.autoRun ? '1' : '0');
+      localStorage.setItem('odyssee-runspeed', this.runSpeed);
+    } catch (e) {}
     this.sound.sfx(this.autoRun ? 'select' : 'cancel');
     this.hud?.update(true);
-    this.ui.toast(this.autoRun ? 'Course continue activée !' : 'Course continue désactivée', 1300);
+    this.ui.updateRunKeyHint?.(this.autoRun, this.runSpeed);
+    const msg = !this.autoRun
+      ? 'Marche classique (Course continue désactivée)'
+      : this.runSpeed === 2
+        ? '⚡ Course continue TURBO (2.5×) activée !'
+        : '🏃 Course continue RAPIDE (1.7×) activée !';
+    this.ui.toast(msg, 1400);
+  }
+  setRunSpeed(idx) {
+    this.runSpeed = Math.max(0, Math.min(2, idx));
+    try { localStorage.setItem('odyssee-runspeed', this.runSpeed); } catch (e) {}
+    this.hud?.update(true);
+    this.ui.updateRunKeyHint?.(this.autoRun, this.runSpeed);
   }
   async onKey(k) {
     if (!this.state) return;
