@@ -82,9 +82,112 @@ export const ITEMS = {
   'metal-coat': { pocket: 'objets', price: 2000, hold: 'metal-coat', name: 'Peau Métal', desc: "Objet à tenir. Augmente de 20% la puissance des attaques de type Acier." },
   'silk-scarf': { pocket: 'objets', price: 2000, hold: 'silk-scarf', name: 'Mouchoir Soie', desc: "Objet à tenir. Augmente de 20% la puissance des attaques de type Normal." },
   'town-map': { pocket: 'cles', price: 0, key: true, name: 'Carte', desc: 'La carte de la région d\'Odyssée. On peut aussi l\'ouvrir avec la touche C.' },
+  'master-ball': { pocket: 'balls', price: 0, ball: 255, name: 'Master Ball', desc: 'La meilleure Ball qui soit. Elle capture à coup sûr n\'importe quel Pokémon sauvage.' },
+  'insigne-brume': { pocket: 'cles', price: 0, key: true, name: 'Insigne Brume', desc: 'Un insigne prouvant votre aide contre les voleurs de Sylvebourg.' },
+  'lettre-facteur': { pocket: 'cles', price: 0, key: true, name: 'Lettre du Facteur', desc: 'Une lettre à distribuer aux habitants.' },
+  'plume-lune': { pocket: 'cles', price: 0, key: true, name: 'Plume Lune', desc: 'Une plume scintillante laissée par Cresselia.' },
+  talisman: { pocket: 'cles', price: 0, key: true, name: 'Talisman', desc: 'Un talisman sacré du Temple Kagura.' },
+  'cle-base': { pocket: 'cles', price: 0, key: true, name: 'Clé de la Base', desc: 'La clé ouvrant la porte de la base secrète.' },
+  'orbe-rouge': { pocket: 'cles', price: 0, key: true, name: 'Orbe Rouge', desc: 'Un orbe incandescent vibrant d\'une énergie antique.' },
+  velo: { pocket: 'cles', price: 0, key: true, name: 'Bicyclette', desc: 'Une bicyclette rouge pliable pour rouler à toute vitesse.' },
+  'chambre-air': { pocket: 'cles', price: 0, key: true, name: 'Chambre à Air', desc: 'Une chambre à air robuste pour assembler le vélo.' },
+  derailleur: { pocket: 'cles', price: 0, key: true, name: 'Dérailleur', desc: 'Un dérailleur forgé avec soin pour assembler le vélo.' },
+  'permis-bateau': { pocket: 'cles', price: 0, key: true, name: 'Permis Bateau', desc: 'Un permis officiel autorisant la navigation vers les îles.' },
 };
 export const itemName = (k) => ITEMS[k]?.name || ITEM_NAMES[k] || k;
-export const POCKETS = [['objets', 'Objets'], ['soin', 'Soins'], ['balls', 'Balls'], ['ct', 'CT & CS'], ['baies', 'Baies'], ['cles', 'Objets rares']];
+export const POCKETS = [['objets', 'Objets'], ['soin', 'Soins'], ['balls', 'Poké Balls'], ['ct', 'CT & CS'], ['baies', 'Baies'], ['cles', 'Objets Rares']];
+
+export const POCKET_NAMES = {
+  objets: 'Objets',
+  soin: 'Soins',
+  balls: 'Poké Balls',
+  ct: 'CT & CS',
+  baies: 'Baies',
+  cles: 'Objets Rares',
+};
+
+export function itemPocketName(k) {
+  const it = ITEMS[k];
+  if (!it) {
+    if (typeof k === 'string') {
+      if (k.startsWith('cs-') || k.startsWith('ct-')) return 'CT & CS';
+      if (k.includes('berry') || k.includes('baie')) return 'Baies';
+      if (k.includes('ball')) return 'Poké Balls';
+    }
+    return 'Objets';
+  }
+  if (it.pocket === 'baies' || (typeof k === 'string' && (k.includes('berry') || k.includes('baie')))) return 'Baies';
+  if (it.pocket === 'ct' || (typeof k === 'string' && (k.startsWith('cs-') || k.startsWith('ct-')))) return 'CT & CS';
+  if (it.pocket === 'balls') return 'Poké Balls';
+  if (it.pocket === 'soin') return 'Soins';
+  if (it.pocket === 'cles' || it.key) return 'Objets Rares';
+  return POCKET_NAMES[it.pocket] || 'Objets';
+}
+
+export function itemPluralName(k, qty = 1) {
+  const name = itemName(k);
+  if (qty <= 1) return name;
+  if (name.endsWith('s') || name.endsWith('x')) return `${qty} ${name}`;
+  if (name.endsWith(' Ball')) return `${qty} ${name}s`;
+  if (name.endsWith(' Potion')) return `${qty} ${name}s`;
+  if (name === 'Potion') return `${qty} Potions`;
+  if (name === 'Super Bonbon') return `${qty} Super Bonbons`;
+  if (name.startsWith('Pierre ')) return `${qty} ${name}s`;
+  if (name.startsWith('Baie ')) return `${qty} ${name}s`;
+  return `${qty} ${name}s`;
+}
+
+/**
+ * Message lors de la trouvaille d'un objet au sol (Poké Ball sur la carte)
+ * Conforme à la syntaxe officielle Pokémon Noir 2 / Blanc 2 (B2W2)
+ */
+export function formatFindItem(playerName, itemKey, qty = 1, csInfo = null) {
+  const cs = csInfo || (ITEMS[itemKey]?.field && ITEMS[itemKey].name ? {
+    cs: ITEMS[itemKey].name.split(' ')[0],
+    name: ITEMS[itemKey].name.split(' ').slice(1).join(' ')
+  } : null);
+
+  if (cs && cs.cs && cs.name) {
+    return `${playerName} trouve la ${cs.cs} ${cs.name} !\n${playerName} met la ${cs.cs} dans la Poche CT & CS.`;
+  }
+  if (typeof itemKey === 'string' && itemKey.startsWith('ct-')) {
+    const num = itemKey.replace(/^ct-?/, '').padStart(2, '0');
+    const ctTag = `CT${num}`;
+    const name = itemName(itemKey);
+    const label = name.startsWith('CT') ? name : `${ctTag} ${name}`;
+    return `${playerName} trouve la ${label} !\n${playerName} met la ${ctTag} dans la Poche CT & CS.`;
+  }
+  const pocket = itemPocketName(itemKey);
+  const qtyStr = itemPluralName(itemKey, qty);
+  const putMsg = qty > 1 ? `met les objets dans la Poche ${pocket}.` : `met l'objet dans la Poche ${pocket}.`;
+  return `${playerName} trouve ${qtyStr} !\n${playerName} ${putMsg}`;
+}
+
+/**
+ * Message lorsqu'un PNJ / une quête / un badge donne un objet
+ * Conforme à la syntaxe officielle Pokémon Noir 2 / Blanc 2 (B2W2)
+ */
+export function formatObtainItem(playerName, itemKey, qty = 1, csInfo = null) {
+  const cs = csInfo || (ITEMS[itemKey]?.field && ITEMS[itemKey].name ? {
+    cs: ITEMS[itemKey].name.split(' ')[0],
+    name: ITEMS[itemKey].name.split(' ').slice(1).join(' ')
+  } : null);
+
+  if (cs && cs.cs && cs.name) {
+    return `${playerName} obtient la ${cs.cs} ${cs.name} !\n${playerName} met la ${cs.cs} dans la Poche CT & CS.`;
+  }
+  if (typeof itemKey === 'string' && itemKey.startsWith('ct-')) {
+    const num = itemKey.replace(/^ct-?/, '').padStart(2, '0');
+    const ctTag = `CT${num}`;
+    const name = itemName(itemKey);
+    const label = name.startsWith('CT') ? name : `${ctTag} ${name}`;
+    return `${playerName} obtient la ${label} !\n${playerName} met la ${ctTag} dans la Poche CT & CS.`;
+  }
+  const pocket = itemPocketName(itemKey);
+  const qtyStr = itemPluralName(itemKey, qty);
+  const putMsg = qty > 1 ? `met les objets dans la Poche ${pocket}.` : `met l'objet dans la Poche ${pocket}.`;
+  return `${playerName} obtient ${qtyStr} !\n${playerName} ${putMsg}`;
+}
 
 /** l'objet peut-il servir sur ce Pokémon ? */
 export function canUseOn(item, m, maxLvl = 100) {

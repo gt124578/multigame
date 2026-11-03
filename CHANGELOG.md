@@ -14,6 +14,11 @@
   - Dans les grottes, le sol ne clignote plus à travers la roche et la roche ne déborde plus en carrés sur le sol.
   - Au bord des grottes, on ne voit plus un grand aplat noir.
 
+## 3.89 — 3 novembre 2026
+- **Odyssée** — Combats :
+  - Les changements de stats s'affichent à côté des jauges : « Atq +2 » en vert quand une stat monte, « Vit −1 » en rouge quand elle baisse.
+  - Ils disparaissent quand le Pokémon est rappelé ou quand Buée Noire les annule.
+
 ## 3.88 — 3 novembre 2026
 - **Odyssée** — Arènes :
   - En entrant dans une arène, le guide t'accueille, présente le Champion et te demande si tu es prêt.
@@ -47,6 +52,33 @@
   - Les rebords qu'on saute d'un seul côté ont un nouveau dessin.
   - Après avoir battu le Champion, on peut revenir directement à l'entrée de l'arène.
   - L'infirmière, le vendeur, ta mère et plusieurs habitants ont enfin leur propre visage dans les dialogues.
+- **Dogfight 3D** — Quatre vraies cartes, au relief réel : les îles Éoliennes (Lipari et Vulcano), Tenerife (le massif de Teno et les falaises de Los Gigantes), Kauai (la côte de Nā Pali) et les Lofoten (Reine et ses aiguilles). On choisit la carte dans les réglages du salon.
+  - La zone de jeu fait 12 km de côté, avec un horizon qui porte jusqu'aux îles voisines.
+  - Le sol a les vraies couleurs du lieu, vues par satellite, avec le grain de l'herbe et de la roche quand on passe au ras ; les fortes pentes sont en roche grise.
+  - Les vrais villages, routes, pistes, sentiers, champs, vergers, vignes et serres de chaque île, avec les maisons en relief, leurs fenêtres, leurs ombres, les ponts et les arbres des jardins.
+  - Les forêts poussent là où le satellite en voit, avec les arbres de Birdie Party teintés comme le sol, et des buissons parsèment le maquis et les landes.
+  - L'air est plus clair : les montagnes se voient de loin.
+  - L'île d'Island Rush baigne dans la même mer que le reste de la carte, sans carré d'eau plus clair autour d'elle.
+  - Chaque carte a sa base aérienne, avec sa piste et ses hangars tournés vers elle.
+- **Dogfight 3D** — Des nuages refaits : de gros amas de cumulus serrés, des tours qui montent au-delà de 2 000 m et, sur les cartes aux plus hauts sommets, une mer de nuages posée sur l'eau au pied des montagnes.
+  - En qualité Moyen et Élevé, les nuages ont un vrai volume : on les contourne, on passe dessous, on s'y cache. Le soleil éclaire leurs bourgeons, leur dessous est gris et bosselé.
+  - Les nuages font de l'ombre sur le sol et sur la mer.
+  - D'autres amas ferment l'horizon, très loin autour de la zone.
+- **Dogfight 3D** — Quatre nouveaux chasseurs : Rafale, Su-35, F/A-18 et A-10. Chaque avion a sa capacité, prête toutes les 25 secondes (touche R, bouton Y à la manette) :
+  - F-16 Surcharge (canon sans surchauffe et plus rapide), F-22 Furtivité (impossible à accrocher, invisible au radar), Rafale Salve (deux missiles d'un coup), Su-35 Cobra (cabré brutal qui fait passer le poursuivant devant), F/A-18 Brouilleur (les missiles autour de toi décrochent), A-10 Brrrt (canon à dégâts doublés).
+  - Le roulis libre passe sur V.
+  - Ce sont de vrais modèles 3D détaillés (verrière, tuyères, lignes de panneaux), peints : gris bleuté pour le Rafale, camouflage bleu pour le Su-35, deux tons de gris pour le F/A-18 et l'A-10. La couleur de l'escadron est sur les dérives et les bouts d'ailes.
+- **Dogfight 3D** — Missiles et leurres à volonté, avec un temps de recharge : 12 secondes pour le missile, 9 pour les leurres.
+  - Un missile fait 70 de dégâts et demande toujours d'accrocher la cible. Un leurre fait décrocher un missile 7 fois sur 10.
+  - Sous 50 m du sol, personne ne peut t'accrocher : le rase-mottes devient une vraie défense.
+  - En bas à droite, quatre cases montrent canon, missile, leurres et capacité, avec leur recharge. Tout est prêt à chaque réapparition.
+- **Dogfight 3D** — Escorte refaite : le transport (un C-17 ou un A400M) suit un vrai trajet d'île en île, au ras de l'eau, entre les montagnes et à travers les nuages, puis se pose sur la piste.
+  - Le C-17 et l'A400M sont de vrais modèles 3D, avec leur bandeau de vitres, une bande de la dérive à la couleur du camp, et les huit pales des hélices de l'A400M qui tournent.
+  - Trois trajets par carte, selon la durée de la partie (5, 8 ou 10 minutes).
+  - Les assaillants n'ont que 5 vies chacun : s'ils tombent tous, les défenseurs gagnent aussi.
+- **Dogfight 3D** — La souris ne s'échappe plus en vol : le curseur disparaît et on peut tourner sans fin. Si elle se libère (Échap, changement de fenêtre), un message le rappelle et un clic la reprend, sans tirer.
+  - Là où le navigateur refuse de la capturer, la souris devient un manche : écarte le curseur du centre de l'écran pour tourner, même s'il sort de la fenêtre. Un repère montre où il est.
+- **Dogfight 3D** — De vrais sons : réacteur et postcombustion enregistrés, canon, départ de missile, explosions, leurres, et le transport qu'on entend venir de loin.
 
 ## 3.83 — 3 novembre 2026
 - **Odyssée** — Corrections :

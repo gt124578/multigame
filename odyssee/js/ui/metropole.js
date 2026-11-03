@@ -47,7 +47,7 @@ export async function casinoScreen(game, quoi = null) {
       const c = await ui.list({ title: `Lots — ${fr(st.jetons)} jetons`, items: LOTS.map((l) => ({ label: itemName(l.k), right: `${l.jetons} jetons`, disabled: st.jetons < l.jetons })).concat([{ label: 'Annuler' }]), cls: 'shop', cancel: LOTS.length });
       if (c < 0 || c >= LOTS.length) continue;
       st.jetons -= LOTS[c].jetons; game.give(LOTS[c].k, 1); ui.sound.sfx('item');
-      await ui.say(`${st.name} reçoit ${itemName(LOTS[c].k)} !`);
+      await ui.say(formatObtainItem(st.name, LOTS[c].k, 1));
     } else return;
   }
 }

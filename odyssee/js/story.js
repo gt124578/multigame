@@ -6,11 +6,12 @@ import { FIELD } from './world/region.js';
 import { createMon, monName, healFull } from './core/mon.js';
 import { SPECIES } from './data/species.js';
 import { MOVES } from './data/moves.js';
-import { ITEMS, itemName } from './core/items.js';
+import { ITEMS, itemName, formatObtainItem } from './core/items.js';
 import { partyScreen } from './ui/screens.js';
 import { ASSETS, loadImg } from './assets.js';
 import { el } from './ui/ui.js';
 import { shadowCanvas } from './render/shadow.js';
+import { playLugiaCinematic } from './ui/cinematic.js';
 
 const say = (g, lines, who) => g.ui.say(lines, who ? { speaker: who } : undefined);
 const val = (v, st) => (typeof v === 'function' ? v(st) : v);
@@ -245,6 +246,7 @@ async function lugiaWakes(g) {
   await ui.flash(3, '#6020a0', 120);
   g.sound.cry(ASSETS.cry(LUGIA));
   await ui.say(['Un cri immense résonne dans tout le Sanctuaire !', 'Les eaux de l\'autel bouillonnent... Lugia Obscur ouvre les yeux !']);
+  await playLugiaCinematic(g);
   await lugiaBattle(g);
 }
 
@@ -252,6 +254,9 @@ async function lugiaWakes(g) {
 export async function lugiaBattle(g) {
   const st = g.state, ui = g.ui;
   if (!g.lead()) return;
+  if (!st.flags.seenLugiaCinematic) {
+    await playLugiaCinematic(g);
+  }
   if (!(await ui.yesNo('Lugia Obscur te fixe de ses yeux sombres.\nL\'affronter ?'))) return;
   const res = await g.runBattle({ wild: shadowLugia(), music: 'legend' });
   if (res === 'caught') {

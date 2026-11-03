@@ -54,6 +54,8 @@ export class Battle {
   get me() { return this.sides[0].party[this.sides[0].active]; }
   get foe() { return this.sides[1].party[this.sides[1].active]; }
   act(i) { return this.sides[i].party[this.sides[i].active]; }
+  /** crans de stats des deux Pokémon au combat, à cet instant (pour l'affichage : Atq +2, Vit −1…) */
+  stages() { return this.sides.map((x) => x.v.st.slice()); }
   /** identifiant du talent du Pokémon actif d'un camp */
   ab(i) { const m = this.act(i); return m && !isFainted(m) ? getAbility(m)?.id : null; }
   /** efficacité d'un type contre le Pokémon actif d'un camp (Querelleur : Normal et Combat touchent les Spectres) */
@@ -215,6 +217,10 @@ export class Battle {
     this.turn++;
     const forced = this.forcedAction(0);
     let a = forced || action;
+    if (a.type === 'run' && !this.wild) {
+      this.turn--;
+      return [{ t: 'msg', text: 'Impossible de fuir un combat de Dresseur !' }];
+    }
     if (a.type === 'move' && a.idx != null) {
       const mv = this.me.moves[a.idx];
       if (!this.usableMoves(0).length) a = { type: 'move', id: 165 };
@@ -246,12 +252,13 @@ export class Battle {
     if (this.wild) { const k = usable[this.r(usable.length)]; return { type: 'move', id: m.moves[k].id, slot: k }; }
 
     const isSmart = t.ai === 'smart';
+    const isRival = t.cls === 'Rival' || t.rival || this.rival;
     // 1. Utilisation stratégique des objets de soin par les Champions / Dresseurs
     if (t.items) {
       const ratio = m.hp / m.stats[0];
       const hasStatus = !!m.status;
       const isAceOrLast = !side.party.some((p, idx) => idx !== side.active && p.hp > 0);
-      const healThreshold = isSmart ? (isAceOrLast ? 0.48 : 0.40) : 0.28;
+      const healThreshold = (isSmart || isRival) ? (isAceOrLast ? 0.52 : 0.44) : 0.28;
 
       // Si altéré par un statut grave (sommeil, gel, poison, brûlure, paralysie) et qu'on a un Guérison
       if (hasStatus && t.items['full-restore'] > 0 && (ratio < 0.75 || this.rng() < 0.85)) {
@@ -305,10 +312,11 @@ export class Battle {
         if (d >= playerMon.hp) {
           s *= 3.8;
           // Si c'est une attaque prioritaire (+1) et qu'on est plus lent, énorme priorité de finition
-          if (mv.pr && mv.pr > 0 && !amFaster) s *= 2.0;
+          if (mv.pr && mv.pr > 0) s *= 5.0;
         }
 
         // Pénalités de contrecoup / recharge
+        if (eff >= 2) s *= (eff >= 4 ? 1.75 : 1.35);
         if (mv.m?.recharge) s *= 0.5;
         if (mv.m?.boom) {
           s = (m.hp < m.stats[0] * 0.22 && d >= playerMon.hp) ? s * 1.5 : s * 0.04;
@@ -342,7 +350,7 @@ export class Battle {
                            (x.ail === 'brn' && playerType.includes('fire')) ||
                            (x.ail === 'par' && playerType.includes('electric'));
             if (cannot) s = 0.001;
-            else s = playerMon.stats[0] * (x.ail === 'slp' ? 1.65 : 1.25);
+            else s = playerMon.stats[0] * (x.ail === 'slp' ? 1.85 : 1.4);
           }
         }
         // Confusion
@@ -357,7 +365,8 @@ export class Battle {
         else if (x.st) {
           const turn = this.sides[1].v.turns;
           const isAtkBoost = x.st.some(([stat, amt]) => (stat === 1 || stat === 3) && amt > 0);
-          if (turn <= 2 && m.hp >= m.stats[0] * 0.65) {
+          const curStage = Math.max(this.sides[1].v.st[1] || 0, this.sides[1].v.st[3] || 0);
+          if (curStage < 2 && m.hp >= m.stats[0] * 0.50) {
             s = isAtkBoost ? playerMon.stats[0] * 1.3 : playerMon.stats[0] * 0.85;
           } else {
             s = playerMon.stats[0] * 0.1;
@@ -377,7 +386,7 @@ export class Battle {
     });
 
     let pick;
-    if (isSmart) {
+    if (isSmart || isRival) {
       // Pour une IA très forte : prend TOUJOURS la décision la plus optimale
       pick = scores.reduce((a, b) => (b.s > a.s ? b : a));
     } else {
@@ -759,7 +768,7 @@ export class Battle {
       this.ev.push({ t: 'hit', side: d, eff: this.fixedDamage(i, d, mv) != null ? 1 : eff, crit });
       this.hp(d, -dmg);
       tv.dmgTaken = { amount: dmg, c: mv.c };
-      total += dmg; if (crit) { critAny = true; this.say('Coup critique !'); if (tAb?.id === 'anger-point' && !isFainted(T)) { this.say(`Colérique de ${this.nm(d)} monte son Attaque au maximum !`); this.sides[d].v.st[1] = 6; this.ev.push({ t: 'stat', side: d, up: true }); } }
+      total += dmg; if (crit) { critAny = true; this.say('Coup critique !'); if (tAb?.id === 'anger-point' && !isFainted(T)) { this.say(`Colérique de ${this.nm(d)} monte son Attaque au maximum !`); this.sides[d].v.st[1] = 6; this.ev.push({ t: 'stat', side: d, up: true, all: this.stages() }); } }
     }
     if (this.fixedDamage(i, d, mv) == null) {
       if (eff > 1) this.say('C\'est super efficace !');
@@ -869,9 +878,9 @@ export class Battle {
         this.hp(i, m.stats[0]); this.say(`${this.Nm(i)} s'endort et récupère ses PV !`); return true;
       case 'belly-drum':
         if (m.hp <= m.stats[0] / 2) { this.say('Mais cela échoue !'); return true; }
-        this.hp(i, -Math.floor(m.stats[0] / 2)); v.st[1] = 6; this.ev.push({ t: 'stat', side: i, up: true }); this.say(`${this.Nm(i)} sacrifie des PV et monte son Attaque au maximum !`); return true;
+        this.hp(i, -Math.floor(m.stats[0] / 2)); v.st[1] = 6; this.ev.push({ t: 'stat', side: i, up: true, all: this.stages() }); this.say(`${this.Nm(i)} sacrifie des PV et monte son Attaque au maximum !`); return true;
       case 'pain-split': { const avg = Math.floor((m.hp + T.hp) / 2); this.hp(i, avg - m.hp); this.hp(d, avg - T.hp); this.say('Les deux créatures partagent leur douleur !'); return true; }
-      case 'haze': for (const s of this.sides) s.v.st = [0, 0, 0, 0, 0, 0, 0, 0]; this.say('Les changements de stats sont annulés !'); return true;
+      case 'haze': for (const s of this.sides) s.v.st = [0, 0, 0, 0, 0, 0, 0, 0]; this.ev.push({ t: 'stat', side: -1, all: this.stages() }); this.say('Les changements de stats sont annulés !'); return true;
       case 'reflect': case 'light-screen': {
         const k = u === 'reflect' ? 'reflect' : 'light', scr = this.sides[i].screens;
         if (scr[k]) { this.say('Mais cela échoue !'); return true; }
@@ -957,7 +966,7 @@ export class Battle {
     v.st[s] = Math.max(-6, Math.min(6, v.st[s] + c));
     const name = STAGE_NAMES[s];
     if (v.st[s] === before) { if (!secondary) this.say(`${name[0].toUpperCase() + name.slice(1)} de ${this.nm(i)} ne peut plus ${c > 0 ? 'augmenter' : 'baisser'} !`); return false; }
-    this.ev.push({ t: 'stat', side: i, up: c > 0 });
+    this.ev.push({ t: 'stat', side: i, up: c > 0, all: this.stages() });
     const amt = Math.abs(c) >= 2 ? (c > 0 ? 'beaucoup ' : 'beaucoup ') : '';
     this.say(`${name[0].toUpperCase() + name.slice(1)} de ${this.nm(i)} ${c > 0 ? 'augmente' : 'baisse'}${amt ? ' ' + amt.trim() : ''} !`);
     if (byFoe && c < 0 && (id === 'defiant' || id === 'competitive') && !this._defiant) { this._defiant = true; this.say(`${getAbility(this.act(i)).name} de ${this.nm(i)} s'active !`); this.boost(i, id === 'defiant' ? 2 : 4, 2, true); this._defiant = false; }

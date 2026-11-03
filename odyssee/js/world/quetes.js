@@ -596,7 +596,7 @@ export function buildQuests(ctx) {
     if (A.step('kagura') !== 3) { await A.say(A.step('kagura') === 'fin' ? 'La cloche vibre doucement au vent.' : 'Une grande cloche de bronze. Sans ses talismans, elle reste muette.'); return; }
     A.sfx('badge'); A.flash('#fff4c0');
     await A.say(['Tu accroches les talismans et tu tires la corde...', 'DOOONG... Le son roule dans toute la forêt.', 'Près de l\'étang du temple, quelque chose remue...']);
-    await A.give('ultra-ball', 5, true); await A.say(`${A.name} reçoit 5 Hyper Balls du Grand Prêtre !`);
+    await A.give('ultra-ball', 5);
     await A.set('kagura', 'fin');
   }
   legend({ id: 'uxie', sp: 480, lvl: 45, map: 'torii', x: 11 + 22, y: 4, cond: (f) => done(f, 'kagura'), intro: ['Une créature jaune médite au bord de l\'étang, les yeux clos.', 'Créhelf, le gardien du savoir.'] });

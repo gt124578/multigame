@@ -316,7 +316,10 @@ async function battleSession(game, from, name, gender, rid, challenger) {
   const real = st.party;
   const curtain = await game.encounterIntro('trainer');
   const m = game.mapObj, z = game.zone, h = game.hour();
-  const bg = !m.outdoor ? (m.floor === 'cave' ? 'cave' : m.battleBg) : z?.theme === 'volcanic' ? 'volcanic' : z?.route === 'r8' || z?.town === 'azur' ? 'water' : 'grass';
+  const isVillage = z?.town === 'aube' || z?.town === 'sylve' || z?.theme === 'village';
+  const isCity = !!z?.town || z?.name?.includes('Cité') || z?.name?.includes('Port-');
+  const gymKind = (m.arene === 'rock' || m.arene === 'ground' || m.arene === 'fire' || m.arene === 'fighting') ? 'gym_rock' : 'gym';
+  const bg = !m.outdoor ? (m.floor === 'cave' ? 'cave' : m.battleBg === 'gym' ? gymKind : m.battleBg) : z?.theme === 'volcanic' ? 'volcanic' : z?.route === 'r8' ? 'water' : isVillage ? 'village' : isCity ? 'city' : 'grass';
   curtain.remove();
   game.bv.pvp = true;
   st.party = mine;

@@ -184,8 +184,8 @@ function foliageMaterial(map) {
   return m;
 }
 
-const LEAF_TINTS = [0xf2f2e6, 0xdfe8cc, 0xcad8b4, 0xe8eed4, 0xbccca4, 0xd8d0b0];
-const PINE_TINTS = [0xd4e2d8, 0xb8ccbe, 0xa8bfb2, 0xc6d8cc];
+export const LEAF_TINTS = [0xf2f2e6, 0xdfe8cc, 0xcad8b4, 0xe8eed4, 0xbccca4, 0xd8d0b0];
+export const PINE_TINTS = [0xd4e2d8, 0xb8ccbe, 0xa8bfb2, 0xc6d8cc];
 const CACTUS_TINTS = [0xffffff, 0xe6eed2, 0xd6e2c0, 0xf2f0d8];
 
 // ------------------------------------------------------------------ assemblage
@@ -261,7 +261,7 @@ export function createTreeKit() {
     return im;
   }
   return {
-    plant, shades,
+    plant, shades, geos, mats,   // geos et mats : pour Dogfight 3D, qui plante ses propres forêts
     dispose() { for (const g of Object.values(geos)) g.dispose(); for (const m of Object.values(mats)) m.dispose(); for (const t of textures) t.dispose(); },
   };
 }

@@ -323,4 +323,289 @@ export class Sound {
     }
     try { const a = new window.Audio(url); a.volume = Math.min(1, this.vol * 0.45); a.play().catch(() => {}); } catch (e) {}
   }
+
+  /* ---------------- cinématique Lugia Obscur : sound design complet ---------------- */
+  playLugiaCinematicAudio() {
+    if (!this.ctx) return { stop: () => {} };
+    const c = this.ctx;
+    const bus = c.createGain();
+    const masterVol = Math.max(0.1, Math.min(1.4, (this.vol ?? 0.7) * 1.3));
+    bus.gain.value = masterVol;
+    bus.connect(this.master || c.destination);
+
+    const nodes = [];
+    const timers = [];
+    let stopped = false;
+
+    const stop = () => {
+      if (stopped) return;
+      stopped = true;
+      timers.forEach((id) => clearTimeout(id));
+      const now = c.currentTime;
+      try {
+        bus.gain.cancelScheduledValues(now);
+        bus.gain.setValueAtTime(bus.gain.value, now);
+        bus.gain.linearRampToValueAtTime(0.0001, now + 0.35);
+        setTimeout(() => {
+          nodes.forEach((n) => {
+            try { n.stop(); } catch (e) {}
+            try { n.disconnect(); } catch (e) {}
+          });
+          try { bus.disconnect(); } catch (e) {}
+        }, 400);
+      } catch (e) {}
+    };
+
+    const t0 = c.currentTime + 0.05;
+
+    // Distorsion WaveShaper (harmoniques démoniaques)
+    const makeDistortion = (k = 10) => {
+      const n = 1024, curve = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const x = (i / (n - 1)) * 2 - 1;
+        curve[i] = Math.tanh(x * k);
+      }
+      const ws = c.createWaveShaper();
+      ws.curve = curve;
+      ws.oversample = '2x';
+      return ws;
+    };
+    const dist = makeDistortion(10);
+    const distGain = c.createGain();
+    distGain.gain.value = 0.85;
+    dist.connect(distGain);
+    distGain.connect(bus);
+
+    // 1. Sub-bass Drone & Rumble sous-marin (0s -> 15s)
+    try {
+      const sub = c.createOscillator();
+      sub.type = 'sine';
+      sub.frequency.setValueAtTime(38, t0);
+      sub.frequency.exponentialRampToValueAtTime(55, t0 + 2.5);
+      sub.frequency.exponentialRampToValueAtTime(32, t0 + 3.5);
+      sub.frequency.exponentialRampToValueAtTime(48, t0 + 10.5);
+      sub.frequency.exponentialRampToValueAtTime(25, t0 + 14.5);
+
+      const subGain = c.createGain();
+      subGain.gain.setValueAtTime(0.0001, t0);
+      subGain.gain.exponentialRampToValueAtTime(0.48, t0 + 0.8);
+      subGain.gain.setValueAtTime(0.48, t0 + 13.5);
+      subGain.gain.linearRampToValueAtTime(0.0001, t0 + 15.0);
+
+      sub.connect(subGain);
+      subGain.connect(bus);
+      sub.start(t0);
+      sub.stop(t0 + 15.2);
+      nodes.push(sub);
+
+      // Bruit de grondement et bouillonnement de l'eau
+      if (this.noise) {
+        const nSrc = c.createBufferSource();
+        nSrc.buffer = this.noise;
+        nSrc.loop = true;
+        const lp = c.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.setValueAtTime(140, t0);
+        lp.frequency.exponentialRampToValueAtTime(280, t0 + 3.0);
+        lp.frequency.exponentialRampToValueAtTime(180, t0 + 7.0);
+        lp.frequency.exponentialRampToValueAtTime(380, t0 + 11.0);
+        lp.frequency.exponentialRampToValueAtTime(90, t0 + 14.8);
+
+        const nGain = c.createGain();
+        nGain.gain.setValueAtTime(0.0001, t0);
+        nGain.gain.exponentialRampToValueAtTime(0.35, t0 + 0.6);
+        nGain.gain.setValueAtTime(0.35, t0 + 13.5);
+        nGain.gain.linearRampToValueAtTime(0.0001, t0 + 15.0);
+
+        nSrc.connect(lp);
+        lp.connect(nGain);
+        nGain.connect(bus);
+        nSrc.start(t0);
+        nSrc.stop(t0 + 15.2);
+        nodes.push(nSrc);
+      }
+    } catch (e) {}
+
+    // 2. Accords dissonants sinistres (Chœur des Ténèbres / Cuivres apocalyptiques)
+    try {
+      const chordNotes = [61.74, 87.31, 103.83, 146.83]; // B1, F2, G#2, D3
+      chordNotes.forEach((fVal, idx) => {
+        const osc = c.createOscillator();
+        osc.type = idx % 2 === 0 ? 'sawtooth' : 'triangle';
+        osc.frequency.setValueAtTime(fVal, t0);
+        osc.detune.setValueAtTime((idx - 1.5) * 8, t0);
+
+        const flt = c.createBiquadFilter();
+        flt.type = 'lowpass';
+        flt.frequency.setValueAtTime(220, t0);
+        flt.frequency.exponentialRampToValueAtTime(650, t0 + 3.0);
+        flt.frequency.exponentialRampToValueAtTime(320, t0 + 7.0);
+        flt.frequency.exponentialRampToValueAtTime(900, t0 + 11.5);
+        flt.frequency.exponentialRampToValueAtTime(200, t0 + 14.8);
+
+        const cGain = c.createGain();
+        cGain.gain.setValueAtTime(0.0001, t0);
+        cGain.gain.exponentialRampToValueAtTime(0.14, t0 + 1.0);
+        cGain.gain.setValueAtTime(0.14, t0 + 13.5);
+        cGain.gain.linearRampToValueAtTime(0.0001, t0 + 15.0);
+
+        osc.connect(flt);
+        flt.connect(cGain);
+        cGain.connect(bus);
+        osc.start(t0);
+        osc.stop(t0 + 15.2);
+        nodes.push(osc);
+      });
+    } catch (e) {}
+
+    // 3. Rugissement monstrueux de Lugia Obscur (à 2.8s)
+    timers.push(setTimeout(() => {
+      if (stopped) return;
+      const tRoar = c.currentTime;
+
+      // Déflagration d'impact
+      this.tone('noise', 400, tRoar, 0.45, 0.55, bus, { filter: 'lowpass' });
+      this.tone('triangle', 95, tRoar, 0.5, 0.45, bus, { slide: 25 });
+
+      // Cri de Lugia officiel (PokeAPI)
+      try {
+        const cryUrl = 'https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/latest/249.ogg';
+        const a = new window.Audio(cryUrl);
+        a.volume = Math.min(1, this.vol * 0.95);
+        a.playbackRate = 0.85;
+        a.play().catch(() => {});
+      } catch (e) {}
+
+      // Couche gutturale démoniaque synthétisée
+      try {
+        const r1 = c.createOscillator();
+        r1.type = 'sawtooth';
+        r1.frequency.setValueAtTime(240, tRoar);
+        r1.frequency.exponentialRampToValueAtTime(85, tRoar + 1.8);
+
+        const r2 = c.createOscillator();
+        r2.type = 'sawtooth';
+        r2.frequency.setValueAtTime(160, tRoar);
+        r2.frequency.exponentialRampToValueAtTime(55, tRoar + 1.9);
+
+        // LFO vibrato sur le rugissement
+        const lfo = c.createOscillator();
+        lfo.frequency.value = 9;
+        const lfoGain = c.createGain();
+        lfoGain.gain.value = 25;
+        lfo.connect(lfoGain);
+        lfoGain.connect(r1.frequency);
+        lfoGain.connect(r2.frequency);
+        lfo.start(tRoar);
+        lfo.stop(tRoar + 2.0);
+        nodes.push(lfo);
+
+        const rGain = c.createGain();
+        rGain.gain.setValueAtTime(0.0001, tRoar);
+        rGain.gain.exponentialRampToValueAtTime(0.5, tRoar + 0.15);
+        rGain.gain.setValueAtTime(0.5, tRoar + 1.2);
+        rGain.gain.exponentialRampToValueAtTime(0.0001, tRoar + 2.0);
+
+        r1.connect(dist);
+        r2.connect(dist);
+        distGain.connect(rGain);
+        rGain.connect(bus);
+
+        r1.start(tRoar);
+        r1.stop(tRoar + 2.05);
+        r2.start(tRoar);
+        r2.stop(tRoar + 2.05);
+        nodes.push(r1, r2);
+
+        // Cri strident métallique aigu
+        const scream = c.createOscillator();
+        scream.type = 'sawtooth';
+        scream.frequency.setValueAtTime(1400, tRoar + 0.05);
+        scream.frequency.exponentialRampToValueAtTime(550, tRoar + 1.4);
+        const sGain = c.createGain();
+        sGain.gain.setValueAtTime(0.0001, tRoar);
+        sGain.gain.exponentialRampToValueAtTime(0.18, tRoar + 0.12);
+        sGain.gain.exponentialRampToValueAtTime(0.0001, tRoar + 1.5);
+        scream.connect(sGain);
+        sGain.connect(bus);
+        scream.start(tRoar);
+        scream.stop(tRoar + 1.55);
+        nodes.push(scream);
+      } catch (e) {}
+    }, 2800));
+
+    // 4. Déchaînement de la Tornade Obscure (6.5s -> 14.5s)
+    timers.push(setTimeout(() => {
+      if (stopped) return;
+      const tWind = c.currentTime;
+      if (this.noise) {
+        const wSrc = c.createBufferSource();
+        wSrc.buffer = this.noise;
+        wSrc.loop = true;
+
+        const bp = c.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.Q.value = 2.4;
+        bp.frequency.setValueAtTime(450, tWind);
+        bp.frequency.exponentialRampToValueAtTime(2200, tWind + 1.5);
+        bp.frequency.exponentialRampToValueAtTime(650, tWind + 3.0);
+        bp.frequency.exponentialRampToValueAtTime(2900, tWind + 4.5);
+        bp.frequency.exponentialRampToValueAtTime(500, tWind + 7.5);
+
+        const wGain = c.createGain();
+        wGain.gain.setValueAtTime(0.0001, tWind);
+        wGain.gain.exponentialRampToValueAtTime(0.48, tWind + 0.8);
+        wGain.gain.setValueAtTime(0.48, tWind + 5.5);
+        wGain.gain.linearRampToValueAtTime(0.0001, tWind + 8.0);
+
+        wSrc.connect(bp);
+        bp.connect(wGain);
+        wGain.connect(bus);
+        wSrc.start(tWind);
+        wSrc.stop(tWind + 8.2);
+        nodes.push(wSrc);
+      }
+
+      // Pulsations rythmiques de tonnerre / tambours de guerre
+      for (let i = 0; i < 6; i++) {
+        const beatT = tWind + i * 0.75;
+        this.tone('triangle', 130, beatT, 0.18, 0.42, bus, { slide: 40 });
+        this.tone('noise', 1200, beatT, 0.12, 0.22, bus, { filter: 'lowpass' });
+      }
+    }, 6500));
+
+    // 5. Impact Cataclysmique & Crash de la Tornade (à 10.8s)
+    timers.push(setTimeout(() => {
+      if (stopped) return;
+      const tHit = c.currentTime;
+
+      // Explosion gigantesque
+      this.tone('noise', 250, tHit, 0.7, 0.7, bus, { filter: 'lowpass' });
+      this.tone('triangle', 180, tHit, 0.6, 0.58, bus, { slide: 30 });
+      this.tone('pulse25', 1800, tHit, 0.15, 0.28, bus, { slide: 200 });
+
+      // Onde de choc gutturale finale
+      try {
+        const bOsc = c.createOscillator();
+        bOsc.type = 'sawtooth';
+        bOsc.frequency.setValueAtTime(110, tHit);
+        bOsc.frequency.exponentialRampToValueAtTime(35, tHit + 2.0);
+
+        const bGain = c.createGain();
+        bGain.gain.setValueAtTime(0.0001, tHit);
+        bGain.gain.exponentialRampToValueAtTime(0.38, tHit + 0.08);
+        bGain.gain.exponentialRampToValueAtTime(0.0001, tHit + 2.2);
+
+        bOsc.connect(dist);
+        distGain.connect(bGain);
+        bGain.connect(bus);
+        bOsc.start(tHit);
+        bOsc.stop(tHit + 2.25);
+        nodes.push(bOsc);
+      } catch (e) {}
+    }, 10800));
+
+    return { stop };
+  }
+
 }

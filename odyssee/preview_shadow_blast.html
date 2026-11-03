@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pokémon Odyssée — Animation Rafale Obscure (Lugia Obscur)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #0a0512;
+    --card-bg: rgba(22, 14, 38, 0.85);
+    --border-dark: #4a2870;
+    --shadow-purple: #9c27b0;
+    --shadow-cyan: #00e5ff;
+    --text-main: #f0e6ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(circle at 50% 20%, #1c0b30 0%, #0a0414 70%, #030106 100%);
+    color: var(--text-main);
+    font-family: 'Chakra Petch', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+  }
+  header {
+    text-align: center;
+    max-width: 800px;
+    margin-bottom: 20px;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: rgba(156, 39, 176, 0.25);
+    border: 1px solid var(--shadow-purple);
+    border-radius: 999px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: #e1bee7;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #fff 0%, #d1c4e9 50%, #00e5ff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+    text-shadow: 0 0 24px rgba(156, 39, 176, 0.5);
+  }
+  p.subtitle {
+    font-size: 14px;
+    color: #b39ddb;
+    line-height: 1.5;
+  }
+  .stage-container {
+    position: relative;
+    background: #000;
+    border: 3px solid #6a1b9a;
+    border-radius: 12px;
+    box-shadow: 0 0 35px rgba(156, 39, 176, 0.4), inset 0 0 20px rgba(0, 0, 0, 0.8);
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  canvas#battleCanvas {
+    display: block;
+    image-rendering: pixelated;
+    width: 600px;
+    height: 450px;
+  }
+  .controls-panel {
+    background: var(--card-bg);
+    border: 1px solid var(--border-dark);
+    border-radius: 12px;
+    padding: 16px 20px;
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  }
+  .btn-row {
+    display: flex;
+    gap: 10px;
+  }
+  .btn {
+    flex: 1;
+    cursor: pointer;
+    border: none;
+    outline: none;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #7b1fa2 0%, #4a148c 100%);
+    color: #fff;
+    border: 1px solid #ba68c8;
+    box-shadow: 0 4px 14px rgba(156, 39, 176, 0.5);
+  }
+  .btn-primary:hover {
+    background: linear-gradient(135deg, #8e24aa 0%, #6a1b9a 100%);
+    box-shadow: 0 6px 20px rgba(0, 229, 255, 0.4);
+    transform: translateY(-1px);
+  }
+  .btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: #e0e0e0;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+  .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+  .options-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 13px;
+    color: #ce93d8;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 12px;
+  }
+  .opt-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  select, input[type="checkbox"] {
+    cursor: pointer;
+  }
+  select {
+    background: #180928;
+    border: 1px solid #7b1fa2;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 12px;
+  }
+  .info-box {
+    margin-top: 18px;
+    max-width: 600px;
+    background: rgba(10, 4, 18, 0.6);
+    border: 1px dashed #6a1b9a;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: #b39ddb;
+    line-height: 1.6;
+  }
+  .info-box b {
+    color: var(--shadow-cyan);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="badge">⚔️ Moteur de Combat Odyssée v3.85</div>
+  <h1>Rafale Obscure — Lugia Obscur (XD001)</h1>
+  <p class="subtitle">Simulation en temps réel de l'animation d'attaque signature : tourbillon d'ombre, anneaux cycloniques, éclairs cyan et cataclysme ténébreux.</p>
+</header>
+
+<div class="stage-container">
+  <canvas id="battleCanvas" width="256" height="192"></canvas>
+</div>
+
+<div class="controls-panel">
+  <div class="btn-row">
+    <button id="btnLaunch" class="btn btn-primary">🌪️ Déclencher Rafale Obscure</button>
+    <button id="btnSwitchSide" class="btn btn-secondary">🔄 Inverser les rôles</button>
+  </div>
+  <div class="options-row">
+    <div class="opt-group">
+      <label for="selSpeed">Vitesse :</label>
+      <select id="selSpeed">
+        <option value="1">1.0x (Normale 60 FPS)</option>
+        <option value="0.5">0.5x (Ralenti)</option>
+        <option value="0.25">0.25x (Super Ralenti)</option>
+      </select>
+    </div>
+    <div class="opt-group">
+      <label><input type="checkbox" id="chkLoop"> Boucle continue</label>
+    </div>
+    <div class="opt-group">
+      <label><input type="checkbox" id="chkAudio" checked> Audio SFX</label>
+    </div>
+  </div>
+</div>
+
+<div class="info-box">
+  <b>Détails techniques de l'effet :</b> L'animation active la charge gravitationnelle de Lugia Obscur (lévitation -16px, convergence de 24 particules d'aura noire/cyan), puis déploie une véritable tornade cyclonique (anneaux évasés <code>shape: 'tornado'</code>, trajectoires en double spirale ascendante <code>spiral: true</code> et crépitements d'éclairs <code>shape: 'bolt'</code>). L'impact final déclenche une triple onde de choc, un flash aveuglant et un tremblement sismique d'écran <code>shakeScreen()</code>.
+</div>
+
+<script type="module">
+// WebAudio SFX synthétisés
+class SoundSynth {
+  constructor() {
+    this.ctx = null;
+    this.enabled = true;
+  }
+  init() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) this.ctx = new AudioCtx();
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  }
+  sfx(k) {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime + 0.01;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    if (k === 'throw') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(220, t);
+      osc.frequency.exponentialRampToValueAtTime(700, t + 0.22);
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.linearRampToValueAtTime(0.001, t + 0.22);
+      osc.start(t);
+      osc.stop(t + 0.23);
+    } else if (k === 'hitstrong') {
+      // Impact lourd + bruit de basse
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(140, t);
+      osc.frequency.exponentialRampToValueAtTime(30, t + 0.35);
+      gain.gain.setValueAtTime(0.25, t);
+      gain.gain.linearRampToValueAtTime(0.001, t + 0.35);
+      osc.start(t);
+      osc.stop(t + 0.36);
+    }
+  }
+}
+
+const snd = new SoundSynth();
+const canvas = document.getElementById('battleCanvas');
+const ctx = canvas.getContext('2d');
+const W = 256, H = 192;
+
+// Sprites
+const imgLugiaFront = new Image();
+imgLugiaFront.src = 'img/crea/lugia-shadow-f.png';
+
+const imgLugiaBack = new Image();
+imgLugiaBack.src = 'img/crea/lugia-shadow-b.png';
+
+const imgOpponentFront = new Image();
+// Utiliser un sprite de face (ex: Lugia normal ou créature locale)
+imgOpponentFront.src = 'img/crea/boulonnet-f.png';
+
+const imgOpponentBack = new Image();
+imgOpponentBack.src = 'img/crea/boulonnet-b.png';
+
+// State du moteur de rendu
+let sideLugia = 1; // 1 = Lugia en Foe (face), 0 = Lugia en Me (dos)
+let speedFactor = 1;
+let isLooping = false;
+let isAnimating = false;
+
+const st = {
+  shakeX: 0,
+  shakeY: 0,
+  screenFlash: 0,
+  parts: [],
+  foe: { x: Math.round(W * 0.71), y: 86, dx: 0, dy: 0, white: 0 },
+  me: { x: Math.round(W * 0.26), y: 140, dx: 0, dy: 0, white: 0 },
+};
+
+function sprCenter(side) {
+  const p = side === 1 ? st.foe : st.me;
+  return { x: p.x, y: p.y - (side === 1 ? 28 : 34) };
+}
+
+function ease(t) { return t * t * (3 - 2 * t); }
+
+function tween(ms, fn) {
+  return new Promise((res) => {
+    const t0 = performance.now();
+    const duration = ms / speedFactor;
+    const step = (now) => {
+      const u = Math.min(1, (now - t0) / duration);
+      fn(u);
+      if (u < 1) requestAnimationFrame(step);
+      else res();
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+function wait(ms) {
+  return new Promise((res) => setTimeout(res, ms / speedFactor));
+}
+
+async function shakeScreen(a, ms) {
+  await tween(ms, (u) => {
+    st.shakeX = (Math.random() - 0.5) * a * (1 - u) * 2;
+    st.shakeY = (Math.random() - 0.5) * a * (1 - u);
+  });
+  st.shakeX = st.shakeY = 0;
+}
+
+function burst(cx, cy, cols, n = 14, o = {}) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = (o.speed || 1.6) * (0.4 + Math.random());
+    st.parts.push({
+      x: cx,
+      y: cy,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp * 0.7 - (o.up || 0),
+      r: o.r || 1.5 + Math.random() * 1.5,
+      c: cols[i % cols.length],
+      life: o.life || 0.45,
+      max: o.life || 0.45,
+      g: o.g || 0,
+      shape: o.shape,
+    });
+  }
+}
+
+// Méthode exacte animShadowBlast
+async function animShadowBlast(side, from, to) {
+  const o = side === 1 ? st.foe : st.me;
+  const targetO = side === 1 ? st.me : st.foe;
+  const shadowCols = ['#1a052e', '#4a148c', '#7b1fa2', '#00e5ff', '#ffffff'];
+
+  // 1. Charge des ténèbres & élévation de Lugia Obscur
+  snd.sfx('throw');
+  await tween(320, (u) => {
+    o.dy = -16 * ease(u);
+    o.white = 0.45 * u;
+    if (Math.random() < 0.75) {
+      const ang = Math.random() * Math.PI * 2, dist = 24 + Math.random() * 18;
+      const c = shadowCols[Math.floor(Math.random() * shadowCols.length)];
+      st.parts.push({
+        x: from.x + Math.cos(ang) * dist,
+        y: (from.y - 14) + Math.sin(ang) * dist,
+        vx: -Math.cos(ang) * 1.9,
+        vy: -Math.sin(ang) * 1.9,
+        r: 1.5 + Math.random() * 1.5,
+        c,
+        life: 0.32,
+        max: 0.32,
+      });
+    }
+  });
+
+  await wait(60);
+
+  // 2. Traînée obscure / projectile fonçant vers la cible
+  snd.sfx('throw');
+  await tween(150, (u) => {
+    const bx = from.x + (to.x - from.x) * u;
+    const by = (from.y - 14) + (to.y - (from.y - 14)) * u;
+    for (let k = 0; k < 3; k++) {
+      st.parts.push({
+        x: bx + (Math.random() - 0.5) * 6,
+        y: by + (Math.random() - 0.5) * 6,
+        vx: (Math.random() - 0.5) * 1.2,
+        vy: (Math.random() - 0.5) * 1.2,
+        r: 2 + Math.random() * 2,
+        c: shadowCols[Math.floor(Math.random() * shadowCols.length)],
+        life: 0.24,
+        max: 0.24,
+        shape: Math.random() < 0.35 ? 'bolt' : null,
+      });
+    }
+  });
+
+  // 3. Déploiement de la Tornade Obscure (Cyclone tourbillonnant)
+  const tornadoDur = 700;
+  const startTornado = performance.now();
+  let lastRing = 0;
+
+  shakeScreen(3, 680);
+
+  await tween(tornadoDur, (u) => {
+    const elapsed = performance.now() - startTornado;
+    targetO.dx = Math.sin(u * 30) * 2.5;
+
+    // Anneaux de vortex ascendants et s'évasant
+    if (elapsed - lastRing > 60) {
+      lastRing = elapsed;
+      const ringCol = shadowCols[Math.floor(Math.random() * shadowCols.length)];
+      st.parts.push({
+        x: to.x + (Math.random() - 0.5) * 4,
+        y: to.y + 14,
+        vx: 0,
+        vy: -2.4 - Math.random() * 0.8,
+        r: 6,
+        grow: 0.72,
+        tilt: (Math.random() - 0.5) * 0.25,
+        lw: 2.2,
+        shape: 'tornado',
+        c: ringCol,
+        life: 0.55,
+        max: 0.55,
+      });
+    }
+
+    // Éclats tourbillonnants en spirale ascendante
+    for (let s = 0; s < 3; s++) {
+      const spd = (0.24 + Math.random() * 0.16) * (Math.random() < 0.5 ? 1 : -1);
+      st.parts.push({
+        cx: to.x,
+        x: to.x,
+        y: to.y + 12 + (Math.random() - 0.5) * 8,
+        spiral: true,
+        spiralAngle: Math.random() * Math.PI * 2,
+        spiralR: 4 + Math.random() * 6,
+        spiralRGrow: 0.38 + Math.random() * 0.22,
+        spiralSpd: spd,
+        vx: 0,
+        vy: -2.2 - Math.random() * 1.5,
+        r: 1.5 + Math.random() * 2,
+        c: shadowCols[Math.floor(Math.random() * shadowCols.length)],
+        life: 0.48,
+        max: 0.48,
+      });
+    }
+
+    // Éclairs cyan et violets
+    if (Math.random() < 0.35) {
+      st.parts.push({
+        x: to.x + (Math.random() - 0.5) * 18,
+        y: to.y - 18 + (Math.random() - 0.5) * 20,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: -1.2,
+        r: 3,
+        c: Math.random() < 0.5 ? '#00e5ff' : '#e040fb',
+        shape: 'bolt',
+        life: 0.22,
+        max: 0.22,
+      });
+    }
+  });
+
+  targetO.dx = 0;
+
+  // 4. Cataclysme : Flash, déflagration & ondes de choc
+  snd.sfx('hitstrong');
+  tween(240, (u) => { st.screenFlash = 0.85 * (1 - u); });
+
+  st.parts.push({ x: to.x, y: to.y - 4, vx: 0, vy: 0, r: 8, grow: 3.5, shape: 'ring', c: '#ffffff', life: 0.36, max: 0.36 });
+  st.parts.push({ x: to.x, y: to.y - 4, vx: 0, vy: 0, r: 14, grow: 2.8, shape: 'ring', c: '#00e5ff', life: 0.42, max: 0.42 });
+  st.parts.push({ x: to.x, y: to.y - 4, vx: 0, vy: 0, r: 20, grow: 2.2, shape: 'ring', c: '#7b1fa2', life: 0.48, max: 0.48 });
+
+  burst(to.x, to.y - 4, shadowCols, 38, { speed: 3.4, r: 2.6 });
+  await shakeScreen(7, 500);
+
+  // 5. Atterrissage de Lugia Obscur
+  await tween(220, (u) => {
+    o.dy = -16 * (1 - ease(u));
+    o.white = 0.45 * (1 - u);
+  });
+  o.dy = 0;
+  o.white = 0;
+  await wait(80);
+}
+
+// Boucle de rendu Canvas
+function render() {
+  ctx.save();
+  ctx.translate(Math.round(st.shakeX), Math.round(st.shakeY));
+
+  // 1. Fond arène ténébreuse (Sanctuaire des Marées)
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#10061e');
+  g.addColorStop(0.55, '#1e0c38');
+  g.addColorStop(1, '#080310');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // Lignes de scan rétro
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  for (let y = 0; y < H; y += 4) {
+    ctx.fillRect(0, y, W, 1);
+  }
+
+  // Socles de combat
+  ctx.fillStyle = 'rgba(50, 20, 80, 0.7)';
+  ctx.beginPath();
+  ctx.ellipse(st.foe.x, st.foe.y + 6, 44, 14, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#9c27b0';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(30, 20, 60, 0.7)';
+  ctx.beginPath();
+  ctx.ellipse(st.me.x, st.me.y + 14, 52, 16, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#7b1fa2';
+  ctx.stroke();
+
+  // 2. Sprites
+  const foeImg = sideLugia === 1 ? imgLugiaFront : imgOpponentFront;
+  const meImg = sideLugia === 0 ? imgLugiaBack : imgOpponentBack;
+
+  function drawSpr(img, cx, cy, o) {
+    if (!img.complete || img.naturalWidth === 0) return;
+    const w = img.width, h = img.height;
+    ctx.save();
+    ctx.drawImage(img, Math.round(cx - w / 2 + o.dx), Math.round(cy - h + o.dy));
+    if (o.white > 0.01) {
+      ctx.globalAlpha = o.white;
+      ctx.fillStyle = '#ffffff';
+      // Rendu de silhouette blanche si white > 0
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillRect(Math.round(cx - w / 2 + o.dx), Math.round(cy - h + o.dy), w, h);
+    }
+    ctx.restore();
+  }
+
+  drawSpr(foeImg, st.foe.x, st.foe.y + 6, st.foe);
+  drawSpr(meImg, st.me.x, st.me.y + 14, st.me);
+
+  // 3. Particules du moteur
+  for (const p of st.parts) {
+    ctx.globalAlpha = Math.max(0, Math.min(1, p.life / p.max * 1.5));
+    ctx.fillStyle = p.c;
+    if (p.shape === 'ring') {
+      ctx.strokeStyle = p.c;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, p.r, p.r * 0.6, 0, 0, 7);
+      ctx.stroke();
+    } else if (p.shape === 'tornado') {
+      ctx.save();
+      ctx.strokeStyle = p.c;
+      ctx.lineWidth = p.lw || 2;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, Math.max(1, p.r), Math.max(1, p.r * 0.32), p.tilt || 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    } else if (p.shape === 'bolt') {
+      ctx.strokeStyle = p.c;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      for (let k = 1; k < 5; k++) ctx.lineTo(p.x + (Math.random() - 0.5) * 10, p.y + k * 7);
+      ctx.stroke();
+    } else {
+      ctx.fillRect(Math.round(p.x - p.r), Math.round(p.y - p.r), Math.max(1, Math.round(p.r * 2)), Math.max(1, Math.round(p.r * 2)));
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // 4. Flash d'impact blanc/violet
+  if (st.screenFlash > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${st.screenFlash})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  ctx.restore();
+
+  // Mise à jour de la physique des particules (60 FPS)
+  const dt = (1 / 60) * speedFactor;
+  for (const p of st.parts) {
+    if (p.spiral) {
+      p.spiralAngle = (p.spiralAngle || 0) + (p.spiralSpd || 0.2) * speedFactor;
+      p.spiralR = (p.spiralR || 0) + (p.spiralRGrow || 0) * speedFactor;
+      p.x = p.cx + Math.cos(p.spiralAngle) * p.spiralR;
+    } else {
+      p.x += p.vx * dt * 60;
+    }
+    p.y += p.vy * dt * 60;
+    p.vy += (p.g || 0);
+    p.life -= dt;
+    if (p.grow) p.r += p.grow * speedFactor;
+    if (p.a != null) p.a += (p.va != null ? p.va : 0.2);
+  }
+  st.parts = st.parts.filter((p) => p.life > 0);
+
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+
+// Exécution de l'attaque
+async function triggerAttack() {
+  if (isAnimating) return;
+  isAnimating = true;
+  document.getElementById('btnLaunch').disabled = true;
+
+  do {
+    const from = sprCenter(sideLugia);
+    const to = sprCenter(1 - sideLugia);
+    await animShadowBlast(sideLugia, from, to);
+    if (isLooping) await wait(600);
+  } while (isLooping);
+
+  isAnimating = false;
+  document.getElementById('btnLaunch').disabled = false;
+}
+
+// Contrôles UI
+document.getElementById('btnLaunch').addEventListener('click', triggerAttack);
+
+document.getElementById('btnSwitchSide').addEventListener('click', () => {
+  if (isAnimating) return;
+  sideLugia = 1 - sideLugia;
+  const label = sideLugia === 1 ? 'Lugia Obscur Boss (Face)' : 'Lugia Obscur Équipe (Dos)';
+  document.getElementById('btnSwitchSide').textContent = `🔄 Inverser (${sideLugia === 1 ? 'Boss' : 'Équipe'})`;
+});
+
+document.getElementById('selSpeed').addEventListener('change', (e) => {
+  speedFactor = parseFloat(e.target.value);
+});
+
+document.getElementById('chkLoop').addEventListener('change', (e) => {
+  isLooping = e.target.checked;
+  if (isLooping && !isAnimating) triggerAttack();
+});
+
+document.getElementById('chkAudio').addEventListener('change', (e) => {
+  snd.enabled = e.target.checked;
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    triggerAttack();
+  }
+});
+
+// Déclenchement automatique au chargement
+setTimeout(() => {
+  triggerAttack();
+}, 600);
+</script>
+</body>
+</html>

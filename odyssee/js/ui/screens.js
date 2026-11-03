@@ -93,13 +93,32 @@ export function partyScreen(game, o = {}) {
       }
       const why = o.filter ? o.filter(party[i], i) : null;
       if (o.mode === 'pick') {
-        if (why) { ui.sound.sfx('bump'); return; }
-        close(i);
+        busy = true;
+        const chooseLabel = o.pickLabel || 'Choisir';
+        const opts = why ? ['Résumé', 'Annuler'] : [chooseLabel, 'Résumé', 'Annuler'];
+        const r = await ui.list({
+          title: why ? `${monName(party[i])} (${why})` : monName(party[i]),
+          items: opts.map((label) => ({ label })),
+          cls: 'psub',
+          cancel: opts.length - 1,
+          parent: s,
+        });
+        busy = false;
+        const pick = opts[r];
+        if (pick === 'Résumé') {
+          busy = true;
+          i = await summaryScreen(game, party, i);
+          busy = false;
+        } else if (pick === chooseLabel) {
+          close(i);
+          return;
+        }
+        draw();
         return;
       }
       busy = true;
       const opts = o.mode === 'battle' ? ['Envoyer', 'Résumé', 'Annuler'] : ['Résumé', 'Déplacer', 'Annuler'];
-      const r = await ui.list({ items: opts.map((label) => ({ label })), cls: 'psub', cancel: opts.length - 1, parent: s });
+      const r = await ui.list({ title: monName(party[i]), items: opts.map((label) => ({ label })), cls: 'psub', cancel: opts.length - 1, parent: s });
       busy = false;
       const pick = opts[r];
       if (pick === 'Résumé') { busy = true; i = await summaryScreen(game, party, i); busy = false; }

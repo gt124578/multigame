@@ -61,6 +61,8 @@ export class FxManager {
   }
 
   hitSpark(x, y, z) { for (let i = 0; i < 3; i++) this.puff(x, y, z, 0.8, 2, 0.18, 1, 0.8, 0.4, 0.95, (Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30); }
+  // Brouilleur : une onde bleutée qui s'étend autour de l'avion
+  jamPulse(x, y, z) { for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283; this.puff(x, y, z, 3, 9, 1.1, 0.55, 0.75, 1, 0.55, Math.cos(a) * 160, (Math.random() - 0.5) * 30, Math.sin(a) * 160); } }
   dust(x, y, z) { this.puff(x, y + 1, z, 2, 5, 0.7, 0.55, 0.5, 0.4, 0.5, 0, 3, 0); }
   flare(x, y, z, vx, vy, vz) { for (let i = 0; i < 4; i++) this.puff(x, y, z, 1.6, 0.5, 1.4, 1, 0.92, 0.7, 1, vx * 0.4 + (i - 1.5) * 14, vy * 0.4 - 12, vz * 0.4 + (Math.random() - 0.5) * 12); }
 

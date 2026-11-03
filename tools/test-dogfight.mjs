@@ -1,18 +1,24 @@
 // Tests du moteur de Dogfight 3D : node tools/test-dogfight.mjs
 import { generateMap, ILE } from '../royale/engine/map.js';
-import { createFlight, stepFlight, computeAxes, bankOf, keyRamp, keyCurve, KEY_ATTACK, TYPES, TYPE_IDS, ZONE_MAX, CENTER, CEILING } from '../dogfight/engine/flight.js';
-import { computeLead, BULLET_SPEED, BULLET_GRAVITY, FIRE_RATE, stepGun, hitZone } from '../dogfight/engine/weapons.js';
-import { createWorld } from '../dogfight/engine/world.js';
+import { createFlight, stepFlight, computeAxes, bankOf, keyRamp, keyCurve, KEY_ATTACK, TYPES, TYPE_IDS, ZONE_MAX, ZONE_WARN, ZONE, zoneDist, CENTER, CEILING, COBRA_TIME } from '../dogfight/engine/flight.js';
+import { computeLead, BULLET_SPEED, BULLET_GRAVITY, FIRE_RATE, stepGun, hitZone, stepLock, MISSILE_COOLDOWN, FLARE_COOLDOWN, MISSILE_DAMAGE, LOW_HIDE } from '../dogfight/engine/weapons.js';
+import { createWorld, cloudTop } from '../dogfight/engine/world.js';
 import { createGame, startCountdown, stepGame, drainEvents, DT, snapRows, worldOf, restoreGame, replaceByBot, applyRow, ranking, addPlayer } from '../dogfight/engine/rules.js';
 import { botInput, LEVELS } from '../dogfight/engine/ai.js';
-import { ZONE_CEIL, CAPTURE_TIME, KILL_POINTS, ROUND_TIME, routeAt } from '../dogfight/engine/modes.js';
+import { ZONE_CEIL, CAPTURE_TIME, KILL_POINTS, ROUND_TIME, ATTACK_LIVES, getRoute } from '../dogfight/engine/modes.js';
+import { ABILITIES, ABILITY_COOLDOWN } from '../dogfight/engine/abilities.js';
+import { ROUTE_IDS, routeForTime } from '../dogfight/engine/route.js';
+import { loadMap, useMap, heightAt, lakeAt, runwayLocal, MAP_IDS, RUNWAY_Y } from '../dogfight/engine/archipel.js';
 
 let passed = 0;
 function assert(c, msg) { if (!c) { console.error(`ÉCHEC : ${msg}`); process.exit(1); } passed++; }
 const run = (s, inp, sec) => { for (let t = 0; t < sec; t += DT) stepFlight(s, inp, DT); return s; };
 const deg = (r) => r * 180 / Math.PI;
 
-const map = generateMap(ILE), world = createWorld(map);
+const map = generateMap(ILE);
+for (const id of MAP_IDS) await loadMap(id);
+useMap('eoliennes');
+const world = createWorld(map);
 
 // ----- 1. Vol
 {
@@ -56,9 +62,9 @@ const map = generateMap(ILE), world = createWorld(map);
   run(m, aim, 6);
   assert(m.fx * aim.ax + m.fz * aim.az > 0.98 && Math.abs(bankOf(m)) < 0.2, `instructeur : aligné sur le point visé, ailes à plat (banque ${deg(bankOf(m)).toFixed(0)}°)`);
   // limite de zone : ramené vers l'île
-  const z = createFlight({ x: CENTER + ZONE_MAX + 50, y: 400, z: CENTER, heading: Math.PI / 2 });
+  const z = createFlight({ x: ZONE.x + ZONE_MAX + 50, y: 400, z: ZONE.z, heading: Math.PI / 2 });
   run(z, { boost: true }, 12);
-  assert(Math.hypot(z.x - CENTER, z.z - CENTER) < ZONE_MAX, 'hors zone : l\'instructeur ramène l\'avion');
+  assert(zoneDist(z.x, z.z) < ZONE_MAX, 'hors zone : l\'instructeur ramène l\'avion');
   const c = createFlight({ x: 800, y: CEILING + 80, z: 800 });
   run(c, { p: 1 }, 6);
   assert(c.y < CEILING + 90, 'plafond : l\'avion ne monte pas indéfiniment');
@@ -124,12 +130,40 @@ const map = generateMap(ILE), world = createWorld(map);
 // ----- 3. Le monde
 {
   assert(world.groundAt(742, 588) > 90, 'le Pic du Vent est là');
-  assert(world.groundAt(-500, 100) === 0 && world.obstacleAt(5000, 5000) === 0, 'hors de l\'île, c\'est plat');
+  assert(world.obstacleAt(40000, 40000) === 0, 'au-delà de la carte, c\'est la mer');
   const b = map.buildings[0], cx = (b.x0 + b.w / 2) * 4, cz = (b.z0 + b.d / 2) * 4;
   assert(world.obstacleAt(cx, cz) > world.groundAt(cx, cz) + 2, 'les toits comptent comme obstacle');
-  const c = world.clouds[0];
-  assert(world.inCloud(c.x, 475, c.z) && !world.inCloud(c.x, 300, c.z), 'on sait si un avion est dans un nuage');
-  console.log('✓ Monde : relief, toits, nuages');
+  const c = world.clouds.find((q) => !q.bank && !q.far), far = world.clouds.find((q) => q.far);
+  // les dômes d'un amas se chevauchent : au-dessus de c, le plus haut d'entre eux fait le sommet (0.85 : le cœur où l'on est caché)
+  const over = world.clouds.filter((q) => !q.far).map((q) => [q, ((q.x - c.x) ** 2 + (q.z - c.z) ** 2) / (q.R * q.R * 0.85 * 0.85)]).filter(([, d2]) => d2 < 1);
+  const top = Math.max(...over.map(([q, d2]) => cloudTop(q, d2))), low = Math.min(...over.map(([q]) => q.base));
+  assert(world.inCloud(c.x, c.base + 20, c.z) && !world.inCloud(c.x, low - 60, c.z) && !world.inCloud(c.x, top + 5, c.z), 'on sait si un avion est dans un nuage');
+  assert(far && !world.inCloud(far.x, far.base + 20, far.z) && world.clouds.some((q) => !q.far && q.base + q.H > 1400), 'des nuages à l\'horizon (décor seulement), et des tours qui montent haut');
+  // les quatre cartes : un vrai relief, l'île d'Island Rush en mer, une piste plate, des navires, un banc de nuages bas
+  const PEAKS = { eoliennes: [550, 650], teno: [1300, 1420], kauai: [1200, 1350], lofoten: [950, 1080] };
+  for (const id of MAP_IDS) {
+    const A = useMap(id), w = createWorld(map);
+    let peak = 0, land = 0, tot = 0;
+    for (let x = A.zone.x - 6000; x <= A.zone.x + 6000; x += 50) for (let z = A.zone.z - 6000; z <= A.zone.z + 6000; z += 50) { const h = heightAt(A, x, z); peak = Math.max(peak, h); tot++; if (h > 0) land++; }
+    assert(peak > PEAKS[id][0] && peak < PEAKS[id][1], `${A.name} : le sommet est à sa vraie hauteur (${peak.toFixed(0)} m)`);
+    assert(land / tot > 0.15 && land / tot < 0.75, `${A.name} : terre et mer se partagent la carte (${(land / tot * 100).toFixed(0)} % de terre)`);
+    let dry = 0; for (let x = -100; x <= 1700; x += 50) for (let z = -100; z <= 1700; z += 50) if (heightAt(A, x, z) > 0) dry++;
+    assert(dry === 0, `${A.name} : l'île d'Island Rush est posée en mer`);
+    let seam = 0; for (let t = -6900; t <= 6900; t += 37) { const e = A.x0 + A.size; seam = Math.max(seam, Math.abs(heightAt(A, e - 1, A.zone.z + t) - heightAt(A, e + 1, A.zone.z + t))); }
+    assert(seam < 4, `${A.name} : pas de marche entre le relief proche et l'horizon (${seam.toFixed(1)} m)`);
+    const W = A.runway, along = [-W.len / 2, 0, W.len / 2].map((a) => w.groundAt(W.x + W.ux * a, W.z + W.uz * a));
+    assert(along.every((h) => Math.abs(h - RUNWAY_Y) < 0.5), `${A.name} : la piste est plate`);
+    assert(Math.hypot(W.x - A.zone.x, W.z - A.zone.z) < 5600, `${A.name} : la piste est dans la zone de jeu`);
+    const pa = A.structures.find((q) => q.kind === 'porteavions');
+    assert(w.obstacleAt(pa.x, pa.z) > 20 && w.groundAt(pa.x, pa.z) === 0, `${A.name} : le porte-avions est un obstacle en pleine mer`);
+    assert(A.structures.filter((q) => q.kind !== 'hangar' && q.kind !== 'tour').every((q) => heightAt(A, q.x, q.z) < -5), `${A.name} : les navires flottent`);
+    const low = w.clouds.find((q) => q.bank);
+    assert(low && w.inCloud(low.x, A.bank.y, low.z), `${A.name} : le banc de nuages bas cache le transport`);
+  }
+  let lakes = 0; const L = useMap('lofoten'); for (let k = 0; k < L.lake.length; k++) if (L.lake[k] === 2) lakes++;
+  assert(lakes > 2000 && lakeAt(L, L.zone.x - 4600, L.zone.z - 400), `Lofoten : les lacs sont repérés (${lakes} cases)`);
+  useMap('eoliennes');
+  console.log('✓ Monde : quatre vrais reliefs, toits, navires, piste, nuages');
 }
 
 // ----- 4. Parties entre bots
@@ -141,7 +175,7 @@ function play(n, lvl, sec, settings = {}) {
   while (g.left > 10 && g.ph !== 'over') {
     stepGame(g, DT, world);
     for (const e of drainEvents(g)) { if (e.e === 'hit') stats.hits++; if (e.e === 'crash') stats.crashes++; if (e.e === 'kill') stats.kills++; }
-    for (const p of g.planes) if (p.alive) { stats.n++; if (p.y > 1100) stats.ceil++; stats.maxD = Math.max(stats.maxD, Math.hypot(p.x - CENTER, p.z - CENTER)); if (p.firing) stats.shots++; }
+    for (const p of g.planes) if (p.alive) { stats.n++; if (p.y - world.groundAt(p.x, p.z) > 1000) stats.ceil++; stats.maxD = Math.max(stats.maxD, zoneDist(p.x, p.z)); if (p.firing) stats.shots++; }
   }
   return { g, stats };
 }
@@ -199,8 +233,121 @@ function play(n, lvl, sec, settings = {}) {
   const t = createGame({ settings: { kills: 2, time: 100, mode: 'equipes' }, players: [{ id: 1, name: 'A' }, { id: 2, name: 'B' }, { id: 3, name: 'C', bot: true }, { id: 4, name: 'D', bot: true }], world });
   assert(t.planes.filter((p) => p.team === 1).length === 2 && t.planes.filter((p) => p.team === 2).length === 2, 'équipes équilibrées');
   addPlayer(t, { id: 5, name: 'E' }, world); assert(t.planes[4].team === 1, 'l\'arrivant rejoint la plus petite équipe');
-  // missile : la cible sans leurre est touchée, F-22 plus long à accrocher
   console.log('✓ Règles : phases, spawn, crash, match nul, équipes, départ');
+}
+
+// ----- 5 bis. Armes à recharge et capacités
+{
+  // A poursuit B à 800 m, haut dans le ciel, en ligne droite
+  const duel = (ta, tb, more = []) => {
+    const g = createGame({ settings: { kills: 20, time: 300 }, players: [{ id: 1, name: 'A', type: ta }, { id: 2, name: 'B', type: tb }, ...more], world });
+    startCountdown(g, world); for (let i = 0; i < 200; i++) stepGame(g, DT, world);
+    g.planes.forEach((p, i) => Object.assign(p, createFlight({ x: 800 + (i > 1 ? (i % 2 ? 160 : -160) : 0), y: 1500, z: i ? 200 : -600, type: p.type }), { inv: 0 }));
+    return g;
+  };
+  const steps = (g, sec) => { const ev = []; for (let t = 0; t < sec; t += DT) { stepGame(g, DT, world); ev.push(...drainEvents(g)); } return ev; };
+  const count = (ev, e) => ev.filter((q) => q.e === e).length;
+  // missiles : sans stock, un toutes les 12 s, toujours avec accrochage, 70 % d'un F-16
+  {
+    const g = duel('f16', 'f16'), [a, b] = g.planes;
+    a.inp.msl = true; let ev = steps(g, DT);
+    assert(count(ev, 'mfire') === 0, 'missile : pas de tir sans accrochage');
+    ev = steps(g, 1.6);
+    assert(a.lockId === 2 && a.lockT >= 1, 'missile : la cible devant est accrochée');
+    a.inp.msl = true; ev = steps(g, DT);
+    assert(count(ev, 'mfire') === 1 && Math.abs(a.msCd - MISSILE_COOLDOWN) < 0.1, `missile : tir, puis ${MISSILE_COOLDOWN} s de recharge`);
+    ev = steps(g, 6);
+    assert(Math.abs(b.health - (TYPES.f16.hp - MISSILE_DAMAGE)) < 0.5 && b.alive, `missile : un F-16 touché garde 30 % (${b.health.toFixed(0)})`);
+    a.inp.msl = true; ev = steps(g, DT);
+    assert(count(ev, 'mfire') === 0, 'missile : rien pendant la recharge');
+    ev = steps(g, MISSILE_COOLDOWN - 6);
+    a.inp.msl = true; ev = steps(g, 0.1);
+    assert(a.msCd > MISSILE_COOLDOWN - 1 && count(ev, 'mfire') === 1, `missile : de nouveau prêt après ${MISSILE_COOLDOWN} s, sans limite de stock`);
+    // leurres : sans stock, toutes les 9 s
+    b.inp.flare = true; ev = steps(g, DT);
+    assert(count(ev, 'flare') === 1 && Math.abs(b.flCd - FLARE_COOLDOWN) < 0.1, `leurres : lâchés, puis ${FLARE_COOLDOWN} s de recharge`);
+    b.inp.flare = true; ev = steps(g, 5);
+    assert(count(ev, 'flare') === 0, 'leurres : rien pendant la recharge');
+    b.inp.flare = true; ev = steps(g, FLARE_COOLDOWN - 4.9);
+    assert(count(ev, 'flare') === 1, `leurres : de nouveau prêts après ${FLARE_COOLDOWN} s`);
+    // tout est prêt à la réapparition
+    a.msCd = 12; a.flCd = 9; a.abCd = 30; a.y = -5; steps(g, DT);
+    assert(!a.alive, 'crash pour le test de réapparition');
+    steps(g, 6);
+    assert(a.alive && a.msCd === 0 && a.flCd === 0 && a.abCd === 0, 'réapparition : missile, leurres et capacité prêts');
+  }
+  // rase-mottes et nuages : invisible aux radars
+  {
+    let sx = null;
+    for (let x = -3000; x < 4000 && sx === null; x += 100) for (let z = -3000; z < 3000; z += 100) if ([0, 300, 600, 900].every((d) => world.obstacleAt(x, z + d) === 0)) { sx = { x, z }; break; }
+    const a = { id: 1, x: sx.x, y: 200, z: sx.z, fx: 0, fy: -0.17, fz: 0.985, lockT: 0, lockId: null }, b = { id: 2, alive: true, type: 'f16', x: sx.x, y: 40, z: sx.z + 900 };
+    for (let i = 0; i < 180; i++) stepLock(a, [a, b], world, DT);
+    assert(b.y < LOW_HIDE && a.lockId === null, 'rase-mottes : sous 50 m, impossible à accrocher');
+    b.y = 70; a.fy = -0.14; for (let i = 0; i < 180; i++) stepLock(a, [a, b], world, DT);
+    assert(a.lockId === 2 && a.lockT === 1, 'au-dessus de 50 m, on l\'accroche');
+  }
+  // capacités : 25 s, une par avion
+  assert(TYPE_IDS.length === 6 && TYPE_IDS.every((t) => ABILITIES[TYPES[t].ab]) && new Set(TYPE_IDS.map((t) => TYPES[t].ab)).size === 6, 'six avions, six capacités différentes');
+  {
+    // Surcharge du F-16 : plus vite, sans chauffer
+    const g = duel('f16', 'f16'), [a] = g.planes, shots0 = a.shots || 0;
+    a.inp.ab = true; let ev = steps(g, DT);
+    assert(count(ev, 'ab') === 1 && a.abCd > ABILITY_COOLDOWN - 0.1 && a.abT > 5.9, `Surcharge : déclenchée, ${ABILITY_COOLDOWN} s de recharge`);
+    a.inp.fire = true; steps(g, 5); a.inp.fire = false;
+    assert(a.heat === 0 && !a.over && (a.shots - shots0) > FIRE_RATE * 1.25 * 5, `Surcharge : ${a.shots - shots0} obus en 5 s sans chauffer`);
+    a.inp.ab = true; ev = steps(g, DT);
+    assert(count(ev, 'ab') === 0, 'Surcharge : rien pendant la recharge');
+    a.inp.fire = true; steps(g, 3); a.inp.fire = false;
+    assert(a.heat > 0.3 || a.over, 'Surcharge finie : le canon chauffe de nouveau');
+  }
+  {
+    // Furtivité du F-22 : décroche le missile déjà en vol, et plus d'accrochage
+    const g = duel('f16', 'f22'), [a, b] = g.planes;
+    steps(g, 2.2); a.inp.msl = true; steps(g, DT);
+    assert(g.missiles.length === 1 && g.missiles[0].target === 2, 'Furtivité : un missile poursuit le F-22');
+    b.inp.ab = true; const ev = steps(g, 0.2);
+    assert(g.missiles.every((m) => m.target === null) && count(ev, 'mlost') === 1, 'Furtivité : le missile perd sa cible');
+    steps(g, 3);
+    assert(a.lockId === null && b.abT > 0, 'Furtivité : impossible à accrocher pendant 6 s');
+  }
+  {
+    // Salve du Rafale : deux missiles sur deux cibles, sans accrochage ; sans cible, pas gâchée
+    const g = duel('rafale', 'f16', [{ id: 3, name: 'C', type: 'f16' }]), [a] = g.planes;
+    g.planes[2].z = 300; a.lockT = 0; a.inp.ab = true; let ev = steps(g, DT);
+    const fired = ev.filter((q) => q.e === 'mfire');
+    assert(fired.length === 2 && new Set(fired.map((q) => q.target)).size === 2 && a.abCd > ABILITY_COOLDOWN - 1, 'Salve : deux missiles, deux cibles, sans accrocher');
+    const solo = duel('rafale', 'f16'), r = solo.planes[0];
+    Object.assign(solo.planes[1], { z: -2000 }); r.inp.ab = true; ev = steps(solo, DT);
+    assert(count(ev, 'abno') === 1 && r.abCd === 0 && count(ev, 'mfire') === 0, 'Salve : sans cible devant, elle reste prête');
+  }
+  {
+    // Cobra du Su-35 : cabré brutal, il garde sa route et casse sa vitesse
+    const g = duel('su35', 'f16'), [a] = g.planes, x0 = a.x, y0 = a.y, z0 = a.z, v0 = a.speed;
+    a.inp.ab = true; a.inp.fire = true; steps(g, COBRA_TIME / 2);
+    assert(a.fy > 0.6 && Math.abs(a.x - x0) < 3 && a.cob > 0, `Cobra : le nez se dresse (${a.fy.toFixed(2)}) sans quitter la route`);
+    assert(!a.firing, 'Cobra : pas de canon pendant la figure');
+    steps(g, COBRA_TIME / 2 + 0.05);
+    const along = a.z - z0;
+    assert(a.cob === 0 && a.fz > 0.9 && Math.abs(a.y - y0) < 20 && along > 60 && a.speed < v0 * 0.65, `Cobra : retombe à plat dans l'axe, ${a.speed.toFixed(0)} m/s au lieu de ${v0.toFixed(0)}`);
+  }
+  {
+    // Brouilleur du F/A-18 : les missiles autour décrochent et personne n'accroche
+    const g = duel('f16', 'f18'), [a, b] = g.planes;
+    steps(g, 2.2); a.inp.msl = true; steps(g, DT);
+    assert(g.missiles.length === 1, 'Brouilleur : un missile poursuit le F/A-18');
+    b.inp.ab = true; steps(g, 0.1);
+    assert(g.missiles.every((m) => m.target === null), 'Brouilleur : le missile décroche');
+    steps(g, 2);
+    assert(a.lockId === null, 'Brouilleur : personne n\'accroche à moins d\'un kilomètre');
+  }
+  {
+    // Brrrt de l'A-10 : obus deux fois plus forts, sans chauffer
+    const g = duel('a10', 'f16'), [a] = g.planes;
+    a.inp.ab = true; a.inp.fire = true; steps(g, 1);
+    const dmg = g.bullets.map((q) => q.dmg);
+    assert(dmg.length > 10 && dmg.every((d) => d === TYPES.a10.gun * 2) && a.heat === 0, 'Brrrt : dégâts doublés, sans chauffer');
+  }
+  console.log('✓ Armes à recharge, leurres, rase-mottes, six capacités');
 }
 
 // ----- 6. Réseau
@@ -209,7 +356,7 @@ function play(n, lvl, sec, settings = {}) {
   startCountdown(g, world); for (let i = 0; i < 400; i++) stepGame(g, DT, world);
   const rows = snapRows(g), w = worldOf(g);
   const size = JSON.stringify(rows).length;
-  assert(size < 500, `instantané de 3 avions compact (${size} o)`);
+  assert(size < 600, `instantané de 3 avions compact (${size} o)`);
   const copy = applyRow({ ...g.planes[2] }, rows[2]);
   assert(Math.abs(copy.wr - g.planes[2].wr) < 0.01 && Math.abs(copy.wp - g.planes[2].wp) < 0.01, 'réseau : l\'inertie de l\'avion voyage avec l\'instantané');
   assert(Math.hypot(copy.x - g.planes[2].x, copy.y - g.planes[2].y) < 0.2 && copy.fx * g.planes[2].fx + copy.fy * g.planes[2].fy + copy.fz * g.planes[2].fz > 0.999, 'une ligne reconstruit l\'avion');
@@ -223,6 +370,14 @@ function play(n, lvl, sec, settings = {}) {
   const a = createFlight({ x: 800, y: 500, z: 800 }), b = JSON.parse(JSON.stringify(a));
   for (let i = 0; i < 120; i++) { const inp = { p: i % 40 < 20 ? 1 : 0, r: i % 60 < 30 ? 1 : 0 }; stepFlight(a, inp, DT); stepFlight(b, inp, DT); }
   assert(a.x === b.x && a.qw === b.qw, 'prédiction : le vol est déterministe');
+  // un Cobra en cours voyage avec l'instantané : l'invité le rejoue à l'identique
+  const s0 = g.planes[2]; s0.type = 'su35'; s0.abCd = 0; s0.inp = { ...s0.inp, ab: true }; s0.bot = false;
+  stepGame(g, DT, world); s0.inp.ab = false;
+  for (let i = 0; i < 20; i++) stepGame(g, DT, world);
+  const rc = snapRows(g)[2], cp = applyRow(createFlight({ type: 'su35' }), rc);
+  assert(s0.cob > 0 && Math.abs(cp.cob - s0.cob) < 0.01 && cp.abCd > ABILITY_COOLDOWN - 5, 'réseau : le Cobra et les recharges voyagent avec l\'instantané');
+  stepFlight(cp, {}, DT); stepFlight(s0, {}, DT);
+  assert(Math.hypot(cp.x - s0.x, cp.y - s0.y, cp.z - s0.z) < 0.5 && cp.fy * s0.fy + cp.fx * s0.fx + cp.fz * s0.fz > 0.999, 'réseau : l\'invité rejoue le Cobra comme l\'hôte');
   console.log('✓ Réseau : instantané compact, reprise d\'hôte, prédiction');
 }
 
@@ -307,36 +462,76 @@ function play(n, lvl, sec, settings = {}) {
   // Escorte
   {
     assert(!TYPE_IDS.includes('cargo'), 'escorte : le transport ne se choisit pas au hangar');
-    for (let u = 0; u < 6.3; u += 0.02) { const q = routeAt(u); assert(q.y > world.obstacleAt(q.x, q.z) + 100, 'escorte : la route passe au-dessus du relief'); }
+    assert(routeForTime(300) === 'traversee' && routeForTime(480) === 'tour' && routeForTime(600) === 'odyssee', 'escorte : la durée choisit la route');
+    // l'approche finale : dans l'axe de la piste, derrière son seuil
+    const onFinal = (W, x, z, tol) => { const q = runwayLocal(W, x, z); return Math.abs(q.b) < tol && q.a > -W.len / 2 - 3100 && q.a < W.len / 2; };
+    for (const mid of MAP_IDS) {
+      const A = useMap(mid), w = createWorld(map), W = A.runway;
+      for (const id of ROUTE_IDS) {
+        const R = getRoute(id, w);
+        let clear = 1e9, low = 0, cloud = 0, valley = 0, glide = 0;
+        for (let i = 0; i < R.land; i++) {
+          if (R.s[i] > R.landS - 2950) { glide = Math.max(glide, R.y[i] - R.y[i - 1]); continue; }
+          const h = Math.max(w.obstacleAt(R.x[i], R.z[i]), w.obstacleAt(R.x[i] + 20, R.z[i]), w.obstacleAt(R.x[i] - 20, R.z[i]), w.obstacleAt(R.x[i], R.z[i] + 20), w.obstacleAt(R.x[i], R.z[i] - 20));
+          clear = Math.min(clear, R.y[i] - h);
+          if (R.y[i] - h < LOW_HIDE) low += 10;
+          if (w.inCloud(R.x[i], R.y[i], R.z[i])) cloud += 10;
+          if (Math.max(w.groundAt(R.x[i] + 400, R.z[i]), w.groundAt(R.x[i] - 400, R.z[i]), w.groundAt(R.x[i], R.z[i] + 400), w.groundAt(R.x[i], R.z[i] - 400)) > R.y[i]) valley += 10;
+        }
+        const min = R.time / 60, end = runwayLocal(W, R.x[R.land], R.z[R.land]);
+        console.log(`  ${A.name}, ${R.name} (${R.model}) : ${(R.landS / 1000).toFixed(1)} km en ${min} min à ${R.speed.toFixed(0)} m/s ; ${(low / 1000).toFixed(1)} km en rase-mottes, ${(cloud / 1000).toFixed(1)} km dans les nuages, ${(valley / 1000).toFixed(1)} km entre les montagnes ; marge ${clear.toFixed(0)} m`);
+        assert(R.map === mid, `escorte, ${R.name} : la route est celle de la carte`);
+        assert(clear > 20, `escorte, ${R.name} : la route ne frôle jamais le relief (${clear.toFixed(0)} m)`);
+        assert(glide <= 0, `escorte, ${R.name} : l'approche finale descend sans remonter`);
+        assert(low > 2500 && cloud > 2000 && valley > 1000, `escorte, ${R.name} : rase-mottes, nuages et montagnes au programme`);
+        assert(R.speed > 70 && R.speed < 100, `escorte, ${R.name} : une vitesse de gros porteur (${R.speed.toFixed(0)} m/s)`);
+        let out = 0; for (let i = 0; i < R.n; i++) out = Math.max(out, zoneDist(R.x[i], R.z[i]));
+        assert(out < ZONE_WARN, `escorte, ${R.name} : la route reste dans la zone de jeu (${out.toFixed(0)} m du centre)`);
+        assert(Math.abs(R.y[R.land] - W.y) < 6 && Math.abs(end.b) < 5 && Math.abs(end.a) <= W.len / 2 + 1, `escorte, ${R.name} : il se pose sur la piste`);
+      }
+    }
+    useMap('eoliennes');
     const g = start('escorte');
     const c = g.planes.find((p) => p.type === 'cargo');
-    assert(c && c.team === 1 && c.health === c.maxHp && c.maxHp > 1000, 'escorte : le transport vole avec les défenseurs');
+    assert(c && c.team === 1 && c.health === c.maxHp && c.maxHp > 1000 && c.model === 'a400m', 'escorte : l\'A400M vole avec les défenseurs sur la route de 5 min');
     assert(!ranking(g).includes(c), 'escorte : le transport n\'est pas au classement');
     assert(g.planes.filter((p) => p.team === 1 && p !== c).length === 2 && g.planes.filter((p) => p.team === 2).length === 2, 'escorte : deux équipes égales');
+    assert(g.planes.every((p) => p.lives === (p.team === 2 ? ATTACK_LIVES : 0)), 'escorte : cinq vies par assaillant');
+    const def = g.planes.find((p) => p.team === 1 && p !== c), att = g.planes.find((p) => p.team === 2);
+    assert(Math.hypot(def.x - c.x, def.z - c.z) < 700 && Math.hypot(att.x - c.x, att.z - c.z) > 2500, 'escorte : l\'escorte part avec le transport, les assaillants loin devant');
+    assert(Math.abs(g.left - 300) < 5, `escorte : le chrono est le temps avant l'atterrissage (${g.left.toFixed(0)} s)`);
     parked(g);
-    // seul, il suit sa route sans jamais s'écraser ni sortir de la zone
+    // seul, il suit sa route sans jamais s'écraser, et se pose à l'heure
     for (const p of g.planes) if (p !== c) { p.alive = false; p.respawn = 1e6; }
-    let low = 1e9, high = 0, wide = 0, tilt = 1, px = c.x, pz = c.z, fast = 0;
-    for (let i = 0; i < 280 * 60 && g.ph === 'play'; i++) {
-      stepGame(g, DT, world);
-      low = Math.min(low, c.y - world.obstacleAt(c.x, c.z)); high = Math.max(high, c.y); wide = Math.max(wide, Math.hypot(c.x - CENTER, c.z - CENTER)); tilt = Math.min(tilt, c.uy);
+    let low = 1e9, tilt = 1, px = c.x, pz = c.z, fast = 0, t = 0, ev = [];
+    for (let i = 0; i < 320 * 60 && g.ph === 'play'; i++) {
+      stepGame(g, DT, world); t += DT; ev.push(...drainEvents(g));
+      if (g.ph === 'play' && !onFinal(world.archi.runway, c.x, c.z, 30)) low = Math.min(low, c.y - world.obstacleAt(c.x, c.z));
+      tilt = Math.min(tilt, c.uy);
       fast = Math.max(fast, Math.hypot(c.x - px, c.z - pz) / DT); px = c.x; pz = c.z;
     }
-    drainEvents(g);
-    assert(c.alive && low > 100 && high < 400, `escorte : le transport tient sa route (entre ${low.toFixed(0)} m du sol et ${high.toFixed(0)} m d'altitude)`);
+    assert(c.alive && low > 20, `escorte : le transport ne touche jamais le relief (${low.toFixed(0)} m au plus bas)`);
     assert(tilt > 0.6, `escorte : il vire sans se mettre sur la tranche (${tilt.toFixed(2)})`);
     assert(fast < 110, `escorte : sa vitesse reste régulière (${fast.toFixed(0)} m/s)`);
-    assert(wide < ZONE_MAX, 'escorte : le transport reste dans la zone de vol');
-    for (let i = 0; i < 30 * 60 && g.ph === 'play'; i++) stepGame(g, DT, world);
-    assert(g.ph === 'over' && g.winTeam === 1, 'escorte : s\'il survit au temps, les défenseurs gagnent');
+    assert(g.ph === 'over' && g.winTeam === 1 && g.why === 'landed' && ev.some((e) => e.e === 'landed') && Math.abs(t - 303) < 6, `escorte : posé à l'heure (${t.toFixed(0)} s), l'escorte gagne`);
+    const a0 = runwayLocal(world.archi.runway, c.x, c.z).a; for (let i = 0; i < 600; i++) stepGame(g, DT, world);
+    assert(runwayLocal(world.archi.runway, c.x, c.z).a > a0 + 50 && c.speed < 60, 'escorte : posé, il roule et freine sur la piste');
+    // les cinq vies des assaillants
+    const w = start('escorte'), foes = w.planes.filter((p) => p.team === 2);
+    for (let k = 0; k < ATTACK_LIVES; k++) { for (let i = 0; i < 5 * 60 && !foes[0].alive; i++) stepGame(w, DT, world); down(w, foes[0]); }
+    assert(foes[0].out && !foes[0].alive && foes[0].lives === 0, 'escorte : cinq morts et l\'assaillant est hors jeu');
+    for (let i = 0; i < 8 * 60; i++) stepGame(w, DT, world);
+    assert(!foes[0].alive && w.ph === 'play', 'escorte : hors jeu, il ne réapparaît plus');
+    for (let k = 0; k < ATTACK_LIVES && w.ph === 'play'; k++) { for (let i = 0; i < 5 * 60 && !foes[1].alive; i++) stepGame(w, DT, world); down(w, foes[1]); }
+    assert(w.ph === 'over' && w.winTeam === 1 && w.why === 'wiped', 'escorte : tous les assaillants à terre, l\'escorte gagne');
     const k = start('escorte'), kc = k.planes.find((p) => p.type === 'cargo'), foe = k.planes.find((p) => p.team === 2);
     kc.health = 1; k.bullets.push({ x: kc.x, y: kc.y, z: kc.z + 1, vx: 0, vy: 0, vz: -50, by: foe.id, dmg: 5, age: 0 });
     for (let i = 0; i < 12 && k.ph === 'play'; i++) stepGame(k, DT, world);
     assert(k.ph === 'over' && k.winTeam === 2, 'escorte : s\'il tombe, les attaquants gagnent');
-    const n = start('escorte'), r = network(n);
-    assert(r.cargo && r.planes.find((p) => p.type === 'cargo').hitR > 5, 'escorte : un nouvel hôte reprend le transport');
+    const n = start('escorte', 4, { time: 600 }), r = network(n);
+    assert(n.cargo.model === 'c17' && r.cargo && r.cargo.route === 'odyssee' && r.planes.find((p) => p.type === 'cargo').hitR > 5 && r.planes.find((p) => p.team === 2).lives === ATTACK_LIVES, 'escorte : un nouvel hôte reprend le C-17, sa route et les vies');
     for (let i = 0; i < 60; i++) stepGame(r, DT, world);
-    assert(r.ph === 'play', 'escorte : la partie continue après la reprise');
+    assert(r.ph === 'play' && r.cargo.d > n.cargo.d, 'escorte : la partie continue après la reprise');
   }
 
   // Récompenses

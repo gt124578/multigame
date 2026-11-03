@@ -1,6 +1,7 @@
 // Modes de Dogfight 3D : les zones de Domination, les manches du Duel, le trajet du transport d'Escorte.
 // Moteur pur : l'état vit dans la partie (g.zones, g.duel, g.cargo), le réseau et un nouvel hôte le reprennent tel quel.
 import { CENTER, computeAxes } from './flight.js';
+import { buildRoute, routeAt, routeForTime } from './route.js';
 
 export const MODE_IDS = ['chacun', 'equipes', 'domination', 'duel', 'escorte'];
 export const MODE_NAMES = { chacun: 'Chacun pour soi', equipes: 'Équipes', domination: 'Domination', duel: 'Duel', escorte: 'Escorte' };
@@ -80,27 +81,44 @@ export function nextPair(duel) {
 }
 
 // ---------------------------------------------------------------- Escorte
-export const CARGO_RADIUS = 15;
-// Solidité : de quoi tenir la durée de la partie si l'escorte fait son travail
-export const cargoHp = (attackers, time) => Math.round(Math.max(1, attackers) * 4300 * (time / 300));
+// Le transport suit l'itinéraire de sa route (route.js) et se pose sur la piste de la base : arrivé, l'escorte gagne.
+// Les assaillants ont cinq vies chacun ; tous à terre, l'escorte gagne aussi.
+export const CARGO_RADIUS = 17;
+export const ATTACK_LIVES = 5;
+// Solidité : de quoi tenir le trajet si l'escorte fait son travail. Les assaillants n'ont que cinq vies :
+// ce qu'ils peuvent infliger ne grandit pas avec la longueur du trajet
+export const cargoHp = (attackers) => Math.max(1, attackers) * 2300;
 
-// Le trajet : une grande boucle autour du sommet, assez large pour que ce gros avion vire sans forcer
-export const routeAt = (u) => ({ x: CENTER + 640 * Math.sin(u), y: 285 + 35 * Math.sin(u * 2), z: CENTER + 520 * Math.cos(u) });
+const CARGO_BANK = 0.6, ROLL_BRAKE = 7;
+const routes = new Map();
+// La route se calcule une fois par carte (elle épouse le relief)
+export function getRoute(id, world) {
+  const key = `${world.archi.id}:${id}`;
+  if (!routes.has(key)) routes.set(key, buildRoute(id, (x, z) => world.obstacleAt(x, z), world.archi));
+  return routes.get(key);
+}
+export function newCargo(time, world) {
+  const id = routeForTime(time), R = getRoute(id, world);
+  return { route: id, model: R.model, d: 0, v: R.speed, landed: false };
+}
 
-const CARGO_SPEED = 96, ROUTE_START = 1, CARGO_BANK = 0.6;
-
-// Le transport vole sur des rails : un gros porteur ne se pilote pas comme un chasseur, et ses virages restent larges
-export function stepCargo(p, cargo, dt) {
-  const u = cargo.u, dx = 640 * Math.cos(u), dy = 70 * Math.cos(u * 2), dz = -520 * Math.sin(u), ddx = -640 * Math.sin(u), ddz = -520 * Math.cos(u);
-  const n = Math.hypot(dx, dy, dz);
-  cargo.u = u + CARGO_SPEED * dt / n;
-  const at = routeAt(cargo.u);
-  p.x = at.x; p.y = at.y; p.z = at.z; p.speed = CARGO_SPEED;
-  const yaw = Math.atan2(dx, dz) / 2, pitch = -Math.asin(dy / n) / 2, h2 = dx * dx + dz * dz;
-  // il s'incline dans ses virages, comme le ferait un vrai pilote
-  const roll = -Math.max(-CARGO_BANK, Math.min(CARGO_BANK, Math.atan(CARGO_SPEED * CARGO_SPEED / 9.8 * (dz * ddx - dx * ddz) / (h2 * Math.sqrt(h2))))) / 2;
+// Le transport vole sur des rails : un gros porteur ne se pilote pas comme un chasseur. Il s'incline dans ses virages
+// comme le ferait un vrai pilote, et freine sur la piste une fois posé.
+export function stepCargo(p, cargo, dt, world) {
+  const R = getRoute(cargo.route, world);
+  cargo.v = cargo.d >= R.landS ? Math.max(0, cargo.v - ROLL_BRAKE * dt) : R.speed;
+  cargo.d = Math.min(R.len - 1, cargo.d + cargo.v * dt);
+  const a = routeAt(R, cargo.d);
+  p.x = a.x; p.y = a.y; p.z = a.z; p.speed = cargo.v;
+  const flat = Math.hypot(a.tx, a.tz) || 1, yaw = Math.atan2(a.tx, a.tz) / 2, pitch = -Math.atan2(a.ty, flat) / 2;
+  const roll = cargo.d >= R.landS ? 0 : -Math.max(-CARGO_BANK, Math.min(CARGO_BANK, Math.atan(R.speed * R.speed * a.turn / 9.8))) / 2;
   const sy = Math.sin(yaw), cy = Math.cos(yaw), sp = Math.sin(pitch), cp = Math.cos(pitch), sr = Math.sin(roll), cr = Math.cos(roll);
   p.qx = cy * sp * cr + sy * cp * sr; p.qy = sy * cp * cr - cy * sp * sr; p.qz = cy * cp * sr - sy * sp * cr; p.qw = cy * cp * cr + sy * sp * sr;
   computeAxes(p);
+  return cargo.d >= R.landS;
 }
-export const startCargo = (p, cargo) => { cargo.u = ROUTE_START; stepCargo(p, cargo, 0); };
+export const startCargo = (p, cargo, world) => { cargo.d = 0; cargo.landed = false; cargo.v = getRoute(cargo.route, world).speed; stepCargo(p, cargo, 0, world); };
+// Temps qu'il reste avant que les roues touchent la piste
+export const cargoLeft = (cargo, world) => { const R = getRoute(cargo.route, world); return Math.max(0, (R.landS - cargo.d) / R.speed); };
+// Un point de la route, devant (ou derrière) le transport : pour faire apparaître les deux camps
+export function alongRoute(cargo, world, ahead) { const R = getRoute(cargo.route, world); return routeAt(R, Math.max(0, Math.min(R.landS, cargo.d + ahead))); }

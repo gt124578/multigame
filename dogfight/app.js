@@ -2,7 +2,12 @@
 // Hôte et solo font tourner le moteur ; les invités reçoivent un état compact, prédisent leur avion et interpolent les autres.
 import { generateMap, ILE } from '../royale/engine/map.js';
 import { createWorld } from './engine/world.js';
-import { createFlight, stepFlight, computeAxes, TYPES, TYPE_IDS } from './engine/flight.js';
+import { loadMap } from './engine/archipel.js';
+import { MAPS, MAP_IDS, DEFAULT_MAP } from './engine/maps.js';
+import { routeForTime, routeInfo } from './engine/route.js';
+import { createFlight, stepFlight, computeAxes, startCobra, TYPES, TYPE_IDS } from './engine/flight.js';
+import { ABILITIES, ABILITY_COOLDOWN, abilityOf } from './engine/abilities.js';
+import { ATTACK_LIVES } from './engine/modes.js';
 import { MODE_IDS, MODE_NAMES, isTeamMode, ZONE_CEIL } from './engine/modes.js';
 import { createGame, startCountdown, stepGame, drainEvents, addPlayer, replaceByBot, snapRows, snapMissiles, snapZones, worldOf, restoreGame, applyRow, ranking, DT, COLORS, TEAM_COLORS } from './engine/rules.js';
 import { DogfightScene } from './view/scene.js';
@@ -24,7 +29,7 @@ const MODE_BRIEF = {
   equipes: () => 'Équipes : chaque élimination compte pour ton camp.',
   domination: (me, target) => `Domination : tiens les zones A, B et C. Vole sous ${ZONE_CEIL} m au-dessus du sol pour les capturer. Chaque zone tenue rapporte un point par seconde, la première équipe à ${target} points gagne.`,
   duel: (me, target) => `Duel (${target} manches pour gagner) : un contre un, face à face. Le gagnant reste en piste, le perdant passe derrière ceux qui attendent. Après 90 s, le moins abîmé gagne la manche. Seul, un bot vient en face.`,
-  escorte: (me) => (me && me.team === 2 ? 'Escorte : tu attaques. Abats le gros transport avant la fin du temps.' : 'Escorte : tu protèges le gros transport. S\'il tient jusqu\'à la fin du temps, ton équipe gagne.'),
+  escorte: (me) => (me && me.team === 2 ? `Escorte : tu attaques, avec ${ATTACK_LIVES} vies. Abats le gros transport avant qu'il se pose sur la piste de la base, au bout de son trajet d'île en île.` : `Escorte : tu protèges le gros transport d'île en île, jusqu'à son atterrissage. Les assaillants n'ont que ${ATTACK_LIVES} vies chacun : s'ils tombent tous, ton équipe gagne aussi.`),
 };
 const planeName = (type) => (TYPES[type] || TYPES.f16).name;
 const tagColorOf = (p, mode) => (p.type !== 'cargo' && isTeamMode(mode) ? TEAM_COLORS[p.team] : p.color);
@@ -56,7 +61,7 @@ function setupPanel() {
   window.DDVolume.panel(btn, {
     accent: '#2563eb', kinds: ['fx'], test: () => sfx.hitConfirm(),
     sections: [
-      { title: 'Image', items: [{ label: 'Qualité', get: () => pref.quality, set: (v) => { pref.quality = v; store.set('quality', v); applyPrefs(); }, options: [['auto', 'Auto'], ['bas', 'Bas'], ['moyen', 'Moyen'], ['eleve', 'Élevé']] }], hint: 'Élevé : de vrais nuages volumétriques, à réserver à une bonne carte graphique. Auto l\'essaie quand la machine suit, et baisse d\'un cran si l\'image rame.' },
+      { title: 'Image', items: [{ label: 'Qualité', get: () => pref.quality, set: (v) => { pref.quality = v; store.set('quality', v); applyPrefs(); }, options: [['auto', 'Auto'], ['bas', 'Bas'], ['moyen', 'Moyen'], ['eleve', 'Élevé']] }], hint: 'Moyen et Élevé : de vrais nuages en volume, plus fins en Élevé (à réserver à une bonne carte graphique). Bas : des nuages en bouffées, pour les petites machines. Auto baisse d\'un cran si l\'image rame.' },
       { title: 'Pilotage', items: [
         { label: 'Aide au vol', get: () => pref.assist, set: (v) => { pref.assist = v; store.set('assist', v); applyPrefs(); } },
         { label: 'Inverser le tangage', get: () => pref.invert, set: (v) => { pref.invert = v; store.set('invert', v); applyPrefs(); } },
@@ -65,11 +70,12 @@ function setupPanel() {
           ['Viser (l\'avion suit)', 'Souris', 'Stick droit'],
           ['Tangage', '<kbd>Z</kbd> pique, <kbd>S</kbd> cabre, ou <kbd>↑</kbd> <kbd>↓</kbd>', 'Stick gauche'],
           ['Virer', '<kbd>Q</kbd> <kbd>D</kbd> ou <kbd>←</kbd> <kbd>→</kbd>', 'Stick gauche'],
-          ['Tonneau (roulis libre)', '<kbd>R</kbd> + <kbd>Q</kbd> ou <kbd>D</kbd>', ''],
+          ['Tonneau (roulis libre)', '<kbd>V</kbd> + <kbd>Q</kbd> ou <kbd>D</kbd>', ''],
           ['Lacet', '<kbd>J</kbd> <kbd>L</kbd>', 'Croix'],
           ['Canon', '<kbd>Espace</kbd> ou clic gauche', 'RT'],
-          ['Missile, une fois accroché', '<kbd>E</kbd> ou clic droit', 'A'],
-          ['Leurres', '<kbd>F</kbd>', 'X'],
+          ['Missile, une fois accroché (toutes les 12 s)', '<kbd>E</kbd> ou clic droit', 'A'],
+          ['Leurres (toutes les 9 s)', '<kbd>F</kbd>', 'X'],
+          ['Capacité de l\'avion (toutes les 25 s)', '<kbd>R</kbd>', 'Y'],
           ['Postcombustion', '<kbd>Maj</kbd>', 'RB'],
           ['Aérofrein', '<kbd>C</kbd> ou <kbd>X</kbd>', 'LB / LT'],
           ['Scores', '<kbd>Tab</kbd>', ''],
@@ -84,6 +90,12 @@ const pause = () => new Promise((r) => setTimeout(r, 30));
 const status = (t) => { const el = $('#loadStatus'); if (el) el.textContent = t; };
 
 async function init() {
+  // la carte se choisit au salon : on attend ses réglages avant de charger le relief
+  if (H.embedded) status('Connexion au salon…');
+  const info = H.embedded ? await new Promise((r) => H.on('init', r)) : {};
+  const cfg = readCfg(info.settings || {});
+  status(`Relief : ${MAPS[cfg.map].name}…`);
+  await loadMap(cfg.map);
   status('Génération de l\'île…');
   await pause();
   const map = generateMap(ILE);
@@ -101,20 +113,20 @@ async function init() {
   }
   status('Préparation des avions…');
   await scene.ready;
-  hud = new CockpitHUD($('#hudCanvas'), scene.ground.canvas);
+  hud = new CockpitHUD($('#hudCanvas'), scene.ground.canvas, world);
   hud.resize();
   addEventListener('resize', () => hud.resize());
   controls = new FlightControls({ surface: $('#stage'), onFirstGesture: () => sfx.unlock(), touchBox: $('#touchUI') });
   applyPrefs();
   setupPanel();
   bindScreens();
-  if (H.embedded) H.on('init', boot); else boot({});
+  boot(info);
 }
 
 function readCfg(settings = {}) {
   const src = H.embedded ? settings : Object.fromEntries(QS);
   const num = (v, d) => (v === undefined || v === '' || !Number.isFinite(+v) ? d : +v);
-  return { kills: num(src.kills, 8), bots: num(src.bots, 3), level: LEVELS.includes(src.level) ? src.level : 'normal', mode: MODE_IDS.includes(src.mode) ? src.mode : 'chacun', time: num(src.time, 300) };
+  return { kills: num(src.kills, 8), bots: num(src.bots, 3), level: LEVELS.includes(src.level) ? src.level : 'normal', mode: MODE_IDS.includes(src.mode) ? src.mode : 'chacun', time: num(src.time, 300), map: MAP_IDS.includes(src.map) ? src.map : DEFAULT_MAP };
 }
 function localProfile() {
   const g = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
@@ -188,11 +200,14 @@ function updateHangar() {
   }
   const T = TYPES[S.type];
   $('#planeBlurb').textContent = T.blurb;
+  const A = abilityOf(S.type);
+  $('#abilityName').textContent = A ? `${A.name} :` : ''; $('#abilityDesc').textContent = A ? A.desc : '';
   const stat = (k, v) => { $(`#stat-${k}`).style.width = `${Math.round(v * 100)}%`; };
-  stat('speed', T.boost / 240); stat('roll', T.roll / 3.8); stat('pitch', T.pitch / 2); stat('hp', T.hp / 130); stat('gun', T.gun / 5); stat('sig', T.sig);
+  stat('speed', T.boost / 240); stat('roll', T.roll / 3.8); stat('pitch', T.pitch / 2); stat('hp', T.hp / 180); stat('gun', T.gun / 7); stat('sig', T.sig / 1.3);
   const list = (S.role === 'guest' ? (S.w ? S.w.pl : []) : (S.g ? S.g.planes : [])).filter((p) => p.type !== 'cargo');
   const set = S.role === 'guest' ? (S.w && S.w.settings) : (S.g && S.g.settings);
-  $('#modeBrief').textContent = set && MODE_BRIEF[set.mode] ? MODE_BRIEF[set.mode](list.find((p) => p.id === S.myId), set.target) : '';
+  const M = world.archi, route = set && set.mode === 'escorte' ? ` Trajet du transport : ${routeInfo(routeForTime(set.time), M).name}.` : '';
+  $('#modeBrief').textContent = `${M.name}, ${M.def.place}. ` + (set && MODE_BRIEF[set.mode] ? MODE_BRIEF[set.mode](list.find((p) => p.id === S.myId), set.target) + route : '');
   const rows = list.map((p) => `<li><i style="background:${p.color}"></i>${esc(p.name)}${p.bot ? ' <em>bot</em>' : ''}<span>${planeName(p.id === S.myId ? S.type : p.type)}${p.team ? ` · équipe ${p.team === 1 ? 'bleue' : 'rouge'}` : ''}${p.bot || p.id === S.myId ? '' : p.ready ? ' · prêt' : ' · choisit…'}</span></li>`).join('');
   $('#hangarRoster').innerHTML = rows || '<li>En attente de l\'hôte…</li>';
   const btn = $('#btnStart');
@@ -297,7 +312,7 @@ function broadcastWorld(force) {
   S.sentRev = g.rev; S.lastWorldAt = performance.now();
   H.send('all', { t: 'w', run: S.run, w: worldOf(g) });
 }
-const SHOWN = ['id', 'name', 'color', 'team', 'type', 'bot', 'kills', 'deaths', 'alive', 'speed', 'health', 'maxHp', 'boosting', 'braking', 'firing', 'over', 'warn', 'load', 'ab', 'abOut', 'heat', 'lockT', 'lockId', 'ms', 'fl', 'dE', 'dL', 'dR', 'dT', 'respawn', 'killedBy', 'deathCause', 'inv', 'ready', 'out', 'helps', 'shots', 'hits', 'mhits', 'best', 'zt', 'cdmg'];
+const SHOWN = ['id', 'name', 'color', 'team', 'type', 'bot', 'kills', 'deaths', 'alive', 'speed', 'health', 'maxHp', 'boosting', 'braking', 'firing', 'over', 'warn', 'load', 'ab', 'abOut', 'heat', 'lockT', 'lockId', 'msCd', 'flCd', 'abCd', 'abT', 'cob', 'lives', 'model', 'dE', 'dL', 'dR', 'dT', 'respawn', 'killedBy', 'deathCause', 'inv', 'ready', 'out', 'helps', 'shots', 'hits', 'mhits', 'best', 'zt', 'cdmg'];
 function buildHostView(g) {
   const f = S.acc / DT, list = [];
   for (const p of g.planes) {
@@ -308,7 +323,7 @@ function buildHostView(g) {
     r.tagColor = tagColorOf(p, g.settings.mode);
     list.push(r);
   }
-  return { ph: g.ph, t: g.t, left: g.left, target: g.settings.target, mode: g.settings.mode, tk: g.tk, winner: g.winner, winTeam: g.winTeam, zones: g.zones, duel: g.duel, planes: list, missiles: g.missiles.map((m) => ({ key: m.key, x: m.x, y: m.y, z: m.z })), me: list.find((p) => p.id === S.myId) || null };
+  return { ph: g.ph, t: g.t, left: g.left, target: g.settings.target, mode: g.settings.mode, tk: g.tk, winner: g.winner, winTeam: g.winTeam, why: g.why, route: g.cargo ? g.cargo.route : null, zones: g.zones, duel: g.duel, planes: list, missiles: g.missiles.map((m) => ({ key: m.key, x: m.x, y: m.y, z: m.z })), me: list.find((p) => p.id === S.myId) || null };
 }
 function lerpPose(r, a, b, f) {
   r.x = a.x + (b.x - a.x) * f; r.y = a.y + (b.y - a.y) * f; r.z = a.z + (b.z - a.z) * f;
@@ -337,12 +352,15 @@ function guestFrame(dt) {
       const inp = controls.sample(S.pred, DT);
       S.tickInput = (S.tickInput || 0) + 1;
       stepFlight(S.pred, inp, DT);
+      if (S.pred.abCd > 0) S.pred.abCd = Math.max(0, S.pred.abCd - DT);
       S.hist.push({ seq: S.seq + 1, inp });
-      S.pendMsl = S.pendMsl || inp.msl; S.pendFlare = S.pendFlare || inp.flare;
+      S.pendMsl = S.pendMsl || inp.msl; S.pendFlare = S.pendFlare || inp.flare; S.pendAb = S.pendAb || inp.ab;
+      // le Cobra part tout de suite chez l'invité : l'hôte le confirmera
+      if (inp.ab && S.pred.type === 'su35' && !(S.pred.abCd > 0) && !(S.pred.cob > 0)) { startCobra(S.pred); S.pred.abCd = ABILITY_COOLDOWN; }
       if (S.tickInput % INPUT_EVERY === 0) {
         S.seq++;
-        H.send('host', { t: 'i', s: S.seq, p: +inp.p.toFixed(2), r: +inp.r.toFixed(2), y: +inp.y.toFixed(2), a: [+inp.ax.toFixed(3), +inp.ay.toFixed(3), +inp.az.toFixed(3)], b: (inp.boost ? 1 : 0) | (inp.brake ? 2 : 0) | (inp.fire ? 4 : 0) | (S.pendMsl ? 8 : 0) | (S.pendFlare ? 16 : 0) | (inp.free ? 32 : 0) }, { volatile: true });
-        S.pendMsl = false; S.pendFlare = false;
+        H.send('host', { t: 'i', s: S.seq, p: +inp.p.toFixed(2), r: +inp.r.toFixed(2), y: +inp.y.toFixed(2), a: [+inp.ax.toFixed(3), +inp.ay.toFixed(3), +inp.az.toFixed(3)], b: (inp.boost ? 1 : 0) | (inp.brake ? 2 : 0) | (inp.fire ? 4 : 0) | (S.pendMsl ? 8 : 0) | (S.pendFlare ? 16 : 0) | (inp.free ? 32 : 0) | (S.pendAb ? 64 : 0) }, { volatile: true });
+        S.pendMsl = false; S.pendFlare = false; S.pendAb = false;
       }
       if (S.hist.length > 200) S.hist.splice(0, 60);
       S.lastFire = inp.fire;
@@ -384,7 +402,7 @@ function guestFrame(dt) {
     list.push(r);
   }
   // missiles : le dernier état reçu
-  const view = { ph: w.ph, t: w.t, left: w.left, target: w.settings.target, mode: w.settings.mode, tk: w.tk, winner: w.winner, winTeam: w.winTeam, zones: w.zones, duel: w.duel, planes: list, missiles: S.missileRows, me: list.find((p) => p.id === S.myId) || null };
+  const view = { ph: w.ph, t: w.t, left: w.left, target: w.settings.target, mode: w.settings.mode, tk: w.tk, winner: w.winner, winTeam: w.winTeam, why: w.why, route: w.cargo ? w.cargo.route : null, zones: w.zones, duel: w.duel, planes: list, missiles: S.missileRows, me: list.find((p) => p.id === S.myId) || null };
   if (w.ph === 'over') showEnd(view);
   return view;
 }
@@ -426,7 +444,7 @@ function receiveRows(m) {
 function cleanInput(m) {
   const n = (v) => (Number.isFinite(+v) ? Math.max(-1, Math.min(1, +v)) : 0);
   const a = Array.isArray(m.a) ? m.a : [0, 0, 1], b = m.b | 0;
-  return { p: n(m.p), r: n(m.r), y: n(m.y), ax: n(a[0]), ay: n(a[1]), az: n(a[2]), boost: !!(b & 1), brake: !!(b & 2), fire: !!(b & 4), msl: !!(b & 8), flare: !!(b & 16), free: !!(b & 32) };
+  return { p: n(m.p), r: n(m.r), y: n(m.y), ax: n(a[0]), ay: n(a[1]), az: n(a[2]), boost: !!(b & 1), brake: !!(b & 2), fire: !!(b & 4), msl: !!(b & 8), flare: !!(b & 16), free: !!(b & 32), ab: !!(b & 64) };
 }
 function onMsg(from, m) {
   if (!S.alive || !m || typeof m !== 'object') return;
@@ -443,7 +461,7 @@ function onMsg(from, m) {
       if (q && g.ph === 'hangar') { if (TYPE_IDS.includes(m.type)) q.type = m.type; q.ready = !!m.ready; g.rev++; updateHangar(); }
     } else if (m.t === 'i') {
       const q = g.planes.find((x) => x.id === from);   // `from` vient du Hub : seule identité fiable
-      if (q && !q.bot) { const prev = q.inp || {}, inp = cleanInput(m); inp.msl = inp.msl || prev.msl; inp.flare = inp.flare || prev.flare; q.inp = inp; q.ack = m.s | 0; }
+      if (q && !q.bot) { const prev = q.inp || {}, inp = cleanInput(m); inp.msl = inp.msl || prev.msl; inp.flare = inp.flare || prev.flare; inp.ab = inp.ab || prev.ab; q.inp = inp; q.ack = m.s | 0; }
     }
     return;
   }
@@ -540,6 +558,16 @@ function onEvent(e, view) {
       else if (e.was && e.was === team) { hud.big(`Zone ${e.z} perdue`); sfx.zoneLost(); }
       break;
     }
+    case 'ab': {
+      const A = ABILITIES[e.ab];
+      if (e.id === mine) { hud.big(A ? A.name : 'Capacité'); sfx.ability(e.ab); }
+      else if (A && me && e.ab !== 'stealth') { const p = view.planes.find((q) => q.id === e.id); if (p && Math.hypot(p.x - me.x, p.y - me.y, p.z - me.z) < 1500) hud.addFeed(`${p.name} : ${A.name}`, false); }
+      if (e.ab === 'jam') scene.fx.jamPulse(e.x, e.y, e.z);
+      break;
+    }
+    case 'abno': if (e.id === mine) hud.toast('Salve : aucun ennemi devant toi', 1.6); break;
+    case 'out': hud.addFeed(`${e.name} n'a plus de vies`, e.id === mine); if (e.id === mine) hud.big('Plus de vies', 2.4); break;
+    case 'landed': hud.big('Le transport s\'est posé !', 3); break;
     case 'cargo':
       for (let i = 0; i < 3; i++) scene.fx.explosion(e.x + (i - 1) * 9, e.y, e.z);
       sfx.explosion(e.x, e.y, e.z);
@@ -578,6 +606,7 @@ function present(view, dt) {
     hud.clear();
     controls.setEnabled(false);
     sfx.updateEngine(0, false, false, false);
+    sfx.updateCargo(null);
     return;
   }
   scene.hidePreview();
@@ -610,6 +639,8 @@ function present(view, dt) {
   const cam = scene.camera;
   const right = cam.getWorldDirection(new scene.camera.position.constructor()).cross(cam.up).normalize();
   sfx.setListener(cam.position, right);
+  const cargo = view.ph === 'over' ? null : view.planes.find((p) => p.type === 'cargo' && p.alive);
+  sfx.updateCargo(cargo || null);
   if (view.ph === 'over') sfx.silence();
   else if (me) {
     sfx.updateEngine(me.speed, me.boosting, me.braking, me.alive);
@@ -618,11 +649,11 @@ function present(view, dt) {
     if (S.otherGunT <= 0) { S.otherGunT = 0.1; for (const p of view.planes) if (p.id !== me.id && p.alive && p.firing) sfx.otherGun(p.x, p.y, p.z); }
   }
   const terrain = aliveNow && lowTerrain(me);
-  sfx.alarms(dt, { ground: terrain, missile: aliveNow && me.warn, lock: aliveNow ? me.lockT : 0, locked: aliveNow && me.lockT >= 1 && me.ms > 0 });
+  sfx.alarms(dt, { ground: terrain, missile: aliveNow && me.warn, lock: aliveNow ? me.lockT : 0, locked: aliveNow && me.lockT >= 1 && !(me.msCd > 0) });
   // la zone survolée, et de combien il faut descendre pour la capturer
   const zone = aliveNow && view.zones ? view.zones.find((z) => Math.hypot(me.x - z.x, me.z - z.z) < z.r) : null;
   const zoneHigh = zone ? me.y - world.obstacleAt(me.x, me.z) - ZONE_CEIL : 0;
-  hud.render(view, me, cam, aim, dt, { terrain, inCloud: world.inCloud(cam.position.x, cam.position.y, cam.position.z), scoreboard: controls.scoreboard, zone, zoneHigh });
+  hud.render(view, me, cam, aim, dt, { terrain, inCloud: world.inCloud(cam.position.x, cam.position.y, cam.position.z), scoreboard: controls.scoreboard, zone, zoneHigh, mouseStick: controls.mouseStick, mouseHint: view.ph === 'play' && controls.mouseHint });
 }
 // L'alerte de relief regarde devant : collines et toits compris
 function lowTerrain(p) {
@@ -660,7 +691,7 @@ function showEnd(view) {
   if (view.mode === 'escorte') {
     const won = me && me.team === view.winTeam;
     title = won ? 'Victoire !' : 'Défaite';
-    sub = view.winTeam === 1 ? 'Le transport a tenu jusqu\'au bout.' : 'Le transport a été abattu.';
+    sub = view.winTeam === 2 ? 'Le transport a été abattu.' : view.why === 'wiped' ? 'Les assaillants n\'ont plus de vies : le transport est sauf.' : 'Le transport s\'est posé sur la piste de la base.';
   } else if (team) {
     const a = Math.round(view.tk[1]), b = Math.round(view.tk[2]);
     if (!view.winTeam) { title = 'Match nul'; sub = `${a} partout`; }
