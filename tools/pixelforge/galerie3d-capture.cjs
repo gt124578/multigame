@@ -5,16 +5,21 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const OUT = process.argv[2] || 'galerie3d', PORT = process.argv[3] || 8766;
 const SPRITES = [
-  ['maison_colombage', 'maison', { colombage: true, toit: '#b0503a', mur: '#f4ead2' }], ['maisonL', 'maisonL', {}],
-  ['maisonL_colombage', 'maisonL', { colombage: true, toit: '#a84a32', mur: '#f2e6cc' }], ['mairie', 'mairie', {}], ['fontaine', 'fontaine', {}],
-  ['maison_rouge', 'maison', {}], ['maison_bleue', 'maison', { toit: '#3a68c8', mur: '#efe4cc', fleurs: ['#7aa0f8', '#fafaf2'] }],
-  ['maison_verte', 'maison', { toit: '#4a9a4a', mur: '#f4ecd8', fleurs: ['#f08ac0', '#fafaf2'] }],
-  ['maison_longue', 'maisonLongue', {}], ['maison_longue_bois', 'maisonLongue', { bardage: '#c8a070', toit: '#7a3a2a' }],
-  ['residence', 'residence', {}], ['residence_bleue', 'residence', { mur: '#e8eef4', toit: '#3a4a6a' }],
+  // maisons et village
+  ['maison_colombage', 'maison', { colombage: true, toit: '#b0503a', mur: '#f4ead2' }], ['maison_rouge', 'maison', {}],
+  ['maison_bleue', 'maison', { toit: '#3a68c8', mur: '#efe4cc', fleurs: ['#7aa0f8', '#fafaf2'], volets: '#3a5a9a' }],
+  ['maisonL', 'maisonL', {}], ['maisonL_colombage', 'maisonL', { colombage: true, toit: '#a84a32', mur: '#f2e6cc' }],
+  ['maison_haute', 'maisonHaute', {}], ['maison_longue', 'maisonLongue', {}], ['maison_extension', 'maisonExt', {}],
+  ['residence', 'residence', {}], ['chalet', 'chalet', {}], ['cabane_chasseur', 'cabaneChasseur', {}], ['cabane_pecheur', 'cabanePecheur', {}],
+  ['grange', 'grange', {}], ['moulin', 'moulin', {}], ['phare', 'phare', {}], ['auberge', 'auberge', {}], ['chapelle', 'chapelle', {}],
+  ['boulangerie', 'boulangerie', {}], ['maison_the', 'maisonThe', {}], ['gare', 'gare', {}], ['kiosque', 'kiosque', {}], ['puits', 'puits', {}], ['etal', 'etal', {}],
+  ['mairie', 'mairie', {}], ['fontaine', 'fontaine', {}],
+  // services
   ['centre', 'centre', {}], ['boutique', 'boutique', {}], ['labo', 'labo', {}],
-  ['arene_feu', 'arene', { acc: '#e07030' }], ['arene_eau', 'arene', { acc: '#3a8ce0', pierre: '#b8bec8' }], ['arene_plante', 'arene', { acc: '#58c060', pierre: '#c8c0a8' }],
-  ['arene_electrik', 'arene', { acc: '#e8c030', pierre: '#c4c4c4' }], ['arene_psy', 'arene', { acc: '#d060c0', pierre: '#d0c8d8' }], ['arene_dragon', 'arene', { acc: '#6a50d0', pierre: '#9a96a8' }],
-  ['pagode', 'pagode', {}], ['pagode_cendree', 'pagode', { toit: '#6a6a72', rive: '#3a3a44', bord: '#c8a060', bois: '#7a2a20' }], ['pavillon', 'pavillon', {}], ['tour', 'tour', { etages: 8 }],
+  ...['feu', 'eau', 'plante', 'electrik', 'psy', 'dragon', 'glace', 'roche', 'combat', 'spectre'].map((t) => ['arene_' + t, 'arene', { type: t }]),
+  // monuments et ville
+  ['pagode', 'pagode', {}], ['pagode_cendree', 'pagode', { toit: '#6a6a72', rive: '#3a3a44', bord: '#c8a060', bois: '#7a2a20' }], ['pavillon', 'pavillon', {}],
+  ['tour', 'tour', { etages: 8 }], ['tour_verre', 'tourVerre', {}], ['tour_deco', 'tourDeco', {}], ['bourse', 'bourse', {}], ['casino', 'casino', {}], ['ligue', 'ligue', {}],
   ['escalier_montant', 'escalierMontant', {}], ['escalier_descendant', 'escalierDescendant', {}],
 ];
 (async () => {
@@ -28,16 +33,24 @@ const SPRITES = [
     fs.writeFileSync(file, Buffer.from(url.split(',')[1], 'base64'));
   };
   for (const [name, b3, o] of SPRITES) {
-    const tall = /pagode/.test(name) ? '&w=22&h=44&dz=-9' : /tour/.test(name) ? '&h=20&dz=-4' : /mairie|labo|arene|pavillon/.test(name) ? '&w=16&h=16&dz=-2.5' : '';
+    const tall = { pagode: '&w=22&h=44&dz=-9', pagode_cendree: '&w=22&h=44&dz=-9', tour: '&h=20&dz=-4', tour_verre: '&w=16&h=60&dz=-16', tour_deco: '&w=14&h=85&dz=-24',
+      ligue: '&w=36&h=64&dz=-4', casino: '&w=20&h=22&dz=-3', bourse: '&w=18&h=24&dz=-4', phare: '&h=20&dz=-4', maison_haute: '&h=20&dz=-3', kiosque: '&h=16&dz=-2' }[name]
+      || (/mairie|labo|arene|pavillon|chapelle|moulin|chalet|grange|gare|auberge/.test(name) ? '&w=18&h=22&dz=-3' : '');
     await shot(`vue=seul&b=${b3}&o=${encodeURIComponent(JSON.stringify(o))}${tall}`, `${OUT}/sprites/${name}.png`, true);
     console.log('sprite', name);
   }
-  for (const [cx, n] of [[12, 1], [35, 2], [60, 3]]) { await shot(`vue=rue&cx=${cx}&cz=9`, `${OUT}/rue_haut_${n}.png`); await shot(`vue=rue&cx=${cx}&cz=16`, `${OUT}/rue_bas_${n}.png`); console.log('rue', n); }
+  for (const [cx, n] of [[12, 1], [36, 2], [62, 3]]) { await shot(`vue=rue&cx=${cx}&cz=8`, `${OUT}/rue_haut_${n}.png`); await shot(`vue=rue&cx=${cx}&cz=20`, `${OUT}/rue_bas_${n}.png`); console.log('rue', n); }
   await shot('vue=interieur&w=13&h=9', `${OUT}/interieur_escaliers.png`);
   await shot('vue=village', `${OUT}/village_place.png`);
   await shot('vue=village&cx=17&cz=13&w=34&h=26', `${OUT}/village_large.png`);
-  await shot('vue=monument', `${OUT}/pagode_jeu.png`);                                        // ce qu'on voit en jeu, au pied
-  await shot('vue=monument&cx=22&cz=20&w=44&h=44', `${OUT}/pagode_vue_large.png`);            // vue d'ensemble (hors jeu)
+  await shot('vue=campagne&cx=25&cz=14&w=50&h=30', `${OUT}/campagne_large.png`);
+  await shot('vue=ville&cx=33&cz=-8&w=66&h=84', `${OUT}/ville_large.png`);
+  await shot('vue=ville&cx=31&cz=15', `${OUT}/ville_jeu.png`);
+  await shot('vue=monument', `${OUT}/pagode_jeu.png`);
+  await shot('vue=monument&cx=22&cz=20&w=44&h=44', `${OUT}/pagode_vue_large.png`);
+  await shot('vue=ligue&cx=20&cz=15', `${OUT}/ligue_jeu_portail.png`);                   // devant la porte : le bâtiment dépasse l'écran
+  await shot('vue=ligue&cx=20&cz=33', `${OUT}/ligue_jeu_colonnade.png`);
+  await shot('vue=ligue&cx=20&cz=22&w=40&h=60', `${OUT}/ligue_vue_large.png`);
   console.log(logs.slice(0, 5).join('\n'));
   await b.close();
 })();

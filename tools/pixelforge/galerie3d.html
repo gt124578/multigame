@@ -54,37 +54,53 @@ if (vue === 'seul') {
   poser(nom, 0, 0, o); ombres(-6, -6, w + 12, d + 12, 0.32);
   cx = w / 2; cz = d / 2 + (+(Q.get('dz') || -1.8));
 } else if (vue === 'rue') {
-  const SW = 72, SH = 22, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
+  const SW = 80, SH = 26, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
   for (let y = 0; y < SH + 2 * MG; y++) for (let x = 0; x < SW + 2 * MG; x++) {
     const gy = y - MG;
-    if (gy >= 9 && gy <= 10) kinds[y * (SW + 2 * MG) + x] = K.V;
-    if (gy >= 19 && gy <= 20) kinds[y * (SW + 2 * MG) + x] = K.V;
+    if ((gy >= 9 && gy <= 10) || (gy >= 23 && gy <= 24)) kinds[y * (SW + 2 * MG) + x] = K.V;
   }
   sol(kinds, SW, SH, MG); ombres(0, 0, SW, SH);
-  // rangée du haut (portes sur la rue, z = 9)
-  const haut = [['maison', 1, { colombage: true, toit: '#b0503a', mur: '#f4ead2' }], ['maisonL', 6, { colombage: true, toit: '#a84a32', mur: '#f2e6cc' }], ['maisonLongue', 12, {}], ['residence', 18, {}],
-    ['centre', 25, {}], ['boutique', 31, {}], ['maison', 36, { toit: '#3a68c8', mur: '#efe4cc', fleurs: ['#7aa0f8', '#fafaf2'], volets: '#3a5a9a' }], ['maisonL', 41, { toit: '#4a8a5a', mur: '#f4ecd8' }],
-    ['residence', 47, { mur: '#e8eef4', toit: '#3a4a6a' }], ['maison', 54, { toit: '#4a9a4a', mur: '#f4ecd8', fleurs: ['#f08ac0', '#fafaf2'] }], ['maisonLongue', 59, { bardage: '#c8a070', toit: '#7a3a2a' }], ['maison', 65, { colombage: true, toit: '#c05a40' }]];
-  for (const [n, x, o] of haut) poser(n, x, 9 - EMPRISES[n][1], o);
-  // rangée du bas (z = 19)
-  const bas = [['arene', 1, { acc: '#e07030' }], ['arene', 11, { acc: '#e8c030', pierre: '#c4c4c4' }], ['pavillon', 21, {}], ['labo', 30, {}], ['tour', 41, { etages: 7 }], ['arene', 50, { acc: '#3a8ce0', pierre: '#b8bec8' }], ['arene', 60, { acc: '#58c060', pierre: '#c8c0a8' }]];
-  for (const [n, x, o] of bas) poser(n, x, 19 - EMPRISES[n][1], o);
+  const haut = [['maison', 1, { colombage: true, toit: '#b0503a', mur: '#f4ead2' }], ['maisonHaute', 6, {}], ['maisonL', 11, { colombage: true, toit: '#a84a32', mur: '#f2e6cc' }],
+    ['centre', 17, {}], ['boutique', 25, {}], ['maisonExt', 31, {}], ['chalet', 39, {}], ['auberge', 45, {}], ['boulangerie', 52, {}],
+    ['maison', 57, { toit: '#3a68c8', mur: '#efe4cc', fleurs: ['#7aa0f8', '#fafaf2'], volets: '#3a5a9a' }], ['residence', 62, {}], ['gare', 69, {}]];
+  for (const [n, x, o] of haut) poser(n, x, 9 - Math.min(EMPRISES[n][1], 6) + (n === 'boutique' ? 0 : 0), o);
+  const bas = [['arene', 1, { type: 'feu' }], ['arene', 13, { type: 'eau' }], ['labo', 25, {}], ['pavillon', 36, {}], ['tour', 45, { etages: 7 }], ['arene', 54, { type: 'plante' }], ['arene', 66, { type: 'electrik' }]];
+  for (const [n, x, o] of bas) poser(n, x, 23 - EMPRISES[n][1] + (n === 'arene' ? 0.6 : 0), o);
+} else if (vue === 'ville') {
+  // quartier d'affaires : rues de bitume, grande tour de verre, tour Art déco, bourse, casino
+  const SW = 66, SH = 20, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.A);
+  sol(kinds, SW, SH, MG, 13); ombres(0, 0, SW, SH, 0.42, 0x101418);
+  poser('tourVerre', 1, 6); poser('tourDeco', 14, 5); poser('bourse', 25, 4); poser('casino', 40, 3); poser('tour', 57, 8, { etages: 9 });
+  cx = +(Q.get('cx') || 33); cz = +(Q.get('cz') || 14);
+} else if (vue === 'campagne') {
+  // campagne et bord de mer : grange, moulin, chalet, cabanes, chapelle, phare, maison de thé, kiosque, gare
+  const SW = 50, SH = 28, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
+  const set = (gx, gy, k) => { if (gx >= -MG && gy >= -MG && gx < SW + MG && gy < SH + MG) kinds[(gy + MG) * (SW + 2 * MG) + gx + MG] = k; };
+  for (let gy = -MG; gy < SH + MG; gy++) for (let gx = 40; gx < SW + MG; gx++) set(gx, gy, K.W);
+  for (let gy = 11; gy <= 12; gy++) for (let gx = -MG; gx <= 40; gx++) set(gx, gy, K.P);
+  for (let gy = 2; gy <= 8; gy++) for (let gx = 0; gx <= 5; gx++) set(gx, gy, K.T);
+  sol(kinds, SW, SH, MG, 17); ombres(0, 0, SW, SH);
+  poser('grange', 1, 4); poser('moulin', 8, 6); poser('chalet', 13, 5); poser('cabaneChasseur', 19, 7); poser('chapelle', 24, 3); poser('phare', 34, 7); poser('cabanePecheur', 37, 13);
+  poser('maisonThe', 1, 14); poser('kiosque', 8, 14); poser('maisonExt', 14, 14); poser('gare', 23, 14); poser('puits', 32, 15); poser('etal', 32, 18);
+  cx = +(Q.get('cx') || 25); cz = +(Q.get('cz') || 13);
+} else if (vue === 'ligue') {
+  const SW = 40, SH = 44, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
+  sol(kinds, SW, SH, MG, 21); ombres(0, 0, SW, SH);
+  poser('ligue', 5, 2);
+  cx = +(Q.get('cx') || 20); cz = +(Q.get('cz') || 20);
 } else if (vue === 'village') {
-  // place de la mairie : pavés, fontaine au centre, maisons à colombages autour, chemin qui part vers la route
   const SW = 34, SH = 26, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
   const set = (gx, gy, k) => { if (gx >= -MG && gy >= -MG && gx < SW + MG && gy < SH + MG) kinds[(gy + MG) * (SW + 2 * MG) + gx + MG] = k; };
-  for (let gy = 7; gy <= 15; gy++) for (let gx = 9; gx <= 25; gx++) set(gx, gy, K.V);              // place
-  for (let gy = 15; gy <= 17; gy++) for (let gx = 2; gx <= 31; gx++) set(gx, gy, K.V);             // rue
-  for (let gy = 18; gy < SH + MG; gy++) for (let gx = 16; gx <= 18; gx++) set(gx, gy, K.P);        // chemin vers la route
-  for (let gy = 21; gy < SH + MG; gy++) for (let gx = 22; gx <= 30; gx++) set(gx, gy, K.T);        // hautes herbes de la route
-  for (let gy = 19; gy <= 23; gy++) for (let gx = 3; gx <= 9; gx++) set(gx, gy, K.F);              // parterre de fleurs
+  for (let gy = 7; gy <= 15; gy++) for (let gx = 9; gx <= 25; gx++) set(gx, gy, K.V);
+  for (let gy = 15; gy <= 17; gy++) for (let gx = 2; gx <= 31; gx++) set(gx, gy, K.V);
+  for (let gy = 18; gy < SH + MG; gy++) for (let gx = 16; gx <= 18; gx++) set(gx, gy, K.P);
+  for (let gy = 21; gy < SH + MG; gy++) for (let gx = 22; gx <= 30; gx++) set(gx, gy, K.T);
+  for (let gy = 19; gy <= 23; gy++) for (let gx = 3; gx <= 9; gx++) set(gx, gy, K.F);
   sol(kinds, SW, SH, MG, 11); ombres(0, 0, SW, SH);
-  poser('mairie', 12.5, 1);
-  poser('fontaine', 15.5, 9.5);
-  poser('maison', 2, 4, { colombage: true, toit: '#b0503a', mur: '#f4ead2' });
-  poser('maisonL', 26, 2, { colombage: true, toit: '#a84a32', mur: '#f2e6cc' });
+  poser('mairie', 12.5, 1); poser('fontaine', 15.5, 9.5);
+  poser('maisonHaute', 3, 3); poser('maisonL', 26, 2, { colombage: true, toit: '#a84a32', mur: '#f2e6cc' });
   poser('maison', 3, 12, { colombage: true, toit: '#c05a40', mur: '#f0e2c8', fleurs: ['#f8d850', '#fafaf2'] });
-  poser('maison', 26, 12, { toit: '#3a68c8', mur: '#efe4cc', fleurs: ['#7aa0f8', '#fafaf2'], volets: '#3a5a9a' });
+  poser('boulangerie', 26, 11); poser('etal', 10, 12); poser('etal', 23, 12, { store: '#3a7ad8' }); poser('puits', 11, 8);
   cx = +(Q.get('cx') || 17); cz = +(Q.get('cz') || 12);
 } else if (vue === 'monument') {
   const SW = 44, SH = 40, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
@@ -118,9 +134,9 @@ if (vue === 'seul') {
 
 scene.add(new THREE.HemisphereLight(0xdfefff, 0x6a8a5a, vue === 'interieur' ? 1.4 : 1.1));
 const sun = new THREE.DirectionalLight(0xfff2dc, vue === 'interieur' ? 1.6 : 2.2);
-sun.position.set(cx - 8, 14, cz + 9); sun.target.position.set(cx, 0, cz); scene.add(sun); scene.add(sun.target);
-sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
-Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 100 }); sun.shadow.bias = -0.0008;
+sun.position.set(cx - 32, 56, cz + 36); sun.target.position.set(cx, 0, cz); scene.add(sun); scene.add(sun.target);
+sun.castShadow = true; sun.shadow.mapSize.set(8192, 8192);
+Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 1, far: 260 }); sun.shadow.bias = -0.0008;
 
 const camera = new THREE.PerspectiveCamera(FOV, IW / IH, 0.5, 600);
 camera.updateProjectionMatrix(); camera.projectionMatrix.elements[0] *= Math.sin(EL); camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
