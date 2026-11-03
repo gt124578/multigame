@@ -18,7 +18,9 @@ export const TRANSPARENT = 255;
 
 // sortes de cases (calculées par le moteur à partir des codes T, voir sol.js)
 export const K = { X: 0, G: 1, F: 2, T: 3, TD: 4, P: 5, V: 6, W: 7, B: 8, C: 9, L: 10, LE: 11, LW: 12, CW: 13,
-  GF: 14, SN: 15, AS: 16, SA: 17, TS: 18 };   // … hautes herbes enneigées   // herbe de forêt, neige, cendre, sable
+  GF: 14, SN: 15, AS: 16, SA: 17, TS: 18, A: 19 };   // … bitume des grandes villes
+/** grandes villes : rues en bitume et trottoirs, escaliers à l'entrée ; les autres sont des villages pavés */
+export const GRANDES_VILLES = new Set(['Métropole', 'Voltacité', 'Forge-Acier']);   // … hautes herbes enneigées   // herbe de forêt, neige, cendre, sable
 /** sols « d'herbe » : on y marche, le décor (arbres, rochers…) s'y pose ; la zone choisit lequel */
 const SOLS = new Set([K.G, K.GF, K.SN, K.AS, K.SA]);
 
@@ -40,7 +42,7 @@ export function sorteCase(m, x, y) {
   switch (t) {
     case T.WATER: return K.W;
     case T.BRIDGE: return K.B;
-    case T.PAVE: return K.V;
+    case T.PAVE: return GRANDES_VILLES.has(m.zoneAt?.(x, y)?.name) ? K.A : K.V;
     case T.PATH: case T.DOOR: return K.P;
     case T.SNOW: return K.SN;
     case T.ASH: return K.AS;
@@ -94,6 +96,9 @@ const HEX = {
   n0: '#8fa4c0', n1: '#b2c2d8', n2: '#ccd8e8', n3: '#e2eaf4', n4: '#f2f6fb', n5: '#ffffff',
   e0: '#3e3a38', e1: '#58524e', e2: '#6f6863', e3: '#857e78', e4: '#9c958f', e5: '#b6afa8', eb: '#e0703a',
   z0: '#c4a868', z1: '#dcc488', z2: '#ecd8a2', z3: '#f8ecc4', zp: '#f0b8b0',
+  // bitume, marquages, trottoirs en dalles de béton, bordure
+  a0: '#2c2e34', a1: '#3a3c44', a2: '#474a52', a3: '#555860', a4: '#6c6f78', aw: '#e8e8e0', ay: '#e8c040',
+  t0: '#6e6c6a', t1: '#9a9894', t2: '#b6b4ae', t3: '#cac8c2', t4: '#dedcd6',
   // pavés : pierres chaudes (beige) et froides (bleutées), joints, terre des pavés manquants
   u0: '#6a5c4a', u1: '#8e7c64', u2: '#ac987c', u3: '#c6b496', u4: '#ddceb2',
   q0: '#565c62', q1: '#767c84', q2: '#959ba2', q3: '#b2b8be', q4: '#ccd2d6',
@@ -120,7 +125,7 @@ LUT[TRANSPARENT] = 0;
 const ramp = (p, n) => Array.from({ length: n }, (_, i) => I[p + i]);
 const G = ramp('g', 7), H = ramp('h', 5), HK = ramp('k', 5), D = ramp('d', 6), P = ramp('p', 4), S = ramp('s', 3);
 const W = ramp('w', 7), B = ramp('b', 4), V = ramp('v', 5), L = ramp('l', 6);
-const HS = ramp('j', 5), N = ramp('n', 6), E = ramp('e', 6), Zs = ramp('z', 4), U = ramp('u', 5), Q = ramp('q', 5);
+const AS_ = ramp('a', 5), TR = ramp('t', 5), HS = ramp('j', 5), N = ramp('n', 6), E = ramp('e', 6), Zs = ramp('z', 4), U = ramp('u', 5), Q = ramp('q', 5);
 const caveRamp = (b) => ramp(`c_${CAVES[b] ? b : 'terre'}`, 6);
 const isIn = (arr) => { const s = new Uint8Array(256); for (const v of arr) s[v] = 1; return s; };
 const IS_G = isIn(G.slice(2)), IS_S = isIn(S), IS_D = isIn(D);
@@ -423,17 +428,19 @@ function pierre(X, Y, s) {
   let lx = xx - bx * 32, k = 0; while (lx >= ws[k]) { lx -= ws[k]; k++; }
   return { id: hash2(bx * 8 + k, row, s + 73), lx, ly: yy, w: ws[k], h: rh };
 }
-function paves(Z, img, mask, voisins) {
+function paves(Z, img, mask, voisins, chemin = null) {
   const s = Z.s, Wd = Z.W;
   const fam = Z.field(90, s + 74, 2), moss = Z.field(24, s + 75, 2);
   const din = edt(mask, Wd, Z.H, 1), dout = edt(mask, Wd, Z.H, 0);
   for (let i = 0; i < Z.N; i++) {
-    const inside = mask[i];
-    if (!inside && !(voisins[i] && dout[i] < 14)) continue;
+    const inside = mask[i], surChemin = chemin && chemin[i];
+    // dans la terre d'un chemin qui arrive au village, les pierres s'égaillent sur près de deux cases (transition douce)
+    const R0 = surChemin ? 56 : 14;
+    if (!inside && !((voisins[i] || surChemin) && dout[i] < R0)) continue;
     const X = Z.X(i), Y = Z.Y(i), p = pierre(X, Y, s), id = p.id;
     // au bord : pierres manquantes dedans, pierres égaillées dehors (de moins en moins loin du bord)
     if (inside && din[i] < 10 && hash2(Math.floor(id * 1e6), 3, s + 76) < 0.5 * (1 - din[i] / 10) ** 2) { img[i] = p.lx === 0 || p.ly === 0 ? I.vj : D[1 + ((X + Y) & 1)]; continue; }
-    if (!inside && hash2(Math.floor(id * 1e6), 4, s + 77) > 0.22 * (1 - dout[i] / 14) ** 2) continue;
+    if (!inside && hash2(Math.floor(id * 1e6), 4, s + 77) > (surChemin ? 0.85 : 0.22) * (1 - dout[i] / R0) ** (surChemin ? 1.6 : 2)) continue;
     if (!inside && (p.w > 12 || p.h > 9)) continue;   // les grandes dalles restent en place
     // famille de couleur : par quartiers (bruit lent) et un peu par pierre
     const f = fam[i] + (hash2(Math.floor(id * 1e6), 5, s + 78) - 0.5) * 0.5, R = f < 0.36 ? U : f > 0.66 ? Q : V;
@@ -451,10 +458,83 @@ function paves(Z, img, mask, voisins) {
       if (hash2(Math.floor(id * 1e6), 7, s + 83) < 0.08 && Math.abs(p.lx - p.ly * (p.w / p.h) * 0.8 - p.w * 0.15) < 0.6) o = R[0];
       if (big && Math.abs(p.lx - p.w / 2) < p.w / 4 && Math.abs(p.ly - p.h / 2) < p.h / 4 && u > 0.6) o = R[Math.min(4, tone + 1)];
     }
-    if (!inside) { if (ex || ey) o = I.vj; else if (p.ly === 0 || p.lx === 0) o = R[Math.min(4, tone + 1)]; }  // pierre posée dans l'herbe
+    if (!inside) { if (ex || ey) o = surChemin ? D[1] : I.vj; else if (p.ly === 0 || p.lx === 0) o = R[Math.min(4, tone + 1)]; }  // pierre posée dans l'herbe
     img[i] = o;
   }
   for (let i = 0; i < Z.N; i++) if (mask[i] && din[i] <= 1.2 && img[i] !== I.vj && !IS_D[img[i]]) img[i] = I.vj;
+}
+
+/** rues des grandes villes : bitume (grain, rustines, fissures, plaques d'égout) bordé de trottoirs en dalles de béton
+ *  le long de tout ce qui n'est pas la rue (bâtiments, arbres, herbe), avec une bordure de trottoir */
+function bitume(Z, img, mask) {
+  const s = Z.s, Wd = Z.W, din = edt(mask, Wd, Z.H, 1), tone = Z.field(60, s + 60), rust = Z.field(14, s + 61, 2);
+  const TROT = 12;
+  for (let i = 0; i < Z.N; i++) {
+    if (!mask[i]) continue;
+    const X = Z.X(i), Y = Z.Y(i), u = hash2(X, Y, s + 62), d = din[i];
+    let o;
+    if (d <= TROT) {
+      // trottoir : dalles de 16 × 12, joints, quelques dalles teintées ou fendues
+      const lx = X % 16, ly = Y % 12, slab = hash2(X >> 4, Math.floor(Y / 12), s + 63);
+      o = TR[slab < 0.2 ? 2 : slab > 0.9 ? 4 : 3];
+      if (lx === 0 || ly === 0) o = TR[1];
+      else if (lx === 1 || ly === 1) o = TR[4];
+      else if (u < 0.04) o = TR[2];
+      if (d <= 1.2) o = TR[0];
+      if (d > TROT - 2) o = d > TROT - 1 ? AS_[0] : TR[4];                   // bordure : arête claire puis caniveau sombre
+    } else {
+      o = AS_[tone[i] < 0.42 ? 1 : tone[i] < 0.6 ? 2 : 3];
+      if (rust[i] > 0.78) o = AS_[1];
+      if (u < 0.06) o = AS_[Math.min(4, (o === AS_[3] ? 3 : 2) + 1)]; else if (u > 0.965) o = AS_[0];
+    }
+    img[i] = o;
+  }
+  // plaques d'égout et fissures, dans la rue seulement
+  const c = Z.c;
+  for (let cy = 0; cy < Z.ch; cy++) for (let cx = 0; cx < Z.cw; cx++) {
+    const r = cellRng(cx + Z.rx0, cy + Z.ry0, s + 64);
+    if (r() < 0.06) {
+      const y0 = cy * c + 9, x0 = cx * c + 9;
+      for (let y = 0; y < 14; y++) for (let x = 0; x < 14; x++) {
+        const dd = Math.hypot(x - 6.5, y - 6.5), i = (y0 + y) * Wd + x0 + x;
+        if (dd > 7 || !mask[i] || din[i] <= TROT + 2) continue;
+        img[i] = dd > 6 ? AS_[0] : dd > 5 ? AS_[4] : ((x + y) % 3 === 0 ? AS_[1] : AS_[3]);
+      }
+    }
+    if (r() < 0.15) {
+      let y = cy * c + ri(r, 4, c - 4), x = cx * c + ri(r, 4, c - 4);
+      for (let k = ri(r, 6, 14); k > 0; k--) {
+        const i = y * Wd + x; if (y >= 0 && y < Z.H && x >= 0 && x < Wd && mask[i] && din[i] > TROT + 2) img[i] = AS_[0];
+        x += Math.floor(r() * 3) - 1; y += r() < 0.5 ? 1 : 0;
+      }
+    }
+  }
+}
+
+/** escalier de pierre là où un chemin arrive dans une grande ville : quatre marches qui montent vers la rue, murets */
+function escaliers(Z, img) {
+  const c = Z.c, Wd = Z.W, isP = (q) => q === K.P;
+  const pierre = TR, dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  for (let cy = 0; cy < Z.ch; cy++) for (let cx = 0; cx < Z.cw; cx++) {
+    if (!isP(Z.kind(cx, cy))) continue;
+    const d = dirs.find(([dx, dy]) => Z.kind(cx + dx, cy + dy) === K.A); if (!d) continue;
+    const [dx, dy] = d, horiz = dx !== 0;                     // horiz : on monte vers l'est ou l'ouest
+    // côtés (perpendiculaires à la montée) : muret là où le voisin n'est pas un chemin
+    const sideA = horiz ? !isP(Z.kind(cx, cy - 1)) : !isP(Z.kind(cx - 1, cy)), sideB = horiz ? !isP(Z.kind(cx, cy + 1)) : !isP(Z.kind(cx + 1, cy));
+    for (let v = 0; v < c; v++) for (let u = 0; u < c; u++) {
+      // u : le long de la montée (0 = côté route, c - 1 = côté ville) ; v : en travers
+      const uu = (dx > 0 || dy > 0) ? u : c - 1 - u;
+      const x = cx * c + (horiz ? uu : v), y = cy * c + (horiz ? v : uu), i = y * Wd + x;
+      const step = Math.floor(u / 8), lu = u % 8;
+      // marche : nez éclairé, giron, contremarche dans l'ombre (2 px), plus clair en haut
+      let o = step >= 2 ? pierre[3] : pierre[2];
+      if (lu <= 1) o = pierre[4]; else if (lu >= 6) o = lu === 7 ? AS_[0] : pierre[0];
+      else if (hash2(x, y, Z.s + 65) < 0.05) o = pierre[2];
+      if (((v + step * 5) % 16) === 0 && lu > 0 && lu < 6) o = pierre[1];                  // joints des pierres de la marche
+      if ((sideA && v < 4) || (sideB && v >= c - 4)) o = (sideA && v === 3) || (sideB && v === c - 4) ? pierre[0] : (v === 0 || v === c - 1 ? pierre[0] : pierre[3]);   // murets
+      img[i] = o;
+    }
+  }
 }
 
 /** sol de fond d'une zone (neige, cendre, sable), aux bords naturels ; près du bord, il se mêle à l'herbe voisine */
@@ -697,6 +777,7 @@ export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = n
   const isW = (k) => k === K.W || k === K.B;
   const water = has(K.W) || has(K.B) ? Z.region(isW, seed + 100, { wobble: 0.7, round: 0.45 }) : new Uint8Array(Z.N);
   let path = has(K.P) ? Z.region((k) => k === K.P, seed + 101, { wobble: 0.9, round: 0.55, band: c >> 1 }) : new Uint8Array(Z.N);
+  const asph = has(K.A) ? Z.region((k) => k === K.A, seed + 104, { wobble: 0, round: 0.05, band: c >> 3 }) : new Uint8Array(Z.N);
   const pave = has(K.V) ? Z.region((k) => k === K.V, seed + 103, { wobble: 0.35, round: 0.1, band: c >> 2 }) : new Uint8Array(Z.N);
   // sols de fond des zones (neige, cendre, sable) : bords naturels sur une demi-case, c'est du décor
   const fonds = [K.SN, K.AS, K.SA].filter(has).map((k) => [k, Z.region((q) => q === k, seed + 110 + k, { wobble: 1.1, round: 0.5, band: c >> 1, freq: 0.3 })]);
@@ -712,7 +793,7 @@ export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = n
   let tall = has(K.T) || has(K.TD) || has(K.TS) ? Z.region((k) => k === K.T || k === K.TD || k === K.TS, seed + 106, { wobble: 1.6, round: 0.3, freq: 0.25 }) : new Uint8Array(Z.N);
   let caveM = new Uint8Array(Z.N);
   if (cave) caveM = andNot(Z.px((k) => k !== K.X), water);
-  const hard = or(water, pave, caveM);
+  const hard = or(water, pave, caveM, asph);
   path = andNot(path, hard); tall = andNot(tall, or(hard, path));
   const C = cave ? caveRamp(cave) : null;
   let lv = null;
@@ -732,7 +813,8 @@ export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = n
       if (anyOf(tsR)) hautesHerbes(Z, img, tsR, lv, HS);
     }
     if (anyOf(path)) chemin(Z, img, path, or(water, hard));
-    if (anyOf(pave)) paves(Z, img, pave, andNot(andNot(grass, path), water));
+    if (anyOf(pave)) paves(Z, img, pave, andNot(andNot(grass, path), water), path);
+    if (anyOf(asph)) { bitume(Z, img, asph); escaliers(Z, img); }
   } else grotte(Z, img, caveM, C);
   // transparence : cases que le jeu dessine lui-même (sable, neige, maisons, parois de grotte…)
   const keep = Z.px((k) => k !== K.X);
