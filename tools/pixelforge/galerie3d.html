@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<!-- Odyssée — PixelForge : rendu des bâtiments en fausse 3D (modeles3d.js) avec la caméra du jeu.
+     ?vue=seul&b=maison&o={…}  un bâtiment seul, fond transparent (sprite)
+     ?vue=rue&cx=…&cz=…        rue d'essai sur le sol généré
+     ?vue=interieur             pièce d'une tour avec les escaliers qui montent et qui descendent
+     &hd=1 : 64 px par case au lieu de 32. Servir la racine du dépôt en local. -->
+<title>Bâtiments — fausse 3D</title>
+<style>html,body{margin:0;background:transparent}canvas{display:block;image-rendering:pixelated}</style>
+<script type="importmap">{ "imports": { "three": "../../shared/vendor/three/three.module.min.js" } }</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { atelier, EMPRISES } from './modeles3d.js';
+import { rendreBloc, LUT, K, CELL } from '../../odyssee/js/render/solgen.js';
+
+const Q = new URLSearchParams(location.search);
+const D = Q.get('hd') === '1' ? 64 : 32, EL = 55 * Math.PI / 180, FOV = 13, YS = Math.tan(EL);
+const vue = Q.get('vue') || 'rue';
+const { B, boite, at, M, TX } = atelier(D);
+
+const IWc = +(Q.get('w') || (vue === 'seul' ? 14 : 25)), IHc = +(Q.get('h') || (vue === 'seul' ? 14 : 14));
+const IW = IWc * D, IH = IHc * D;
+const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(IW, IH, false); renderer.setClearColor(0x000000, 0);
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.BasicShadowMap;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+
+function sol(kinds, SW, SH, MG, seed = 5) {
+  const fr = rendreBloc({ kinds, zw: SW + 2 * MG, zh: SH + 2 * MG, zx0: 200 - MG, zy0: 300 - MG, bw: SW, bh: SH, seed })[0];
+  const data = new Uint8Array(SW * CELL * SH * CELL * 4), u32 = new Uint32Array(data.buffer);
+  for (let i = 0; i < fr.length; i++) u32[i] = LUT[fr[i]];
+  const t = new THREE.DataTexture(data, SW * CELL, SH * CELL); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true;
+  const g = new THREE.PlaneGeometry(SW, SH); g.rotateX(-Math.PI / 2);
+  const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: t })); m.position.set(SW / 2, 0, SH / 2); scene.add(m);
+}
+function ombres(x, z, w, d, op = 0.38, col = 0x0a2a14) {
+  const g = new THREE.PlaneGeometry(w, d); g.rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(g, new THREE.ShadowMaterial({ color: col, opacity: op })); m.position.set(x + w / 2, 0.003, z + d / 2); m.receiveShadow = true; scene.add(m);
+}
+const etire = new THREE.Group(); etire.scale.y = YS; scene.add(etire);
+const poser = (nom, x, z, o = {}) => { const g = B[nom](o); g.position.set(x, 0, z); etire.add(g); return g; };
+
+let cx = +(Q.get('cx') || 12), cz = +(Q.get('cz') || 8);
+if (vue === 'seul') {
+  const nom = Q.get('b'), o = JSON.parse(Q.get('o') || '{}'), [w, d] = EMPRISES[nom];
+  poser(nom, 0, 0, o); ombres(-6, -6, w + 12, d + 12, 0.32);
+  cx = w / 2; cz = d / 2 + (+(Q.get('dz') || -1.8));
+} else if (vue === 'rue') {
+  const SW = 64, SH = 22, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
+  for (let y = 0; y < SH + 2 * MG; y++) for (let x = 0; x < SW + 2 * MG; x++) {
+    const gy = y - MG, gx = x - MG;
+    if (gy >= 9 && gy <= 10) kinds[y * (SW + 2 * MG) + x] = K.V;
+    if (gy >= 19 && gy <= 20) kinds[y * (SW + 2 * MG) + x] = K.V;
+  }
+  sol(kinds, SW, SH, MG); ombres(0, 0, SW, SH);
+  // rangée du haut (portes sur la rue, z = 9)
+  const haut = [['maison', 1, {}], ['maisonLongue', 6, {}], ['residence', 12, {}], ['centre', 19, {}], ['boutique', 25, {}], ['labo', 30, {}], ['maison', 37, { toit: '#3a68c8', mur: '#efe4cc', fleurs: ['#7aa0f8', '#fafaf2'] }], ['maison', 42, { toit: '#4a9a4a', mur: '#f4ecd8', fleurs: ['#f08ac0', '#fafaf2'] }], ['maisonLongue', 47, { bardage: '#c8a070', toit: '#7a3a2a' }], ['residence', 53, { mur: '#e8eef4', toit: '#3a4a6a' }]];
+  for (const [n, x, o] of haut) poser(n, x, 9 - EMPRISES[n][1], o);
+  // rangée du bas (z = 19)
+  const bas = [['arene', 1, { acc: '#e07030' }], ['pagode', 10, {}], ['pavillon', 16, {}], ['ligue', 25, {}], ['tour', 36, { etages: 7 }], ['arene', 46, { acc: '#3a8ce0', pierre: '#b8bec8' }], ['arene', 55, { acc: '#58c060', pierre: '#c8c0a8' }]];
+  for (const [n, x, o] of bas) poser(n, x, 19 - EMPRISES[n][1], o);
+} else if (vue === 'interieur') {
+  // pièce de 13 × 9 : parquet, mur du fond, escalier qui monte (à droite) et qui descend (à gauche), comme dans les tours
+  const W = 13, Dd = 9, tp = TX.parquet();
+  // plancher en quatre morceaux autour de la trémie de l'escalier qui descend (x 1,5 → 2,5, z 1 → 3)
+  for (const [x0, z0, x1, z1] of [[0, 0, W, 1], [0, 3, W, Dd], [0, 1, 1.5, 3], [2.5, 1, W, 3]]) {
+    const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0); g.rotateX(-Math.PI / 2);
+    const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, x0 + uv.getX(i) * (x1 - x0), z0 + uv.getY(i) * (z1 - z0));
+    const f = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tp })); f.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2); scene.add(f);
+  }
+  ombres(0, 0, W, Dd, 0.45, 0x2a140a);
+  const mur = boite(W, 2.2, 0.3, M({ map: TX.enduit('#e8dcc4') })); etire.add(at(mur, W / 2, 1.1, 0.15));
+  etire.add(at(boite(W, 0.3, 0.32, M({ map: TX.bois('#6a4228') })), W / 2, 0.15, 0.32));
+  for (const x of [4.5, 8.5]) { const p = boite(1.2, 1.0, 0.04, M({ map: TX.shoji() })); etire.add(at(p, x, 1.3, 0.32)); }
+  poser('escalierMontant', 10.5, 0.3);
+  etire.add(at(boite(0.95, 0.75, 0.04, M({ color: new THREE.Color('#140c08') })), 11.0, 1.85, 0.32));   // ouverture vers l'étage
+  poser('escalierDescendant', 1.5, 1.0);
+  cx = W / 2; cz = Dd / 2 - 1.6;
+}
+
+scene.add(new THREE.HemisphereLight(0xdfefff, 0x6a8a5a, vue === 'interieur' ? 1.4 : 1.1));
+const sun = new THREE.DirectionalLight(0xfff2dc, vue === 'interieur' ? 1.6 : 2.2);
+sun.position.set(cx - 8, 14, cz + 9); sun.target.position.set(cx, 0, cz); scene.add(sun); scene.add(sun.target);
+sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 100 }); sun.shadow.bias = -0.0008;
+
+const camera = new THREE.PerspectiveCamera(FOV, IW / IH, 0.5, 600);
+camera.updateProjectionMatrix(); camera.projectionMatrix.elements[0] *= Math.sin(EL); camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+const dist = (Math.sin(EL) * IH) / (2 * Math.tan(FOV * Math.PI / 360) * D);
+camera.position.set(cx, dist * Math.sin(EL), cz + dist * Math.cos(EL)); camera.lookAt(cx, 0, cz);
+renderer.render(scene, camera);
+window.done = true;
+</script>
+</body>
+</html>
