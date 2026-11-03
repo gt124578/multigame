@@ -45,10 +45,14 @@ export function partieTest(game, eq, perso, lieu, statut = {}) {
   if (!team.length) { delete st.flags.starter; st.flags.metProf = false; st.flags.rival1 = false; }
   for (const m of team) { if (!st.dex.caught.includes(m.sp)) st.dex.caught.push(m.sp); if (!st.dex.seen.includes(m.sp)) st.dex.seen.push(m.sp); }
   st.visited = Object.values(game.world.towns).map((t) => t.id);
-  if (statut.domaine) st.domaine = { nom: 'Domaine de test', travaux: [], hab: 0 };
+  if (statut.domaine) st.domaine = domaineTest();
   st.map = lieu.map; st.x = lieu.x; st.y = lieu.y; st.dir = 'down';
   st.lastCenter = { map: lieu.map, x: lieu.x, y: lieu.y, dir: 'down' };
   return st;
+}
+/** un Domaine de test : tous les talents et de quoi tout bâtir */
+function domaineTest() {
+  return { nom: 'Domaine de test', travaux: [], hab: 0, recolte: {}, res: [1], talents: ['verdure', 'eau', 'pierre', 'charpente', 'etincelle', 'accueil'], mat: { bois: 9999, pierre: 9999, fibre: 9999, graines: 9999 } };
 }
 /** mode libre : toutes les barrières ouvertes (gardes, arènes), pas de plafond de niveau, on sort des arènes quand on veut */
 export function modeLibre(game, on) {
@@ -169,7 +173,7 @@ export async function startLabo({ game, world, view, ui, input, sound, setMode }
       q.addEventListener('input', () => { const v = q.value.toLowerCase(); for (const o of sel.querySelectorAll('option')) o.hidden = v && !o.textContent.toLowerCase().includes(v); });
       const go = async () => {
         const l = lieux[+sel.value]; if (!l) return; fermerPanneau();
-        if (l.domaine && !game.state.domaine) { game.state.domaine = { nom: 'Domaine de test', travaux: [], hab: 0 }; }
+        if (l.domaine && !game.state.domaine) game.state.domaine = domaineTest();
         if (l.domaine) { const { preparerDomaine } = await import('../ui/domaine.js'); preparerDomaine(game); }
         while (game.busy) await new Promise((r) => setTimeout(r, 50));
         await game.warp({ map: l.map, x: l.x, y: l.y, dir: 'down' }, 'select');
@@ -199,7 +203,7 @@ export async function startLabo({ game, world, view, ui, input, sound, setMode }
         if (h) { delete st.flags.eclipse; delete st.flags.lugia; Object.assign(st.flags, h.flags); game.setEclipse(); }
         modeLibre(game, P.querySelector('[name=libre]').checked); choix.libre = game.libre;
         const dom = P.querySelector('[name=domaine]').checked;
-        if (dom && !st.domaine) st.domaine = { nom: 'Domaine de test', travaux: [], hab: 0 };
+        if (dom && !st.domaine) st.domaine = domaineTest();
         if (dom) { const { preparerDomaine } = await import('../ui/domaine.js'); preparerDomaine(game); }
         const eq = EQUIPES.find((e) => e.id === P.querySelector('[name=equipe]').value);
         if (eq && eq.team.length) { const team = eq.team.map(([sp, l]) => createMon(sp, l, { ot: st.name, met: 'Labo de test' })); st.party = team.slice(0, 6); game.resetFollower?.(); }

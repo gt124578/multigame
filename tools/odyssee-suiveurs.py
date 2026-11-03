@@ -21,7 +21,10 @@ SPJS = os.path.join(ROOT, 'odyssee', 'js', 'data', 'sprites.js')
 # numéro → nom du modèle HGSS
 HGSS = {1: 'BULBASAUR', 2: 'IVYSAUR', 3: 'VENUSAUR', 4: 'CHARMANDER', 5: 'CHARMELEON', 6: 'CHARIZARD',
         7: 'SQUIRTLE', 8: 'WARTORTLE', 9: 'BLASTOISE', 152: 'CHIKORITA', 153: 'BAYLEEF', 154: 'MEGANIUM',
-        155: 'CYNDAQUIL', 156: 'QUILAVA', 157: 'TYPHLOSION', 158: 'TOTODILE', 159: 'CROCONAW', 160: 'FERALIGATR'}
+        155: 'CYNDAQUIL', 156: 'QUILAVA', 157: 'TYPHLOSION', 158: 'TOTODILE', 159: 'CROCONAW', 160: 'FERALIGATR',
+        # habitants du Domaine
+        25: 'PIKACHU', 133: 'EEVEE', 74: 'GEODUDE', 66: 'MACHOP', 54: 'PSYDUCK', 16: 'PIDGEY', 19: 'RATTATA', 10: 'CATERPIE',
+        143: 'SNORLAX', 37: 'VULPIX', 43: 'ODDISH', 50: 'DIGLETT', 52: 'MEOWTH', 60: 'POLIWAG'}
 # créatures originales (icônes de img/crea)
 ORIG = {1001: 'capyousse', 1002: 'capyflore', 1003: 'capysaule', 1004: 'mechelet', 1005: 'ciroulet', 1006: 'lustrelle',
         1007: 'narvi', 1008: 'narvalier', 1009: 'narvaillant'}
