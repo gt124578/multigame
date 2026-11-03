@@ -41,7 +41,7 @@ export class Sol {
     }
   }
 
-  setMap(map) {
+  setMap(map) {   // la carte vue par le rendu (vueCarte de world3d.js : la région continue hors des bords)
     this.gen++; this.map = map; this.queue.length = 0; this.cache.clear(); this.groups.clear(); this.anim.clear();
     const v = this.view; v.tinted = v.tinted.filter((m) => !m.userData.sol);
   }
@@ -103,14 +103,15 @@ export class Sol {
     const tex = new THREE.DataTexture(data, w, h, THREE.RGBAFormat);
     tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
     tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
-    const mat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5 });
+    // dessiné juste après l'ancien sol (ordre -3) et avant tout le reste, sans écrire la profondeur : rien ne se bat avec lui
+    const mat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, depthTest: false, depthWrite: false });
     mat.userData.sol = true; mat.userData.own = true; mat.color.copy(this.view.tint); this.view.tinted.push(mat);
     const x0 = ci * CH, z0 = cj * CH, x1 = x0 + d.bw, z1 = z0 + d.bh;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute([x0, Y, z0, x1, Y, z0, x1, Y, z1, x0, Y, z1], 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));   // ligne 0 de l'image = nord
     geo.setIndex([0, 3, 2, 0, 2, 1]);
-    const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 0;
+    const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = -2;
     grp.add(mesh);
     grp.userData.sol = { mesh, tex, mat, data, frames: d.frames, f };
     if (d.frames.length > 1) this.anim.add(grp);

@@ -43,13 +43,14 @@ export function sorteCase(m, x, y) {
     case T.LEDGE_E: return froid ? K.X : K.LE;
     case T.LEDGE_W: return froid ? K.X : K.LW;
     case T.GRASS: case T.TREE: case T.PINE: case T.BUSH: case T.ROCK: case T.FENCE: case T.CUT: case T.SMASH: case T.BOULDER:
+    case T.CAVEWALL:   // montagnes du dehors (plateaux de roche posés sur l'herbe)
       return froid ? K.X : K.G;
     default: return K.X;
   }
 }
 /** sortes des cases d'un bloc et de sa marge, prêtes pour rendreBloc */
 export function zoneBloc(m, ci, cj, CH = 16) {
-  const x0 = ci * CH, y0 = cj * CH, bw = Math.min(CH, m.w - x0), bh = Math.min(CH, m.h - y0);
+  const x0 = ci * CH, y0 = cj * CH, bw = m.ext ? CH : Math.min(CH, m.w - x0), bh = m.ext ? CH : Math.min(CH, m.h - y0);
   const zw = bw + 2 * MARGIN, zh = bh + 2 * MARGIN, zx0 = x0 - MARGIN, zy0 = y0 - MARGIN;
   const kinds = new Uint8Array(zw * zh);
   for (let y = 0; y < zh; y++) for (let x = 0; x < zw; x++) kinds[y * zw + x] = sorteCase(m, zx0 + x, zy0 + y);
