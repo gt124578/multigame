@@ -113,6 +113,13 @@ async function boot() {
   window.__ody.play = async (state) => { document.querySelector('.title-scr')?.remove(); input.handlers.length = 0; ui.closeDialog(); mode = 'game'; await game.start(state); };
 
   // version test (odyssee/test/) : on choisit un lieu et une équipe, et on y apparaît ; rien n'est sauvegardé
+  if (window.ODYSSEE_TEST) {
+    cloud.on = false;
+    const { startLabo } = await import('./labo/labo.js');
+    await startLabo({ game, world, view, ui, input, sound, setMode: (m) => { mode = m; } });
+    return;
+  }
+
   /* ---------------- écran titre ---------------- */
   for (;;) {
     sound.play('title');

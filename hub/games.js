@@ -210,6 +210,16 @@ window.HUB_GAMES = [
     cover: 'odyssee/img/affiche.jpg', // affiche 960 × 540 : vraie image du jeu, grand titre et bandeau
   },
   {
+    id: 'odysseetest',
+    title: 'Odyssée Test',
+    tag: 'Le labo d\'Odyssée',
+    desc: 'Pour essayer les nouveautés d\'Odyssée : on choisit un lieu et une équipe toute prête, et on y apparaît. Heure, Éclipse, badges, carte dévoilée à volonté, et un éditeur pour peindre et construire la région. Rien n\'est sauvegardé.',
+    url: 'odyssee/test/',
+    minPlayers: 1, maxPlayers: 6,
+    accent: '#3a6898',
+    cover: 'odyssee/img/affiche.jpg',
+  },
+  {
     id: 'minigolf',
     title: 'Mini-Golf Party',
     tag: 'Parcours déjantés',
@@ -331,6 +341,9 @@ window.HUB_GAME_INFO = {
   odyssee: { genre: 'aventure', time: 'Longue aventure',
     keys: [['Flèches / ZQSD', 'Marcher'], ['Maj', 'Courir'], ['Espace', 'Parler, valider'], ['U', 'Afficher / replier le HUD'], ['Échap', 'Menu']],
     tips: ['Ta partie est sauvegardée en ligne avec ton compte.', 'Parle aux autres joueurs pour échanger ou combattre.', 'Les CS ouvrent des recoins cachés le long des routes.'] },
+  odysseetest: { genre: 'aventure', time: 'À volonté',
+    keys: [['Flèches / ZQSD', 'Marcher (ou survoler la carte dans l\'éditeur)'], ['B', 'Ouvrir / fermer l\'éditeur de carte'], ['G', 'Changer de lieu et d\'équipe'], ['Clic / glisser', 'Peindre (éditeur)'], ['Clic droit', 'Pipette (éditeur)'], ['Ctrl+Z', 'Annuler (éditeur)']],
+    tips: ['Rien n\'est sauvegardé : ta vraie partie d\'Odyssée ne bouge pas.', 'Les retouches de l\'éditeur restent dans ton navigateur ; « Exporter » les donne à intégrer au jeu.', 'L\'équipe « 9 partenaires » montre le Pokémon qui suit le dresseur.'] },
   minigolf: { genre: 'sport', time: '10–20 min',
     keys: [['Souris', 'Tourner la caméra, viser'], ['Clic maintenu + reculer', 'Doser la puissance'], ['Molette', 'Zoom'], ['V', 'Vue du trou']],
     tips: ['Sur la glace, un tout petit coup suffit.', 'Les accélérateurs comptent dans ta puissance : dose moins.', 'V montre le trou avant de jouer.'] },
