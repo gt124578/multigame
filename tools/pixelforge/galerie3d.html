@@ -5,6 +5,8 @@
 <!-- Odyssée — PixelForge : rendu des bâtiments en fausse 3D (modeles3d.js) avec la caméra du jeu.
      ?vue=seul&b=maison&o={…}  un bâtiment seul, fond transparent (sprite)
      ?vue=rue&cx=…&cz=…        rue d'essai sur le sol généré
+     ?vue=village               place de la mairie et sa fontaine, chemin vers la route
+     ?vue=monument              la pagode au milieu d'un village
      ?vue=interieur             pièce d'une tour avec les escaliers qui montent et qui descendent
      &hd=1 : 64 px par case au lieu de 32. Servir la racine du dépôt en local. -->
 <title>Bâtiments — fausse 3D</title>
@@ -52,30 +54,49 @@ if (vue === 'seul') {
   poser(nom, 0, 0, o); ombres(-6, -6, w + 12, d + 12, 0.32);
   cx = w / 2; cz = d / 2 + (+(Q.get('dz') || -1.8));
 } else if (vue === 'rue') {
-  const SW = 64, SH = 22, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
+  const SW = 72, SH = 22, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
   for (let y = 0; y < SH + 2 * MG; y++) for (let x = 0; x < SW + 2 * MG; x++) {
-    const gy = y - MG, gx = x - MG;
+    const gy = y - MG;
     if (gy >= 9 && gy <= 10) kinds[y * (SW + 2 * MG) + x] = K.V;
     if (gy >= 19 && gy <= 20) kinds[y * (SW + 2 * MG) + x] = K.V;
   }
   sol(kinds, SW, SH, MG); ombres(0, 0, SW, SH);
   // rangée du haut (portes sur la rue, z = 9)
-  const haut = [['maison', 1, {}], ['maisonLongue', 6, {}], ['residence', 12, {}], ['centre', 19, {}], ['boutique', 25, {}], ['labo', 30, {}], ['maison', 37, { toit: '#3a68c8', mur: '#efe4cc', fleurs: ['#7aa0f8', '#fafaf2'] }], ['maison', 42, { toit: '#4a9a4a', mur: '#f4ecd8', fleurs: ['#f08ac0', '#fafaf2'] }], ['maisonLongue', 47, { bardage: '#c8a070', toit: '#7a3a2a' }], ['residence', 53, { mur: '#e8eef4', toit: '#3a4a6a' }]];
+  const haut = [['maison', 1, { colombage: true, toit: '#b0503a', mur: '#f4ead2' }], ['maisonL', 6, { colombage: true, toit: '#a84a32', mur: '#f2e6cc' }], ['maisonLongue', 12, {}], ['residence', 18, {}],
+    ['centre', 25, {}], ['boutique', 31, {}], ['maison', 36, { toit: '#3a68c8', mur: '#efe4cc', fleurs: ['#7aa0f8', '#fafaf2'], volets: '#3a5a9a' }], ['maisonL', 41, { toit: '#4a8a5a', mur: '#f4ecd8' }],
+    ['residence', 47, { mur: '#e8eef4', toit: '#3a4a6a' }], ['maison', 54, { toit: '#4a9a4a', mur: '#f4ecd8', fleurs: ['#f08ac0', '#fafaf2'] }], ['maisonLongue', 59, { bardage: '#c8a070', toit: '#7a3a2a' }], ['maison', 65, { colombage: true, toit: '#c05a40' }]];
   for (const [n, x, o] of haut) poser(n, x, 9 - EMPRISES[n][1], o);
   // rangée du bas (z = 19)
-  const bas = [['arene', 1, { acc: '#e07030' }], ['arene', 9, { acc: '#e8c030', pierre: '#c4c4c4' }], ['pavillon', 17, {}], ['ligue', 25, {}], ['tour', 36, { etages: 7 }], ['arene', 46, { acc: '#3a8ce0', pierre: '#b8bec8' }], ['arene', 55, { acc: '#58c060', pierre: '#c8c0a8' }]];
+  const bas = [['arene', 1, { acc: '#e07030' }], ['arene', 11, { acc: '#e8c030', pierre: '#c4c4c4' }], ['pavillon', 21, {}], ['labo', 30, {}], ['tour', 41, { etages: 7 }], ['arene', 50, { acc: '#3a8ce0', pierre: '#b8bec8' }], ['arene', 60, { acc: '#58c060', pierre: '#c8c0a8' }]];
   for (const [n, x, o] of bas) poser(n, x, 19 - EMPRISES[n][1], o);
+} else if (vue === 'village') {
+  // place de la mairie : pavés, fontaine au centre, maisons à colombages autour, chemin qui part vers la route
+  const SW = 34, SH = 26, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
+  const set = (gx, gy, k) => { if (gx >= -MG && gy >= -MG && gx < SW + MG && gy < SH + MG) kinds[(gy + MG) * (SW + 2 * MG) + gx + MG] = k; };
+  for (let gy = 7; gy <= 15; gy++) for (let gx = 9; gx <= 25; gx++) set(gx, gy, K.V);              // place
+  for (let gy = 15; gy <= 17; gy++) for (let gx = 2; gx <= 31; gx++) set(gx, gy, K.V);             // rue
+  for (let gy = 18; gy < SH + MG; gy++) for (let gx = 16; gx <= 18; gx++) set(gx, gy, K.P);        // chemin vers la route
+  for (let gy = 21; gy < SH + MG; gy++) for (let gx = 22; gx <= 30; gx++) set(gx, gy, K.T);        // hautes herbes de la route
+  for (let gy = 19; gy <= 23; gy++) for (let gx = 3; gx <= 9; gx++) set(gx, gy, K.F);              // parterre de fleurs
+  sol(kinds, SW, SH, MG, 11); ombres(0, 0, SW, SH);
+  poser('mairie', 12.5, 1);
+  poser('fontaine', 15.5, 9.5);
+  poser('maison', 2, 4, { colombage: true, toit: '#b0503a', mur: '#f4ead2' });
+  poser('maisonL', 26, 2, { colombage: true, toit: '#a84a32', mur: '#f2e6cc' });
+  poser('maison', 3, 12, { colombage: true, toit: '#c05a40', mur: '#f0e2c8', fleurs: ['#f8d850', '#fafaf2'] });
+  poser('maison', 26, 12, { toit: '#3a68c8', mur: '#efe4cc', fleurs: ['#7aa0f8', '#fafaf2'], volets: '#3a5a9a' });
+  cx = +(Q.get('cx') || 17); cz = +(Q.get('cz') || 12);
 } else if (vue === 'monument') {
-  const SW = 40, SH = 34, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
+  const SW = 44, SH = 40, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
   for (let y = 0; y < SH + 2 * MG; y++) for (let x = 0; x < SW + 2 * MG; x++) {
     const gy = y - MG, gx = x - MG;
-    if (gy >= 20 && gx >= 18 && gx <= 21) kinds[y * (SW + 2 * MG) + x] = K.V;
-    if (gy >= 19 && gy <= 22 && gx >= 13 && gx <= 26) kinds[y * (SW + 2 * MG) + x] = K.V;
+    if (gy >= 26 && gx >= 20 && gx <= 23) kinds[y * (SW + 2 * MG) + x] = K.V;
+    if (gy >= 25 && gy <= 28 && gx >= 13 && gx <= 30) kinds[y * (SW + 2 * MG) + x] = K.V;
   }
   sol(kinds, SW, SH, MG, 9); ombres(0, 0, SW, SH);
-  poser('pagode', 15.5, 10.5);
-  for (const [x, z] of [[11, 14], [29, 14], [11, 24], [29, 24], [11, 8], [29, 8]]) poser('maison', x - 2, z - 3, { toit: '#7a3a2a', mur: '#efe0c8' });
-  cx = +(Q.get('cx') || 20); cz = +(Q.get('cz') || 21.5);
+  poser('pagode', 16.5, 12);
+  for (const [x, z] of [[10, 18], [34, 18], [10, 30], [34, 30], [10, 10], [34, 10]]) poser('maison', x - 2, z - 3, { toit: '#7a3a2a', mur: '#efe0c8' });
+  cx = +(Q.get('cx') || 22); cz = +(Q.get('cz') || 27.5);
 } else if (vue === 'interieur') {
   // pièce de 13 × 9 : parquet, mur du fond, escalier qui monte (à droite) et qui descend (à gauche), comme dans les tours
   const W = 13, Dd = 9, tp = TX.parquet();
