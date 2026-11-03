@@ -45,7 +45,12 @@ export const ASSETS = {
 };
 /** précharge une image (résout même en cas d'échec) */
 export function loadImg(src) {
-  return new Promise((res) => { if (!src) { res(null); return; } const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+  // une image qui tarde (réseau lent) ne bloque jamais l'écran plus de 8 s : on continue sans elle
+  return new Promise((res) => {
+    if (!src) { res(null); return; }
+    const im = new Image(); let done = false; const fin = (v) => { if (!done) { done = true; res(v); } };
+    im.crossOrigin = 'anonymous'; im.onload = () => fin(im); im.onerror = () => fin(null); im.src = src; setTimeout(() => fin(im.complete && im.naturalWidth ? im : null), 8000);
+  });
 }
 /** précharge un lot d'images { clé: adresse } → { clé: image } */
 export async function loadAll(map) {

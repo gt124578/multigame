@@ -169,43 +169,65 @@ function chapeau(px, W, info, dir, T) {
     const k = info.cls[y * W + x]; if (k === 'peau' && y > front) continue;
     if (y < base - 1 && op(x, y)) px[at(x, y) + 3] = 0;
   }
-  // le dôme : une demi-ellipse posée sur la tête, ombrée (lumière en haut à gauche)
-  const y0 = base - H;
+  // le dôme : un arrondi bien plein (super-ellipse) posé sur la tête, éclairé par le haut et la gauche
+  const P = bonnet ? 3.2 : 2.5;
+  const y0 = base - H, inside = new Set();
+  const largeur = (y) => { const t = (base - y) / (H + 0.6); return t > 1 ? -1 : hw * Math.pow(Math.max(0, 1 - Math.pow(t, P)), 1 / P); };
   for (let y = y0; y <= base; y++) {
-    const t = (base - y) / (H + 0.5), w = hw * Math.sqrt(Math.max(0, 1 - t * t));
-    const a = Math.round(cxh - w), b = Math.round(cxh + w);
-    for (let x = a; x <= b; x++) {
-      const k = info.cls[y * W + x]; if (k === 'peau' && y > front && x > a && x < b) continue;
-      const sh = (x - cxh) / hw;
-      set(x, y, x === a || x === b ? ol : y - y0 <= 1 && sh < 0.3 ? lt : sh > 0.45 ? dk : c);
-    }
-    if (y === y0) for (let x = a; x <= b; x++) set(x, y - 1, ol);
+    const w = largeur(y), a = Math.round(cxh - w), b = Math.round(cxh + w);
+    for (let x = a; x <= b; x++) inside.add(x + ',' + y);
   }
-  const Li = Math.round(cxh - hw), Ri = Math.round(cxh + hw);
-  L = Li; R = Ri;
-  const top2 = y0;
+  const dedans = (x, y) => inside.has(x + ',' + y);
+  for (const k of inside) {
+    const [x, y] = k.split(',').map(Number);
+    const visage = info.cls[y * W + x] === 'peau' && y > front;
+    if (visage && dedans(x - 1, y) && dedans(x + 1, y)) continue;
+    const bord = !dedans(x - 1, y) || !dedans(x + 1, y) || !dedans(x, y - 1);
+    const nx = (x - cxh) / hw, ny = (y - y0) / Math.max(1, H);
+    set(x, y, bord ? ol : nx < -0.25 && ny < 0.55 ? lt : nx > 0.5 || ny > 0.9 ? dk : c);
+  }
+  const L2 = Math.round(cxh - hw), R2 = Math.round(cxh + hw), m = Math.round(cxh);
   if (bonnet) {
-    // revers côtelé sur deux rangées, un peu plus large que la tête
-    for (const y of [base - 1, base]) for (let x = L - 1; x <= R + 1; x++) set(x, y, x === L - 1 || x === R + 1 ? ol : (x + y) % 2 ? dk : c);
-    for (let x = L - 1; x <= R + 1; x++) set(x, base + 1, ol);
-    // pompon : une petite boule ronde sur le dessus
-    const px0 = Math.round(cxh), py0 = top2 - 3;
+    // revers côtelé (trois rangées, un pixel plus large de chaque côté), mailles verticales
+    for (let y = base - 2; y <= base; y++) for (let x = L2 - 1; x <= R2 + 1; x++) {
+      const bord = x === L2 - 1 || x === R2 + 1;
+      set(x, y, bord ? ol : y === base - 2 ? lt : (x - L2) % 2 ? dk : c);
+    }
+    for (let x = L2 - 1; x <= R2 + 1; x++) set(x, base + 1, ol);
+    // quelques mailles sur le dessus
+    for (let y = y0 + 2; y < base - 2; y += 2) for (let x = Math.round(cxh - largeur(y)) + 2; x <= Math.round(cxh + largeur(y)) - 2; x += 3) if (dedans(x, y)) set(x, y, dk);
+    // pompon duveteux, posé sur le sommet
+    const pc = shadeOf(T.chapeauC, 0.45), pl = shadeOf(T.chapeauC, 0.75), pd = shadeOf(T.chapeauC, 0.1), cy = Math.max(3, y0 - 1);
     for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
-      const d = Math.hypot(dx, dy); if (d > 2.6) continue;
-      set(px0 + dx, py0 + dy, d > 1.7 ? ol : dx + dy < -1 ? [250, 250, 250] : dx + dy > 1 ? shadeOf('#e8e8f0', -0.25) : [232, 232, 240]);
+      const d = Math.hypot(dx, dy * 1.1); if (d > 2.9) continue;
+      if (dy > 0 && dedans(m + dx, cy + dy)) continue;   // la boule repose sur le bonnet
+      set(m + dx, cy + dy, d > 2.1 ? ol : dx + dy < -1 ? pl : dx + dy > 0 ? pd : pc);
     }
   } else {
-    // bande à la base, puis la visière
-    for (let x = L; x <= R; x++) if (op(x, base)) set(x, base, x === L || x === R ? ol : dk);
+    // casquette : couture au milieu et bouton sur le dessus
+    if (dir === 'down' || dir === 'up') for (let y = y0 + 1; y < base - 1; y++) if (dedans(m, y)) set(m, y, dk);
+    set(m, y0, dk2); set(m, y0 - 1, ol);
+    // bandeau
+    for (let x = L2; x <= R2; x++) if (dedans(x, base)) set(x, base, x === L2 || x === R2 ? ol : dk);
     if (dir === 'down') {
-      for (let x = L + 1; x <= R - 1; x++) { set(x, base + 1, dk2); }
-      set(L, base + 1, ol); set(R, base + 1, ol); for (let x = L + 1; x <= R - 1; x++) set(x, base + 2, ol);
+      // visière vue de face : une bande un peu plus large que la tête, plus sombre dessous, qui fait de l'ombre sur le front
+      for (let x = L2 - 1; x <= R2 + 1; x++) { const bord = x === L2 - 1 || x === R2 + 1; set(x, base + 1, bord ? ol : lt); set(x, base + 2, bord ? ol : dk2); }
+      for (let x = L2; x <= R2; x++) set(x, base + 3, ol);
+      set(L2 - 1, base + 2, ol); set(R2 + 1, base + 2, ol);
     } else if (dir === 'left' || dir === 'right') {
-      const s = dir === 'left' ? -1 : 1, x0 = s < 0 ? L : R;
-      for (let k = 0; k <= 5; k++) { const x = x0 + s * k; set(x, base, k === 5 ? ol : dk); set(x, base + 1, ol); set(x, base - 1, k >= 1 ? ol : dk); }
+      // visière de profil : elle avance de six pixels, dessus clair, dessous sombre
+      const s = dir === 'left' ? -1 : 1, x0 = s < 0 ? L2 : R2;
+      for (let k = 0; k <= 6; k++) {
+        const x = x0 + s * k, fin = k === 6;
+        set(x, base, fin ? ol : lt); set(x, base + 1, fin ? ol : dk2); set(x, base + 2, ol);
+        if (k >= 1) set(x, base - 1, ol);
+      }
     } else {
-      const m = Math.round(cxh); for (let x = m - 2; x <= m + 2; x++) set(x, base - 1, ol);   // l'arrière : la petite ouverture réglable
-      set(m - 1, base, ol); set(m, base, ol); set(m + 1, base, ol);
+      // de dos : l'ouverture réglable au-dessus de la nuque
+      for (let x = m - 2; x <= m + 2; x++) set(x, base - 2, ol);
+      set(m - 2, base - 1, ol); set(m + 2, base - 1, ol);
+      for (let x = m - 1; x <= m + 1; x++) set(x, base - 1, shadeOf(T.cheveux, -0.2));
+      for (let x = m - 1; x <= m + 1; x++) set(x, base, dk2);
     }
   }
 }

@@ -565,7 +565,7 @@ export function setArt({ kits = {}, sols = {}, sol32 = {}, hgss = {}, relief = n
   // sols à 16 px (PixelLab) : ils prennent la place des tuiles du tileset (agrandies ×2 comme les autres)
   const s = (k) => SOL32['s16_' + k];
   if (s('chemin_0')) {
-    const alias = { grass0: 'chemin_0', grass1: 'sable_0', grass2: 'pave_0', forest0: 'berge_15', forest1: 'chemin_0', path0: 'chemin_15', sand0: 'sable_15', pave0: 'pave_15',
+    const alias = { grass0: 'chemin_0', grass1: 'chemin_0', grass2: 'chemin_0', forest0: 'berge_15', forest1: 'chemin_0', path0: 'chemin_15', sand0: 'sable_15', pave0: 'pave_15',
       snow0: 'neige_0', snow1: 'herbes_neige_0', ash0: 'cendre_0', ash1: 'cendre_0', ledge: 'rebord', bridgeNS: 'pont_ns', bridgeEW: 'pont_eo', stairs: 'escalier',
       cliffR: 'falaise', cave0: 'grotte', cave1: 'grotte', lava0: 'lave', deep0: 'profond' };
     for (const [k, v] of Object.entries(alias)) if (s(v)) SOL32[k] = s(v);

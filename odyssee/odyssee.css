@@ -3449,3 +3449,17 @@ kbd { display: inline-block; font: inherit; font-size: .85em; min-width: 1.4em; 
   color: #b0c4e8;
   text-align: center;
 }
+
+/* Domaine : le mode chantier (barre en bas, cadre de la case visée) */
+.chantier { position: absolute; left: 50%; bottom: calc(var(--px) * 6); transform: translateX(-50%); z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--px) * 4) calc(var(--px) * 8);
+  padding: calc(var(--px) * 4) calc(var(--px) * 8); background: rgba(20, 28, 44, 0.92); color: #fff; border: 2px solid #6a88c0; border-radius: calc(var(--px) * 4); font-size: calc(var(--px) * 7); max-width: 92%; }
+.chantier small { opacity: 0.75; margin-left: 0.4em; }
+.chantier .ch-argent { font-weight: 700; color: #ffd860; }
+.chantier .ch-btns { display: flex; gap: calc(var(--px) * 3); }
+.chantier button { font: inherit; padding: calc(var(--px) * 2) calc(var(--px) * 5); border-radius: calc(var(--px) * 3); border: 1px solid #8aa6d8; background: #2a3c64; color: #fff; cursor: pointer; }
+.chantier button.on { background: #c05a3a; border-color: #ffb090; }
+.chantier .ch-aide { width: 100%; font-size: 0.8em; opacity: 0.7; }
+.edit-cursor { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 25; }
+.edit-cursor polygon { fill: rgba(255, 255, 255, 0.18); stroke: #ffe060; stroke-width: 2; }
+.edit-cursor polygon.non { fill: rgba(255, 60, 60, 0.22); stroke: #ff5050; }
+.edit-cursor polygon.ret { fill: rgba(255, 140, 60, 0.22); stroke: #ff9040; }

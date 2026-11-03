@@ -5,7 +5,7 @@
 // À l'est, trois îles desservies par le bateau de l'Embarcadère de l'Aube (2, 3 et 5 badges), avec les quêtes des
 // légendaires (renvoyées dans `legends`, les quais dans `docks`).
 // Noms de lieux et personnages originaux ; les créatures du jeu côtoient les Pokémon du prototype.
-import { T, DIRS, walkable } from './tiles.js';
+import { T, DIRS, walkable, isGrassEnc } from './tiles.js';
 import { GameMap, carveRoute, carveTown, ledges, along, nearestWalkable, rng } from './mapgen.js';
 import { centerInterior, martInterior, houseInterior, labInterior, gymInterior, leagueInterior, caveMap, towerFloor, TOWER_UP, TOWER_DOWN } from './interiors.js';
 import { NEW_STARTERS } from '../data/creatures.js';
@@ -19,20 +19,22 @@ import { buildArena } from './arenes.js';
 import { buildSud, BADGES_SUD, LEADERS_SUD, GYM_TRAINERS_SUD } from './sud.js';
 import { addVehicules } from './vehicules.js';
 
-// trois capsules sur la table du labo, une par type ; dans chacune, trois partenaires au choix :
-// la créature originale d'Odyssée, le Pokémon de Rouge / Bleu et celui d'Or / Argent (avec leurs évolutions)
-export const STARTER_CHOICES = [
+// toutes les lignées connues : la créature d'Odyssée (plus proposée, mais les parties déjà commencées avec elle restent valables),
+// le Pokémon de Rouge / Bleu et celui d'Or / Argent, avec leurs évolutions
+export const STARTER_TABLE = [
   { type: 'grass', lines: [[NEW_STARTERS[0], NEW_STARTERS[0] + 1, NEW_STARTERS[0] + 2], [1, 2, 3], [152, 153, 154]] },
   { type: 'fire', lines: [[NEW_STARTERS[1], NEW_STARTERS[1] + 1, NEW_STARTERS[1] + 2], [4, 5, 6], [155, 156, 157]] },
   { type: 'water', lines: [[NEW_STARTERS[2], NEW_STARTERS[2] + 1, NEW_STARTERS[2] + 2], [7, 8, 9], [158, 159, 160]] },
 ].map((c) => ({ ...c, lines: c.lines.map((l) => l.map(R)) }));
+// au labo, trois capsules, une par type ; dans chacune, deux partenaires au choix : celui de Rouge / Bleu et celui d'Or / Argent
+export const STARTER_CHOICES = STARTER_TABLE.map((c) => ({ ...c, lines: c.lines.slice(1) }));
 /** les trois capsules (repérées par le premier partenaire de chacune) */
 export const STARTERS = STARTER_CHOICES.map((c) => c.lines[0][0]);
 /** toutes les lignées de partenaires de départ (pour le Pokémon qui suit le dresseur) */
-export const STARTER_LINES = STARTER_CHOICES.flatMap((c) => c.lines);
-/** type et rang (0 original, 1 Rouge / Bleu, 2 Or / Argent) d'un partenaire de départ */
+export const STARTER_LINES = STARTER_TABLE.flatMap((c) => c.lines);
+/** type et rang (0 original, 1 Rouge / Bleu, 2 Or / Argent) d'un partenaire de départ, dans STARTER_TABLE */
 export function starterSlot(sp) {
-  for (let t = 0; t < 3; t++) for (let k = 0; k < 3; k++) if (STARTER_CHOICES[t].lines[k].includes(sp)) return { t, k };
+  for (let t = 0; t < 3; t++) for (let k = 0; k < 3; k++) if (STARTER_TABLE[t].lines[k].includes(sp)) return { t, k };
   return null;
 }
 export const RIVAL_NAME = 'Théo';
@@ -206,9 +208,12 @@ function mailbox(W, B, b, def) {
   const text = b.mailboxText || (b.id === 'maison' ? 'BOÎTE AUX LETTRES\nC\'est chez toi ! Une lettre de Maman y attend parfois.'
     : b.name && /^Maison (de|d')/.test(b.name) ? `BOÎTE AUX LETTRES\n${b.name.replace(/^Maison /, 'Famille ')}.`
       : `BOÎTE AUX LETTRES\nFamille ${fam}.${who ? '\n' + who : ''}`);
+  // sur le côté de la maison, contre le mur de la façade (à droite si possible, sinon à gauche), sinon près de la porte
+  const libre = (x, y) => { const t = W.get(x, y); return (t === T.GRASS || t === T.FLOWER) && !W.npcs.some((n) => n.x === x && n.y === y) && !W.signs.has(x + ',' + y); };
+  for (const [x, y] of [[B.x + B.w, B.doorY], [B.x - 1, B.doorY], [B.x + B.w, B.doorY - 1], [B.x - 1, B.doorY - 1]]) if (libre(x, y)) { W.sign(x, y, text, 'mailbox'); return; }
   for (const dx of [B.w - B.door <= 1 ? -1 : 1, -1, 1]) {
-    const x = B.doorX + dx, y = B.doorY + 1, t = W.get(x, y);
-    if ((t === T.GRASS || t === T.FLOWER) && !W.npcs.some((n) => n.x === x && n.y === y) && !W.signs.has(x + ',' + y)) { W.sign(x, y, text, 'mailbox'); return; }
+    const x = B.doorX + dx, y = B.doorY + 1;
+    if (libre(x, y)) { W.sign(x, y, text, 'mailbox'); return; }
   }
 }
 /** garde posté devant la porte de l'arène d'une île (on peut y arriver par la mer de plusieurs côtés) */
@@ -940,19 +945,29 @@ function fenceRoutes(W, legends = []) {
     }
     return four.every((k) => seen.has(k));
   };
-  let run = 0;
+  let run = 0; const sensBarr = new Map();
   for (let y = 1; y < W.h - 1; y++) for (let x = 1; x < W.w - 1; x++) {
     if (W.get(x, y) !== T.GRASS || busy.has(x + ',' + y)) { run = 0; continue; }
     const z = W.zoneAt(x, y); if (!z || z.town || z.sea || z.trigger) { run = 0; continue; }
     // le long d'un chemin horizontal (au-dessus ou au-dessous) ou vertical (à gauche ou à droite)
     const along = (W.get(x, y - 1) === T.PATH || W.get(x, y + 1) === T.PATH) && W.get(x - 1, y) !== T.PATH && W.get(x + 1, y) !== T.PATH;
     const alongV = (W.get(x - 1, y) === T.PATH || W.get(x + 1, y) === T.PATH) && W.get(x, y - 1) !== T.PATH && W.get(x, y + 1) !== T.PATH;
-    if (!along && !alongV) { run = 0; continue; }
+    // seulement le long des chemins horizontaux : de face, une barrière verticale ne serait qu'un piquet
+    if (!along) { run = 0; continue; }
     // tronçons : environ un mètre de barrière sur trois, choisis par blocs de 6 cases
     const blk = rng(((x / 6) | 0) * 7349 + ((y / 6) | 0) * 1931 + 11)();
     if (blk > 0.33) { run = 0; continue; }
     if (!simple(x, y)) { run = 0; continue; }
-    W.set(x, y, T.FENCE); run++;
+    // pas contre les hautes herbes ni les rebords, et deux barrières ne se croisent jamais (une seule direction par tronçon)
+    const sens = along ? 'h' : 'v';
+    let gene = false;
+    for (let j = -1; j <= 1 && !gene; j++) for (let i = -1; i <= 1; i++) {
+      const t = W.get(x + i, y + j);
+      if (isGrassEnc(t) || t === T.LEDGE || t === T.LEDGE_E || t === T.LEDGE_W) { gene = true; break; }
+      if (t === T.FENCE && sensBarr.get((x + i) + ',' + (y + j)) !== sens) { gene = true; break; }
+    }
+    if (gene) { run = 0; continue; }
+    W.set(x, y, T.FENCE); sensBarr.set(x + ',' + y, sens); run++;
   }
 }
 

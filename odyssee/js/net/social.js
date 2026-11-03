@@ -26,7 +26,7 @@ export function installSocial(game) {
     const p = game.player, st = game.state;
     return {
       map: game.mapObj.id, x: p.move ? p.move.tx : p.x, y: p.move ? p.move.ty : p.y, dir: p.dir,
-      run: game.input.isDown('run'), busy: !!(game.busy || !game.input.free || game.bv.alive || game.session),
+      run: !!(game.autoRun || game.input.isDown('run')), busy: !!(game.busy || !game.input.free || game.bv.alive || game.session),
       name: st.name, gender: st.gender, tn: st.tenue ? tenueCode(st.tenue) : undefined,
     };
   };
