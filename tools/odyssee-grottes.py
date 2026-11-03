@@ -37,22 +37,23 @@ def voronoi(rng, n, sx=1.0, sy=1.0, W=32):
 
 
 def tile_face(R, rng):
-    """face verticale : gros blocs de roche arrondis et allongés vers le bas, joints sombres, lumière en haut à gauche,
-    liseré clair en haut, plus sombre vers le bas"""
-    F1, F2, dx, dy, idx = voronoi(rng, 11, sx=1.0, sy=0.3)
-    edge = F2 - F1
-    r = np.maximum(F2, 1e-3)
-    lit = -(dx * 0.8 + dy * 0.45) / (r * 0.9)
-    tone = rng.uniform(-0.35, 0.35, idx.max() + 1)[idx]
-    lvl = 2.9 + 1.3 * lit + tone
-    shadow = (dx * 0.8 + dy * 0.45) > 0
-    lvl = np.where(edge < 0.6, 0.5, lvl)
-    lvl = np.where((edge >= 0.6) & (edge < 1.4) & shadow, np.minimum(lvl, 1.7), lvl)
-    lvl = np.where((edge >= 0.6) & (edge < 1.2) & ~shadow, np.maximum(lvl, 3.8), lvl)
-    ys = (np.arange(32)[:, None] + 0.5) / 32
-    lvl = lvl - 1.1 * ys ** 1.5
-    lvl[0] = np.maximum(lvl[0], 3.6); lvl[1] = np.maximum(lvl[1], 2.6)
-    lvl += rng.normal(0, 0.1, lvl.shape)
+    """pente de roche (HeartGold / SoulSilver) : stries fines dans le sens de la pente, un trait sombre et un reflet à
+    sa gauche, des traits plus ou moins longs ; liseré clair en haut, un peu plus sombre vers le bas"""
+    W = H = 32
+    lvl = np.full((H, W), 2.55) + rng.normal(0, 0.08, (H, W))
+    x = float(rng.uniform(0, 3))
+    while x < W:
+        y0 = int(rng.integers(-4, 10)); y1 = int(rng.integers(20, 40))
+        wob = rng.uniform(-0.08, 0.08)
+        for y in range(max(0, y0), min(H, y1)):
+            xi = int(round(x + wob * (y - y0))) % W
+            lvl[y, xi] = 1.25
+            lvl[y, (xi - 1) % W] = max(lvl[y, (xi - 1) % W], 3.35)
+            if rng.random() < 0.5: lvl[y, (xi + 1) % W] = min(lvl[y, (xi + 1) % W], 2.1)
+        x += rng.uniform(2.6, 4.6)
+    ys = (np.arange(H)[:, None] + 0.5) / H
+    lvl -= 0.7 * ys ** 2
+    lvl[0] = np.maximum(lvl[0], 3.7); lvl[1] = np.maximum(lvl[1], 3.0)
     return paint(lvl, R)
 
 
@@ -111,8 +112,8 @@ for j, b in enumerate(BIOMES):
     row = im[j * 32:(j + 1) * 32]
     sol = row[:, 0:32, :3].reshape(-1, 3).mean(0)
     rng = np.random.default_rng(1000 + j)
-    Rw = ramp(sol * 0.8)
-    Rt = ramp(np.clip(sol * 1.1 + (sol.mean() - sol) * 0.25, 0, 230))
+    Rw = ramp(sol * 0.92)
+    Rt = ramp(np.clip(sol * 1.16 + (sol.mean() - sol) * 0.25, 0, 235))
     for k in range(3):
         im[j * 32:(j + 1) * 32, (4 + k) * 32:(5 + k) * 32] = tile_face(Rw, rng)
     t0, l0 = tile_top(Rt, rng)
