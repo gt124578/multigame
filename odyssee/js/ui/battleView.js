@@ -347,6 +347,9 @@ export class BattleView {
     ]);
     if (foeSide.trainer) this.st.trainer.img = await loadImg(ASSETS.trainer(foeSide.trainer.bs));
     requestAnimationFrame(this.frame);
+    // Ouverture cinématographique du rideau de combat
+    if (o.curtain?.open) o.curtain.open();
+    else if (o.curtain?.remove) o.curtain.remove();
     // intro : les socles glissent en place
     this.st.screenFlash = 0;
     if (battle.wild) { this.st.foe.visible = true; this.st.foe.dark = true; }

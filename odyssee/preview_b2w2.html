@@ -781,5 +781,340 @@ Nos regards se sont croisés et mes créatures ont tout donné, mais ton équipe
     </div>
   </div>
 
+  <!-- 9. TRANSITIONS ANIMÉES (BÂTIMENT ET COMBAT 5G) -->
+  <div class="preview-section">
+    <div class="preview-title">9. TRANSITIONS ANIMÉES — ENTRÉE DE BÂTIMENT (IRIS DS) &amp; COMBAT SAUVAGE (LAMES 5G)</div>
+    <div class="preview-box" id="transitionBox" style="height: 320px; position: relative; overflow: hidden; background: url('img/battle/bg_grass.png') center/cover; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;">
+      <div style="font-size: 16px; font-weight: 700; color: #fff; text-shadow: 2px 2px 0 #000; text-align: center; z-index: 10;">
+        Testez les nouvelles animations cinématographiques en un clic :
+      </div>
+      <div style="display: flex; gap: 12px; z-index: 10; flex-wrap: wrap; justify-content: center;">
+        <button type="button" class="action-btn" onclick="playDoorDemo()" style="background: #2a5888; color: #fff; border: 2px solid #68a0e0; padding: 10px 18px; font-weight: 700; font-family: inherit; font-size: 14px; cursor: pointer; box-shadow: 0 4px 0 #102038;">
+          🚪 Entrée de Bâtiment (Iris DS)
+        </button>
+        <button type="button" class="action-btn" onclick="playWildBattleDemo()" style="background: #0d2838; color: #00f0ff; border: 2px solid #00f0ff; padding: 10px 18px; font-weight: 700; font-family: inherit; font-size: 14px; cursor: pointer; box-shadow: 0 4px 0 #041018;">
+          ⚡ Rencontre Sauvage (Lames Cyan 5G)
+        </button>
+        <button type="button" class="action-btn" onclick="playTrainerBattleDemo()" style="background: #382808; color: #ffe058; border: 2px solid #ffe058; padding: 10px 18px; font-weight: 700; font-family: inherit; font-size: 14px; cursor: pointer; box-shadow: 0 4px 0 #181002;">
+          ⚔️ Rencontre Dresseur (Lames Or 5G)
+        </button>
+      </div>
+      <div id="demoFlash" style="position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 61;"></div>
+      <div id="demoIris" class="door-iris" style="position: absolute; inset: 0; z-index: 60;"></div>
+    </div>
+  </div>
+
+  <script>
+    async function playDoorDemo() {
+      const iris = document.getElementById('demoIris');
+      iris.style.transition = 'clip-path 260ms cubic-bezier(0.4, 0, 0.2, 1)';
+      iris.classList.add('closed');
+      await new Promise(r => setTimeout(r, 400));
+      iris.classList.remove('closed');
+    }
+
+    async function playWildBattleDemo(isTrainer = false) {
+      const box = document.getElementById('transitionBox');
+      const flash = document.getElementById('demoFlash');
+      
+      // Triple flash 5G
+      flash.style.transition = 'none';
+      flash.style.background = '#ffffff';
+      flash.style.opacity = '1';
+      await new Promise(r => setTimeout(r, 70));
+      flash.style.background = '#060a12';
+      flash.style.opacity = '1';
+      await new Promise(r => setTimeout(r, 60));
+      flash.style.background = '#ffffff';
+      flash.style.opacity = '1';
+      await new Promise(r => setTimeout(r, 80));
+      flash.style.opacity = '0';
+
+      // Shards
+      const wrap = document.createElement('div');
+      wrap.className = `battle-wipe ${isTrainer ? 'trainer' : 'wild'}`;
+      wrap.style.position = 'absolute';
+      const numShards = 10;
+      for (let i = 0; i < numShards; i++) {
+        const s = document.createElement('div');
+        s.className = `bw-shard ${i % 2 === 0 ? 'left' : 'right'}`;
+        s.style.top = `${(i * 100) / numShards}%`;
+        s.style.height = `${(100 / numShards) + 0.5}%`;
+        s.style.transitionDelay = `${i * 22}ms`;
+        wrap.appendChild(s);
+      }
+      box.appendChild(wrap);
+      void wrap.offsetHeight;
+      wrap.classList.add('on');
+      await new Promise(r => setTimeout(r, 22 * numShards + 300));
+      wrap.classList.add('opening');
+      await new Promise(r => setTimeout(r, 300));
+      wrap.remove();
+    }
+
+    function playTrainerBattleDemo() {
+      playWildBattleDemo(true);
+    }
+  </script>
+
+  <!-- 10. SAC D'OBJETS B2W2 (PROPOSITION 1 — DUAL PANEL & ROUE ANIMÉE) -->
+  <div class="preview-section">
+    <div class="preview-title">10. SAC D'OBJETS B2W2 (PROPOSITION 1) — DUAL PANEL &amp; ROUE GLISSANTE ANIMÉE</div>
+    <div class="preview-box" style="height: 490px; position: relative; padding: 0; overflow: hidden;">
+      <div class="bag-scr b2w2-bag" id="previewBag">
+        <div class="scr-bar">
+          <div class="scr-bar-left">
+            <img class="scr-bar-ico" src="img/hud/bag.png" alt="">
+            <span class="scr-bar-title">SAC D'OBJETS</span>
+            <span class="scr-bar-sub b2w2-pocket-name" id="prevPocketSub">SOINS</span>
+          </div>
+          <div class="scr-bar-right">
+            <span class="scr-money-pill"><img src="img/hud/coin.png" alt=""> 24 850 ₽</span>
+            <button type="button" class="scr-close-btn">FERMER ✕</button>
+          </div>
+        </div>
+        <div class="b2w2-bag-body">
+          <!-- PANNEAU GAUCHE : ROUE ANIMÉE & SOCLE SAC -->
+          <div class="b2w2-bag-left" id="prevBagLeft">
+            <div class="b2w2-wheel-panel">
+              <button type="button" class="b2w2-wheel-nav up" onclick="prevBagChangePocket(-1)" title="Poche précédente (▲ ou Flèche Gauche)">▲</button>
+              <div class="b2w2-wheel-viewport">
+                <div class="b2w2-wheel-track" id="prevWheelTrack">
+                  <div class="b2w2-wheel-slot" data-slot="0" data-p="3" onclick="prevBagSetPocket(3)" style="--p-col:#ffe058; --p-glow:rgba(255,224,88,0.45)">
+                    <span class="slot-dot"></span>
+                    <img class="slot-ico" src="img/items/town-map.png" alt="">
+                    <span class="slot-lbl">Objets Rares</span>
+                    <span class="slot-cnt">3</span>
+                  </div>
+                  <div class="b2w2-wheel-slot on" data-slot="1" data-p="0" onclick="prevBagSetPocket(0)" style="--p-col:#34d870; --p-glow:rgba(52,216,112,0.45)">
+                    <span class="slot-dot"></span>
+                    <img class="slot-ico" src="img/items/potion.png" alt="">
+                    <span class="slot-lbl">Soins</span>
+                    <span class="slot-cnt">8</span>
+                  </div>
+                  <div class="b2w2-wheel-slot" data-slot="2" data-p="1" onclick="prevBagSetPocket(1)" style="--p-col:#ff4c4c; --p-glow:rgba(255,76,76,0.45)">
+                    <span class="slot-dot"></span>
+                    <img class="slot-ico" src="img/items/poke-ball.png" alt="">
+                    <span class="slot-lbl">Poké Balls</span>
+                    <span class="slot-cnt">5</span>
+                  </div>
+                  <div class="b2w2-wheel-slot" data-slot="3" data-p="2" onclick="prevBagSetPocket(2)" style="--p-col:#00e0ff; --p-glow:rgba(0,224,255,0.45)">
+                    <span class="slot-dot"></span>
+                    <img class="slot-ico" src="img/items/rare-candy.png" alt="">
+                    <span class="slot-lbl">Objets</span>
+                    <span class="slot-cnt">12</span>
+                  </div>
+                  <div class="b2w2-wheel-slot" data-slot="4" data-p="3" onclick="prevBagSetPocket(3)" style="--p-col:#ffe058; --p-glow:rgba(255,224,88,0.45)">
+                    <span class="slot-dot"></span>
+                    <img class="slot-ico" src="img/items/town-map.png" alt="">
+                    <span class="slot-lbl">Objets Rares</span>
+                    <span class="slot-cnt">3</span>
+                  </div>
+                  <div class="b2w2-wheel-slot" data-slot="5" data-p="0" onclick="prevBagSetPocket(0)" style="--p-col:#34d870; --p-glow:rgba(52,216,112,0.45)">
+                    <span class="slot-dot"></span>
+                    <img class="slot-ico" src="img/items/potion.png" alt="">
+                    <span class="slot-lbl">Soins</span>
+                    <span class="slot-cnt">8</span>
+                  </div>
+                </div>
+              </div>
+              <button type="button" class="b2w2-wheel-nav down" onclick="prevBagChangePocket(1)" title="Poche suivante (▼ ou Flèche Droite)">▼</button>
+            </div>
+            <div class="b2w2-mascot-panel">
+              <div class="b2w2-mascot-glow" id="prevMascotGlow" style="--pedestal-col:#34d870;"></div>
+              <img class="b2w2-mascot-img" src="img/hud/bag.png" alt="Sac d'Unys">
+              <div class="b2w2-mascot-badge" id="prevMascotBadge" style="color:#34d870;">◀ SOINS ▶</div>
+              <div class="b2w2-mascot-sub" id="prevMascotSub">Médicaments, Potions et Baies</div>
+            </div>
+          </div>
+          <!-- PANNEAU DROIT : LISTE DES OBJETS DE LA POCHE -->
+          <div class="b2w2-bag-right">
+            <div class="b2w2-list-header">
+              <div class="b2w2-list-title">
+                <span class="b2w2-pocket-tag" id="prevPocketTag" style="--tag-col:#34d870;">POCHE SOINS</span>
+                <span class="b2w2-pocket-items-cnt" id="prevPocketCount">8 objets</span>
+              </div>
+              <div class="b2w2-list-hint">
+                <span><kbd>▲</kbd><kbd>▼</kbd> Sélectionner</span>
+                <span><kbd>◀</kbd><kbd>▶</kbd> Roue</span>
+              </div>
+            </div>
+            <div class="b2w2-items-viewport">
+              <div class="b2w2-items-list" id="prevItemsList">
+                <!-- Dynamique -->
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- BANDEAU INFÉRIEUR : INSPECTEUR D'OBJET & BOUTONS TACTILES -->
+        <div class="b2w2-bag-inspector">
+          <div class="b2w2-insp-left">
+            <div class="b2w2-insp-frame">
+              <img class="b2w2-insp-img" id="prevInspImg" src="img/items/potion.png" alt="">
+            </div>
+          </div>
+          <div class="b2w2-insp-mid">
+            <div class="b2w2-insp-topline">
+              <span class="b2w2-insp-name" id="prevInspName">Potion</span>
+              <span class="b2w2-insp-qty" id="prevInspQty">Quantité en sac : × 15</span>
+            </div>
+            <div class="b2w2-insp-desc" id="prevInspDesc">Restaure 20 PV d'une créature alliée.</div>
+          </div>
+          <div class="b2w2-insp-actions">
+            <button type="button" class="b2w2-act-btn use">
+              <span class="act-btn-ico">✔</span>
+              <span class="act-btn-lbl">UTILISER</span>
+            </button>
+            <button type="button" class="b2w2-act-btn toss">
+              <span class="act-btn-ico">🗑</span>
+              <span class="act-btn-lbl">JETER</span>
+            </button>
+            <button type="button" class="b2w2-act-btn close">
+              <span class="act-btn-ico">✕</span>
+              <span class="act-btn-lbl">RETOUR</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Données de démonstration du Sac B2W2
+    const prevBagData = {
+      0: [
+        { id: 'potion', name: 'Potion', qty: 15, desc: "Restaure 20 PV d'une créature alliée.", icon: 'img/items/potion.png' },
+        { id: 'super-potion', name: 'Super Potion', qty: 7, desc: "Restaure 50 PV d'une créature alliée.", icon: 'img/items/super-potion.png' },
+        { id: 'hyper-potion', name: 'Hyper Potion', qty: 4, desc: "Restaure 200 PV d'une créature alliée.", icon: 'img/items/hyper-potion.png' },
+        { id: 'revive', name: 'Rappel', qty: 6, desc: "Ranime une créature K.O. avec 50% de ses PV.", icon: 'img/items/revive.png' },
+        { id: 'full-heal', name: 'Total Soin', qty: 3, desc: "Guérit toutes les altérations de statut d'un Pokémon.", icon: 'img/items/full-heal.png' },
+        { id: 'oran-berry', name: 'Baie Oran', qty: 12, desc: "Baie restaurant 10 PV lorsqu'elle est consommée ou tenue.", icon: 'img/items/oran-berry.png' },
+      ],
+      1: [
+        { id: 'poke-ball', name: 'Poké Ball', qty: 25, desc: "Capsule basique servant à capturer les créatures sauvages.", icon: 'img/items/poke-ball.png' },
+        { id: 'great-ball', name: 'Super Ball', qty: 14, desc: "Ball de qualité supérieure avec un taux de réussite plus élevé.", icon: 'img/items/great-ball.png' },
+        { id: 'ultra-ball', name: 'Ultra Ball', qty: 8, desc: "Excellente Ball offrant un taux de capture remarquable.", icon: 'img/items/ultra-ball.png' },
+        { id: 'master-ball', name: 'Master Ball', qty: 1, desc: "La Ball suprême qui capture à coup sûr n'importe quelle créature !", icon: 'img/items/master-ball.png' },
+      ],
+      2: [
+        { id: 'rare-candy', name: 'Super Bonbon', qty: 5, desc: "Friandise énergisante faisant instantanément monter d'un niveau.", icon: 'img/items/rare-candy.png' },
+        { id: 'fire-stone', name: 'Pierre Feu', qty: 2, desc: "Pierre chaude et rougeoyante capable de faire évoluer certains Pokémon.", icon: 'img/items/fire-stone.png' },
+        { id: 'water-stone', name: 'Pierre Eau', qty: 3, desc: "Pierre bleutée imprégnée d'une onde pure pour l'évolution.", icon: 'img/items/water-stone.png' },
+        { id: 'repel', name: 'Repousse', qty: 9, desc: "Éloigne les créatures sauvages plus faibles pendant 100 pas.", icon: 'img/items/repel.png' },
+        { id: 'eviolite', name: 'Évoluroc', qty: 1, desc: "Objet à tenir. Augmente de 50% la Défense et Déf. Spé. d'un Pokémon non évolué.", icon: 'img/items/rare-candy.png', held: true },
+        { id: 'leftovers', name: 'Restes', qty: 2, desc: "Objet à tenir. Restaure 1/16 des PV max à chaque fin de tour.", icon: 'img/items/gift.png', held: true },
+      ],
+      3: [
+        { id: 'town-map', name: 'Carte Régionale', qty: 1, desc: "Carte détaillée de l'archipel d'Odyssée indiquant villes et routes.", icon: 'img/items/town-map.png', key: true },
+        { id: 'velo', name: 'Bicyclette', qty: 1, desc: "Vélo pliable ultra-rapide pour se déplacer à toute vitesse.", icon: 'img/items/bag.png', key: true },
+        { id: 'cs-coupe', name: 'CS01 Coupe', qty: 1, desc: "Capsule Secrète permettant de couper les arbustes gênants.", icon: 'img/items/letter.png', key: true },
+      ]
+    };
+
+    const prevPocketMeta = [
+      { name: 'SOINS', tag: 'POCHE SOINS', sub: 'Médicaments, Potions et Baies', color: '#34d870' },
+      { name: 'POKÉ BALLS', tag: 'POCHE BALLS', sub: 'Capsules de capture de créatures', color: '#ff4c4c' },
+      { name: 'OBJETS', tag: 'POCHE OBJETS', sub: 'Objets tenus, Pierres et Bonbons', color: '#00e0ff' },
+      { name: 'OBJETS RARES', tag: 'POCHE RARES', sub: 'Reliques précieuses, Carte et CS', color: '#ffe058' }
+    ];
+
+    let prevActiveP = 0;
+    let prevActiveI = 0;
+
+    function prevBagSetPocket(p) {
+      prevActiveP = (p + 4) % 4;
+      prevActiveI = 0;
+      prevBagUpdateUI();
+    }
+
+    function prevBagChangePocket(dir) {
+      prevBagSetPocket(prevActiveP + dir);
+    }
+
+    function prevBagSelectItem(idx) {
+      prevActiveI = idx;
+      prevBagUpdateInspector();
+      const listEl = document.getElementById('prevItemsList');
+      listEl.querySelectorAll('.b2w2-item-row').forEach((r, k) => {
+        r.classList.toggle('on', k === prevActiveI);
+        const cur = r.querySelector('.cur');
+        if (cur) cur.textContent = k === prevActiveI ? '▶' : '';
+      });
+    }
+
+    function prevBagUpdateUI() {
+      const meta = prevPocketMeta[prevActiveP];
+      const track = document.getElementById('prevWheelTrack');
+      // Translation calculée pour le glissement fluide de la roue
+      track.style.transform = `translateY(calc(var(--px, 3px) * ${ -prevActiveP * 14 }))`;
+
+      const slots = track.querySelectorAll('.b2w2-wheel-slot');
+      slots.forEach((s) => {
+        const slotPos = +s.dataset.slot;
+        s.classList.toggle('on', slotPos === prevActiveP + 1);
+      });
+
+      document.getElementById('prevPocketSub').textContent = meta.name;
+      document.getElementById('prevPocketTag').textContent = meta.tag;
+      document.getElementById('prevPocketTag').style.setProperty('--tag-col', meta.color);
+
+      const glow = document.getElementById('prevMascotGlow');
+      glow.style.setProperty('--pedestal-col', meta.color);
+
+      const badge = document.getElementById('prevMascotBadge');
+      badge.textContent = `◀ ${meta.name} ▶`;
+      badge.style.color = meta.color;
+
+      document.getElementById('prevMascotSub').textContent = meta.sub;
+
+      // Render items list
+      const items = prevBagData[prevActiveP] || [];
+      document.getElementById('prevPocketCount').textContent = `${items.length} objet${items.length > 1 ? 's' : ''}`;
+
+      const listEl = document.getElementById('prevItemsList');
+      listEl.innerHTML = items.map((it, n) => {
+        const heldTag = it.held ? '<span class="b2w2-held-tag">TENU</span>' : '';
+        const qtyTxt = it.key ? 'CLÉ' : `× ${it.qty}`;
+        return `
+          <div class="list-row b2w2-item-row ${n === prevActiveI ? 'on' : ''}" onclick="prevBagSelectItem(${n})">
+            <span class="cur">${n === prevActiveI ? '▶' : ''}</span>
+            <div class="b2w2-item-ico-wrap">
+              <img class="b2w2-item-ico" src="${it.icon}" alt="">
+            </div>
+            <span class="b2w2-item-name">${it.name}</span>
+            ${heldTag}
+            <span class="b2w2-item-qty">${qtyTxt}</span>
+          </div>`;
+      }).join('') + `
+        <div class="list-row b2w2-item-row b2w2-close-row ${prevActiveI === items.length ? 'on' : ''}" onclick="prevBagSelectItem(${items.length})">
+          <span class="cur">${prevActiveI === items.length ? '▶' : ''}</span>
+          <span class="b2w2-item-name" style="color:#ff9898;">FERMER LE SAC</span>
+          <span class="b2w2-item-qty" style="color:#98a8c0;">Échap / B</span>
+        </div>`;
+
+      prevBagUpdateInspector();
+    }
+
+    function prevBagUpdateInspector() {
+      const items = prevBagData[prevActiveP] || [];
+      const it = items[prevActiveI];
+      if (it) {
+        document.getElementById('prevInspImg').src = it.icon;
+        document.getElementById('prevInspImg').style.display = '';
+        document.getElementById('prevInspName').textContent = it.name;
+        document.getElementById('prevInspQty').textContent = it.key ? 'Objet Unique Rare' : `Quantité en sac : × ${it.qty}`;
+        document.getElementById('prevInspDesc').textContent = it.desc;
+      } else {
+        document.getElementById('prevInspImg').style.display = 'none';
+        document.getElementById('prevInspName').textContent = 'Fermer le Sac';
+        document.getElementById('prevInspQty').textContent = '';
+        document.getElementById('prevInspDesc').textContent = "Revenir à l'aventure sans utiliser d'objet.";
+      }
+    }
+
+    // Initialisation immédiate du Sac B2W2
+    prevBagUpdateUI();
+  </script>
+
 </body>
 </html>

@@ -347,13 +347,13 @@ export class Game {
   async warp(to, sfx = 'door') {
     this.busy = true;
     this.sound.sfx(sfx);
-    await this.ui.fade(true, 220);
+    await this.ui.doorTransition(true, 240);
     if (this.mapObj.id === 'monde' && to.map !== 'monde') this.state.lastOutdoor = { x: this.player.x, y: this.player.y + 1, map: 'monde' };
     this.player.x = to.x; this.player.y = to.y; this.player.dir = to.dir || this.player.dir; this.player.move = null; this.player.surf = false;
     this.setMap(to.map);
     this.view.update(0, this.player.x, this.player.y);
     this.save(true);
-    await this.ui.fade(false, 220);
+    await this.ui.doorTransition(false, 240);
     if (this.mapObj.dark && this.mapObj.dark !== 'arene' && this.canField('flash') && this.lead()) await this.ui.say(`${monName(this.lead())} utilise Flash !\nLa grotte s'éclaire.`, { auto: 900 });
     await this.onEnterMap();
     this.busy = false;
@@ -458,6 +458,12 @@ export class Game {
       const w = v.actor('wake', { kind: 'flat' }); if (!w.wakeSet) { const r = v.S.rects.wake; v.setSpriteRect(w, r, r.w, r.h); w.wakeSet = true; w.shadow.visible = false; }
       w.mesh.position.set(px + 0.5, 0.01 + bob * 0.3, py + 0.62); w.mesh.rotation.x = -1.1;
     } else if (v.actors.has('wake')) v.removeActor('wake');
+    if (p.bang) {
+      const b = v.actor('bang:player', { kind: 'bang' });
+      b.mesh.position.set(px + 0.5, 34 * HPX, py + 0.56);
+    } else if (v.actors.has('bang:player')) {
+      v.removeActor('bang:player');
+    }
     for (const n of this.npcs) {
       let nx = n.x, ny = n.y, sf = 0;
       if (n.move) { const u = Math.min(1, n.move.t); nx = n.move.fx + (n.x - n.move.fx) * u; ny = n.move.fy + (n.y - n.move.fy) * u; sf = u < 0.5 ? (n.step % 2 ? 1 : 2) : 0; }
@@ -1050,14 +1056,25 @@ export class Game {
   }
   lead() { return this.state.party.find((m) => m.hp > 0); }
 
-  async encounterIntro(kind) {
-    this.sound.sfx('encounter');
+  async encounterIntro(kind, isWild = false) {
+    if (isWild) {
+      this.player.move = null;
+      this.player.walking = false;
+      this.player.bang = true;
+      this.sound.sfx('bang');
+      this.view.shake = 0.18;
+      await wait(180);
+    } else {
+      this.sound.sfx('encounter');
+    }
+    // Triple flash stroboscopique façon DS / 5G
+    await this.ui.battleFlash();
+    this.player.bang = false;
+    // Démarrage de la musique de combat synchronisé avec le balayage
     this.sound.play(kind);
-    await this.ui.flash(3, '#ffffff', 70);
-    // rideau qui se referme, comme un passage en combat
-    const c = el('div', 'wipe'); this.ui.root.appendChild(c);
-    await wait(30); c.classList.add('on'); await wait(450);
-    return c;
+    // Transition cinématographique à lames horizontales biseautées (façon Noir 2 / Blanc 2)
+    const curtain = await this.ui.battleWipe({ wild: isWild });
+    return curtain;
   }
 
   async wildBattle(enc, o = {}) {
@@ -1227,15 +1244,14 @@ export class Game {
   async runBattleSafe(o) {
     const st = this.state;
     const kind = o.wild ? o.music || 'wild' : o.music || 'trainer';
-    const curtain = await this.encounterIntro(kind);
+    const curtain = await this.encounterIntro(kind, !!o.wild);
     const m = this.mapObj, z = this.zone;
     const bg = !m.outdoor ? (m.floor === 'cave' ? 'cave' : m.battleBg) : this.player.surf ? 'water' : z?.theme === 'volcanic' ? 'volcanic' : z?.theme === 'snow' ? 'snow' : z?.town === 'azur' || z?.town === 'granit' || z?.name === 'Cap des Étoiles' ? 'water' : 'grass';
     const weather = o.weather || this.getMapWeather();
     const battle = new Battle({ player: { name: st.name, party: st.party, bag: st.bag }, foe: o.wild ? { name: 'sauvage', party: [o.wild] } : { name: o.trainer.name, party: o.party, trainer: o.trainer }, cap: this.levelCap(), weather: weather !== 'none' ? weather : undefined });
     const foeMons = o.wild ? [o.wild] : o.party;
     const h = this.hour();
-    curtain.remove();
-    const result = await this.bv.run(battle, { bg, night: m.outdoor && (h >= 20 || h < 5.5), weather });
+    const result = await this.bv.run(battle, { bg, night: m.outdoor && (h >= 20 || h < 5.5), weather, curtain });
     // argent
     if (result === 'win' && battle.prizeMoney) st.money += battle.prizeMoney;
     if (result === 'caught') {

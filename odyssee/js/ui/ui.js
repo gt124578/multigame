@@ -148,9 +148,66 @@ export class UI {
     this.fadeEl.style.opacity = black ? 1 : 0;
     return wait(ms + 20);
   }
+  /** Transition de porte / bâtiment façon Pokémon DS (diaphragme circulaire rétro) */
+  async doorTransition(closing, ms = 240) {
+    if (!this.doorEl) {
+      this.doorEl = el('div', 'door-iris');
+      this.root.appendChild(this.doorEl);
+    }
+    this.doorEl.style.transition = `clip-path ${ms}ms cubic-bezier(0.4, 0, 0.2, 1)`;
+    if (closing) {
+      this.doorEl.classList.remove('closed');
+      void this.doorEl.offsetHeight;
+      this.doorEl.classList.add('closed');
+      await wait(ms + 20);
+    } else {
+      this.doorEl.classList.add('closed');
+      void this.doorEl.offsetHeight;
+      this.doorEl.classList.remove('closed');
+      await wait(ms + 20);
+    }
+  }
   async flash(times = 3, color = '#fff', ms = 90) {
     this.flashEl.style.background = color;
     for (let i = 0; i < times; i++) { this.flashEl.style.opacity = 1; await wait(ms); this.flashEl.style.opacity = 0; await wait(ms); }
+  }
+  /** Flash stroboscopique de combat 5G (blanc / noir / blanc) */
+  async battleFlash() {
+    this.flashEl.style.transition = 'none';
+    this.flashEl.style.background = '#ffffff';
+    this.flashEl.style.opacity = '1';
+    await wait(70);
+    this.flashEl.style.background = '#060a12';
+    this.flashEl.style.opacity = '1';
+    await wait(60);
+    this.flashEl.style.background = '#ffffff';
+    this.flashEl.style.opacity = '1';
+    await wait(80);
+    this.flashEl.style.opacity = '0';
+  }
+  /** Transition d'écran de combat 5G à lames horizontales biseautées alternées */
+  async battleWipe(opts = {}) {
+    const isWild = opts.wild ?? true;
+    const wrap = el('div', `battle-wipe ${isWild ? 'wild' : 'trainer'}`);
+    const numShards = 10;
+    for (let i = 0; i < numShards; i++) {
+      const shard = el('div', `bw-shard ${i % 2 === 0 ? 'left' : 'right'}`);
+      shard.style.top = `${(i * 100) / numShards}%`;
+      shard.style.height = `${(100 / numShards) + 0.5}%`;
+      shard.style.transitionDelay = `${i * 22}ms`;
+      wrap.appendChild(shard);
+    }
+    this.root.appendChild(wrap);
+    void wrap.offsetHeight;
+    wrap.classList.add('on');
+    await wait(22 * numShards + 220);
+
+    wrap.open = async () => {
+      wrap.classList.add('opening');
+      await wait(280);
+      wrap.remove();
+    };
+    return wrap;
   }
   /** bandeau du nom du lieu (en haut à gauche, comme sur DS) */
   banner(name) {

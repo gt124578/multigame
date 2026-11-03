@@ -531,16 +531,283 @@ const POCKET_DESC = [
   'Pierres d\'évolution, Repousses, Super Bonbons et objets utiles.',
   'Capsules Secrètes (CS), Carte et reliques précieuses.',
 ];
-/** renvoie { item } choisi pour « Utiliser », ou null */
+/** renvoie { item } choisi pour « Utiliser », ou null — Style B2W2 (Proposition 1 : Dual Panel & Roue Animée) */
 export function bagScreen(game, o = {}) {
   const ui = game.ui, bag = game.state.bag;
   return new Promise((resolve) => {
-    const s = screen(ui, 'bag-scr');
+    const s = screen(ui, 'bag-scr b2w2-bag');
     let pocket = o.pocket || 0, i = 0, busy = false;
+
     const entriesFor = (p) => Object.keys(bag).filter((k) => ITEMS[k] && ITEMS[k].pocket === POCKETS[p][0] && bag[k] > 0).sort((a, b) => Object.keys(ITEMS).indexOf(a) - Object.keys(ITEMS).indexOf(b));
     const entries = () => entriesFor(pocket);
 
     const close = (v) => { pop(); s.remove(); resolve(v); };
+
+    // Poches officielles B2W2 avec thèmes visuels et auras
+    const POCKET_CFG = [
+      { id: 'soin', label: 'Soins', sub: 'Médicaments, Potions et Baies', icon: 'img/items/potion.png', color: '#34d870', glow: 'rgba(52, 216, 112, 0.45)' },
+      { id: 'balls', label: 'Poké Balls', sub: 'Capsules de capture de créatures', icon: 'img/items/poke-ball.png', color: '#ff4c4c', glow: 'rgba(255, 76, 76, 0.45)' },
+      { id: 'objets', label: 'Objets', sub: 'Objets tenus, Pierres et Bonbons', icon: 'img/items/rare-candy.png', color: '#00e0ff', glow: 'rgba(0, 224, 255, 0.45)' },
+      { id: 'cles', label: 'Objets Rares', sub: 'Reliques précieuses, Carte et CS', icon: 'img/items/town-map.png', color: '#ffe058', glow: 'rgba(255, 224, 88, 0.45)' },
+    ];
+
+    // Track rotatif en boucle [3, 0, 1, 2, 3, 0]
+    const trackSlots = [3, 0, 1, 2, 3, 0];
+
+    s.innerHTML = `
+      <div class="scr-bar">
+        <div class="scr-bar-left">
+          <img class="scr-bar-ico" src="img/hud/bag.png" alt="">
+          <span class="scr-bar-title">${o.battle ? 'SAC DE COMBAT' : "SAC D'OBJETS"}</span>
+          <span class="scr-bar-sub b2w2-pocket-name">SOINS</span>
+        </div>
+        <div class="scr-bar-right">
+          <span class="scr-money-pill"><img src="img/hud/coin.png" alt=""> ${(game.state?.money || 0).toLocaleString('fr-FR')} ₽</span>
+          <button type="button" class="scr-close-btn" data-act="close">FERMER ✕</button>
+        </div>
+      </div>
+      <div class="b2w2-bag-body">
+        <!-- PANNEAU GAUCHE : ROUE ANIMÉE & SOCLE SAC -->
+        <div class="b2w2-bag-left">
+          <div class="b2w2-wheel-panel">
+            <button type="button" class="b2w2-wheel-nav up" title="Poche précédente (▲ ou Flèche Gauche)">▲</button>
+            <div class="b2w2-wheel-viewport">
+              <div class="b2w2-wheel-track">
+                ${trackSlots.map((pIdx, slotPos) => {
+                  const cfg = POCKET_CFG[pIdx];
+                  return `<div class="b2w2-wheel-slot" data-slot-pos="${slotPos}" data-pocket="${pIdx}" style="--p-col:${cfg.color}; --p-glow:${cfg.glow}">
+                    <span class="slot-dot"></span>
+                    <img class="slot-ico" src="${cfg.icon}" alt="">
+                    <span class="slot-lbl">${cfg.label}</span>
+                    <span class="slot-cnt" data-cnt-for="${pIdx}">0</span>
+                  </div>`;
+                }).join('')}
+              </div>
+            </div>
+            <button type="button" class="b2w2-wheel-nav down" title="Poche suivante (▼ ou Flèche Droite)">▼</button>
+          </div>
+          <div class="b2w2-mascot-panel">
+            <div class="b2w2-mascot-glow"></div>
+            <img class="b2w2-mascot-img" src="img/hud/bag.png" alt="Sac d'Unys">
+            <div class="b2w2-mascot-badge">◀ SOINS ▶</div>
+            <div class="b2w2-mascot-sub">Médicaments, Potions et Baies</div>
+          </div>
+        </div>
+        <!-- PANNEAU DROIT : LISTE DES OBJETS DE LA POCHE -->
+        <div class="b2w2-bag-right">
+          <div class="b2w2-list-header">
+            <div class="b2w2-list-title">
+              <span class="b2w2-pocket-tag">POCHE SOINS</span>
+              <span class="b2w2-pocket-items-cnt">0 objet</span>
+            </div>
+            <div class="b2w2-list-hint">
+              <span><kbd>▲</kbd><kbd>▼</kbd> Naviguer</span>
+              <span><kbd>◀</kbd><kbd>▶</kbd> Roue</span>
+            </div>
+          </div>
+          <div class="b2w2-items-viewport">
+            <div class="b2w2-items-list"></div>
+          </div>
+        </div>
+      </div>
+      <!-- BANDEAU INFÉRIEUR : INSPECTEUR D'OBJET & BOUTONS TACTILES -->
+      <div class="b2w2-bag-inspector">
+        <div class="b2w2-insp-left">
+          <div class="b2w2-insp-frame">
+            <img class="b2w2-insp-img" src="img/items/potion.png" alt="">
+          </div>
+        </div>
+        <div class="b2w2-insp-mid">
+          <div class="b2w2-insp-topline">
+            <span class="b2w2-insp-name">---</span>
+            <span class="b2w2-insp-qty">---</span>
+          </div>
+          <div class="b2w2-insp-desc">---</div>
+        </div>
+        <div class="b2w2-insp-actions">
+          <button type="button" class="b2w2-act-btn use" data-act="use">
+            <span class="act-btn-ico">✔</span>
+            <span class="act-btn-lbl">UTILISER</span>
+          </button>
+          <button type="button" class="b2w2-act-btn toss" data-act="toss">
+            <span class="act-btn-ico">🗑</span>
+            <span class="act-btn-lbl">JETER</span>
+          </button>
+          <button type="button" class="b2w2-act-btn close" data-act="close">
+            <span class="act-btn-ico">✕</span>
+            <span class="act-btn-lbl">RETOUR</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    // Références DOM
+    const scrBarSub = s.querySelector('.b2w2-pocket-name');
+    const wheelTrack = s.querySelector('.b2w2-wheel-track');
+    const wheelSlots = [...s.querySelectorAll('.b2w2-wheel-slot')];
+    const mascotGlow = s.querySelector('.b2w2-mascot-glow');
+    const mascotBadge = s.querySelector('.b2w2-mascot-badge');
+    const mascotSub = s.querySelector('.b2w2-mascot-sub');
+    const pocketTag = s.querySelector('.b2w2-pocket-tag');
+    const pocketItemsCnt = s.querySelector('.b2w2-pocket-items-cnt');
+    const itemsListEl = s.querySelector('.b2w2-items-list');
+    const inspSpriteEl = s.querySelector('.b2w2-insp-img');
+    const inspNameEl = s.querySelector('.b2w2-insp-name');
+    const inspQtyEl = s.querySelector('.b2w2-insp-qty');
+    const inspDescEl = s.querySelector('.b2w2-insp-desc');
+    const useBtn = s.querySelector('.b2w2-act-btn.use');
+    const tossBtn = s.querySelector('.b2w2-act-btn.toss');
+    const closeBtn = s.querySelector('.b2w2-act-btn.close');
+    const leftPanel = s.querySelector('.b2w2-bag-left');
+
+    const updateCounts = () => {
+      POCKET_CFG.forEach((cfg, pIdx) => {
+        const count = entriesFor(pIdx).length;
+        s.querySelectorAll(`[data-cnt-for="${pIdx}"]`).forEach((el) => {
+          el.textContent = count;
+        });
+      });
+    };
+
+    const updateWheel = () => {
+      const cfg = POCKET_CFG[pocket];
+      const activeSlotPos = pocket + 1;
+      // Déplacement de la roue animée par glisse fluide (pitch de 14 * var(--px))
+      wheelTrack.style.transform = `translateY(calc(var(--px) * ${ -pocket * 14 }))`;
+
+      wheelSlots.forEach((slot) => {
+        const pos = +slot.dataset.slotPos;
+        slot.classList.toggle('on', pos === activeSlotPos);
+      });
+
+      // Mise à jour de l'aura et du badge du socle de baroudeur
+      mascotGlow.style.setProperty('--pedestal-col', cfg.color);
+      mascotBadge.textContent = `◀ ${cfg.label.toUpperCase()} ▶`;
+      mascotBadge.style.color = cfg.color;
+      mascotSub.textContent = cfg.sub;
+
+      // Mise à jour de l'en-tête
+      scrBarSub.textContent = cfg.label.toUpperCase();
+      pocketTag.textContent = `POCHE ${cfg.label.toUpperCase()}`;
+      pocketTag.style.setProperty('--tag-col', cfg.color);
+    };
+
+    const updateInspector = () => {
+      const es = entries();
+      if (i > es.length) i = es.length;
+      const sel = es[i];
+      if (sel) {
+        const it = ITEMS[sel];
+        inspSpriteEl.src = ASSETS.item(sel);
+        inspSpriteEl.style.display = '';
+        inspNameEl.textContent = itemName(sel);
+        inspQtyEl.textContent = it.key ? 'Objet Unique Rare' : `Quantité en sac : × ${bag[sel]}`;
+        inspDescEl.textContent = it.desc || '';
+
+        const canUse = o.battle
+          ? (it.heal || it.cure || it.revive || it.ball || it.pp || it.ppAll)
+          : (!it.key || it.field || sel === 'town-map' || sel === 'velo');
+        useBtn.disabled = !canUse;
+        useBtn.classList.toggle('disabled', !canUse);
+        useBtn.querySelector('.act-btn-lbl').textContent = 'UTILISER';
+
+        const canToss = !o.battle && !it.key;
+        tossBtn.style.display = canToss ? '' : 'none';
+      } else {
+        // Ligne de fermeture sélectionnée
+        inspSpriteEl.style.display = 'none';
+        inspNameEl.textContent = 'Fermer le Sac';
+        inspQtyEl.textContent = '';
+        inspDescEl.textContent = "Revenir à l'aventure sans utiliser d'objet.";
+        useBtn.disabled = false;
+        useBtn.classList.remove('disabled');
+        useBtn.querySelector('.act-btn-lbl').textContent = 'FERMER';
+        tossBtn.style.display = 'none';
+      }
+    };
+
+    const renderList = () => {
+      const es = entries();
+      pocketItemsCnt.textContent = `${es.length} objet${es.length > 1 ? 's' : ''}`;
+      if (i > es.length) i = es.length;
+
+      if (es.length === 0) {
+        itemsListEl.innerHTML = `
+          <div class="b2w2-empty-msg">Cette poche est vide pour le moment.</div>
+          <div class="list-row b2w2-item-row b2w2-close-row on" data-row="0">
+            <span class="cur">▶</span>
+            <span class="b2w2-item-name" style="color:#ff9898;">FERMER LE SAC</span>
+            <span class="b2w2-item-qty" style="color:#98a8c0;">Échap / B</span>
+          </div>`;
+        i = 0;
+      } else {
+        itemsListEl.innerHTML = es.map((k, n) => {
+          const it = ITEMS[k];
+          const heldTag = it.hold ? `<span class="b2w2-held-tag">TENU</span>` : '';
+          return `<div class="list-row b2w2-item-row ${n === i ? 'on' : ''}" data-row="${n}">
+            <span class="cur">${n === i ? '▶' : ''}</span>
+            <div class="b2w2-item-ico-wrap">
+              <img class="b2w2-item-ico" src="${ASSETS.item(k)}" alt="">
+            </div>
+            <span class="b2w2-item-name">${esc(itemName(k))}</span>
+            ${heldTag}
+            <span class="b2w2-item-qty">${it.key ? 'CLÉ' : '× ' + bag[k]}</span>
+          </div>`;
+        }).join('') +
+        `<div class="list-row b2w2-item-row b2w2-close-row ${i === es.length ? 'on' : ''}" data-row="${es.length}">
+          <span class="cur">${i === es.length ? '▶' : ''}</span>
+          <span class="b2w2-item-name" style="color:#ff9898;">FERMER LE SAC</span>
+          <span class="b2w2-item-qty" style="color:#98a8c0;">Échap / B</span>
+        </div>`;
+      }
+
+      // Liaisons événements sur les lignes de la liste
+      itemsListEl.querySelectorAll('[data-row]').forEach((row) => {
+        const idx = +row.dataset.row;
+        row.addEventListener('mouseenter', () => {
+          if (!busy && i !== idx) {
+            i = idx;
+            itemsListEl.querySelectorAll('.b2w2-item-row').forEach((r, k) => {
+              r.classList.toggle('on', k === i);
+              const cur = r.querySelector('.cur');
+              if (cur) cur.textContent = k === i ? '▶' : '';
+            });
+            ui.sound.sfx('blip');
+            updateInspector();
+          }
+        });
+        row.addEventListener('click', (e) => {
+          e.stopPropagation();
+          triggerRow(idx);
+        });
+      });
+
+      itemsListEl.querySelector('.b2w2-item-row.on')?.scrollIntoView({ block: 'nearest' });
+    };
+
+    const changePocket = (newP) => {
+      if (busy || newP === pocket) return;
+      pocket = (newP + 4) % 4;
+      i = 0;
+      ui.sound.sfx('blip');
+      updateWheel();
+      renderList();
+      updateInspector();
+    };
+
+    const changeItem = (newI) => {
+      const es = entries();
+      const max = es.length;
+      i = (newI + max + 1) % (max + 1);
+      ui.sound.sfx('blip');
+      itemsListEl.querySelectorAll('.b2w2-item-row').forEach((r, k) => {
+        r.classList.toggle('on', k === i);
+        const cur = r.querySelector('.cur');
+        if (cur) cur.textContent = k === i ? '▶' : '';
+      });
+      itemsListEl.querySelector('.b2w2-item-row.on')?.scrollIntoView({ block: 'nearest' });
+      updateInspector();
+    };
 
     const triggerRow = async (idx) => {
       if (busy) return;
@@ -548,132 +815,88 @@ export function bagScreen(game, o = {}) {
       if (idx === es.length) { ui.sound.sfx('cancel'); close(null); return; }
       if (idx < 0 || idx > es.length) return;
       i = idx;
-      draw();
-      ui.sound.sfx('select');
+      updateInspector();
+
       const item = es[i], it = ITEMS[item];
-      const opts = o.battle ? ['Utiliser', 'Annuler'] : it.key ? ['Utiliser', 'Annuler'] : ['Utiliser', 'Jeter', 'Annuler'];
-      busy = true;
-      const r = await ui.list({
-        items: opts.map((label) => ({
-          label,
-          disabled: label === 'Utiliser' && (o.battle ? !(it.heal || it.cure || it.revive || it.ball || it.pp || it.ppAll) : it.key && !it.field && item !== 'town-map'),
-        })),
-        cls: 'psub',
-        cancel: opts.length - 1,
-        parent: s,
-      });
-      busy = false;
-      if (opts[r] === 'Utiliser') { close({ item }); return; }
-      if (opts[r] === 'Jeter') {
-        busy = true;
-        const q = await ui.quantity(bag[item]);
-        if (q && await ui.yesNo(`Jeter ${q} ${itemName(item)} ?`)) { bag[item] -= q; if (bag[item] <= 0) delete bag[item]; }
-        busy = false;
+      const canUse = o.battle
+        ? (it.heal || it.cure || it.revive || it.ball || it.pp || it.ppAll)
+        : (!it.key || it.field || item === 'town-map' || item === 'velo');
+
+      if (!canUse) {
+        ui.sound.sfx('bump');
+        return;
       }
-      draw();
+      ui.sound.sfx('select');
+      close({ item });
     };
 
-    const draw = () => {
-      const es = entries();
-      if (i > es.length) i = es.length;
-      const sel = es[i];
-      const tabsHtml = POCKETS.map(([, label], idx) => {
-        const cnt = entriesFor(idx).length;
-        return `<button type="button" class="bag-tab ${idx === pocket ? 'on' : ''}" data-pocket="${idx}">
-          <span class="bag-tab-dot b${idx}"></span>
-          <span class="bag-tab-lbl">${esc(label)}</span>
-          <span class="bag-tab-cnt">${cnt}</span>
-        </button>`;
-      }).join('');
-
-      s.innerHTML = `
-        <div class="scr-bar">
-          <div class="scr-bar-left">
-            <img class="scr-bar-ico" src="img/hud/bag.png" alt="">
-            <span class="scr-bar-title">SAC D'OBJETS</span>
-            <span class="scr-bar-sub">${esc(POCKETS[pocket][1].toUpperCase())}</span>
-          </div>
-          <div class="scr-bar-right">
-            <span class="scr-money-pill"><img src="img/hud/coin.png" alt=""> ${(game.state?.money || 0).toLocaleString('fr-FR')} ₽</span>
-            <button type="button" class="scr-close-btn" data-act="close">FERMER ✕</button>
-          </div>
-        </div>
-        <div class="bag-tabs">${tabsHtml}</div>
-        <div class="bag-body">
-          <div class="bag-left">
-            <div class="bag-pic">
-              <div class="bag-icon-stage">
-                <div class="bag-icon b${pocket}"></div>
-              </div>
-              <div class="bag-pocket-title">◀ ${esc(POCKETS[pocket][1])} ▶</div>
-              <div class="bag-pocket-sub">${esc(POCKET_DESC[pocket] || '')}</div>
-            </div>
-            <div class="bag-desc">
-              ${sel ? `
-                <div class="bag-desc-top">
-                  <div class="itm-big-wrap"><img class="itm-big" src="${ASSETS.item(sel)}" alt=""></div>
-                  <div class="bag-desc-meta">
-                    <div class="bag-desc-name">${esc(itemName(sel))}</div>
-                    <div class="bag-desc-qty">${ITEMS[sel].key ? 'Objet rare' : `En sac : × ${bag[sel]}`}</div>
-                  </div>
-                </div>
-                <div class="bag-desc-txt">${esc(ITEMS[sel].desc)}</div>
-              ` : `
-                <div class="bag-desc-empty">Fermer le Sac et revenir à l'aventure.</div>
-              `}
-            </div>
-          </div>
-          <div class="bag-list">
-            <div class="list-items">
-              ${es.length === 0 ? `<div class="bag-empty-msg">Cette poche est vide pour le moment.</div>` : ''}
-              ${es.map((k, n) => `
-                <div class="list-row bag-row ${n === i ? 'on' : ''}" data-row="${n}">
-                  <span class="cur">▶</span>
-                  <img class="itm" src="${ASSETS.item(k)}" alt="">
-                  <span class="lbl">${esc(itemName(k))}</span>
-                  <span class="rgt">${ITEMS[k].key ? 'CLÉ' : '× ' + bag[k]}</span>
-                </div>`).join('')}
-              <div class="list-row bag-row bag-close-row ${i === es.length ? 'on' : ''}" data-row="${es.length}">
-                <span class="cur">▶</span>
-                <span class="lbl">FERMER LE SAC</span>
-                <span class="rgt">Échap</span>
-              </div>
-            </div>
-          </div>
-        </div>`;
-
-      s.querySelector('.list-row.on')?.scrollIntoView({ block: 'nearest' });
-      s.querySelector('[data-act="close"]')?.addEventListener('click', () => { ui.sound.sfx('cancel'); close(null); });
-      s.querySelectorAll('[data-pocket]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          if (busy) return;
-          pocket = +btn.dataset.pocket;
-          i = 0;
-          ui.sound.sfx('blip');
-          draw();
-        });
-      });
-      s.querySelectorAll('[data-row]').forEach((row) => {
-        const idx = +row.dataset.row;
-        row.addEventListener('mouseenter', () => {
-          if (!busy && i !== idx) { i = idx; ui.sound.sfx('blip'); draw(); }
-        });
-        row.addEventListener('click', (e) => {
-          e.stopPropagation();
-          triggerRow(idx);
-        });
-      });
-    };
-    draw();
-    const pop = ui.input.push(async (k) => {
+    const handleToss = async () => {
       if (busy) return;
       const es = entries();
-      if (k === 'left' || k === 'right') { pocket = (pocket + (k === 'left' ? POCKETS.length - 1 : 1)) % POCKETS.length; i = 0; ui.sound.sfx('blip'); draw(); return; }
-      if (k === 'up') { i = (i - 1 + es.length + 1) % (es.length + 1); ui.sound.sfx('blip'); draw(); return; }
-      if (k === 'down') { i = (i + 1) % (es.length + 1); ui.sound.sfx('blip'); draw(); return; }
+      const item = es[i];
+      if (!item || ITEMS[item]?.key || o.battle) return;
+      busy = true;
+      const q = await ui.quantity(bag[item]);
+      if (q && await ui.yesNo(`Jeter ${q} ${itemName(item)} ?`)) {
+        bag[item] -= q;
+        if (bag[item] <= 0) delete bag[item];
+        ui.sound.sfx('item');
+      }
+      busy = false;
+      updateCounts();
+      renderList();
+      updateInspector();
+    };
+
+    // Initialisation
+    updateCounts();
+    updateWheel();
+    renderList();
+    updateInspector();
+
+    // Flèches haut / bas de la roue
+    s.querySelector('.b2w2-wheel-nav.up')?.addEventListener('click', () => changePocket(pocket - 1));
+    s.querySelector('.b2w2-wheel-nav.down')?.addEventListener('click', () => changePocket(pocket + 1));
+
+    // Clic direct sur un emplacement de la roue
+    wheelSlots.forEach((slot) => {
+      slot.addEventListener('click', () => {
+        const p = +slot.dataset.pocket;
+        changePocket(p);
+      });
+    });
+
+    // Molette de souris sur le panneau gauche pour faire tourner la roue
+    leftPanel?.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (busy) return;
+      if (e.deltaY > 15) changePocket(pocket + 1);
+      else if (e.deltaY < -15) changePocket(pocket - 1);
+    }, { passive: false });
+
+    // Boutons de l'inspecteur
+    useBtn?.addEventListener('click', () => {
+      const es = entries();
+      if (i === es.length) { ui.sound.sfx('cancel'); close(null); }
+      else triggerRow(i);
+    });
+    tossBtn?.addEventListener('click', handleToss);
+    closeBtn?.addEventListener('click', () => { ui.sound.sfx('cancel'); close(null); });
+    s.querySelector('[data-act="close"]')?.addEventListener('click', () => { ui.sound.sfx('cancel'); close(null); });
+
+    // Contrôles Clavier / Manette
+    const pop = ui.input.push(async (k) => {
+      if (busy) return;
+      if (k === 'left') { changePocket(pocket - 1); return; }
+      if (k === 'right') { changePocket(pocket + 1); return; }
+      if (k === 'up') { changeItem(i - 1); return; }
+      if (k === 'down') { changeItem(i + 1); return; }
       if (k === 'b') { ui.sound.sfx('cancel'); close(null); return; }
-      if (k !== 'a') return;
-      await triggerRow(i);
+      if (k === 'a') {
+        const es = entries();
+        if (i === es.length) { ui.sound.sfx('cancel'); close(null); return; }
+        await triggerRow(i);
+      }
     });
   });
 }
