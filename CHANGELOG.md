@@ -1,5 +1,11 @@
 # Journal des versions — Arcadia
 
+## 3.85 — 3 novembre 2026
+- **Odyssée** — Des grottes en vraie roche :
+  - Les parois ne sont plus des blocs carrés : la roche monte en pentes, avec des coins en biais et des terrasses, comme sur DS.
+  - Les montagnes autour des entrées de grottes ont des flancs inclinés et une vraie bouche en arche.
+  - Les rochers pointus se dressent sur le haut des parois, un peu moins nombreux.
+
 ## 3.84 — 3 novembre 2026
 - **Odyssée** — Décors et confort :
   - Les grottes ont de vraies parois de roche, en gradins comme sur DS, hérissées de rochers pointus.
