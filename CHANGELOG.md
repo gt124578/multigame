@@ -1,5 +1,14 @@
 # Journal des versions — Arcadia
 
+## 3.82 — 3 novembre 2026
+- **Odyssée** — Le Domaine, seconde partie, façon Pokémon Pokopia : le terrain du frigo coûte maintenant 50 000 ₽, et c'est une terre desséchée à faire revivre.
+  - Choisis DOMAINE dans le menu pour t'y téléporter de n'importe où, et REVENIR pour retourner là où tu étais.
+  - Récolte les souches mortes, les rochers et les broussailles : bois, pierre, fibres et graines. Ils repoussent en un peu moins d'une journée.
+  - Bâtis avec ces matériaux : herbe, fleurs, arbres, bassins, chemins, pavés, bancs, lampadaires, fontaine, maisons, Centre de soins, boutique…
+  - Seize Pokémon viennent s'installer quand leur habitat leur plaît, et se promènent chez toi. Bulbizarre, Carapuce, Racaillou, Machoc, Pikachu et Évoli t'apprennent chacun un talent qui débloque de nouvelles constructions.
+  - Parle à tes Pokémon : ils te soufflent ce que le prochain habitant aimerait trouver. L'architecte tient le carnet des habitats.
+  - De terre desséchée à grande ville : ton domaine grandit avec ses habitants.
+
 ## 3.81 — 3 novembre 2026
 - **Odyssée** — Le frigo de la maison cache une petite annonce : un très grand terrain à acheter juste derrière chez toi. On y entre par la porte du jardin, au fond de la chambre.
   - Avec l'architecte, bâtis ton propre coin : chemins, pavés, fleurs, hautes herbes (avec des Pokémon sauvages), bassins, ponts, arbres, clôtures, lampadaires, bancs, fontaine, statues…

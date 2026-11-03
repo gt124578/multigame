@@ -22,7 +22,7 @@ import { syncJournal } from './core/questsData.js';
 import { QUIZ } from './world/arenes.js';
 import { casinoScreen, bourseScreen, entretienPierre } from './ui/metropole.js';
 import { apparenceScreen } from './ui/apparence.js';
-import { preparerDomaine, frigo, architecte } from './ui/domaine.js';
+import { preparerDomaine, frigo, architecte, recolter, allerDomaine, resident, arrivees } from './ui/domaine.js';
 import { composer } from './render/tenue.js';
 
 // v2 : nouvelle région (arènes dans un autre ordre, archipel, créatures originales) — les sauvegardes v1 ne sont pas reprises
@@ -364,6 +364,7 @@ export class Game {
     // lieux visités (et visités la nuit) : certaines requêtes des habitants en dépendent
     st.flags['V:' + this.mapObj.id] = true;
     if (this.mapObj.gymLock != null) st.flags['IN:' + this.mapObj.id] = !st.badges[this.mapObj.gymLock];
+    if (this.mapObj.id === 'domaine' && st.domaine) await arrivees(this);   // des Pokémon dont l'habitat est prêt viennent s'installer
     { const h = this.hour(); if (h >= 20 || h < 5) st.flags['VN:' + this.mapObj.id] = true; }
     // au labo, le professeur accueille le joueur avant qu'il ne touche aux capsules
     // Tour de la Grue : trois bêtes s'enfuient à l'arrivée du joueur
@@ -906,6 +907,7 @@ export class Game {
     opts.push(['SAC', 'bag']);
     if (this.canField('vol')) opts.push(['VOL', 'fly']);
     opts.push(['QUÊTES', 'quests']);
+    if (st.domaine) opts.push([this.mapObj.id === 'domaine' ? 'REVENIR' : 'DOMAINE', 'domaine']);
     opts.push([st.name.toUpperCase(), 'card'], ['CARTE', 'map'], ['CODE', 'code'], ['OPTIONS', 'opt'], ['FERMER', 'close']);
     let idx = Math.min(this._menuIdx || 0, opts.length - 1);
     for (;;) {
@@ -920,6 +922,7 @@ export class Game {
       else if (k === 'card') await cardScreen(this, BADGES);
       else if (k === 'map') await mapScreen(this);
       else if (k === 'quests') await questsScreen(this);
+      else if (k === 'domaine') { this.busy = false; if (await allerDomaine(this)) break; this.busy = true; }
       else if (k === 'opt') await optionsScreen(this);
       else if (k === 'code') {
         // le code reprend la partie telle qu'elle est maintenant : on sauvegarde d'abord
@@ -964,6 +967,8 @@ export class Game {
   }
   /** le frigo de la maison (et l'aimant de l'agence immobilière) */
   frigo() { return frigo(this); }
+  /** récolter une ressource du Domaine (souche, rocher, broussaille) */
+  recolter(x, y, k) { return recolter(this, x, y, k); }
   /** à vélo : deux fois plus vite que la course, dehors seulement */
   onBike() { return !!this.state?.velo && this.mapObj?.outdoor && !this.player?.surf; }
   async toggleVelo() {
@@ -1465,6 +1470,7 @@ export class Game {
     if (name === 'pierre') return entretienPierre(this);
     if (name === 'apparence') return this.apparence();
     if (name === 'architecte') return architecte(this);
+    if (name === 'resident') return resident(this, n);
     if (name === 'mom') {
       if (!st.flags.starter) { await ui.say([`Ah, ${st.name}, tu es enfin réveillé${st.gender === 'f' ? 'e' : ''} !`, 'Le Professeur Saule est passé ce matin. Il t\'attend à son laboratoire, juste au sud-est.', 'Théo y est déjà, bien sûr... Allez, file !'], { speaker: 'Maman' }); return; }
       await ui.say(`${st.name} ! Tu as l'air épuisé${st.gender === 'f' ? 'e' : ''}. Repose-toi un peu.`, { keep: true, speaker: 'Maman' });
