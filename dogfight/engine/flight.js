@@ -3,28 +3,37 @@
 // Moteur pur : aucun DOM, aucun réseau. Les invités rejouent cette même fonction pour prédire leur avion.
 // Repère de l'avion : +Z le nez, +Y le dos, +X l'aile gauche du pilote.
 
+// ab : la capacité de l'avion (voir abilities.js) ; stall : vitesse de décrochage (m/s), plus basse pour ceux qui tiennent l'air lentement
 export const TYPES = {
-  f16: { name: 'F-16', full: 'F-16 Fighting Falcon', cruise: 125, boost: 208, pitch: 1.75, roll: 3.5, yaw: 0.55, hp: 100, gun: 4.6, missiles: 4, flares: 6, sig: 1, blurb: 'Agile et nerveux : le meilleur roulis et le canon qui frappe le plus fort.' },
-  f22: { name: 'F-22', full: 'F-22 Raptor', cruise: 130, boost: 228, pitch: 1.5, roll: 2.7, yaw: 0.45, hp: 125, gun: 4.2, missiles: 4, flares: 6, sig: 0.6, blurb: 'Plus rapide et plus solide, moins vif, et plus long à accrocher pour les missiles.' },
-  cargo: { name: 'Transport', full: 'Avion de transport', cruise: 96, boost: 96, pitch: 0.5, roll: 0.8, yaw: 0.2, hp: 600, gun: 0, missiles: 0, flares: 0, sig: 1.6, blurb: '' },
+  f16: { name: 'F-16', full: 'F-16 Fighting Falcon', cruise: 125, boost: 208, pitch: 1.75, roll: 3.5, yaw: 0.55, hp: 100, gun: 4.6, sig: 1, stall: 50, ab: 'surge', blurb: 'Agile et nerveux : le meilleur roulis et un canon qui frappe fort.' },
+  f22: { name: 'F-22', full: 'F-22 Raptor', cruise: 130, boost: 228, pitch: 1.5, roll: 2.7, yaw: 0.45, hp: 125, gun: 4.2, sig: 0.6, stall: 50, ab: 'stealth', blurb: 'Le plus rapide, solide, moins vif, et long à accrocher pour les missiles.' },
+  rafale: { name: 'Rafale', full: 'Dassault Rafale', cruise: 128, boost: 216, pitch: 1.68, roll: 3.2, yaw: 0.52, hp: 110, gun: 4.5, sig: 0.8, stall: 48, ab: 'salvo', blurb: 'Polyvalent : bon partout, discret, rien d\'extrême.' },
+  su35: { name: 'Su-35', full: 'Soukhoï Su-35 Flanker-E', cruise: 122, boost: 214, pitch: 1.9, roll: 2.9, yaw: 0.68, hp: 120, gun: 4.6, sig: 1.15, stall: 42, ab: 'cobra', blurb: 'Gros et costaud, le roi des virages serrés à basse vitesse.' },
+  f18: { name: 'F/A-18', full: 'Boeing F/A-18E Super Hornet', cruise: 120, boost: 198, pitch: 1.72, roll: 3, yaw: 0.6, hp: 118, gun: 4.4, sig: 1.05, stall: 44, ab: 'jam', blurb: 'Solide et docile : il garde ses gouvernes même lent.' },
+  a10: { name: 'A-10', full: 'Fairchild A-10 Thunderbolt II', cruise: 104, boost: 158, pitch: 1.5, roll: 2.6, yaw: 0.55, hp: 175, gun: 6.8, sig: 1.25, stall: 38, ab: 'brrrt', blurb: 'Lent mais blindé, avec un canon monstrueux : le char volant.' },
+  cargo: { name: 'Transport', full: 'Avion de transport', cruise: 96, boost: 96, pitch: 0.5, roll: 0.8, yaw: 0.2, hp: 600, gun: 0, sig: 1.6, stall: 50, ab: null, blurb: '' },
 };
-export const TYPE_IDS = ['f16', 'f22'];   // ceux qu'on choisit au hangar
+export const TYPE_IDS = ['f16', 'f22', 'rafale', 'su35', 'f18', 'a10'];   // ceux qu'on choisit au hangar
 
-export const CENTER = 800;      // centre de l'île
-export const ZONE_WARN = 1900;  // au-delà : alerte « retour dans la zone »
-export const ZONE_MAX = 2400;   // au-delà : l'instructeur ramène l'avion
-export const CEILING = 1200;    // plafond : au-dessus, l'instructeur redescend
+export const CENTER = 800;      // centre de l'île d'Island Rush
+export const ZONE = { x: CENTER, z: CENTER };   // centre de la zone de jeu : chaque carte place le sien (archipel.js)
+export const ZONE_WARN = 6000;  // au-delà : alerte « retour dans la zone »
+export const ZONE_MAX = 6400;   // au-delà : l'instructeur ramène l'avion
+// la zone est un carré de 12 km : on mesure le plus grand des deux écarts au centre
+export const zoneDist = (x, z) => Math.max(Math.abs(x - ZONE.x), Math.abs(z - ZONE.z));
+export const CEILING = 2200;    // plafond : au-dessus, l'instructeur redescend
 
 const G = 12;              // gravité de jeu (un peu forte : monter coûte vraiment de la vitesse)
 const BOOST_THRUST = 48;   // poussée en postcombustion (m/s²)
 const INDUCED = 0.00035;   // traînée des virages serrés
-const STALL = 50;          // sous cette vitesse, le nez tombe
 const BRAKE_DRAG = 30;
 const AB_DRAIN = 1 / 9;    // la postcombustion tient 9 s
 const AB_FILL = 1 / 16;    // et se recharge en 16 s
 const AB_RESTART = 0.2;    // une fois vide, elle repart à 20 %
 const LAG_PITCH = 0.13, LAG_ROLL = 0.1, LAG_YAW = 0.18;   // inertie de l'avion : temps de réponse de chaque axe (s)
 const KEY_RELEASE = 0.22;  // une touche lâchée retombe à zéro en ce temps (s)
+export const COBRA_TIME = 1.7;   // le Cobra du Su-35 : le nez se dresse à plus de 100° puis retombe, sans changer de route
+const COBRA_ANGLE = 1.8;
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -87,15 +96,34 @@ export function instructor(s, ax, ay, az) {
   return { p, r, y };
 }
 
+// Le Cobra : l'avion se cabre d'un coup en gardant sa trajectoire, perd la moitié de sa vitesse, et le poursuivant passe devant
+export function startCobra(s) {
+  computeAxes(s);
+  Object.assign(s, { cob: COBRA_TIME, cqx: s.qx, cqy: s.qy, cqz: s.qz, cqw: s.qw, cvx: s.fx, cvy: s.fy, cvz: s.fz, cv: s.speed, wp: 0, wr: 0, wy: 0, boosting: false, braking: false });
+}
+function stepCobra(s, dt) {
+  s.cob = Math.max(0, s.cob - dt);
+  const t = 1 - s.cob / COBRA_TIME, th = COBRA_ANGLE * Math.sin(Math.PI * t) ** 0.8, h = -th / 2, sx = Math.sin(h), cw = Math.cos(h);
+  // la rotation de tangage se fait dans le repère de l'avion : q = q0 × (axe des ailes, -θ)
+  s.qx = s.cqw * sx + s.cqx * cw; s.qy = s.cqy * cw + s.cqz * sx; s.qz = s.cqz * cw - s.cqy * sx; s.qw = s.cqw * cw - s.cqx * sx;
+  computeAxes(s);
+  s.speed = Math.max(55, s.cv * (1 - 0.55 * t));
+  s.load = 2 + 6 * Math.sin(Math.PI * t);
+  s.x += s.cvx * s.speed * dt; s.y += s.cvy * s.speed * dt - 6 * t * dt; s.z += s.cvz * s.speed * dt;
+  s.ab = Math.min(1, s.ab + AB_FILL * dt);
+  return s;
+}
+
 // Un pas de vol. inp : p, r, y (commandes directes, -1 à 1), ax, ay, az (point visé), boost, brake, free (roulis libre), lim (force du tirage)
 export function stepFlight(s, inp, dt) {
-  const T = TYPES[s.type] || TYPES.f16;
+  const T = TYPES[s.type] || TYPES.f16, STALL = T.stall;
+  if (s.cob > 0) return stepCobra(s, dt);
   computeAxes(s);
 
   // 1. Hors de la zone : l'instructeur reprend la main
-  const dcx = CENTER - s.x, dcz = CENTER - s.z, dist = Math.hypot(dcx, dcz);
+  const dcx = ZONE.x - s.x, dcz = ZONE.z - s.z, dist = Math.hypot(dcx, dcz);
   let forced = null;
-  if (dist > ZONE_MAX) { forced = { x: dcx / dist * 0.97, y: 0.24 * (s.y < 200 ? 1 : 0), z: dcz / dist * 0.97 }; }
+  if (zoneDist(s.x, s.z) > ZONE_MAX) { forced = { x: dcx / dist * 0.97, y: 0.24 * (s.y < 200 ? 1 : 0), z: dcz / dist * 0.97 }; }
   else if (s.y > CEILING) { forced = { x: s.fx * 0.85, y: -0.5, z: s.fz * 0.85 }; }
 
   // 2. Commandes : directes si le joueur appuie, instructeur sinon
@@ -116,7 +144,7 @@ export function stepFlight(s, inp, dt) {
 
   // 3. Efficacité des gouvernes selon la vitesse, et dégâts
   const v = s.speed;
-  const auth = clamp((v - 38) / 52, 0.2, 1) * clamp(1.25 - (v - 140) / 260, 0.72, 1);
+  const auth = clamp((v - (STALL - 12)) / 52, 0.2, 1) * clamp(1.25 - (v - 140) / 260, 0.72, 1);
   const wantPitch = pc * T.pitch * auth * (1 - 0.45 * s.dT);
   const wantRoll = (rc * T.roll * auth + (s.dL - s.dR) * 0.28) * (1 - 0.3 * Math.max(s.dL, s.dR));
   const wantYaw = yc * T.yaw * auth;

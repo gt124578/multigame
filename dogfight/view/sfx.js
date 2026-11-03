@@ -1,11 +1,26 @@
-// Sons de Dogfight 3D, synthétisés avec WebAudio : réacteur, canon, explosions, et alarmes.
+// Sons de Dogfight 3D : vrais enregistrements (réacteur F110, postcombustion, canon, départ de missile, explosions,
+// leurres, hélices de l'A400M) chargés depuis sons/, et sons synthétisés WebAudio en attendant qu'ils arrivent.
 // Tout ce qui vient d'un autre avion est placé dans l'espace : volume selon la distance, gauche ou droite selon la caméra.
+
+const SONS = ['reacteur', 'postcombustion', 'canon', 'missile', 'explosion', 'impact', 'leurre', 'helices'];
+// les boucles, avec la durée du fondu qui recolle la fin sur le début
+const LOOPS = { reacteur: 0.4, postcombustion: 0.4, canon: 0.08, helices: 0.3 };
+
+// Coupe le silence que l'encodeur mp3 laisse aux bouts, puis fond la fin dans le début : la boucle ne claque pas
+function loopable(c, b, xf) {
+  const sr = b.sampleRate, pad = Math.round(0.06 * sr), d = b.getChannelData(0).subarray(pad, b.length - pad);
+  const X = Math.round(xf * sr), N = d.length - X, out = c.createBuffer(1, N, sr), o = out.getChannelData(0);
+  o.set(d.subarray(0, N));
+  for (let i = 0; i < X; i++) { const u = (i / X) * Math.PI / 2; o[i] = d[i] * Math.sin(u) + d[N + i] * Math.cos(u); }
+  return out;
+}
 
 export class DogfightAudio {
   constructor() {
     this.ctx = null; this.unlocked = false;
     this.cam = { x: 0, y: 0, z: 0, rx: 1, ry: 0, rz: 0 };
     this.alarmT = { ground: 0, missile: 0, lock: 0 };
+    this.buf = {};
   }
 
   unlock() {
@@ -23,6 +38,39 @@ export class DogfightAudio {
     this.startEngine();
     this.startGun();
     this.unlocked = true;
+    this.load();
+  }
+
+  load() {
+    const c = this.ctx;
+    for (const k of SONS) {
+      fetch(new URL(`../sons/${k}.mp3`, import.meta.url))
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
+        .then((a) => c.decodeAudioData(a))
+        .then((b) => { if (this.ctx !== c) return; this.buf[k] = k in LOOPS ? loopable(c, b, LOOPS[k]) : b; this.ready(k); })
+        .catch(() => { /* on garde le son synthétisé */ });
+    }
+  }
+
+  loop(k, out) { const s = this.ctx.createBufferSource(); s.buffer = this.buf[k]; s.loop = true; s.connect(out); s.start(); return s; }
+  gain(v, out = this.fx) { const g = this.ctx.createGain(); g.gain.value = v; g.connect(out); return g; }
+
+  // Un enregistrement arrive : les boucles prennent le relais du son synthétisé
+  ready(k) {
+    if (k === 'reacteur') { this.jetG = this.gain(0); this.jet = this.loop(k, this.jetG); }
+    else if (k === 'postcombustion') { this.abG = this.gain(0); this.ab = this.loop(k, this.abG); }
+    else if (k === 'canon') { this.gunS = this.gain(0); this.loop(k, this.gunS); this.gunG.gain.value = 0; }
+  }
+
+  // Joue un enregistrement une fois ; rend false s'il n'est pas encore chargé
+  play(k, out, vol = 1, rate = 1, at = 0, dur) {
+    const b = this.buf[k];
+    if (!b || !out) return false;
+    const c = this.ctx, t = c.currentTime, s = c.createBufferSource(), g = c.createGain();
+    s.buffer = b; s.playbackRate.value = rate; g.gain.value = vol;
+    if (dur) { g.gain.setValueAtTime(vol, t + dur * 0.7); g.gain.linearRampToValueAtTime(0, t + dur); }
+    s.connect(g).connect(out); s.start(t, at, dur);
+    return true;
   }
 
   startEngine() {
@@ -65,12 +113,46 @@ export class DogfightAudio {
   updateEngine(speed, boosting, braking, alive) {
     if (!this.unlocked) return;
     const t = this.ctx.currentTime;
+    if (this.jet) {
+      // le vrai réacteur monte en régime avec la vitesse ; la postcombustion s'ajoute par-dessus
+      const v = Math.min(1.3, speed / 200);
+      this.engG.gain.setTargetAtTime(0, t, 0.1);
+      this.jet.playbackRate.setTargetAtTime(braking ? 0.8 : 0.84 + v * 0.3 + (boosting ? 0.06 : 0), t, 0.25);
+      this.jetG.gain.setTargetAtTime(!alive ? 0 : braking ? 0.2 : 0.26 + v * 0.08, t, 0.15);
+      if (this.ab) this.abG.gain.setTargetAtTime(alive && boosting ? 0.42 : 0, t, boosting ? 0.08 : 0.3);
+      return;
+    }
     this.engF.frequency.setTargetAtTime(boosting ? 650 : braking ? 220 : 300 + (speed / 200) * 220, t, 0.15);
     this.turb.frequency.setTargetAtTime(boosting ? 880 : 320 + (speed / 200) * 300, t, 0.15);
     this.engG.gain.setTargetAtTime(!alive ? 0 : boosting ? 0.42 : braking ? 0.14 : 0.24, t, 0.12);
   }
-  setFiring(on) { if (this.unlocked) this.gunG.gain.setTargetAtTime(on ? 0.34 : 0, this.ctx.currentTime, 0.012); }
-  silence() { if (!this.unlocked) return; const t = this.ctx.currentTime; this.engG.gain.setTargetAtTime(0, t, 0.2); this.gunG.gain.setTargetAtTime(0, t, 0.02); }
+  setFiring(on) { if (this.unlocked) (this.gunS || this.gunG).gain.setTargetAtTime(on ? (this.gunS ? 0.42 : 0.34) : 0, this.ctx.currentTime, 0.012); }
+
+  // Le transport, placé dans l'espace : les hélices de l'A400M, les réacteurs du C-17 ; null quand il n'y en a pas
+  updateCargo(p) {
+    if (!this.unlocked) return;
+    const t = this.ctx.currentTime, k = p && (p.model === 'c17' ? 'reacteur' : 'helices');
+    if (k && k !== this.cargoK && this.buf[k]) {
+      if (!this.cargoG) {
+        this.cargoP = this.ctx.createStereoPanner ? this.ctx.createStereoPanner() : null;
+        if (this.cargoP) this.cargoP.connect(this.fx);
+        this.cargoG = this.gain(0, this.cargoP || this.fx);
+      }
+      if (this.cargo) this.cargo.stop();
+      this.cargo = this.loop(k, this.cargoG); this.cargo.playbackRate.value = k === 'reacteur' ? 0.6 : 1; this.cargoK = k;
+    }
+    if (!this.cargoG) return;
+    if (!p) { this.cargoG.gain.setTargetAtTime(0, t, 0.3); return; }
+    const dx = p.x - this.cam.x, dy = p.y - this.cam.y, dz = p.z - this.cam.z, d = Math.hypot(dx, dy, dz);
+    this.cargoG.gain.setTargetAtTime((k === 'reacteur' ? 0.6 : 0.9) * Math.min(1, 120 / Math.max(120, d)) * Math.max(0, 1 - d / 2600), t, 0.1);
+    if (this.cargoP && d > 1) this.cargoP.pan.setTargetAtTime(Math.max(-1, Math.min(1, (dx * this.cam.rx + dy * this.cam.ry + dz * this.cam.rz) / d)), t, 0.1);
+  }
+
+  silence() {
+    if (!this.unlocked) return;
+    const t = this.ctx.currentTime;
+    for (const g of [this.engG, this.gunG, this.jetG, this.abG, this.gunS, this.cargoG]) if (g) g.gain.setTargetAtTime(0, t, 0.2);
+  }
 
   tone(out, type, f0, f1, dur, vol) {
     const c = this.ctx, t = c.currentTime, o = c.createOscillator(), g = c.createGain();
@@ -85,22 +167,28 @@ export class DogfightAudio {
     s.connect(f).connect(g).connect(out); s.start(t, Math.random()); s.stop(t + dur + 0.02);
   }
 
-  // Le canon d'un autre avion : quelques claquements, au loin
-  otherGun(x, y, z) { const o = this.spatial(x, y, z, 1100, 0.5); if (o) this.tone(o, 'sawtooth', 130, 40, 0.05, 0.3); }
+  // Le canon d'un autre avion : un bout de rafale, au loin
+  otherGun(x, y, z) {
+    const o = this.spatial(x, y, z, 1100, 0.5); if (!o) return;
+    if (!this.play('canon', o, 0.7, 1, Math.random() * 2.5, 0.11)) this.tone(o, 'sawtooth', 130, 40, 0.05, 0.3);
+  }
   // Mon tir touche
   hitConfirm() { if (this.unlocked) this.tone(this.fx, 'triangle', 1500, 900, 0.05, 0.16); }
   // On me touche : impact sec dans la carlingue
-  hitMe() { if (!this.unlocked) return; this.tone(this.fx, 'square', 240, 60, 0.09, 0.42); this.burst(this.fx, 0.1, 0.4, 2600, 500); }
+  hitMe() { if (!this.unlocked) return; this.tone(this.fx, 'square', 240, 60, 0.09, 0.3); if (!this.play('impact', this.fx, 0.75, 1.1)) this.burst(this.fx, 0.1, 0.4, 2600, 500); }
   // Un autre avion est touché
-  hitOther(x, y, z) { const o = this.spatial(x, y, z, 900, 0.5); if (o) this.tone(o, 'triangle', 320, 70, 0.07, 0.4); }
+  hitOther(x, y, z) { const o = this.spatial(x, y, z, 900, 0.5); if (o && !this.play('impact', o, 0.6, 1.3)) this.tone(o, 'triangle', 320, 70, 0.07, 0.4); }
   explosion(x, y, z, big = true) {
     if (!this.unlocked) return;
     const o = this.spatial(x, y, z, 3200, big ? 1.5 : 0.8); if (!o) return;
+    if (this.play('explosion', o, big ? 0.65 : 0.5, big ? 0.85 + Math.random() * 0.15 : 1.25)) { if (big) this.tone(o, 'sine', 90, 18, 0.8, 0.5); return; }
     this.tone(o, 'sine', 110, 18, big ? 0.7 : 0.35, 0.85); this.burst(o, big ? 0.7 : 0.35, 0.7);
   }
-  missileLaunch(x, y, z) { const o = this.spatial(x, y, z, 1500, 1.1); if (o) this.burst(o, 0.8, 0.5, 1800, 300); }
+  missileLaunch(x, y, z) { const o = this.spatial(x, y, z, 1500, 1.1); if (o && !this.play('missile', o, 0.6, 0.95 + Math.random() * 0.1)) this.burst(o, 0.8, 0.5, 1800, 300); }
   overheat() { if (this.unlocked) { this.tone(this.fx, 'sine', 800, 800, 0.08, 0.25); setTimeout(() => this.unlocked && this.tone(this.fx, 'sine', 600, 600, 0.1, 0.25), 90); } }
-  flare() { if (this.unlocked) this.burst(this.fx, 0.25, 0.3, 3000, 900); }
+  flare() { if (this.unlocked && !this.play('leurre', this.fx, 0.55)) this.burst(this.fx, 0.25, 0.3, 3000, 900); }
+  // capacité déclenchée : une montée brève, plus grave pour le Brrrt
+  ability(id) { if (!this.unlocked) return; const lo = id === 'brrrt' || id === 'surge'; this.tone(this.fx, 'triangle', lo ? 220 : 440, lo ? 440 : 1320, 0.28, 0.26); }
   start() { if (this.unlocked) this.tone(this.fx, 'triangle', 660, 990, 0.25, 0.3); }
   count() { if (this.unlocked) this.tone(this.fx, 'sine', 520, 520, 0.12, 0.25); }
   win() { if (!this.unlocked) return; [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.unlocked && this.tone(this.fx, 'triangle', f, f, 0.22, 0.28), i * 130)); }

@@ -1,5 +1,6 @@
-// Armement de Dogfight 3D : canon rotatif M61, balles (qui héritent de la vitesse du tireur), surchauffe,
-// missiles à accrochage, leurres, et calcul du point d'anticipation.
+// Armement de Dogfight 3D : canon rotatif, balles (qui héritent de la vitesse du tireur), surchauffe,
+// missiles à accrochage (un toutes les 12 s, sans limite de stock), leurres (toutes les 9 s), et point d'anticipation.
+// Un avion caché ne s'accroche pas : dans un nuage, en rase-mottes, furtif, ou près d'un brouilleur ennemi.
 // Moteur pur : la cadence de tir ne dépend plus des images par seconde.
 import { TYPES } from './flight.js';
 
@@ -20,12 +21,32 @@ export const MISSILE_SPEED = 345;
 export const MISSILE_ACCEL = 170;
 export const MISSILE_TURN = 1.5;     // rad/s
 export const MISSILE_LIFE = 7;
-export const MISSILE_DAMAGE = 55;
+export const MISSILE_DAMAGE = 70;    // un F-16 neuf garde 30 % : il faut finir au canon
 export const MISSILE_FUSE = 14;
-export const MISSILE_COOLDOWN = 2;
-export const FLARE_COOLDOWN = 1.5;
+export const MISSILE_COOLDOWN = 12;
+export const FLARE_COOLDOWN = 9;
+export const LOW_HIDE = 50;          // en dessous (au-dessus du sol ou de l'eau), les radars ne voient plus l'avion
+export const JAM_RADIUS = 1100;      // portée du brouilleur du F/A-18
 export const FLARE_TIME = 0.7;
 export const FLARE_BREAK = 0.7;      // chance qu'un leurre fasse décrocher un missile
+
+const abOf = (p) => (TYPES[p.type] || TYPES.f16).ab;
+export const abActive = (p, id) => p.abT > 0 && abOf(p) === id;
+
+// Caché aux radars ? Furtif, rase-mottes, ou dans un nuage
+export function hidden(t, world) {
+  if (abActive(t, 'stealth')) return true;
+  if (!world) return false;
+  return t.y - world.obstacleAt(t.x, t.z) < LOW_HIDE || world.inCloud(t.x, t.y, t.z);
+}
+// Un brouilleur ennemi actif tout près de ce point ?
+export function jammed(planes, x, y, z, team, self) {
+  for (const q of planes) {
+    if (!q.alive || q.id === self || !abActive(q, 'jam') || (team && q.team === team)) continue;
+    if ((q.x - x) ** 2 + (q.y - y) ** 2 + (q.z - z) ** 2 < JAM_RADIUS * JAM_RADIUS) return true;
+  }
+  return false;
+}
 
 // Point à viser pour toucher (position, vitesse) en tenant compte de sa propre vitesse et de la chute de la balle.
 // L'axe du canon doit passer par le point rendu.
@@ -60,18 +81,20 @@ export function stepGun(p, fire, dt, bullets, events) {
   if (p.over) { p.overT -= dt; p.heat = Math.max(0, p.overT / OVERHEAT_LOCK); if (p.overT <= 0) { p.over = false; p.heat = 0; } }
   else p.heat = Math.max(0, p.heat - COOL_RATE * dt);
   p.firing = false;
-  p.fireAcc = Math.min(p.fireAcc + dt * FIRE_RATE, 2);
+  // Surcharge (F-16) : plus vite et sans chauffer ; Brrrt (A-10) : deux fois plus fort, sans chauffer
+  const surge = abActive(p, 'surge'), brrrt = abActive(p, 'brrrt');
+  p.fireAcc = Math.min(p.fireAcc + dt * FIRE_RATE * (surge ? 1.3 : 1), 2);
   if (!fire || p.over) { p.fireAcc = Math.min(p.fireAcc, 1); return; }
-  const T = TYPES[p.type] || TYPES.f16;
+  const T = TYPES[p.type] || TYPES.f16, dmg = T.gun * (brrrt ? 2 : 1);
   while (p.fireAcc >= 1) {
     p.fireAcc -= 1;
     p.firing = true;
-    p.heat += HEAT_PER_SHOT;
+    if (!surge && !brrrt) p.heat += HEAT_PER_SHOT;
     p.shots = (p.shots || 0) + 1;
     if (p.heat >= 1) { p.heat = 1; p.over = true; p.overT = OVERHEAT_LOCK; events.push({ e: 'hot', id: p.id }); p.fireAcc = 0; }
     const sx = (Math.random() - 0.5) * 0.008, sy = (Math.random() - 0.5) * 0.008;
     const dx = p.fx + p.lx * sx + p.ux * sy, dy = p.fy + p.ly * sx + p.uy * sy, dz = p.fz + p.lz * sx + p.uz * sy;
-    const b = { x: p.x + p.fx * 3.2, y: p.y + p.fy * 3.2, z: p.z + p.fz * 3.2, vx: dx * BULLET_SPEED + p.fx * p.speed, vy: dy * BULLET_SPEED + p.fy * p.speed, vz: dz * BULLET_SPEED + p.fz * p.speed, age: 0, by: p.id, team: p.team, dmg: T.gun };
+    const b = { x: p.x + p.fx * 3.2, y: p.y + p.fy * 3.2, z: p.z + p.fz * 3.2, vx: dx * BULLET_SPEED + p.fx * p.speed, vy: dy * BULLET_SPEED + p.fy * p.speed, vz: dz * BULLET_SPEED + p.fz * p.speed, age: 0, by: p.id, team: p.team, dmg };
     bullets.push(b);
     if (p.over) break;
   }
@@ -100,15 +123,15 @@ export function stepBullets(bullets, planes, world, dt, onHit, events) {
   }
 }
 
-// L'accrochage : un ennemi dans le cône, hors des nuages, assez longtemps
+// L'accrochage : un ennemi dans le cône, visible des radars, assez longtemps
 export function stepLock(p, planes, world, dt) {
   let best = null, bestDot = LOCK_CONE;
-  if (p.ms > 0) for (const t of planes) {
+  if (!jammed(planes, p.x, p.y, p.z, p.team, p.id)) for (const t of planes) {
     if (!t.alive || t.id === p.id || (p.team && p.team === t.team)) continue;
     const dx = t.x - p.x, dy = t.y - p.y, dz = t.z - p.z, d = Math.hypot(dx, dy, dz);
     if (d < 120 || d > LOCK_RANGE) continue;
     const dot = (dx * p.fx + dy * p.fy + dz * p.fz) / d;
-    if (dot > bestDot && !(world && world.inCloud(t.x, t.y, t.z))) { bestDot = dot; best = t; }
+    if (dot > bestDot && !hidden(t, world)) { bestDot = dot; best = t; }
   }
   if (!best) { p.lockT = Math.max(0, p.lockT - dt * 2); if (p.lockT === 0) p.lockId = null; return; }
   if (best.id !== p.lockId) { p.lockId = best.id; p.lockT = 0; }
@@ -116,12 +139,17 @@ export function stepLock(p, planes, world, dt) {
   p.lockT = Math.min(1, p.lockT + dt / (LOCK_TIME / sig));
 }
 
-export function launchMissile(p, missiles, events) {
-  if (p.ms <= 0 || p.msCd > 0 || p.lockT < 1 || p.lockId === null) return false;
-  p.ms--; p.msCd = MISSILE_COOLDOWN;
-  const m = { id: p.nextM = (p.nextM || 0) + 1, key: `${p.id}:${p.nextM}`, by: p.id, team: p.team, target: p.lockId, x: p.x - p.ux * 1.2, y: p.y - p.uy * 1.2, z: p.z - p.uz * 1.2, vx: p.fx * (p.speed + 30), vy: p.fy * (p.speed + 30), vz: p.fz * (p.speed + 30), speed: p.speed + 30, age: 0 };
+// Un missile part de sous l'aile (side : -1 gauche, 1 droite, 0 sous le ventre) vers la cible
+export function fireMissile(p, target, missiles, events, side = 0) {
+  const o = side * 2.4, m = { id: p.nextM = (p.nextM || 0) + 1, key: `${p.id}:${p.nextM}`, by: p.id, team: p.team, target, x: p.x - p.ux * 1.2 + p.lx * o, y: p.y - p.uy * 1.2 + p.ly * o, z: p.z - p.uz * 1.2 + p.lz * o, vx: p.fx * (p.speed + 30), vy: p.fy * (p.speed + 30), vz: p.fz * (p.speed + 30), speed: p.speed + 30, age: 0 };
   missiles.push(m);
-  events.push({ e: 'mfire', id: p.id, target: p.lockId, x: Math.round(m.x), y: Math.round(m.y), z: Math.round(m.z) });
+  events.push({ e: 'mfire', id: p.id, target, x: Math.round(m.x), y: Math.round(m.y), z: Math.round(m.z) });
+  return m;
+}
+export function launchMissile(p, missiles, events) {
+  if (p.msCd > 0 || p.lockT < 1 || p.lockId === null) return false;
+  p.msCd = MISSILE_COOLDOWN;
+  fireMissile(p, p.lockId, missiles, events, p.nextM % 2 ? 1 : -1);
   p.lockT = 0;
   return true;
 }
@@ -136,10 +164,13 @@ export function stepMissiles(missiles, planes, world, dt, onBlast, events) {
     const t = m.target !== null ? planes.find((q) => q.id === m.target) : null;
     if (m.target !== null && (!t || !t.alive)) m.target = null;
     if (t && t.alive) {
-      // un leurre lâché pendant le vol, ou un nuage, peut faire perdre la cible
-      if (t.flT > 0 && !m.seenFlare) { m.seenFlare = true; if (Math.random() < FLARE_BREAK) { m.target = null; events.push({ e: 'mlost', id: t.id }); } }
+      // un leurre lâché pendant le vol peut faire perdre la cible ; un brouilleur ou la furtivité la font perdre à coup sûr ;
+      // un nuage ou le rase-mottes, si la cible y reste assez longtemps
+      const lose = () => { m.target = null; events.push({ e: 'mlost', id: t.id }); };
+      if (t.flT > 0 && !m.seenFlare) { m.seenFlare = true; if (Math.random() < FLARE_BREAK) lose(); }
       if (t.flT <= 0) m.seenFlare = false;
-      if (m.target !== null && world && world.inCloud(t.x, t.y, t.z)) { m.blind = (m.blind || 0) + dt; if (m.blind > 0.7) { m.target = null; events.push({ e: 'mlost', id: t.id }); } } else m.blind = 0;
+      if (m.target !== null && (abActive(t, 'stealth') || jammed(planes, m.x, m.y, m.z, m.team, m.by))) lose();
+      else if (m.target !== null && hidden(t, world)) { m.blind = (m.blind || 0) + dt; if (m.blind > 0.7) lose(); } else m.blind = 0;
     }
     let dirX = m.vx, dirY = m.vy, dirZ = m.vz, n = Math.hypot(dirX, dirY, dirZ) || 1;
     dirX /= n; dirY /= n; dirZ /= n;

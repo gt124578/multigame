@@ -1,14 +1,29 @@
 // Pilotes de Dogfight 3D : ils choisissent où viser, et le même instructeur que le joueur pilote l'avion.
 // Trois niveaux, de vraies différences de visée, de discipline de tir et de réflexes.
-import { computeLead, stepLock } from './weapons.js';
-import { CENTER, ZONE_WARN, TYPES } from './flight.js';
+import { computeLead, stepLock, abActive, LOCK_RANGE } from './weapons.js';
+import { CENTER, ZONE, ZONE_WARN, zoneDist, TYPES } from './flight.js';
 import { ZONE_CEIL } from './modes.js';
 
+// ab : chance de bien utiliser sa capacité quand l'occasion se présente
 export const LEVELS = {
-  facile: { react: 0.8, err: 0.014, wobble: 0.5, range: 420, cone: 0.995, burst: 0.8, rest: 0.75, sight: 1100, pull: 0.72, missiles: false, flares: 0, evade: 0, heat: 0.6, margin: 90, patience: 3.5, extend: 3.2 },
-  normal: { react: 0.4, err: 0.01, wobble: 0.9, range: 500, cone: 0.9965, burst: 1, rest: 0.45, sight: 1500, pull: 0.86, missiles: true, flares: 0.45, evade: 0.2, heat: 0.75, margin: 70, patience: 4.5, extend: 2.8 },
-  expert: { react: 0.2, err: 0.006, wobble: 1.3, range: 640, cone: 0.998, burst: 1.3, rest: 0.3, sight: 1800, pull: 1, missiles: true, flares: 0.9, evade: 0.4, heat: 0.85, margin: 55, patience: 6, extend: 2.2 },
+  facile: { react: 0.8, err: 0.014, wobble: 0.5, range: 420, cone: 0.995, burst: 0.8, rest: 0.75, sight: 1100, pull: 0.72, missiles: false, flares: 0, evade: 0, heat: 0.6, margin: 90, patience: 3.5, extend: 3.2, ab: 0.25 },
+  normal: { react: 0.4, err: 0.01, wobble: 0.9, range: 500, cone: 0.9965, burst: 1, rest: 0.45, sight: 1500, pull: 0.86, missiles: true, flares: 0.45, evade: 0.2, heat: 0.75, margin: 70, patience: 4.5, extend: 2.8, ab: 0.6 },
+  expert: { react: 0.2, err: 0.006, wobble: 1.3, range: 640, cone: 0.998, burst: 1.3, rest: 0.3, sight: 1800, pull: 1, missiles: true, flares: 0.9, evade: 0.4, heat: 0.85, margin: 55, patience: 6, extend: 2.2, ab: 1 },
 };
+
+// La capacité : chacun la garde pour le bon moment
+function wantsAbility(b, g, t, l, align) {
+  const id = (TYPES[b.type] || {}).ab, enemy = (q) => q.alive && q.id !== b.id && !(b.team && q.team === b.team) && q.type !== 'cargo';
+  if (id === 'surge' || id === 'brrrt') return !!(t && l.dist < 520 && align > 0.985);
+  if (id === 'stealth') return b.warn || g.planes.some((q) => enemy(q) && q.lockId === b.id && q.lockT > 0.5);
+  if (id === 'jam') return b.warn || g.missiles.some((m) => m.team !== b.team && b.team && (m.x - b.x) ** 2 + (m.z - b.z) ** 2 < 800 * 800);
+  if (id === 'salvo') return !!(t && l.dist > 300 && l.dist < LOCK_RANGE && align > 0.9 && b.msCd > 4);
+  if (id === 'cobra') {
+    if (b.speed < 120) return false;
+    return g.planes.some((q) => { if (!enemy(q)) return false; const dx = b.x - q.x, dy = b.y - q.y, dz = b.z - q.z, d = Math.hypot(dx, dy, dz) || 1; return d < 380 && (dx * q.fx + dy * q.fy + dz * q.fz) / d > 0.93 && (dx * b.fx + dy * b.fy + dz * b.fz) / d > 0.5; });
+  }
+  return false;
+}
 
 const norm = (x, y, z) => { const n = Math.hypot(x, y, z) || 1; return { x: x / n, y: y / n, z: z / n }; };
 
@@ -28,9 +43,11 @@ function chooseZone(b, g, a) {
 
 export function botInput(b, g, world, dt) {
   const L = LEVELS[b.lvl] || LEVELS.normal;
-  const inp = { p: 0, r: 0, y: 0, boost: false, brake: false, fire: false, msl: false, flare: false, lim: L.pull };
-  const a = b.ai || (b.ai = { t: Math.random() * L.react, target: null, seed: Math.random() * 100, burst: 0, rest: 0, way: null, wayT: 0, evade: 0, ex: 0, ey: 0, ez: 0, stuck: 0, ext: 0, xx: 0, xz: 0 });
-  a.t -= dt;
+  const inp = { p: 0, r: 0, y: 0, boost: false, brake: false, fire: false, msl: false, flare: false, ab: false, lim: L.pull };
+  const a = b.ai || (b.ai = { t: Math.random() * L.react, target: null, seed: Math.random() * 100, burst: 0, rest: 0, way: null, wayT: 0, evade: 0, ex: 0, ey: 0, ez: 0, stuck: 0, ext: 0, xx: 0, xz: 0, abT: 0 });
+  a.t -= dt; a.abT -= dt;
+  // une fois par demi-seconde, on se demande si c'est le moment de la capacité (le Cobra et le brouilleur servent aussi en défense)
+  const abCheck = () => { if (b.abCd > 0 || a.abT > 0) return false; a.abT = 0.5; return Math.random() < L.ab; };
 
   // 1. Le sol d'abord : on regarde devant soi, d'autant plus loin qu'on va vite
   const here = world.obstacleAt(b.x, b.z), alt = b.y - here;
@@ -65,11 +82,11 @@ export function botInput(b, g, world, dt) {
     }
   }
 
-  // 3. Trop loin ou trop haut : retour vers l'île
-  const dcx = CENTER - b.x, dcz = CENTER - b.z, dist = Math.hypot(dcx, dcz);
-  if (dist > ZONE_WARN - 200 || b.y > 800) {
-    const dir = norm(dcx / (dist || 1), b.y > 650 ? -0.4 : 0.05, dcz / (dist || 1));
-    inp.ax = dir.x; inp.ay = dir.y; inp.az = dir.z; inp.boost = dist > ZONE_WARN;
+  // 3. Trop loin ou trop haut au-dessus du relief : retour vers le centre de la zone
+  const dcx = ZONE.x - b.x, dcz = ZONE.z - b.z, dist = Math.hypot(dcx, dcz), out = zoneDist(b.x, b.z);
+  if (out > ZONE_WARN - 200 || alt > 950) {
+    const dir = norm(dcx / (dist || 1), alt > 700 ? -0.4 : 0.05, dcz / (dist || 1));
+    inp.ax = dir.x; inp.ay = dir.y; inp.az = dir.z; inp.boost = out > ZONE_WARN;
     return inp;
   }
 
@@ -82,11 +99,13 @@ export function botInput(b, g, world, dt) {
       if (!q.alive || q.id === b.id || (b.team && b.team === q.team)) continue;
       const dx = q.x - b.x, dy = q.y - b.y, dz = q.z - b.z, d = Math.hypot(dx, dy, dz) || 1;
       const sight = L.sight * (TYPES[q.type] || TYPES.f16).sig ** 0.5;
-      if (d > sight || (d > 260 && world.inCloud(q.x, q.y, q.z))) continue;
+      if (d > sight || (d > 260 && world.inCloud(q.x, q.y, q.z)) || (d > 320 && abActive(q, 'stealth'))) continue;
       const dot = (dx * b.fx + dy * b.fy + dz * b.fz) / d;
       let score = dot * 1.6 - d / 700 + (q.id === a.target ? 0.5 : 0) + (q.health < 40 ? 0.3 : 0);
       if (q.type === 'cargo') score += 1.2;
       else if (cargo && cargo.alive && b.team === cargo.team && Math.hypot(q.x - cargo.x, q.z - cargo.z) < 650) score += 0.7;
+      // l'assaillant se retourne contre le chasseur qui lui colle aux ailes
+      else if (cargo && b.team !== cargo.team && d < 600 && (-dx * q.fx - dy * q.fy - dz * q.fz) / d > 0.8) score += 1.6;
       if (score > bestScore) { bestScore = score; best = q; }
     }
     a.target = best ? best.id : null;
@@ -104,8 +123,9 @@ export function botInput(b, g, world, dt) {
     }
   }
   // un missile nous suit : leurre et rupture
+  if ((b.warn || (TYPES[b.type] || {}).ab === 'cobra') && abCheck() && wantsAbility(b, g, null, null, 0)) inp.ab = true;
   if (b.warn) {
-    if (b.fl > 0 && b.flCd <= 0 && Math.random() < L.flares * dt * 3) inp.flare = true;
+    if (b.flCd <= 0 && Math.random() < L.flares * dt * 3) inp.flare = true;
     if (a.evade <= 0 && Math.random() < L.evade * dt * 4) { const s = Math.random() < 0.5 ? 1 : -1, e = norm(b.lx * s, 0.2, b.lz * s); a.ex = e.x; a.ey = e.y; a.ez = e.z; a.evade = 1.4; }
   }
   if (a.evade > 0) {
@@ -147,7 +167,8 @@ export function botInput(b, g, world, dt) {
     a.wayT -= dt;
     if (!a.way || a.wayT <= 0) {
       const an = Math.random() * 6.283, r = near ? (near.type === 'cargo' && near.team === b.team ? 140 : 60) + Math.random() * 120 : 200 + Math.random() * 500;
-      a.way = near ? { x: near.x + Math.cos(an) * r, y: Math.max(here + 160, Math.min(380, near.y + 20)), z: near.z + Math.sin(an) * r } : { x: CENTER + Math.cos(an) * r, y: 200 + Math.random() * 180, z: CENTER + Math.sin(an) * r };
+      const wx = near ? near.x + Math.cos(an) * r : CENTER + Math.cos(an) * r, wz = near ? near.z + Math.sin(an) * r : CENTER + Math.sin(an) * r, wg = world.obstacleAt(wx, wz);
+      a.way = near ? { x: wx, y: Math.max(here + 160, wg + 140, Math.min(wg + 380, near.y + 20)), z: wz } : { x: wx, y: wg + 200 + Math.random() * 180, z: wz };
       a.wayT = near ? 2.5 : 8;
     }
     const dir = norm(a.way.x - b.x, (a.way.y - b.y) * 0.8, a.way.z - b.z);
@@ -171,8 +192,8 @@ export function botInput(b, g, world, dt) {
   dir = norm(dir.x + Math.sin(time * L.wobble * 1.3) * e, dir.y + Math.sin(time * L.wobble * 1.9 + 1) * e, dir.z + Math.cos(time * L.wobble * 1.7 + 2) * e);
   // à basse altitude, on ne plonge pas sur une cible
   if (alt < (g.zones ? L.margin + 35 : 130) && dir.y < 0) dir = norm(dir.x, 0.02, dir.z);
-  // le combat reste au-dessus de l'île : on ne suit pas une cible jusqu'au plafond
-  if (b.y > 380 && (l.dist > 450 || dir.x * b.fx + dir.y * b.fy + dir.z * b.fz < 0.97)) dir = norm(dir.x, dir.y - Math.min(0.8, (b.y - 380) / 320), dir.z);
+  // le combat reste près du relief : on ne suit pas une cible jusqu'au plafond
+  if (alt > 420 && (l.dist > 450 || dir.x * b.fx + dir.y * b.fy + dir.z * b.fz < 0.97)) dir = norm(dir.x, dir.y - Math.min(0.8, (alt - 420) / 320), dir.z);
   inp.ax = dir.x; inp.ay = dir.y; inp.az = dir.z;
 
   const align = dir.x * b.fx + dir.y * b.fy + dir.z * b.fz;
@@ -191,8 +212,9 @@ export function botInput(b, g, world, dt) {
     if (a.burst > L.burst) { a.burst = 0; a.rest = L.rest * (0.7 + Math.random() * 0.6); }
   } else if (!inFire) a.burst = Math.max(0, a.burst - dt);
 
-  // 9. Missile quand l'accrochage est complet
+  // 9. Missile quand l'accrochage est complet, capacité quand l'occasion se présente
   if (L.missiles && b.lockT >= 1 && b.msCd <= 0 && l.dist > 280) inp.msl = true;
+  if (abCheck() && wantsAbility(b, g, t, l, align)) inp.ab = true;
   return inp;
 }
 export { stepLock };

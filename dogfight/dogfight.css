@@ -167,7 +167,7 @@ html, body {
 
 .h-planes {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
 }
 
@@ -219,6 +219,17 @@ html, body {
   color: #cbd5e1;
   min-height: 38px;
 }
+
+.h-ability {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 197, 61, .1);
+  border: 1px solid rgba(255, 197, 61, .3);
+  font-size: 13px;
+  line-height: 1.4;
+  color: #e2e8f0;
+}
+.h-ability b { color: #ffc53d; }
 
 .h-stats {
   display: grid;

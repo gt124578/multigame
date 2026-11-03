@@ -1,4 +1,7 @@
-Modèles 3D de Dogfight 3D. Leurs textures ont été réencodées en WebP (1024 px au plus) par tools/glb-webp.py ; la géométrie n'a pas changé.
+Ressources de Dogfight 3D et leurs licences.
+
+MODÈLES 3D
+Leurs textures ont été réencodées en WebP (1024 px au plus) par tools/glb-webp.py ; la géométrie n'a pas changé.
 
 f-16.glb — F-16 Fighting Falcon, par bohmerang, publié sur Sketchfab.
   Licence : Creative Commons Attribution - Pas d'utilisation commerciale - Partage dans les mêmes conditions 4.0
@@ -8,3 +11,54 @@ f-16.glb — F-16 Fighting Falcon, par bohmerang, publié sur Sketchfab.
 f-22.glb — F-22 Raptor, ajouté au projet par TahitoaSenis.
   Licence : NON CONFIRMÉE. L'origine et les conditions de ce modèle restent à vérifier auprès de TahitoaSenis.
   À remplacer si elles ne permettent pas de le distribuer ici.
+
+avions/*.glb — Rafale, Su-35, F/A-18, A-10, C-17 et A400M, tirés de modèles STL publiés sur Thingiverse : remis d'aplomb,
+mis à leur vraie longueur, allégés (moins de triangles), lissés et convertis en GLB par tools/avions-dogfight.mjs ; le jeu
+les peint et ajoute les hélices de l'A400M.
+  rafale.glb — « Dassault Rafale B for microarmor », par Captain_Ahab_62, https://www.thingiverse.com/thing:3541882.
+    Licence Creative Commons Attribution 4.0 (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/deed.fr). Modifié.
+  su35.glb — « Sukhoi Su-35 Flanker-E Jet Fighter », par HappyBattleSheep, https://www.thingiverse.com/thing:6720826. CC BY 4.0. Modifié.
+  f18.glb — « F-18e », par pershing1945, https://www.thingiverse.com/thing:6995299.
+    Licence Creative Commons Attribution - Partage dans les mêmes conditions 4.0
+    (CC BY-SA 4.0, https://creativecommons.org/licenses/by-sa/4.0/deed.fr). Modifié.
+  a10.glb — « A-10 thunderbolt », par pershing1945, https://www.thingiverse.com/thing:6890524. CC BY-SA 4.0. Modifié.
+  c17.glb — « C-17 Globemaster III », par pershing1945, https://www.thingiverse.com/thing:7425371. CC BY-SA 4.0. Modifié.
+  a400m.glb — « A400M », par pershing1945, https://www.thingiverse.com/thing:7010535. CC BY-SA 4.0. Modifié.
+  f18.glb, a10.glb, c17.glb et a400m.glb, tirés de modèles sous CC BY-SA 4.0, sont diffusés sous cette même licence.
+
+RELIEF (relief/*.bin)
+Tiré du modèle numérique de surface Copernicus GLO-30 par tools/relief-dogfight.py (rééchantillonné, fond de mer ajouté).
+  © DLR e.V. 2010-2014 et © Airbus Defence and Space GmbH 2014-2018, fourni dans le cadre de COPERNICUS
+  par l'Union européenne et l'ESA. Licence gratuite du Copernicus DEM : usage, copie et diffusion permis avec cette mention.
+
+VUE SATELLITE (relief/<carte>.webp et relief/<carte>-loin.webp)
+Tirée par tools/imagerie-dogfight.py de la mosaïque Sentinel-2 sans nuages EOxCloudless (https://cloudless.eox.at),
+par EOX IT Services GmbH ; contient des données Copernicus Sentinel modifiées. Rééchantillonnée et recadrée.
+  Éoliennes, Teno, Lofoten : édition 2017, licence Creative Commons Attribution 4.0
+    (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/deed.fr).
+  Kauai : édition 2024 (l'édition 2017 ne couvre pas Hawaï), licence Creative Commons Attribution - Pas d'utilisation
+    commerciale - Partage dans les mêmes conditions 4.0 (CC BY-NC-SA 4.0). Cette licence interdit tout usage commercial de l'image.
+
+ROUTES, BÂTIMENTS, CHAMPS ET COURS D'EAU (relief/<carte>-osm.json)
+© les contributeurs d'OpenStreetMap (https://www.openstreetmap.org/copyright). Extraits par tools/osm-dogfight.py
+(projetés, simplifiés). Ces fichiers sont sous licence Open Database License 1.0 (ODbL, https://opendatacommons.org/licenses/odbl/1-0/),
+comme les données d'origine.
+
+TEXTURES (textures/*.webp)
+Poly Haven (https://polyhaven.com), licence CC0 (domaine public). Réduites et réencodées en WebP.
+  herbe.webp — Aerial Grass Rock ; roche.webp — Aerial Rocks 04 ; falaise.webp — Marble Cliff 04 ;
+  plage.webp — Aerial Beach 01 ; neige.webp — Snow Field Aerial.
+  herbe_n.webp, roche_n.webp, falaise_n.webp : leur relief (normales) et leur occlusion, tirés des mêmes ensembles.
+
+SONS (sons/*.mp3)
+Découpés, passés en mono, normalisés et réencodés en MP3 ; les boucles sont recollées en fondu dans le jeu.
+  reacteur.mp3, postcombustion.mp3 — essais au sol d'un réacteur General Electric F110-GE-100, 177th Fighter Wing,
+    filmés par Andrew Moseley (US Air National Guard). Domaine public (œuvre du gouvernement fédéral américain), Wikimedia Commons.
+  canon.mp3 — « Minigun », par Jim Rogers, https://soundbible.com/1920-Minigun.html.
+    Licence Creative Commons Attribution 3.0 (CC BY 3.0, https://creativecommons.org/licenses/by/3.0/deed.fr).
+  missile.mp3 — tir d'un AIM-9X Sidewinder, White Sands Missile Range (US Army). Domaine public, Wikimedia Commons.
+  explosion.mp3 — « Blast », par Mike Koenig, https://soundbible.com/538-Blast.html. Licence CC BY 3.0.
+  impact.mp3 — « Explosion 2 » (S1808), par Joseph Sardin, BigSoundBank, https://bigsoundbank.com/explosion-2-s1808.html. CC0.
+  leurre.mp3 — « Flare ignition », par qubodup, https://opengameart.org/content/flare-ignition. CC0.
+  helices.mp3 — hélices d'un C-130J au sol, filmées par l'Airman 1st Class Jordan Lazaro (US Air Force), Ramstein.
+    Domaine public (œuvre du gouvernement fédéral américain), Wikimedia Commons.

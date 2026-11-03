@@ -20,6 +20,7 @@
     <button data-a="fire" class="t-fire">Tir</button>
     <button data-a="msl">Missile</button>
     <button data-a="flare">Leurre</button>
+    <button data-a="ab">Capacité</button>
     <button data-a="boost">Boost</button>
     <button data-a="brake">Frein</button>
   </div>
@@ -38,9 +39,14 @@
     <div class="h-planes" role="group" aria-label="Avion">
       <button type="button" data-plane="f16" aria-pressed="true"><b>F-16</b><span>Fighting Falcon</span></button>
       <button type="button" data-plane="f22" aria-pressed="false"><b>F-22</b><span>Raptor</span></button>
+      <button type="button" data-plane="rafale" aria-pressed="false"><b>Rafale</b><span>Dassault</span></button>
+      <button type="button" data-plane="su35" aria-pressed="false"><b>Su-35</b><span>Flanker-E</span></button>
+      <button type="button" data-plane="f18" aria-pressed="false"><b>F/A-18</b><span>Super Hornet</span></button>
+      <button type="button" data-plane="a10" aria-pressed="false"><b>A-10</b><span>Thunderbolt II</span></button>
     </div>
     <p class="h-mode" id="modeBrief"></p>
     <p class="h-blurb" id="planeBlurb"></p>
+    <p class="h-ability"><kbd>R</kbd> <b id="abilityName"></b> <span id="abilityDesc"></span></p>
     <dl class="h-stats">
       <dt>Vitesse</dt><dd><i id="stat-speed"></i></dd>
       <dt>Roulis</dt><dd><i id="stat-roll"></i></dd>
@@ -54,7 +60,8 @@
       <li><kbd>Souris</kbd> viser, l'avion suit</li>
       <li><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> piloter soi-même</li>
       <li><kbd>Espace</kbd> ou clic : canon</li>
-      <li><kbd>E</kbd> ou clic droit : missile, <kbd>F</kbd> : leurres</li>
+      <li><kbd>E</kbd> ou clic droit : missile (12 s), <kbd>F</kbd> : leurres (9 s)</li>
+      <li><kbd>R</kbd> : capacité de l'avion (25 s)</li>
       <li><kbd>Maj</kbd> postcombustion, <kbd>C</kbd> aérofrein</li>
     </ul>
     <button id="btnStart" class="btn-launch" type="button">Décoller</button>
