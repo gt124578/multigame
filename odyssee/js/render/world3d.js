@@ -5,6 +5,7 @@ import { T } from '../world/tiles.js';
 import { buildAtlas, buildAnimAtlas, buildSprites, applySpriteImages, facade, sideWall, roofTex, roofColors, kitColor, PAL, SOL16 } from './textures.js';
 import { SPRITES } from '../data/sprites.js';
 import { Sol } from './sol.js';
+import { archeGrotte } from './grottes.js';
 import { sorteCase, K as SORTE } from './solgen.js';
 
 export const EL = 55 * Math.PI / 180, FOV = 13;
@@ -184,8 +185,17 @@ export function vueCarte(map) {
       if (q === T.TREE || q === T.PINE) roc.add(x + ',' + y);
     }
   }
+  // dans une grotte, chaque sortie est une arche de roche où entre la lumière du dehors, au pied de la paroi du bas ;
+  // un rocher isolé juste dessous (seul devant l'arche) s'efface
+  const couloir = new Set(); v.sorties = [];
+  if (!map.outdoor) for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) {
+    if (map.get(x, y) !== T.CAVEDOOR) continue;
+    if (map.get(x, y + 1) === T.CAVEWALL && map.get(x - 1, y + 1) !== T.CAVEWALL && map.get(x + 1, y + 1) !== T.CAVEWALL && map.get(x, y + 2) !== T.CAVEWALL) couloir.add(x + ',' + (y + 1));
+    v.sorties.push({ x, y });
+  }
   const W = map.w, H = map.h, cl = (a, n) => Math.max(0, Math.min(n - 1, a));
   v.get = (x, y) => {
+    if (couloir.size && couloir.has(x + ',' + y)) return T.CAVE;
     if (map.in(x, y)) return roc.size && roc.has(x + ',' + y) ? T.CAVEWALL : map.get(x, y);
     if (!map.outdoor) return T.CAVEWALL;
     const cx = cl(x, W), cy = cl(y, H), d = Math.max(Math.abs(x - cx), Math.abs(y - cy)), b = map.get(cx, cy);
@@ -259,17 +269,6 @@ function rockSlope(G, A, bio, x0, z0, x1, z1, y0, y1, s, seed, topCell = null) {
   }
 }
 
-/** bouche de grotte : une arche sombre au bord irrégulier, plus noire au fond (pixel art, 32 × 24) */
-function grotteArche() {
-  const c = document.createElement('canvas'); c.width = 32; c.height = 24; const x = c.getContext('2d');
-  for (let py = 0; py < 24; py++) for (let px = 0; px < 32; px++) {
-    const dx = (px + 0.5 - 16) / 16, top = 24 - 22 * Math.sqrt(Math.max(0, 1 - dx * dx * dx * dx)) + (hash(px, 7) < 0.3 ? 1 : 0);
-    if (py + 0.5 < top) continue;
-    const edge = py + 0.5 < top + 1.6 || Math.abs(dx) > 0.9;
-    x.fillStyle = edge ? '#2a2420' : py < 14 ? '#0d0a08' : '#060504'; x.fillRect(px, py, 1, 1);
-  }
-  return c;
-}
 /** accumulateur de géométrie (quads indexés) */
 class Geo {
   constructor() { this.p = []; this.uv = []; this.c = []; this.i = []; this.n = 0; this.an = []; }
@@ -433,6 +432,7 @@ export class WorldView {
     this.scene.background = new THREE.Color(map.outdoor ? '#1d4f2a' : '#0c0a10');
     if (map.id === 'monde') this.scene.background = new THREE.Color('#1d4f2a');
     this.buildBuildings();
+    this.buildSorties();
     this.buildWindowsGroup();
     this.lastChunk = null;
   }
@@ -761,6 +761,17 @@ export class WorldView {
     for (const [kk, g] of this.chunks) { const [i, j] = kk.split(',').map(Number); g.visible = Math.abs(i - ci) <= 2 && Math.abs(j - cj) <= 2; }
   }
 
+  /** sorties des grottes vues de dedans : une arche de roche (couleurs de la grotte) où entre la lumière du jour */
+  buildSorties() {
+    const L = this.map.sorties; if (!L || !L.length) return;
+    const bio = this.biome === 'lune' ? 'terre' : this.biome, t = tex(archeGrotte(bio, true)); t.flipY = true; t.needsUpdate = true;
+    const mat = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.5 }); mat.userData.own = true;
+    for (const s of L) {
+      const geo = new THREE.PlaneGeometry(1.5, 1.25); geo.rotateX(-Math.PI / 2);   // 48 × 40 px, le bas sur le bas de la case
+      const me = new THREE.Mesh(geo, mat); me.position.set(s.x + 0.5, 0.0052, s.y + 1 - 0.625); me.renderOrder = 1; this.root.add(me);
+    }
+  }
+
   /* ---------------- bâtiments ---------------- */
   buildBuildings() {
     this.buildingMeshes = [];
@@ -774,9 +785,10 @@ export class WorldView {
       if (b.kind === 'cave') {
         // la montagne est dessinée par les plateaux de roche (vueCarte : l'entrée et les arbres qui la bordent) ;
         // ici seulement la bouche sombre, peinte dans la falaise au-dessus de la porte
-        const holeW = 1.5, holeD = 1.05;
+        const bio = bioDehors(this.map.zoneAt?.(b.x, b.y)?.theme), holeW = 1.5, holeD = 1.25;   // arche de 48 × 40 px
         const geo = new THREE.PlaneGeometry(holeW, holeD); geo.rotateX(-Math.PI / 2);
-        const mat = new THREE.MeshBasicMaterial({ map: T3('arche', grotteArche), transparent: true, alphaTest: 0.5 });
+        const mat = new THREE.MeshBasicMaterial({ map: T3('arche_' + bio, () => archeGrotte(bio)), transparent: true, alphaTest: 0.5 });
+        mat.map.flipY = true; mat.map.needsUpdate = true;   // ligne 0 de l'image = nord (le haut de l'arche)
         this.tinted.push(mat); mat.color.copy(this.tint);
         const hole = new THREE.Mesh(geo, mat); hole.position.set(b.doorX + 0.5, 0.0056, b.doorY + 1 - holeD / 2); hole.renderOrder = 1;
         g.add(hole); this.root.add(g); continue;
