@@ -2345,6 +2345,91 @@ export function atelier(D) {
     return G;
   };
 
+
+  /** arène ronde (9 × 9) : rotonde de pierre ceinte d'une colonnade sur tout le tour, toit arrondi de la couleur du type.
+   *  `style` : tholos (coupole en demi-sphère), tambour (étage de fenêtres entre colonnade et coupole), tuiles (toit
+   *  bas arrondi en tuiles, façon temple d'Hercule), nervures (coupole à côtes dorées et lanternon) */
+  B.areneRonde = ({ style = 'tholos', type = 'feu', pierre = null } = {}) => {
+    const T = ARENES[type] || ARENES.feu, acc = T.acc, A = COL(acc);
+    const G = new THREE.Group(), W = 9, ZF = 9, cx = W / 2, cz = ZF / 2 - 0.2;
+    const pc = pierre || '#d8d2c4';
+    const PM = M({ map: TX.pierre(pc) }), PC = M({ map: TX.pierre(mix(pc, 0.25)) }), PS = M({ map: TX.pierre(mix(pc, -0.25)) }), MA = M({ map: TX.marbre() });
+    const R = 3.9, Rc = 2.75, y0 = 0.6, Hc = 3.0;   // rayon de la colonnade, du mur (cella), hauteur du socle, des colonnes
+    // socle rond à gradins
+    for (let k = 0; k < 3; k++) G.add(at(cyl(R + 0.55 - k * 0.2, R + 0.6 - k * 0.2, y0 / 3, k % 2 ? PC : PS, 40), cx, y0 / 6 + k * y0 / 3, cz));
+    // cella : mur rond, frise de la couleur du type, fenêtres hautes
+    G.add(at(cyl(Rc, Rc, Hc + 0.2, PM, 32), cx, y0 + (Hc + 0.2) / 2, cz));
+    G.add(at(cyl(Rc + 0.03, Rc + 0.03, 0.3, A, 32), cx, y0 + 0.15, cz));
+    for (let i = 0; i < 8; i++) { const a = Math.PI / 2 + (i + 0.5) * Math.PI * 2 / 8; if (Math.abs(Math.sin(a) - 1) < 0.2) continue;
+      const f = new THREE.Group(); fenArc(f, 0, 0, 0, 0.42, 0.9, PC, M({ map: TX.vitrail(acc) })); f.position.set(cx + Math.cos(a) * (Rc + 0.01), y0 + 1.9, cz + Math.sin(a) * (Rc + 0.01)); f.rotation.y = Math.PI / 2 - a; G.add(f); }
+    // colonnade sur tout le tour
+    const n = style === 'tambour' ? 16 : 18;
+    for (let i = 0; i < n; i++) { const a = Math.PI / 2 + (i + 0.5) * Math.PI * 2 / n; colonne(G, cx + Math.cos(a) * R, cz + Math.sin(a) * R, y0, Hc, 0.17, MA, PC); }
+    // entablement en anneau : architrave, frise colorée, corniche
+    const yE = y0 + Hc;
+    const anneau = (r1, r2, h, y, mat) => { const g = new THREE.RingGeometry(r1, r2, 40); const top = new THREE.Mesh(g, mat); top.rotation.x = -Math.PI / 2; G.add(at(top, cx, y + h, cz)); G.add(at(cyl(r2, r2, h, mat, 40), cx, y + h / 2, cz)); };
+    anneau(Rc - 0.1, R + 0.25, 0.3, yE, PC);
+    G.add(at(cyl(R + 0.27, R + 0.27, 0.22, A, 40), cx, yE + 0.41, cz));
+    anneau(Rc - 0.1, R + 0.42, 0.18, yE + 0.52, PC);
+    for (let i = 0; i < 40; i++) { const a = i / 40 * Math.PI * 2; G.add(at(boite(0.12, 0.1, 0.12, PC), cx + Math.cos(a) * (R + 0.36), yE + 0.47, cz + Math.sin(a) * (R + 0.36))); }
+    const yT = yE + 0.7;
+    // toit en anneau au-dessus de la colonnade (pente douce vers l'extérieur), puis coupole sur le mur rond
+    const TT = M({ map: TX.canal(T.toit) }), Rd = Rc + 0.15;
+    if (style !== 'tuiles') {
+      // terrasse de pierre au-dessus de la colonnade, balustrade sur le pourtour (comme le Tempietto de Bramante)
+      G.add(at(cyl(R + 0.4, R + 0.4, 0.12, PC, 40), cx, yT + 0.06, cz));
+      const nb = 44; for (let i = 0; i < nb; i++) { const a = i / nb * Math.PI * 2; G.add(at(cyl(0.05, 0.06, 0.4, PC, 6), cx + Math.cos(a) * (R + 0.25), yT + 0.32, cz + Math.sin(a) * (R + 0.25))); }
+      const rampe = new THREE.Mesh(new THREE.TorusGeometry(R + 0.25, 0.07, 4, 48), PC); rampe.rotation.x = Math.PI / 2; G.add(at(rampe, cx, yT + 0.55, cz));
+      G.add(at(cyl(Rc + 0.25, Rc + 0.3, 0.6, PM, 32), cx, yT + 0.3, cz));
+    }
+    const coupole = (y, r, h, mat) => G.add(at(lathe([[r, 0], [r * 0.97, h * 0.3], [r * 0.85, h * 0.6], [r * 0.6, h * 0.86], [r * 0.3, h * 0.98], [0, h]], mat, 40), cx, y, cz));
+    const yC = yT + 0.6;
+    if (style === 'tholos') {
+      G.add(at(cyl(Rd, Rd, 0.35, PC, 32), cx, yC + 0.17, cz)); G.add(at(cyl(Rd + 0.04, Rd + 0.04, 0.1, A, 32), cx, yC + 0.3, cz));
+      coupole(yC + 0.35, Rd, 2.0, TT);
+      G.add(at(cyl(0.32, 0.36, 0.35, PC, 12), cx, yC + 2.45, cz)); G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 8), OR), cx, yC + 2.75, cz));
+    }
+    if (style === 'tambour') {
+      const Rt = Rc - 0.2, Ht = 1.1;
+      G.add(at(cyl(Rt, Rt, Ht, PM, 32), cx, yC + Ht / 2, cz));
+      for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; G.add(at(boite(0.26, 0.6, 0.04, COL('#2a2a34')), cx + Math.cos(a) * (Rt + 0.01), yC + Ht / 2, cz + Math.sin(a) * (Rt + 0.01)).rotateY(Math.PI / 2 - a)); G.add(at(cyl(0.06, 0.07, Ht, PC, 6), cx + Math.cos(a + 0.26) * (Rt + 0.05), yC + Ht / 2, cz + Math.sin(a + 0.26) * (Rt + 0.05))); }
+      G.add(at(cyl(Rt + 0.2, Rt + 0.2, 0.16, A, 32), cx, yC + Ht + 0.08, cz));
+      coupole(yC + Ht + 0.16, Rt + 0.1, 1.7, TT);
+      const yl = yC + Ht + 1.95; G.add(at(cyl(0.3, 0.34, 0.45, PC, 10), cx, yl, cz)); G.add(at(new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.4, 10), TT), cx, yl + 0.42, cz)); G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), OR), cx, yl + 0.68, cz));
+    }
+    if (style === 'tuiles') {
+      // un seul toit bas et rond en tuiles, qui déborde au-dessus de la colonnade (façon temple d'Hercule)
+      G.add(at(lathe([[R + 0.65, 0], [R + 0.2, 0.25], [R - 0.9, 0.7], [R - 2.0, 1.05], [1.0, 1.25], [0.3, 1.32], [0, 1.33]], M({ map: TX.tuiles(T.toit) }), 40), cx, yT - 0.05, cz));
+      G.add(at(cyl(R + 0.66, R + 0.66, 0.1, COL(mix(T.toit, -0.4)), 40), cx, yT - 0.05, cz));
+      G.add(at(cyl(0.3, 0.36, 0.3, PC, 10), cx, yT + 1.4, cz)); G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), OR), cx, yT + 1.65, cz));
+    }
+    if (style === 'nervures') {
+      G.add(at(cyl(Rd, Rd, 0.35, PC, 32), cx, yC + 0.17, cz));
+      const yd = yC + 0.35, hd = 2.2;
+      coupole(yd, Rd, hd, TT);
+      const prof = [[1, 0], [0.97, 0.3], [0.85, 0.6], [0.6, 0.86], [0.3, 0.98]];
+      for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2;
+        for (let k = 0; k < prof.length - 1; k++) { const r1 = prof[k][0] * Rd + 0.03, h1 = prof[k][1] * hd, r2 = prof[k + 1][0] * Rd + 0.03, h2 = prof[k + 1][1] * hd, L = Math.hypot(r2 - r1, h2 - h1);
+          const m = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, L), OR); m.position.set(cx + Math.cos(a) * (r1 + r2) / 2, yd + (h1 + h2) / 2, cz + Math.sin(a) * (r1 + r2) / 2);
+          m.lookAt(cx + Math.cos(a) * r2, yd + h2, cz + Math.sin(a) * r2); G.add(m); } }
+      const yl = yd + hd * 0.98; G.add(at(cyl(0.55, 0.55, 0.1, PC, 16), cx, yl + 0.05, cz));
+      for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; G.add(at(cyl(0.04, 0.04, 0.5, PC, 6), cx + Math.cos(a) * 0.45, yl + 0.35, cz + Math.sin(a) * 0.45)); }
+      G.add(at(cyl(0.38, 0.38, 0.5, LUM(mix(acc, 0.4), acc), 12), cx, yl + 0.35, cz));
+      G.add(at(lathe([[0.58, 0], [0.42, 0.2], [0.15, 0.42], [0, 0.46]], TT, 16), cx, yl + 0.6, cz)); G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), OR), cx, yl + 1.12, cz)); G.add(at(cyl(0.025, 0.025, 0.45, OR, 6), cx, yl + 0.9, cz));
+    }
+// entrée : porche à fronton sur l'avant, porte cintrée, plaque à la Poké Ball, torches, marches
+    const zf = cz + R + 0.45;
+    for (const s of [-1, 1]) colonne(G, cx + s * 1.05, zf, y0, Hc, 0.19, MA, PC);
+    G.add(at(boite(2.9, 0.4, 1.6, PC), cx, yE + 0.2, zf - 0.6)); G.add(at(boite(2.9, 0.16, 0.05, A), cx, yE + 0.2, zf + 0.2));
+    fronton(G, cx, yE + 0.4, zf + 0.2, 3.0, 0.8, 1.6, PC);
+    G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.25, 18), M({ map: emblemeTex(type, acc) })), cx, yE + 0.7, zf + 0.23));
+    porte2(G, cx, cz + Rc + 0.02, y0, 2.0, 1.2, '#4a2a16', OR, true);
+    { const b = new THREE.Group(); G.add(at(boite(1.5, 0.5, 0.08, OR), cx, y0 + 2.75, cz + Rc + 0.03)); pokeBall(b, 0, 0, 0, 0.18); b.position.set(cx, y0 + 2.75, cz + Rc + 0.1); b.scale.set(1, 1, 0.35); G.add(b); }
+    marches(G, cx, zf - 0.1, 2.6, 3, y0 / 3, 0.28, PS);
+    for (const s of [-1, 1]) brasero(G, cx + s * 2.2, 0, zf + 0.5, 0.6, 0.7);
+    return G;
+  };
+
   /* -------------------------------------------------------------- usine à Poké Balls ----------------------------- */
   /** une Poké Ball : moitié haute rouge, basse blanche, bande noire, bouton tourné vers le sud */
   function pokeBall(G, x, y, z, r, rouge = '#d83a32') {
@@ -2684,7 +2769,7 @@ export const EMPRISES = {
   maison: [4, 3], maisonL: [5, 5], maisonLongue: [5, 3], maisonHaute: [4, 4], maisonExt: [7, 4], chalet: [5, 5], residence: [6, 4],
   cabaneChasseur: [4, 3], cabanePecheur: [5, 4], grange: [6, 5], moulin: [4, 4], phare: [3, 3], auberge: [6, 5], chapelle: [4, 7],
   boulangerie: [4, 4], maisonThe: [5, 5], gare: [8, 4], kiosque: [4, 5], puits: [2, 2], etal: [2, 2],
-  mairie: [9, 5], fontaine: [3, 3], centre: [7, 5], boutique: [5, 4], arene: [12, 11], areneFeu: [12, 11], pavillonFeu: [12, 11], areneCour: [18, 14], areneBloc: [9, 6], labo: [10, 7],
+  mairie: [9, 5], fontaine: [3, 3], centre: [7, 5], boutique: [5, 4], arene: [12, 11], areneFeu: [12, 11], pavillonFeu: [12, 11], areneCour: [18, 14], areneBloc: [9, 6], areneRonde: [9, 9], labo: [10, 7],
   pagode: [11, 11], tourCendree: [11, 11], pavillon: [8, 7], tour: [8, 5], tourVerre: [10, 7], tourDeco: [8, 8], bourse: [12, 8], casino: [14, 8], ligue: [30, 14], usinePokeball: [32, 10],
   escalierMontant: [1, 2], escalierDescendant: [1, 2],
 };
