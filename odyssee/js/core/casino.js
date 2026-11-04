@@ -1,6 +1,6 @@
 // odyssee/js/core/casino.js — le Casino de Métropole (moteur sans DOM, testé par tools/test-odyssee-casino.mjs).
-// Machine à sous, blackjack, poker fermé à cinq cartes (le poker « d'avant » : on reçoit cinq cartes, on mise, on
-// échange, on remise), roulette européenne et belote classique à quatre (deux équipes, prise au premier ou au second tour).
+// Machine à sous, blackjack, roulette européenne et belote classique à quatre (deux équipes, prise au premier ou au
+// second tour) ; le poker Texas Hold'em est dans holdem.js, les bornes d'arcade dans arcade.js.
 // On joue avec des jetons achetés en Pokédollars au comptoir.
 
 export function rng(seed) { let s = seed >>> 0 || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
@@ -83,9 +83,9 @@ export const PARIS = {
 export const tirerRoulette = (r) => Math.floor(r() * 37);
 export function gainRoulette(paris, n) { let g = 0; for (const p of paris) if (PARIS[p.type].gagne(n, p.v)) g += p.mise * PARIS[p.type].paye; return g; }
 
-/* ======================= POKER FERMÉ (cinq cartes, un échange) ======================= */
+/* ======================= MAINS DE POKER (cinq cartes) ======================= */
 const CAT = ['Carte haute', 'Paire', 'Double paire', 'Brelan', 'Quinte', 'Couleur', 'Full', 'Carré', 'Quinte flush'];
-/** force d'une main de 5 cartes : [catégorie, départages…] (comparaison lexicographique) */
+/** force d'une main de 5 cartes : [catégorie, départages…] (comparaison lexicographique) ; sert de référence aux tests du Hold'em */
 export function forcePoker(main) {
   const rs = main.map((c) => c.r).sort((a, b) => b - a);
   const cnt = {}; for (const r of rs) cnt[r] = (cnt[r] || 0) + 1;
@@ -107,43 +107,6 @@ export function forcePoker(main) {
 }
 export const nomMain = (f) => CAT[f[0]];
 export function compare(a, b) { for (let i = 0; i < Math.max(a.length, b.length); i++) { const d = (a[i] || 0) - (b[i] || 0); if (d) return d; } return 0; }
-/** cartes qu'un joueur prudent garde à l'échange (indices) : ses paires / brelans / carrés, une couleur ou une quinte
- *  par les quatre bouts, sinon ses deux plus hautes cartes */
-export function garderPoker(main) {
-  const f = forcePoker(main);
-  if (f[0] >= 4 && f[0] !== 7) return [0, 1, 2, 3, 4];
-  const cnt = {}; for (const c of main) cnt[c.r] = (cnt[c.r] || 0) + 1;
-  if (f[0] >= 1) return main.map((c, i) => (cnt[c.r] >= 2 ? i : -1)).filter((i) => i >= 0);
-  for (const s of COULEURS) { const idx = main.map((c, i) => (c.s === s ? i : -1)).filter((i) => i >= 0); if (idx.length === 4) return idx; }
-  const ord = main.map((c, i) => [c.r, i]).sort((a, b) => a[0] - b[0]);
-  for (let k = 0; k < 2; k++) { const sub = ord.slice(k, k + 4); if (new Set(sub.map((x) => x[0])).size === 4 && sub[3][0] - sub[0][0] === 3) return sub.map((x) => x[1]); }
-  return ord.slice(3).map((x) => x[1]);
-}
-/** une manche : chacun met 1 jeton (l'ante), cinq cartes ; mises fixes (2 avant l'échange, 4 après), trois relances au plus */
-export function nouvellePartiePoker(r, joueurs = 4) {
-  const paquet = melanger(jeu52(), r);
-  const mains = []; for (let i = 0; i < joueurs; i++) mains.push(paquet.splice(0, 5));
-  return { paquet, mains, couche: Array(joueurs).fill(false), mise: Array(joueurs).fill(1), pot: joueurs, tour: 1, r };
-}
-/** l'ordinateur décide : se coucher, suivre ou relancer selon la force de sa main (avec un peu de bluff) */
-export function decisionIA(main, tour, aSuivre, r) {
-  const f = forcePoker(main), force = f[0] + (f[1] || 0) / 15;
-  const bluff = r() < 0.07;
-  if (force >= (tour === 1 ? 2 : 2.6) || bluff) return 'relancer';
-  if (force >= (tour === 1 ? 1 + 10 / 15 : 1 + 12 / 15) || aSuivre === 0) return 'suivre';
-  return r() < 0.25 ? 'suivre' : 'coucher';
-}
-export function echangerPoker(p, i, garder) {
-  const m = p.mains[i]; const neuve = garder.map((k) => m[k]);
-  while (neuve.length < 5) neuve.push(p.paquet.pop());
-  p.mains[i] = neuve;
-}
-/** gagnant(s) parmi ceux qui ne se sont pas couchés */
-export function abattage(p) {
-  let best = null, g = [];
-  p.mains.forEach((m, i) => { if (p.couche[i]) return; const f = forcePoker(m); const c = best ? compare(f, best) : 1; if (c > 0) { best = f; g = [i]; } else if (c === 0) g.push(i); });
-  return { gagnants: g, force: best };
-}
 
 /* ======================= BELOTE CLASSIQUE ======================= */
 // rangs de la belote : 7 8 9 10 V D R A ; valeurs à l'atout et hors atout

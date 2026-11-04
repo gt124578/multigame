@@ -31,6 +31,7 @@ addEventListener('unhandledrejection', (e) => fatal(e.reason));
 
 // éléments de décor dessinés repris dans le jeu (les autres restent dessinés par le code : herbes, fleurs…)
 const NATURE = ['tree', 'tree2', 'pine', 'snowpine', 'deadtree', 'palm', 'bush', 'rock', 'stalag', 'sign', 'fence', 'lamp', 'mailbox', 'pot', 'itemball', 'bang', 'statue'];
+const MOBILIER_PLUS = ['machine_sous', 'borne_tetris', 'borne_invaders', 'borne_briques', 'borne_serpent'];
 const SOLS = ['tall0', 'tall1', 'darktall0', 'darktall1', 'snowtall0', 'snowtall1', 'floor_wood', 'floor_center', 'floor_mart', 'floor_lab', 'floor_league', 'floor_gymBug', 'floor_gymRock', 'floor_gymWater', 'floor_gymElec', 'floor_gymGrass', 'floor_gymPsy', 'floor_gymFire', 'floor_gymDragon', 'wall_center', 'wall_mart', 'wall_gym', 'wall_league'];
 
 async function loadArt() {
@@ -41,6 +42,8 @@ async function loadArt() {
   // mobilier (sans écraser un élément de la nature du même nom, comme la statue d'arène)
   for (const k of Object.keys(SPRITES.mobilier || {})) if (!sprites[k]) sprites[k] = ASSETS.mobilier(k);
   for (const [k, v] of Object.entries(SPRITES.mobilier || {})) if (v[2] && !dens[k]) dens[k] = v[2];
+  // mobilier dessiné à part (Casino de Métropole : machines à sous et bornes d'arcade), même densité que la planche
+  for (const k of MOBILIER_PLUS) { sprites[k] = ASSETS.mobilier(k); dens[k] = 2; }
   // décor du tileset (fontaine, torii, lanternes, cloche…) : dessiné à la densité des tuiles du DS
   for (const k of Object.keys(SPRITES.deco || {})) if (!sprites[k]) { sprites[k] = ASSETS.deco(k); dens[k] = 1; }
   const kits = {}; for (const k of SPRITES.facades || []) kits[k] = ASSETS.facade(k);

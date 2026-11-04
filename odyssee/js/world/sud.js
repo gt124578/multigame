@@ -43,22 +43,26 @@ export const GYM_TRAINERS_SUD = [
 ];
 export const GYM_CAPS_SUD = [59, 62, 65, 68, 71, 74, 76];
 
-/** intérieurs de Métropole : le Casino, la Bourse (terminal et bureau de Pierre), la boutique de mode */
+/** intérieurs de Métropole : le Casino (et sa salle d'arcade, à droite), la Bourse (terminal et bureau de Pierre), la boutique de mode */
 function casinoInterior(id) {
-  const m = room(id, 19, 13, { floor: 'league', music: 'city', wall: 'wall_league', name: 'Casino de Métropole', wide: true, exitX: 9 });
+  const m = room(id, 26, 13, { floor: 'league', music: 'city', wall: 'wall_league', name: 'Casino de Métropole', wide: true, exitX: 9 });
   const table = (k, x, y, quoi) => { for (let i = 0; i < 3; i++) { m.set(x + i, y, T.BLOCK); m.deco.push({ k: 'counter', x: x + i, y, front: 'martfront' }); m.object(x + i, y, { use: (api) => api.game.casino(quoi) }); } };
   // le comptoir des jetons et des lots, à l'entrée
   for (let x = 2; x <= 5; x++) { m.set(x, 9, T.BLOCK); m.deco.push({ k: 'counter', x, y: 9, front: 'counterfront' }); }
   m.npc({ id: id + ':comptoir', x: 3, y: 8, sprite: 'vendeur', dir: 'down', script: 'casino' });
   // les machines à sous, en rang au fond
-  for (let x = 2; x <= 16; x += 2) { m.prop('pc', x, 2, true); m.object(x, 2, { use: (api) => api.game.casino('machine') }); }
+  for (let x = 2; x <= 16; x += 2) { m.prop('machine_sous', x, 2, true); m.object(x, 2, { use: (api) => api.game.casino('machine') }); }
   table('counterseg', 3, 5, 'blackjack'); table('counterseg', 8, 5, 'roulette'); table('counterseg', 13, 5, 'poker');
   table('counterseg', 12, 9, 'belote');
   m.npc({ id: id + ':croupier1', x: 4, y: 4, sprite: 'topdresseur', dir: 'down', text: ['Blackjack : le croupier reste sur 17. Approche-toi de la table.'] });
   m.npc({ id: id + ':croupier2', x: 9, y: 4, sprite: 'topdresseuse', dir: 'down', text: ['Faites vos jeux ! La roulette n\'a qu\'un zéro, ici.'] });
-  m.npc({ id: id + ':croupier3', x: 14, y: 4, sprite: 'topdresseur', dir: 'down', text: ['Poker fermé : cinq cartes, un échange. Pas de cartes communes à cette table !'] });
+  m.npc({ id: id + ':croupier3', x: 14, y: 4, sprite: 'topdresseur', dir: 'down', text: ['Texas Hold\'em : deux cartes en main, cinq cartes au milieu. Blindes à 1 et 2 jetons.', 'Gérard, Mimi et le Baron cherchent un quatrième joueur.'] });
   m.npc({ id: id + ':mamie', x: 13, y: 10, sprite: 'dame', dir: 'up', text: ['Une petite belote, mon chou ? Je cherche un partenaire.', 'Le Marquis et Fernand trichent sûrement, mais chut.'] });
   m.npc({ id: id + ':joueur', x: 7, y: 2, sprite: 'vieil_homme', dir: 'up', move: 'turn', text: ['Trois 7 ! Trois 7 ! Ah… non, deux.', 'La machine du milieu paie mieux, j\'en suis sûr.'] });
+  // la salle d'arcade : quatre bornes au fond, des plantes qui la séparent des tables
+  [['tetris', 20], ['invaders', 21], ['briques', 22], ['serpent', 23]].forEach(([jeu, x]) => { m.prop('borne_' + jeu, x, 2, true); m.object(x, 2, { use: (api) => api.game.arcade(jeu) }); });
+  m.prop('plant', 19, 2, true); m.prop('plant', 24, 2, true); m.prop('plant', 18, 4, true); m.prop('plant', 18, 8, true);
+  m.npc({ id: id + ':gamin', x: 24, y: 6, sprite: 'gamin', dir: 'left', move: 'turn', text: ['La salle d\'arcade, c\'est gratuit ! Et un bon score rapporte des jetons.', 'Mon record à Tétra-Chute ? Douze mille. Personne ne me bat !'] });
   return m;
 }
 function bourseInterior(id) {
