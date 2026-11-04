@@ -17,6 +17,7 @@ const SPRITES = [
   // services
   ['centre', 'centre', {}], ['boutique', 'boutique', {}], ['labo', 'labo', {}],
   ...['feu', 'eau', 'plante', 'electrik', 'psy', 'dragon', 'glace', 'roche', 'combat', 'spectre'].map((t) => ['arene_' + t, 'arene', { type: t }]),
+  ...'ABCDEFGHIJKLMN'.split('').map((v) => ['pavillon_feu_' + v, 'pavillonFeu', { v }]),
   ...Array.from({ length: 20 }, (_, i) => ['arene_feu_style' + String(i + 1).padStart(2, '0'), 'areneFeu', { style: i + 1 }]),
   // monuments et ville
   ['pagode', 'pagode', {}], ['pagode_cendree', 'pagode', { toit: '#6a6a72', rive: '#3a3a44', bord: '#c8a060', bois: '#7a2a20' }], ['pavillon', 'pavillon', {}],
@@ -36,7 +37,7 @@ const SPRITES = [
   for (const [name, b3, o] of SPRITES) {
     const tall = { pagode: '&w=22&h=44&dz=-9', pagode_cendree: '&w=22&h=44&dz=-9', tour: '&h=20&dz=-4', tour_verre: '&w=16&h=60&dz=-16', tour_deco: '&w=14&h=85&dz=-24',
       ligue: '&w=36&h=76&dz=-8', casino: '&w=20&h=22&dz=-3', bourse: '&w=18&h=24&dz=-4', phare: '&h=20&dz=-4', maison_haute: '&h=20&dz=-3', kiosque: '&h=16&dz=-2' }[name]
-      || (/arene_feu_style/.test(name) ? '&w=20&h=32&dz=-6' : /arene/.test(name) ? '&w=18&h=27&dz=-4.5' : /mairie|labo|pavillon|chapelle|moulin|chalet|grange|gare|auberge/.test(name) ? '&w=18&h=22&dz=-3' : '');
+      || (/pavillon_feu_/.test(name) ? '&w=24&h=34&dz=-6' : /arene_feu_style/.test(name) ? '&w=20&h=32&dz=-6' : /arene/.test(name) ? '&w=18&h=27&dz=-4.5' : /mairie|labo|pavillon|chapelle|moulin|chalet|grange|gare|auberge/.test(name) ? '&w=18&h=22&dz=-3' : '');
     await shot(`vue=seul&b=${b3}&o=${encodeURIComponent(JSON.stringify(o))}${tall}`, `${OUT}/sprites/${name}.png`, true);
     console.log('sprite', name);
   }

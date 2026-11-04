@@ -1696,6 +1696,213 @@ export function atelier(D) {
     'Palais oriental', 'Art déco', 'Moderne verre et acier', 'Brutaliste', 'Haut-fourneau', 'Égyptien', 'Gothique', 'Citadelle d’obsidienne',
     'Stade de la flamme', 'Halle viking', 'Tour du brasier', 'Panthéon du feu'];
 
+  /* ============================================================== temple-pavillon : variantes inspirées des arènes ==== */
+  /** pavillon de pierre (le temple-pavillon retenu, paramétré) : péristyle, entablement à frise, toit en jupe,
+   *  claire-voie, grand toit à demi-croupes ; renvoie les hauteurs utiles */
+  function pavillonPierre(G, o) {
+    const { cx, cz, px = 5.0, pz = 3.85, sx = 4.2, sz = 2.95, y0 = 1.05, hcol = 4.2, toit = '#b8402a', pierre = '#c8b0a0', acc = FEU,
+      cols = 'tour', verre = false, sombre = false, ornement = true, bannieres = true, etages = 0, lanternes = true, rive = null, bord = '#e8c060' } = o;
+    const A = COL(acc), PM = sombre ? M({ map: TX.pierre('#3a3436') }) : M({ map: TX.pierre(pierre) }), PB = sombre ? M({ map: TX.pierre('#5a5254') }) : M({ map: TX.pierre(mix(pierre, 0.35)) });
+    const MA = sombre ? M({ map: TX.pierre('#2a2426') }) : M({ map: TX.marbre() }), pzc = cz;
+    const TT = { col: toit, rive: rive || mix(sombre ? '#3a3436' : pierre, -0.45), bord, uvk: 0.4, flare: 0.04 };
+    const zh = pzc - 0.1, zf = zh + sz;
+    if (verre) {
+      G.add(at(boite(2 * sx, hcol, 2 * sz, M({ color: new THREE.Color('#9cc8e8'), transparent: true, opacity: 0.55 })), cx, y0 + hcol / 2, zh));
+      G.add(at(boite(2 * sx - 1.2, hcol - 0.6, 2 * sz - 1.2, BRAISE), cx, y0 + (hcol - 0.6) / 2, zh));
+      for (let i = 0; i <= 8; i++) G.add(at(boite(0.08, hcol, 0.08, COL('#3a2a24')), cx - sx + i * sx / 4, y0 + hcol / 2, zf + 0.02));
+    } else {
+      G.add(at(boite(2 * sx, hcol, 2 * sz, PM), cx, y0 + hcol / 2, zh));
+      for (const s of [-1, 1]) for (const dx of [1.9, 3.0]) if (dx < sx - 0.5) fenArc(G, cx + s * dx, y0 + 1.9, zf, 0.5, 2.0, PB, M({ map: TX.vitrail(acc) }));
+    }
+    for (const yy of [y0 + 0.15, y0 + hcol - 0.3]) G.add(at(boite(2 * sx + 0.08, 0.14, 2 * sz + 0.08, PB), cx, yy, zh));
+    G.add(at(boite(1.8, 2.3, 0.05, M({ map: TX.bois('#5a3020') })), cx, y0 + 1.15, zf + 0.03));
+    G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.9, 18, 0, Math.PI), M({ map: TX.vitrail(acc) })), cx, y0 + 2.3, zf + 0.03));
+    G.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.07, 6, 18, Math.PI), OR), cx, y0 + 2.3, zf + 0.07));
+    for (const s of [-1, 1]) G.add(at(boite(0.12, 2.3, 0.1, OR), cx + s * 0.96, y0 + 1.15, zf + 0.07));
+    // colonnes
+    const pts = [];
+    if (cols !== 'aucune') {
+      for (let i = 0; i < 8; i++) { const x = cx - px + i * (2 * px / 7); pts.push([x, pzc + pz]); if (cols === 'tour') pts.push([x, pzc - pz]); }
+      for (let i = cols === 'tour' ? 1 : 5; i < 5; i++) { const z = pzc - pz + i * (2 * pz / 5); pts.push([cx - px, z], [cx + px, z]); }
+      if (cols !== 'tour') pts.push([cx - px, pzc - pz], [cx + px, pzc - pz]);
+    }
+    for (const [x, z] of pts) { colonne(G, x, z, y0, hcol, 0.24, MA, PB); G.add(at(cyl(0.29, 0.29, 0.07, OR, 12), x, y0 + hcol - 0.32, z)); }
+    const ye = y0 + hcol;
+    G.add(at(boite(2 * px + 0.75, 0.32, 2 * pz + 0.75, PB), cx, ye + 0.16, pzc));
+    G.add(at(boite(2 * px + 0.78, 0.3, 2 * pz + 0.78, A), cx, ye + 0.47, pzc));
+    for (let i = 0; i < 13; i++) G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.09, 10), OR), cx - px + i * (2 * px / 12), ye + 0.47, pzc + pz + 0.4));
+    G.add(at(boite(2 * px + 1.0, 0.16, 2 * pz + 1.0, PB), cx, ye + 0.7, pzc));
+    G.add(at(boite(1.5, 0.75, 0.08, PB), cx, ye + 0.45, pzc + pz + 0.44)); medaillon(G, cx, ye + 0.45, pzc + pz + 0.49, 0.3);
+    const yr = ye + 0.78;
+    toitChinois(G, cx, pzc, yr, px + 0.55, pz + 0.55, 0.6, { ...TT, xt: sx + 0.05, zt: sz + 0.25, lift: 0.25 });
+    let yv = yr + 0.55, hv = 1.8, cs = sx, cz2 = sz;
+    G.add(at(boite(2 * cs + 0.1, hv, 2 * cz2 + 0.5, PM), cx, yv + hv / 2, pzc));
+    for (let i = 0; i < 5; i++) { const x = cx - (cs - 1.4) + i * (2 * (cs - 1.4) / 4); fenArc(G, x, yv + hv / 2 - 0.1, pzc + cz2 + 0.25, 0.5, 0.75, PB, M({ map: TX.vitrail(acc) })); }
+    G.add(at(boite(2 * cs + 0.3, 0.14, 2 * cz2 + 0.7, PB), cx, yv + hv - 0.07, pzc));
+    let yh = yv + hv - 0.05;
+    for (let e = 0; e < etages; e++) {          // étages de tour supplémentaires (pagode)
+      const ncs = cs * 0.72, ncz = cz2 * 0.72;
+      toitChinois(G, cx, pzc, yh, cs + 0.75, cz2 + 0.75, 0.7, { ...TT, xt: ncs + 0.05, zt: ncz + 0.05, lift: 0.3 });
+      yv = yh + 0.65; hv = 1.6; cs = ncs; cz2 = ncz;
+      G.add(at(boite(2 * cs, hv, 2 * cz2, PM), cx, yv + hv / 2, pzc));
+      for (let i = 0; i < 3; i++) fenArc(G, cx - cs * 0.55 + i * cs * 0.55, yv + hv / 2 - 0.1, pzc + cz2, 0.4, 0.6, PB, M({ map: TX.vitrail(acc) }));
+      yh = yv + hv - 0.05;
+    }
+    toitChinois(G, cx, pzc, yh, cs + 0.75, cz2 + 0.75, 1.75, { ...TT, xt: Math.max(0.3, cs - 1.0), zt: 0.14, lift: 0.35 });
+    if (ornement) { const orn = new THREE.Group(); orn.scale.setScalar(0.8); G.add(orn); sommetType(orn, 'feu', cx / 0.8, (yh + 1.85) / 0.8, pzc / 0.8, acc); }
+    if (lanternes) for (const sxx of [-1, 1]) for (const szz of [-1, 1]) { G.add(at(boite(0.03, 0.35, 0.03, COL('#2a2a30')), cx + sxx * (px + 0.3), yr - 0.05, pzc + szz * (pz + 0.3))); G.add(at(cyl(0.12, 0.12, 0.3, LUM('#ffe0a0', '#a06020'), 8), cx + sxx * (px + 0.3), yr - 0.38, pzc + szz * (pz + 0.3))); }
+    if (bannieres) for (const s of [-1, 1]) {
+      const x = cx + s * (2 * px / 7) * 1.5;
+      G.add(at(boite(0.75, 2.2, 0.03, A), x, ye - 1.2, pzc + pz + 0.3));
+      G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.24, 16), M({ map: emblemeTex('feu', acc) })), x, ye - 0.9, pzc + pz + 0.32));
+      const pt = new THREE.Shape(); pt.moveTo(-0.375, 0); pt.lineTo(0.375, 0); pt.lineTo(0, -0.3); pt.closePath();
+      G.add(at(new THREE.Mesh(new THREE.ShapeGeometry(pt), A), x, ye - 2.3, pzc + pz + 0.3));
+    }
+    return { ye, yr, yh, ytop: yh + 1.75, zf: pzc + pz };
+  }
+  /** socle à gradins avec balustrade et perron au sud */
+  function socleTemple(G, cx, cz, w, d, h, pierre, lgEsc = 4.4, balus = true) {
+    const PS = M({ map: TX.pierre(mix(pierre, -0.12)) }), PM = M({ map: TX.pierre(pierre) }), PB = M({ map: TX.pierre(mix(pierre, 0.35)) });
+    G.add(at(boite(w, h * 0.52, d, PS), cx, h * 0.26, cz)); G.add(at(boite(w - 0.6, h * 0.48, d - 0.6, PM), cx, h * 0.76, cz));
+    const n = Math.max(2, Math.round(h / 0.21));
+    for (let k = 0; k < n; k++) G.add(at(boite(lgEsc + k * 0.2, h / n, 0.32, PB), cx, h / n * (n - k - 0.5), cz + d / 2 - 0.2 + k * 0.32));
+    if (balus) { const x0 = cx - w / 2 + 0.4, x1 = cx + w / 2 - 0.4, z0 = cz - d / 2 + 0.4, z1 = cz + d / 2 - 0.4;
+      balustrade(G, x0, z1, cx - lgEsc / 2 - 0.1, z1, h, PB, 0.4, 0.26); balustrade(G, cx + lgEsc / 2 + 0.1, z1, x1, z1, h, PB, 0.4, 0.26);
+      balustrade(G, x0, z0, x0, z1, h, PB, 0.4, 0.26); balustrade(G, x1, z0, x1, z1, h, PB, 0.4, 0.26); }
+  }
+  /** statue d'arène (comme celles qui gardent l'entrée des arènes) : socle à plaque dorée, créature de pierre dressée */
+  function statueArene(G, x, z, k = 1) {
+    const P = M({ map: TX.pierre('#a8a49c') }), S2 = new THREE.Group(); S2.position.set(x, 0, z); S2.scale.setScalar(k);
+    S2.add(at(boite(0.9, 0.9, 0.9, M({ map: TX.pierre('#d8d2c6') })), 0, 0.45, 0)); S2.add(at(boite(1.0, 0.1, 1.0, COL(FEU)), 0, 0.92, 0));
+    S2.add(at(boite(0.5, 0.3, 0.03, OR), 0, 0.5, 0.46));
+    const c = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 8), P); c.scale.set(1, 1.2, 0.9); S2.add(at(c, 0, 1.35, 0));
+    S2.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), P), 0, 1.85, 0.08));
+    const corne = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.25, 6), P); corne.rotation.x = 0.4; S2.add(at(corne, 0, 2.08, 0.18));
+    for (const s of [-1, 1]) { S2.add(at(cyl(0.09, 0.11, 0.35, P, 6), s * 0.2, 1.05, 0.05)); const b = cyl(0.06, 0.07, 0.35, P, 6); b.rotation.z = s * 0.6; S2.add(at(b, s * 0.33, 1.45, 0.1)); }
+    const q = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.55, 6), P); q.rotation.x = -1.1; S2.add(at(q, 0, 1.1, -0.38));
+    S2.traverse((o) => { if (o.isMesh) o.castShadow = true; }); G.add(S2);
+  }
+  /** panneau d'arène sur deux poteaux : emblème et lignes de texte */
+  function panneauArene(G, x, z) {
+    for (const s of [-1, 1]) G.add(at(boite(0.08, 1.1, 0.08, COL('#4a3a30')), x + s * 0.5, 0.55, z));
+    G.add(at(boite(1.2, 0.6, 0.08, M({ map: TX.bois('#8a5a34') })), x, 0.95, z)); G.add(at(boite(1.1, 0.5, 0.02, COL('#f0e8d8')), x, 0.95, z + 0.05));
+    medaillon(G, x - 0.35, 0.95, z + 0.07, 0.15);
+    for (let i = 0; i < 3; i++) G.add(at(boite(0.55 - i * 0.12, 0.04, 0.01, COL('#5a4a3a')), x + 0.15, 1.08 - i * 0.12, z + 0.07));
+  }
+  const vapeur = (G, x, y, z, n = 5) => { for (let i = 0; i < n; i++) G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.25 + hash(i, 61) * 0.25, 8, 6), M({ color: new THREE.Color('#f4f4f8'), transparent: true, opacity: 0.45 })), x + (hash(i, 62) - 0.5) * 0.8, y + 0.3 + i * 0.35, z + (hash(i, 63) - 0.5) * 0.6)); };
+
+  const PAVILLONS = {
+    /** A. Classique : le temple-pavillon tel quel, gardé par deux statues d'arène et un panneau, comme dans les jeux */
+    A: () => { const G = new THREE.Group(); socleTemple(G, 6, 4.6, 12, 9.4, 1.05, '#c8b0a0'); pavillonPierre(G, { cx: 6, cz: 4.5 });
+      statueArene(G, 2.2, 10.4); statueArene(G, 9.8, 10.4); panneauArene(G, 10.2, 11.6); brasero(G, 3.4, 0, 10.6, 0.6, 0.8); brasero(G, 8.6, 0, 10.6, 0.6, 0.8); return G; },
+    /** B. Sources chaudes : le pavillon flanqué de bassins fumants entre les rochers, palissade de bambou */
+    B: () => { const G = new THREE.Group(); socleTemple(G, 6, 4.6, 12, 9.4, 1.05, '#c8a890'); pavillonPierre(G, { cx: 6, cz: 4.5, toit: '#a83a2a' });
+      const R = M({ map: TX.pierre('#7a6a5a') });
+      for (const [x, z, r] of [[14.5, 3.2, 1.6], [15.2, 7.0, 1.3], [-2.4, 5.5, 1.4]]) { G.add(at(cyl(r, r, 0.12, M({ color: new THREE.Color('#7ac0d8'), emissive: new THREE.Color('#183040') }), 16), x, 0.06, z)); for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2, p = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3 + hash(i, x) * 0.2), R); G.add(at(p, x + Math.cos(a) * (r + 0.2), 0.2, z + Math.sin(a) * (r + 0.2))); } vapeur(G, x, 0.1, z, 6); }
+      for (let i = 0; i < 18; i++) G.add(at(cyl(0.07, 0.07, 1.6, COL(i % 2 ? '#8aa858' : '#9ab868'), 6), 12.6 + i * 0.27, 0.8, 0.6));
+      for (let i = 0; i < 14; i++) G.add(at(cyl(0.07, 0.07, 1.6, COL(i % 2 ? '#8aa858' : '#9ab868'), 6), -3.9 + i * 0.27, 0.8, 3.2));
+      statueArene(G, 2.2, 10.4); statueArene(G, 9.8, 10.4); return G; },
+    /** C. Cour intérieure : enceinte à toit de tuiles, porte-pavillon, grand brasero au milieu de la cour, temple au fond */
+    C: () => { const G = new THREE.Group(), P = M({ map: TX.pierre('#c8b0a0') });
+      G.add(at(boite(16, 0.08, 18, M({ map: TX.pierre('#d8c8b0') })), 8, 0.04, 9));
+      for (const [x, z, w, d] of [[8, 0.2, 16, 0.4], [0.2, 9, 0.4, 18], [15.8, 9, 0.4, 18], [3.2, 17.8, 6.4, 0.4], [12.8, 17.8, 6.4, 0.4]]) { G.add(at(boite(w, 2.4, d, P), x, 1.2, z)); const t = boite(w + 0.4, 0.2, d + 0.4, M({ map: TX.canalPetit('#b8402a') })); G.add(at(t, x, 2.5, z)); }
+      socleTemple(G, 8, 5.6, 12, 9.0, 0.8, '#c8b0a0', 4.4, false); pavillonPierre(G, { cx: 8, cz: 5.4, y0: 0.8, hcol: 3.8 });
+      G.add(at(boite(3.2, 3.0, 1.0, P), 8, 1.5, 17.8)); G.add(at(boite(2.0, 2.4, 1.1, COL('#2a1a14')), 8, 1.2, 17.8));
+      toitChinois(G, 8, 17.8, 3.0, 2.4, 1.2, 1.0, { col: '#b8402a', rive: '#5a4a40', bord: '#e8c060', xt: 1.2, zt: 0.12, lift: 0.35, uvk: 0.5 });
+      medaillon(G, 8, 2.6, 18.32, 0.3);
+      G.add(at(cyl(1.2, 1.4, 0.6, M({ map: TX.pierre('#a89880') }), 16), 8, 0.3, 13.0)); brasero(G, 8, 0.6, 13.0, 1.6);
+      statueArene(G, 5.6, 15.5, 0.9); statueArene(G, 10.4, 15.5, 0.9); return G; },
+    /** D. Temple du Ciel du feu : rotonde à triple toit conique de tuiles rouges sur une terrasse ronde à trois gradins */
+    D: () => { const G = new THREE.Group(), cx = 6.5, cz = 6.5, BL = M({ map: TX.pierre('#ece6da') });
+      for (let k = 0; k < 3; k++) { const r = 6.2 - k * 0.9, y = k * 0.45; G.add(at(cyl(r, r, 0.45, BL, 48), cx, y + 0.22, cz)); const n = Math.round(r * 5); for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; G.add(at(cyl(0.04, 0.05, 0.35, BL, 5), cx + Math.cos(a) * (r - 0.1), y + 0.62, cz + Math.sin(a) * (r - 0.1))); } }
+      for (let k = 0; k < 6; k++) G.add(at(boite(2.4, 0.22 * (6 - k), 0.32, BL), cx, 0.11 * (6 - k), cz + 4.0 + k * 0.32));
+      const y0 = 1.35;
+      for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; G.add(at(cyl(0.16, 0.16, 3.2, COL('#c8322a'), 10), cx + Math.cos(a) * 3.1, y0 + 1.6, cz + Math.sin(a) * 3.1)); }
+      G.add(at(cyl(2.5, 2.5, 3.2, M({ map: TX.treillis('#8a2a1a') }), 24), cx, y0 + 1.6, cz));
+      let y = y0 + 3.2;
+      const roof = (r, h) => { const m = lathe([[r, 0], [r * 0.82, h * 0.25], [r * 0.5, h * 0.7], [0.3, h], [0, h]], M({ map: TX.canal('#b8402a') }), 32); G.add(at(m, cx, y, cz)); const b = new THREE.Mesh(new THREE.TorusGeometry(r, 0.06, 4, 32), OR); b.rotation.x = Math.PI / 2; G.add(at(b, cx, y + 0.02, cz)); };
+      G.add(at(cyl(3.4, 3.4, 0.3, COL(FEU), 32), cx, y + 0.15, cz)); y += 0.3; roof(3.9, 1.0); y += 0.8;
+      G.add(at(cyl(2.3, 2.3, 1.1, COL('#c8322a'), 24), cx, y + 0.55, cz)); y += 1.1; roof(3.0, 0.9); y += 0.7;
+      G.add(at(cyl(1.6, 1.6, 1.0, COL('#c8322a'), 20), cx, y + 0.5, cz)); y += 1.0; roof(2.2, 1.6); y += 1.5;
+      G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), OR), cx, y + 0.2, cz)); flamme(G, cx, y + 0.45, cz, 2.0);
+      porte2(G, cx, cz + 2.5, y0, 2.2, 1.6); medaillon(G, cx, y0 + 3.6, cz + 3.45, 0.35);
+      for (const s of [-1, 1]) brasero(G, cx + s * 2.0, 0, cz + 6.6, 0.7, 0.8);
+      return G; },
+    /** E. Terrasses de lave : le pavillon au sommet de trois terrasses de basalte bordées de rigoles de lave */
+    E: () => { const G = new THREE.Group(), cx = 7, cz = 6, BA = M({ map: TX.pierre('#4a4446') });
+      for (let k = 0; k < 3; k++) { const w = 14 - k * 1.4, d = 12 - k * 1.2, y = k * 0.8; G.add(at(boite(w, 0.8, d, BA), cx, y + 0.4, cz - k * 0.3)); G.add(at(boite(w - 0.3, 0.06, 0.22, LAVE), cx, y + 0.82, cz - k * 0.3 + d / 2 - 0.2)); }
+      for (let k = 0; k < 12; k++) G.add(at(boite(3.0, 0.2 * (12 - k), 0.3, M({ map: TX.pierre('#6a6264') })), cx, 0.1 * (12 - k), cz + 5.4 + k * 0.3 - 3.0));
+      const r = pavillonPierre(G, { cx, cz: cz - 0.8, y0: 2.4, px: 4.6, pz: 3.4, sx: 3.8, sz: 2.6, hcol: 3.8, toit: '#a83020', pierre: '#c0a090' });
+      for (const s of [-1, 1]) { brasero(G, cx + s * 2.0, 0, cz + 6.4, 0.8, 0.9); brasero(G, cx + s * 5.6, 2.4, cz + 3.2, 0.7, 0.5); }
+      return G; },
+    /** F. Pavillon-stade : un stade ovale de pierre dont l'entrée est un pavillon monumental, emblème géant, mâts d'éclairage */
+    F: () => { const G = new THREE.Group(), cx = 8, cz = 6, E = new THREE.Group(); E.position.set(cx, 0, cz); E.scale.z = 0.75; G.add(E);
+      E.add(at(lathe([[7.6, 0], [7.6, 4.2], [7.2, 4.2], [6.0, 3.0], [5.0, 1.8], [4.4, 0.6], [4.4, 0.3]], M({ map: TX.pierre('#c8b8a4'), side: THREE.DoubleSide }), 56), 0, 0, 0));
+      const t = TX.arcades('#c8b8a4').clone(); t.repeat.set(48, 2); t.needsUpdate = true; E.add(at(new THREE.Mesh(new THREE.CylinderGeometry(7.7, 7.7, 4.2, 56, 1, true), M({ map: t })), 0, 2.1, 0));
+      E.add(at(cyl(4.4, 4.4, 0.25, COL('#c89060'), 40), 0, 0.12, 0)); E.add(at(new THREE.Mesh(new THREE.CircleGeometry(1.2, 24), M({ map: emblemeTex('feu', FEU) })), 0, 0.26, 0).rotateX(-Math.PI / 2));
+      pavillonPierre(G, { cx, cz: cz + 5.6, y0: 0.4, px: 4.0, pz: 1.8, sx: 3.3, sz: 1.2, hcol: 4.0, cols: 'facade', bannieres: false });
+      G.add(at(new THREE.Mesh(new THREE.CircleGeometry(1.1, 24), M({ map: emblemeTex('feu', FEU) })), cx, 9.6, cz + 7.5)); G.add(at(new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.12, 6, 24), OR), cx, 9.6, cz + 7.52));
+      for (const [x, z] of [[cx - 7.2, cz - 4], [cx + 7.2, cz - 4], [cx - 7.2, cz + 4], [cx + 7.2, cz + 4]]) { G.add(at(cyl(0.12, 0.18, 8, COL('#8a8e98'), 6), x, 4, z)); G.add(at(boite(1.4, 0.8, 0.2, LUM('#fff8e0', '#a09060')), x, 8.2, z)); }
+      return G; },
+    /** G. Palais à ailes : le pavillon central relié à deux pavillons latéraux par des galeries couvertes à colonnes */
+    G: () => { const G = new THREE.Group(), cx = 9; socleTemple(G, cx, 4.6, 18, 9.4, 1.05, '#c8b0a0', 4.4);
+      pavillonPierre(G, { cx, cz: 4.5 });
+      for (const s of [-1, 1]) { const x = cx + s * 7.2; G.add(at(boite(2.6, 3.0, 2.6, M({ map: TX.pierre('#c8b0a0') })), x, 2.55, 3.4)); toitChinois(G, x, 3.4, 4.05, 1.9, 1.9, 1.4, { col: '#b8402a', rive: '#5a4a40', bord: '#e8c060', xt: 0.6, zt: 0.12, lift: 0.4, uvk: 0.5 }); fenArc(G, x, 2.4, 4.7, 0.6, 1.4, M({ map: TX.pierre('#e2d8c8') }), M({ map: TX.vitrail(FEU) }));
+        for (let i = 0; i < 3; i++) colonne(G, cx + s * (5.3 + i * 0.0) , 6.1 - i * 1.5, 1.05, 2.6, 0.16, M({ map: TX.marbre() }), M({ map: TX.pierre('#e2d8c8') }));
+        const gal = boite(1.6, 0.1, 4.6, M({ map: TX.canalPetit('#b8402a') })); gal.rotation.z = s * 0.25; G.add(at(gal, cx + s * 5.6, 3.85, 4.4)); }
+      statueArene(G, 4.6, 10.4); statueArene(G, 13.4, 10.4); return G; },
+    /** H. Pavillon à tour-horloge : le pavillon et, à son côté, un beffroi de briques à horloge coiffé d'un petit pavillon de feu */
+    H: () => { const G = new THREE.Group(); socleTemple(G, 6, 4.6, 12, 9.4, 1.05, '#c8b0a0'); pavillonPierre(G, { cx: 6, cz: 4.5 });
+      const x = 13.4, z = 6.5, BR = M({ map: TX.brique('#9a4a32') });
+      G.add(at(boite(2.6, 11, 2.6, BR), x, 5.5, z)); for (const y of [3.5, 7.5, 11]) G.add(at(boite(2.8, 0.25, 2.8, M({ map: TX.pierre('#e2d8c8') })), x, y, z));
+      G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.85, 24), COL('#f8f4e8')), x, 9.2, z + 1.31)); G.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.1, 6, 24), OR), x, 9.2, z + 1.33));
+      G.add(at(boite(0.06, 0.6, 0.02, COL('#2a2a30')), x, 9.4, z + 1.34)); G.add(at(boite(0.45, 0.06, 0.02, COL('#2a2a30')), x + 0.2, 9.2, z + 1.34));
+      for (let i = 0; i < 4; i++) G.add(at(cyl(0.12, 0.12, 1.6, COL('#c8322a'), 8), x + (i % 2 ? 1 : -1) * 1.0, 12.0, z + (i < 2 ? 1 : -1) * 1.0));
+      toitChinois(G, x, z, 12.8, 1.8, 1.8, 1.5, { col: '#b8402a', rive: '#5a4a40', bord: '#e8c060', xt: 0.2, zt: 0.2, lift: 0.4, uvk: 0.5 });
+      brasero(G, x, 11.1, z, 0.8); flamme(G, x, 14.3, z, 1.4);
+      statueArene(G, 2.2, 10.4); panneauArene(G, 9.6, 11.0); return G; },
+    /** I. Pavillon et pagode : une tour de trois étages s'élève au-dessus de la salle (comme une tour de maîtrise) */
+    I: () => { const G = new THREE.Group(); socleTemple(G, 6, 4.6, 12, 9.4, 1.05, '#c8b0a0'); pavillonPierre(G, { cx: 6, cz: 4.5, etages: 2 });
+      statueArene(G, 2.2, 10.4); statueArene(G, 9.8, 10.4); return G; },
+    /** J. Île de lave : le pavillon sur une île carrée entourée d'un fossé de lave, pont en dos d'âne laqué, lanternes */
+    J: () => { const G = new THREE.Group(), cx = 8, cz = 7;
+      G.add(at(boite(16, 0.05, 15, LAVE), cx, 0.02, cz)); G.add(at(boite(13, 1.2, 11.5, M({ map: TX.pierre('#5a4e4a') })), cx, 0.6, cz - 0.8));
+      { const S2 = new THREE.Group(); S2.position.y = 1.2; socleTemple(S2, cx, cz - 1.5, 11, 8.6, 0.6, '#c0a890', 3.4, true); G.add(S2); }
+      pavillonPierre(G, { cx, cz: cz - 1.6, y0: 1.8, px: 4.6, pz: 3.4, sx: 3.8, sz: 2.6, hcol: 3.8 });
+      const pts = []; for (let i = 0; i <= 12; i++) { const t = i / 12; pts.push([cx, 1.2 + Math.sin(t * Math.PI) * 0.9, cz + 4.95 + t * 2.6]); }
+      for (let i = 0; i < 12; i++) { const [x, y, z] = pts[i], [, y2, z2] = pts[i + 1]; const p = boite(2.0, 0.14, Math.hypot(z2 - z, y2 - y) + 0.02, M({ map: TX.planches('#8a3a2a') })); p.rotation.x = -Math.atan2(y2 - y, z2 - z); G.add(at(p, x, (y + y2) / 2, (z + z2) / 2)); if (i % 2 === 0) for (const s of [-1, 1]) G.add(at(boite(0.08, 0.6, 0.08, COL('#c8322a')), x + s * 0.95, y + 0.3, z)); }
+      for (const s of [-1, 1]) { G.add(at(cyl(0.08, 0.12, 1.2, COL('#2a2a30'), 6), cx + s * 1.4, 0.6, cz + 8.0)); G.add(at(boite(0.4, 0.5, 0.4, LUM('#ffe0a0', '#a06020')), cx + s * 1.4, 1.4, cz + 8.0)); }
+      return G; },
+    /** K. Avenue des portiques : trois portiques laqués couronnés de braseros mènent au pavillon */
+    K: () => { const G = new THREE.Group(); socleTemple(G, 6, 4.6, 12, 9.4, 1.05, '#c8b0a0'); pavillonPierre(G, { cx: 6, cz: 4.5 });
+      for (let k = 0; k < 3; k++) { const z = 11.6 + k * 2.4, V = COL('#d8402a'), N = COL('#2a2222');
+        for (const s of [-1, 1]) G.add(at(cyl(0.18, 0.22, 3.6, V, 10), 6 + s * 1.9, 1.8, z));
+        G.add(at(boite(5.0, 0.3, 0.4, N), 6, 3.7, z)); G.add(at(boite(4.2, 0.22, 0.3, V), 6, 3.1, z));
+        for (const s of [-1, 1]) brasero(G, 6 + s * 2.2, 3.85, z, 0.5); }
+      G.add(at(boite(3.2, 0.06, 7.2, M({ map: TX.pierre('#d8ccb8') })), 6, 0.03, 14.0));
+      return G; },
+    /** L. Pavillon d'obsidienne : pierre noire, toits rouges bordés d'or, rigoles de lave dans le socle */
+    L: () => { const G = new THREE.Group(), BA = M({ map: TX.pierre('#2e2a2c') });
+      G.add(at(boite(12, 1.05, 9.4, BA), 6, 0.52, 4.6)); for (const z of [1.0, 8.2]) G.add(at(boite(11.6, 0.06, 0.2, LAVE), 6, 1.06, z)); for (const x of [0.6, 11.4]) G.add(at(boite(0.2, 0.06, 7.4, LAVE), x, 1.06, 4.6));
+      for (let k = 0; k < 5; k++) G.add(at(boite(4.4 + k * 0.25, 0.21 * (5 - k), 0.32, M({ map: TX.pierre('#3e3a3c') })), 6, 0.105 * (5 - k), 9.2 + k * 0.32));
+      pavillonPierre(G, { cx: 6, cz: 4.5, sombre: true, toit: '#c0302a', bord: '#f0c040', rive: '#1a1416' });
+      for (const s of [-1, 1]) brasero(G, 6 + s * 3.4, 0, 10.6, 0.8, 1.0); return G; },
+    /** M. Fronton et pavillon : avancée à fronton grec devant la salle, toits de pavillon derrière — le mélange des deux */
+    M: () => { const G = new THREE.Group(), PB = M({ map: TX.pierre('#ece2d0') }); socleTemple(G, 6, 5.2, 12, 10.6, 1.05, '#c8b0a0');
+      pavillonPierre(G, { cx: 6, cz: 4.0, bannieres: false });
+      for (let i = 0; i < 6; i++) colonne(G, 3.0 + i * 1.2, 9.5, 1.05, 4.2, 0.26, M({ map: TX.marbre() }), PB);
+      G.add(at(boite(7.6, 0.5, 2.6, PB), 6, 5.5, 8.6)); G.add(at(boite(7.62, 0.18, 2.62, COL(FEU)), 6, 5.32, 8.6));
+      fronton(G, 6, 5.75, 9.9, 7.6, 1.5, 2.6, PB); medaillon(G, 6, 6.3, 9.92, 0.4);
+      for (const x of [2.2, 9.8]) flamme(G, x, 5.75, 9.6, 1.4); flamme(G, 6, 7.25, 9.6, 1.6);
+      statueArene(G, 1.6, 11.4); statueArene(G, 10.4, 11.4); return G; },
+    /** N. Verre et pierre : la salle devient une lanterne de verre où brûle le feu, sous les mêmes toits de pavillon */
+    N: () => { const G = new THREE.Group(); socleTemple(G, 6, 4.6, 12, 9.4, 1.05, '#d0c4b4'); pavillonPierre(G, { cx: 6, cz: 4.5, verre: true, toit: '#8a3a2a', pierre: '#d0c4b4' });
+      panneauArene(G, 10.2, 11.0); brasero(G, 3.4, 0, 10.6, 0.6, 0.8); brasero(G, 8.6, 0, 10.6, 0.6, 0.8); return G; },
+  };
+  B.pavillonFeu = ({ v = 'A' } = {}) => (PAVILLONS[v] || PAVILLONS.A)();
+  B.pavillonFeu.variantes = { A: 'Classique gardé', B: 'Sources chaudes', C: 'Cour intérieure', D: 'Temple du Ciel', E: 'Terrasses de lave', F: 'Pavillon-stade', G: 'Palais à ailes',
+    H: 'Tour-horloge', I: 'Pavillon et pagode', J: 'Île de lave', K: 'Avenue des portiques', L: 'Obsidienne', M: 'Fronton et pavillon', N: 'Verre et pierre' };
+
   /* -------------------------------------------------------------- ville : tours, bourse, casino ---------------------- */
   /** texture d'un étage de tour répétée verticalement (un étage = 1,1 unité) */
   const parEtage = (t) => { const c = t.clone(); c.repeat.set(1, 1 / 1.1); c.needsUpdate = true; return c; };
@@ -1977,7 +2184,7 @@ export const EMPRISES = {
   maison: [4, 3], maisonL: [5, 5], maisonLongue: [5, 3], maisonHaute: [4, 4], maisonExt: [7, 4], chalet: [5, 5], residence: [6, 4],
   cabaneChasseur: [4, 3], cabanePecheur: [5, 4], grange: [6, 5], moulin: [4, 4], phare: [3, 3], auberge: [6, 5], chapelle: [4, 7],
   boulangerie: [4, 4], maisonThe: [5, 5], gare: [8, 4], kiosque: [4, 5], puits: [2, 2], etal: [2, 2],
-  mairie: [9, 6], fontaine: [3, 3], centre: [7, 5], boutique: [5, 6], arene: [12, 11], areneFeu: [12, 11], labo: [10, 8],
+  mairie: [9, 6], fontaine: [3, 3], centre: [7, 5], boutique: [5, 6], arene: [12, 11], areneFeu: [12, 11], pavillonFeu: [12, 11], labo: [10, 8],
   pagode: [11, 12], pavillon: [8, 7], tour: [8, 5], tourVerre: [10, 7], tourDeco: [8, 8], bourse: [12, 9], casino: [14, 10], ligue: [30, 49],
   escalierMontant: [1, 2], escalierDescendant: [1, 2],
 };
