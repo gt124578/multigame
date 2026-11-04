@@ -20,6 +20,13 @@ export const GRAND = {
   mart: { w: 5, d: 4, h: 3, door: 3, blocs: [[0, 4], [1, 4], [2, 4]] },
   gym: { w: 18, d: 14, h: 9, door: 8, door2: 9, blocs: [[4, 15], [13, 15]] },
   lab: { w: 10, d: 7, h: 4, door: 2, door2: 3 },
+  // la Ligue : bâtiment 30 × 14, puis une allée de 32 cases plein sud (x 11 → 18) bordée de colonnes, à laisser libre
+  league: { w: 30, d: 14, h: 12, door: 14, door2: 15, blocs: [[11, 19], [18, 19], [11, 21], [18, 21], [11, 24], [18, 24], [11, 26], [18, 26], [11, 29], [18, 29], [11, 31], [18, 31], [11, 34], [18, 34], [11, 36], [18, 36], [11, 39], [18, 39], [11, 41], [18, 41], [11, 44], [18, 44], [11, 46], [18, 46], [9, 14], [10, 14], [9, 15], [10, 15], [19, 14], [20, 14], [19, 15], [20, 15], [12, 15], [17, 15], [10, 47], [19, 47]] },
+  pagode: { w: 11, d: 11, h: 15, door: 5, modele: 'pagode' },
+  casino: { w: 14, d: 8, h: 6, door: 6, door2: 7, blocs: [[2, 8], [5, 8], [8, 8], [11, 8], [0, 8], [13, 8]], modele: 'casino' },
+  bourse: { w: 12, d: 8, h: 7, door: 5, door2: 6, blocs: [[0, 8], [11, 8]], modele: 'bourse' },
+  mairie: { w: 9, d: 5, h: 5, door: 4, modele: 'mairie' },
+  usine: { w: 16, d: 10, h: 8, door: 7, door2: 8, modele: 'usinePokeball' },
   maisonL: { w: 5, d: 5, h: 3, door: 2, porteY: 2, libres: [[2, 3], [3, 3], [4, 3], [2, 4], [3, 4], [4, 4]], modele: 'maisonL' },
 };
 
