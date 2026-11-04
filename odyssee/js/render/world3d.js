@@ -2,6 +2,7 @@
 // arbres / herbes / personnages en sprites verticaux, caméra inclinée en perspective étroite, rendu basse résolution.
 import * as THREE from 'three';
 import { T } from '../world/tiles.js';
+import { pente, ravin, mont } from '../world/relief.js';
 import { buildAtlas, buildAnimAtlas, buildSprites, applySpriteImages, facade, sideWall, roofTex, roofColors, kitColor, PAL, SOL16 } from './textures.js';
 import { SPRITES } from '../data/sprites.js';
 import { Sol } from './sol.js';
@@ -491,6 +492,15 @@ export class WorldView {
     if (deco?.k === 'sable') return { c: A.gl_sable };
     if (deco?.k === 'eau') return { anim: this.N.cells.water15 };
     if (t === T.LAVA) return { anim: this.N.cells.lava };
+    // passerelle de bois au-dessus d'un ravin (montagne) : le vide dessous, planches et cordes dans le sens de la traversée
+    if (t === T.BRIDGE && ravin(m, x, y)) {
+      // sens de la traversée : vers les sentiers que la passerelle relie (ou le long de la passerelle)
+      const pont = (a, b) => m.get(a, b) === T.BRIDGE && ravin(m, a, b), terre = (a, b) => m.get(a, b) !== T.CAVEWALL && !pont(a, b);
+      const ew = pont(x - 1, y) || pont(x + 1, y) || terre(x - 1, y) || terre(x + 1, y);
+      const a = ew ? !pont(x, y - 1) : !pont(x - 1, y), b = ew ? !pont(x, y + 1) : !pont(x + 1, y);
+      const d = ew ? !pont(x - 1, y) : !pont(x, y - 1), f = ew ? !pont(x + 1, y) : !pont(x, y + 1);
+      return { c: A[`ravin_${hash(x, y) < 0.5 ? 0 : 1}`], passerelle: A[`passerelle_${ew ? 'ew' : 'ns'}_${(a ? 1 : 0) | (b ? 2 : 0) | (d ? 4 : 0) | (f ? 8 : 0)}`] };
+    }
     if (t === T.BARRIER_R || t === T.BARRIER_B) return { c: A['floor_' + m.floor] || A.floor_wood };
     const isPathish = (q) => [T.PATH, T.PAVE, T.SAND, T.BUILD, T.DOOR, T.BRIDGE, T.SIGN, T.BLOCK, T.MAT].includes(q);
     if (SOL16 && m.outdoor) {
@@ -552,7 +562,7 @@ export class WorldView {
    *  aux quatre cases qui se touchent là (grille décalée d'une demi-case, comme les jeux de tuiles Wang) */
   wangChunk(O, x0, y0) {
     const m = this.map, A = this.A.cells;
-    const water = (x, y) => { const q = m.get(Math.max(0, Math.min(m.w - 1, x)), Math.max(0, Math.min(m.h - 1, y))); return q === T.WATER || q === T.BRIDGE; };
+    const water = (x, y) => { const a = Math.max(0, Math.min(m.w - 1, x)), b = Math.max(0, Math.min(m.h - 1, y)), q = m.get(a, b); return q === T.WATER || (q === T.BRIDGE && !ravin(m, a, b)); };
     const ORDER = ['herbes_neige', 'herbes_bois', 'sable', 'pave', 'neige', 'cendre', 'chemin'];
     const xe = x0 + CH >= m.w && !m.ext ? m.w + 1 : x0 + CH, ye = y0 + CH >= m.h && !m.ext ? m.h + 1 : y0 + CH;
     const couvert = this.sol.couvre() ? (a, b) => sorteCase(m, a, b) !== SORTE.X : null;
@@ -582,7 +592,37 @@ export class WorldView {
     const m = this.map, A = this.A.cells, b = bio || this.biome;
     // au-dessus du sol généré (sol.js) : ses coins arrondis laissent voir le sol fin, pas l'ancien sol de la case
     const yh = this.sol.couvre() ? 0.0049 : 0.004;
-    const rock = (dx, dy) => { const a = x + dx, c = y + dy; return a < 0 || c < 0 || a >= m.w || c >= m.h || m.get(a, c) === T.CAVEWALL; };
+    // dehors, les montagnes ont des gradins (massif, montagne de relief.js) : chaque gradin est un plateau de roche posé
+    // sur le précédent, ses bords en pente comme ceux des grottes ; la roche plus basse est « dehors »
+    // dans une montagne à gravir (relief.js, montagne), le sentier fait partie du gradin quand il est à sa hauteur (ou
+    // plus haut) : la roche sous le bord d'un sentier n'a pas de rebord de ce côté, elle descend en pente vers le bas
+    const h0 = m.outdoor ? m.height(x, y) : 0;
+    const rock = (dx, dy) => {
+      const a = x + dx, c = y + dy; if (a < 0 || c < 0 || a >= m.w || c >= m.h) return true;
+      if (ravin(m, a, c)) return false;
+      const q = m.get(a, c);
+      if (q === T.CAVEWALL) return !m.outdoor || m.height(a, c) >= h0;
+      return m.outdoor && mont(m, a, c) && q !== T.STAIRS && m.height(a, c) >= h0;
+    };
+    if (m.outdoor) {
+      // sous les coins arrondis : le gradin du dessous (ou le vide d'un ravin), pas l'herbe
+      let bas = false;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const a = x + dx, c = y + dy; if (!m.in(a, c) || m.get(a, c) !== T.CAVEWALL) continue;
+        if (!ravin(m, a, c) && m.height(a, c) < h0) bas = true;
+      }
+      // à côté d'un sentier (case praticable), le pied de la paroi laisse voir le sentier : pas de roche dessous
+      const sol = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => m.in(x + dx, y + dy) && m.get(x + dx, y + dy) !== T.CAVEWALL);
+      if (bas && !sol) flat(G, x, y, x + 1, y + 1, yh - 0.0002, A[`rp_${b}_11`], 0.9);
+      // le vide d'un ravin, seulement sous les quarts de case tournés vers lui (pas de noir qui déborde sur la roche)
+      const vide = (a, c) => ravin(m, a, c) && m.get(a, c) === T.CAVEWALL;   // le gouffre (pas une passerelle)
+      for (let qy = 0; qy < 2; qy++) for (let qx = 0; qx < 2; qx++) {
+        const dx = qx ? 1 : -1, dy = qy ? 1 : -1;
+        if (!(vide(x, y + dy) || vide(x + dx, y) && vide(x + dx, y + dy))) continue;
+        const u = A.ravin_0, hu = (u[2] - u[0]) / 2, hv = (u[3] - u[1]) / 2;
+        flat(G, x + qx / 2, y + qy / 2, x + (qx + 1) / 2, y + (qy + 1) / 2, yh - 0.0001, [u[0] + qx * hu, u[1] + qy * hv, u[0] + (qx + 1) * hu, u[1] + (qy + 1) * hv]);
+      }
+    }
     const W = !rock(-1, 0), E = !rock(1, 0), N = !rock(0, -1), S = !rock(0, 1);
     const cols = W && E ? [0, 5] : W ? [0, 1] : E ? [4, 5] : [2, 3];
     const rows = N && S ? [0, 5] : N ? [0, 1] : S ? [4, 5] : [2, 3];
@@ -592,6 +632,11 @@ export class WorldView {
     // une case entière de rechange (falaise, bord ou dessus décoré) pour que la roche ne se répète pas
     const v = hash(x * 13 + 5, y * 7 + 3), pick = (k, n, p) => A[`r${k}_${b}_${Math.floor(v * n)}`] && v < p ? A[`r${k}_${b}_${Math.floor(v * n / p) % n}`] : null;
     const open = (W ? 1 : 0) + (E ? 1 : 0) + (N ? 1 : 0) + (S ? 1 : 0);
+    // falaise de montagne sur plusieurs gradins : sous une roche plus haute, la pente continue (pas de dessus de gradin)
+    if (m.outdoor && S && !W && !E && !N && m.get(x, y - 1) === T.CAVEWALL && !ravin(m, x, y - 1) && m.height(x, y - 1) > h0 && mont(m, x, y)) {
+      const k = A[`rv_${b}_${Math.floor(v * 4)}`] || A[`rv_${b}_0`];
+      if (k) { flat(G, x, y, x + 1, y + 1, yh, k); return; }
+    }
     if (!inner[0] && !inner[1] && open <= 1) {
       const alt = S ? pick('f', 4, 0.8) : N ? pick('n', 4, 0.8) : W ? pick('l', 3, 0.75) : E ? pick('e', 3, 0.75) : pick('q', 6, 0.4);
       if (alt) { flat(G, x, y, x + 1, y + 1, yh, alt); return; }
@@ -674,6 +719,20 @@ export class WorldView {
   reliefDehors(G, x, y, t, zone) {
     const m = this.map, A = this.A.cells, h = m.height(x, y), th = zone?.theme, bio = bioFalaise(zone);
     const Y = 0.0049, v = hash(x * 3 + 1, y * 7 + 5);
+    // plateaux d'herbe (world/relief.js, pente) : talus de pelouse, dessiné au pixel par le sol généré (solgen.js, talus) ;
+    // sans lui (?sol=0), des pièces de pelouse toutes faites (relief-tex.js)
+    const gen = this.sol.couvre(), herbe = (a, b) => pente(m, a, b), lv = levreFalaise(th);
+    if ((t === T.CLIFF || t === T.STAIRS) && herbe(x, y)) {
+      if (gen) return;
+      if (t === T.CLIFF) {
+        let r = 0; while (r < 6 && m.get(x, y - r - 1) === T.CLIFF) r++;
+        const k = A[`pente_${lv}_${r === 0 ? 's' : 'm'}_${v < 0.5 ? 0 : 1}`]; if (k) flat(G, x, y, x + 1, y + 1, Y, k);
+        return;
+      }
+      const d = m.height(x, y - 1) > h ? 's' : m.height(x, y - 1) < h ? 'n' : m.height(x + 1, y) < h ? 'e' : m.height(x - 1, y) < h ? 'w' : 's';
+      if (A[`rondins_${d}`]) flat(G, x, y, x + 1, y + 1, Y + 0.0001, A[`rondins_${d}`]);
+      return;
+    }
     if (t === T.CLIFF) {
       let r = 0; while (r < 6 && m.get(x, y - r - 1) === T.CLIFF) r++;
       const rw = A[`rw_${bio}_${Math.floor(v * 3)}`] || A.rw_montagne_0;
@@ -686,6 +745,7 @@ export class WorldView {
     }
     if (t === T.CAVEWALL) {
       const bm = bioDehors(th);
+      if (A[`rp_${bm}_00`]) return;   // gradins dessinés en plateaux de roche aux bords en pente (paroiCell)
       // montagne en gradins : une paroi là où la roche du dessus est plus haute, un rebord sur les côtés
       if (m.get(x, y - 1) === T.CAVEWALL && m.height(x, y - 1) > h) {
         const rw = A[`rw_${bm}_${Math.floor(v * 3)}`] || A.rw_montagne_0;
@@ -696,21 +756,31 @@ export class WorldView {
       if (cote(-1)) flat(G, x, y, x + 1, y + 1, Y + 0.0005, A[`fal_bord_w_${bm}`]);
       return;
     }
+    if (t === T.STAIRS && mont(m, x, y)) {
+      // marches taillées dans la montagne : on monte vers le sentier (ou la marche) plus haut
+      const haut = (dx, dy) => { const q = m.get(x + dx, y + dy); return q !== T.CAVEWALL && m.height(x + dx, y + dy) > h || q === T.STAIRS && m.get(x + 2 * dx, y + 2 * dy) !== T.CAVEWALL && m.height(x + 2 * dx, y + 2 * dy) > h; };
+      const d = haut(0, -1) ? 's' : haut(0, 1) ? 'n' : haut(-1, 0) ? 'e' : haut(1, 0) ? 'w' : 's';
+      const k = A[`marches_${d}_${bio}`] || A[`marches_${d}_montagne`];
+      if (k) flat(G, x, y, x + 1, y + 1, Y + 0.0001, k);
+      return;
+    }
     if (t === T.STAIRS) {
       const d = m.height(x, y - 1) > h ? 's' : m.height(x, y - 1) < h && m.get(x, y - 1) !== T.CLIFF ? 'n' : m.height(x + 1, y) < h ? 'e' : m.height(x - 1, y) < h ? 'w' : m.height(x, y + 1) < h || m.get(x, y + 1) === T.STAIRS ? 's' : null;
       const k = d && (A[`marches_${d}_${bio}`] || A[`marches_${d}_montagne`]);
       if (k) { flat(G, x, y, x + 1, y + 1, Y + 0.0001, k); return; }
     }
-    if (m.get(x, y - 1) === T.CLIFF && A.fal_pied) flat(G, x, y, x + 1, y + 1, Y, A.fal_pied);
+    if (m.get(x, y - 1) === T.CLIFF && !(gen && herbe(x, y - 1)) && A.fal_pied) flat(G, x, y, x + 1, y + 1, Y, herbe(x, y - 1) ? A.pente_pied || A.fal_pied : A.fal_pied);
     // flancs d'un plateau voisin plus haut, à l'ouest ou à l'est (sauf contre une marche ou une montagne)
-    const flanc = (dx) => { const q = m.get(x + dx, y); return m.height(x + dx, y) > h && q !== T.CLIFF && q !== T.STAIRS && q !== T.CAVEWALL && t !== T.STAIRS; };
-    if (flanc(-1) && A[`fal_flanc_w_${bio}`]) flat(G, x, y, x + 1, y + 1, Y + 0.0001, A[`fal_flanc_w_${bio}`]);
-    if (flanc(1) && A[`fal_flanc_e_${bio}`]) flat(G, x, y, x + 1, y + 1, Y + 0.0001, A[`fal_flanc_e_${bio}`]);
-    if (h > 0) {
+    const flanc = (dx) => { const q = m.get(x + dx, y); return m.height(x + dx, y) > h && q !== T.CLIFF && q !== T.STAIRS && q !== T.CAVEWALL && t !== T.STAIRS && !(gen && herbe(x + dx, y)); };
+    const fl = (c, dx) => (herbe(x + dx, y) ? A[`pente_flanc_${c}_${lv}`] : A[`fal_flanc_${c}_${bio}`]);
+    if (flanc(-1) && fl('w', -1)) flat(G, x, y, x + 1, y + 1, Y + 0.0001, fl('w', -1));
+    if (flanc(1) && fl('e', 1)) flat(G, x, y, x + 1, y + 1, Y + 0.0001, fl('e', 1));
+    if (h > 0 && !(gen && herbe(x, y))) {
       const bas = (dx, dy) => { const q = m.get(x + dx, y + dy); return m.height(x + dx, y + dy) < h && q !== T.CLIFF && q !== T.STAIRS && q !== T.CAVEWALL; };
-      if (bas(1, 0)) flat(G, x, y, x + 1, y + 1, Y + 0.0002, A[`fal_bord_e_${bio}`]);
-      if (bas(-1, 0)) flat(G, x, y, x + 1, y + 1, Y + 0.0002, A[`fal_bord_w_${bio}`]);
-      if (bas(0, -1)) flat(G, x, y, x + 1, y + 1, Y + 0.0003, A[`fal_bord_n_${bio}`]);
+      const bd = (c) => (herbe(x, y) ? A[`pente_bord_${c}_${lv}`] : A[`fal_bord_${c}_${bio}`]);
+      if (bas(1, 0) && bd('e')) flat(G, x, y, x + 1, y + 1, Y + 0.0002, bd('e'));
+      if (bas(-1, 0) && bd('w')) flat(G, x, y, x + 1, y + 1, Y + 0.0002, bd('w'));
+      if (bas(0, -1) && bd('n')) flat(G, x, y, x + 1, y + 1, Y + 0.0003, bd('n'));
     }
   }
   tierAt(x, y) { const m = this.map; if (x < 0 || y < 0 || x >= m.w || y >= m.h) return 3; return this.tiers[y * m.w + x] || 0; }
@@ -728,6 +798,7 @@ export class WorldView {
       if (g.c) flat(G, x, y, x + 1, y + 1, 0, g.c, g.shade);
       if (g.anim) flat(N, x, y, x + 1, y + 1, 0, g.anim);
       if (g.bridge && !this.sol.couvre()) flat(G, x - 0.02, y, x + 1.02, y + 1, 0.012, g.bridge);   // le sol généré dessine ses pontons
+      if (g.passerelle) flat(G, x, y, x + 1, y + 1, 0.012, g.passerelle);
       // détails de l'herbe (touffes, trèfles, cailloux, fleurettes…) : une case d'herbe sur six environ, jamais deux
       // fois le même détail côte à côte ; des feuilles mortes et des champignons en forêt
       if (m.outdoor && !this.sol.couvre() && (t === T.GRASS || t === T.FENCE) && this.detailAt(x, y)) {
@@ -773,12 +844,19 @@ export class WorldView {
         else flat(Wl, x, y, x + 1, y + 1, 0.01, A.walltop);
       } else if (t === T.CAVEWALL) {
         // dehors (montagnes des entrées de grottes, bord du monde) : mêmes plateaux de roche que dans les grottes
-        const bioC = m.outdoor ? bioDehors(theme) : this.biome;
-        if ((this.tiers || m.outdoor) && A['rp_' + bioC + '_00']) {
+        const bioC = m.outdoor ? zone?.roche || bioDehors(theme) : this.biome;
+        if (m.outdoor && ravin(m, x, y)) {
+          // le vide d'un ravin : sous la paroi du fond, la roche qui plonge ; plus bas, le noir
+          // bords : la paroi du fond sous tout ce qui n'est pas le ravin au nord ; une lèvre là où un sentier le borde
+          const bord = (dx, dy) => !ravin(m, x + dx, y + dy), sentier = (dx, dy) => bord(dx, dy) && m.get(x + dx, y + dy) !== T.CAVEWALL;
+          const f = (bord(0, -1) ? 1 : 0) | (sentier(-1, 0) ? 2 : 0) | (sentier(1, 0) ? 4 : 0);
+          const k = f ? A[`ravin_${bioC}_${f}`] || A[`ravin_montagne_${f}`] : A[`ravin_${hash(x, y) < 0.5 ? 0 : 1}`];
+          if (k) flat(O0, x, y, x + 1, y + 1, this.sol.couvre() ? 0.0049 : 0.004, k);
+        } else if ((this.tiers || m.outdoor) && A['rp_' + bioC + '_00']) {
           this.paroiCell(O0, x, y, bioC);
           // de temps en temps un rocher pointu au milieu d'un plateau
           const b = bioC, v2 = hash(x * 5 + 3, y * 7 + 11), m2 = this.map;
-          const inner = [[1, 0], [-1, 0], [0, 1], [0, -1], [0, 2]].every(([dx, dy]) => m2.get(x + dx, y + dy) === T.CAVEWALL || m2.get(x + dx, y + dy) == null);
+          const inner = [[1, 0], [-1, 0], [0, 1], [0, -1], [0, 2]].every(([dx, dy]) => (m2.get(x + dx, y + dy) === T.CAVEWALL && m2.height(x + dx, y + dy) === m2.height(x, y) && !ravin(m2, x + dx, y + dy)) || m2.get(x + dx, y + dy) == null);
           if (inner && v2 < 0.1) {
             const r = v2 < 0.04 ? S[`pic_${b}_${Math.floor(hash(x + 41, y + 43) * 3)}`] : S[`cone_${b}_${Math.floor(hash(x + 41, y + 43) * 3)}`];
             if (r) billboard(P, x + 0.5 + (v - 0.5) * 0.25, y + 0.62, SW(r), SH(r), r, 0, v > 0.5);

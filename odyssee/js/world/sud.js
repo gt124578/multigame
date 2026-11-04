@@ -262,7 +262,7 @@ export function buildSud(ctx) {
     massif(W, bande(r17, 4.6, 13, 0, 0.03, 0.97).filter(([x, y]) => !ville(x, y)), { tout: true, pas: 2, max: 3 });
     // la corniche : un tronçon du chemin passe sur une vire, au-dessus du fond de la gorge
     const p = along(r17, 0.5), cote = p.ny < 0 ? 1 : -1;   // côté nord de la route
-    plateau(W, [...bande(r17, 0, 2.2, 0, 0.36, 0.62), ...bande(r17, 2.2, 4.6, cote, 0.36, 0.62)].filter(([x, y]) => W.get(x, y) !== T.CAVEWALL), 1);
+    plateau(W, [...bande(r17, 0, 2.2, 0, 0.36, 0.62), ...bande(r17, 2.2, 4.6, cote, 0.36, 0.62)].filter(([x, y]) => W.get(x, y) !== T.CAVEWALL), 1, { roche: true });   // falaise de roche ocre
     for (const [x, y] of bande(r17, 0, 4.6, 0)) if (W.get(x, y) === T.TREE) W.set(x, y, T.GRASS);   // pas d'arbres au fond de la gorge
     const m = along(r17, 0.5); boucher(W, bande(r17, 0, 5, 0).map(([x, y]) => x + ',' + y), nearestWalkable(W, m.x, m.y), T.ROCK);
   }

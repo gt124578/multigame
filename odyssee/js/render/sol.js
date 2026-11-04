@@ -30,6 +30,8 @@ function actif() {
 const graine = (id) => { let h = 7; for (const ch of String(id)) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0; return (h >>> 0) % 100000; };
 function remplir(data, idx) { const u = new Uint32Array(data.buffer); for (let i = 0; i < idx.length; i++) u[i] = LUT[idx[i]]; }
 const memes = (a, b) => { if (!a || !b || a.length !== b.length) return false; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; };
+/** l'image d'un bloc vaut-elle encore pour ces cases ? (sortes des cases, et relief des plateaux d'herbe) */
+const pareil = (c, z) => memes(c.kinds, z.kinds) && (!c.rel && !z.rel ? true : memes(c.rel, z.rel));
 const bloc = (cle) => cle.slice(cle.lastIndexOf('|') + 1).split(',').map(Number);
 
 export class Sol {
@@ -81,10 +83,10 @@ export class Sol {
     // l'image que montrait le bloc remplacé (si le cache l'a oubliée) : on la reprend telle quelle
     const reprise = avant && avant !== grp ? avant.userData.sol?.d : null;
     if (avant && avant !== grp && avant.userData.sol) this.liberer(avant);
-    const kinds = zoneBloc(this.map, ci, cj, CH).kinds;
+    const z = zoneBloc(this.map, ci, cj, CH);
     const c = this.lire(key) || reprise;
     if (c) this.poser(key, c);
-    if (!c || !memes(c.kinds, kinds)) this.file(key);
+    if (!c || !pareil(c, z)) this.file(key);
   }
 
   /** une case a changé : les blocs dont la marge la contient sont recalculés, s'ils changent vraiment */
@@ -96,7 +98,7 @@ export class Sol {
         // bloc retiré par rebuildAt : il garde son image, que le bloc reconstruit reprendra (demande)
         if (!g || !g.parent) continue;
         const d = g.userData.sol?.d;
-        if (!d || !memes(d.kinds, zoneBloc(this.map, ci, cj, CH).kinds)) this.file(key);
+        if (!d || !pareil(d, zoneBloc(this.map, ci, cj, CH))) this.file(key);
       }
   }
 
@@ -122,7 +124,7 @@ export class Sol {
       const z = zoneBloc(this.map, ci, cj, CH);
       const cave = this.map.outdoor ? null : this.view.biome || 'terre';
       w.libre = false; w.cle = key; this.enCours.add(key);
-      w.postMessage({ key, z, seed: graine(this.map.id), cave }, [z.kinds.buffer]);
+      w.postMessage({ key, z, seed: graine(this.map.id), cave }, z.rel ? [z.kinds.buffer, z.rel.buffer] : [z.kinds.buffer]);
     }
   }
 
@@ -147,14 +149,14 @@ export class Sol {
   recu(w, d) {
     w.libre = true; w.cle = null; this.enCours.delete(d.key);
     if (d.error) { console.warn('[sol]', d.key, d.error); this.pump(); return; }
-    const c = { frames: d.frames, bw: d.bw, bh: d.bh, kinds: d.kinds };
+    const c = { frames: d.frames, bw: d.bw, bh: d.bh, kinds: d.kinds, rel: d.rel || null };
     this.ranger(d.key, c);
     const grp = this.groups.get(d.key);
     if (grp && grp.parent) {
       this.poser(d.key, c);
       // la carte a encore changé pendant le calcul : on recommence (l'image posée reste en attendant)
       const [ci, cj] = bloc(d.key);
-      if (!memes(c.kinds, zoneBloc(this.map, ci, cj, CH).kinds)) this.file(d.key);
+      if (!pareil(c, zoneBloc(this.map, ci, cj, CH))) this.file(d.key);
     }
     this.pump();
   }

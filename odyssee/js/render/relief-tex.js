@@ -113,6 +113,149 @@ function marches(dir, R) {
     }
   });
 }
+/* pièces de pelouse des plateaux d'herbe (rendu sans sol généré, ?sol=0 ; sinon solgen.js dessine le talus au pixel) */
+/** talus d'herbe (case sous le bord sud) : lèvre claire et brins qui pendent en haut (sauf `milieu`), versant qui fonce
+ *  vers le pied, quelques touffes */
+function penteHerbe(pal, seed, milieu) {
+  return toile((p) => {
+    for (let i = 0; i < C; i++) {
+      const pend = milieu ? -1 : 2 + Math.floor(hash(i, 0, seed) * 4), levre = milieu ? -1 : 1 + (hash(i >> 2, 1, seed) < 0.5 ? 1 : 0);
+      for (let j = 0; j < C; j++) {
+        const t = j / C, b = ((i * 7 + j * 5) & 3) / 4;
+        let k;
+        if (j <= levre) k = 5;
+        else if (j <= pend && hash(i, 2, seed) < 0.45) k = 4;
+        else if (j <= levre + 2) k = 1;
+        else k = Math.max(1, Math.min(3, Math.floor(3.4 - 2 * t + b - 0.5 + (hash(i >> 1, j >> 3, seed + 1) < 0.08 ? 1 : 0))));
+        p(i, j, pal[k]);
+      }
+    }
+    for (let n = 0; n < 4; n++) {   // touffes
+      const x = 3 + Math.floor(hash(n, 3, seed) * 26), y = 10 + Math.floor(hash(n, 4, seed) * 18);
+      p(x, y, pal[4]); p(x - 1, y + 1, pal[3]); p(x + 1, y + 1, pal[3]); p(x, y + 2, pal[0]);
+    }
+  });
+}
+/** côté est / ouest d'un plateau d'herbe : lèvre claire sur la case haute (bord) ; versant sur la case basse (flanc) */
+function penteBord(cote, pal) {
+  return toile((p) => {
+    for (let a = 0; a < C; a++) for (let b = 0; b < 3; b++) {
+      const col = b === 0 ? pal[1] : pal[5];
+      if (cote === 'e') p(C - 1 - b, a, col); else if (cote === 'w') p(b, a, col); else p(a, b, b === 0 ? pal[1] : b === 1 ? pal[4] : null);
+    }
+  });
+}
+function penteFlanc(cote, pal, seed) {
+  return toile((p) => {
+    for (let j = 0; j < C; j++) {
+      const w = 8 + Math.floor(hash(0, j >> 3, seed) * 5);
+      for (let b = 0; b < w; b++) {
+        const x = cote === 'w' ? b : C - 1 - b, t = b / w;
+        p(x, j, b === w - 1 ? pal[0] : pal[cote === 'w' ? (t < 0.5 ? 2 : 1) : (t < 0.5 ? 1 : 0)]);
+      }
+    }
+  });
+}
+/** pied d'un talus d'herbe : ombre douce, tramée */
+function penteOmbre() {
+  return toile((p) => { for (let i = 0; i < C; i++) for (let j = 0; j < 5; j++) if (j < 1 || ((i + j) & 1) === 0 && hash(i, j, 3) > j / 6) p(i, j, '#1f4a26'); });
+}
+/** marches de terre tenues par des rondins ('s' : on descend vers le bas de l'écran, 'n', 'e', 'w') */
+function rondins(dir) {
+  const TERRE = ['#6e4f33', '#8c6a44', '#a88655', '#c2a06a'], BOIS = ['#4a3020', '#6e4a2c', '#946840', '#b88a58'];
+  return toile((p) => {
+    for (let i = 0; i < C; i++) for (let j = 0; j < C; j++) {
+      const [u, v] = dir === 's' || dir === 'n' ? [i, j] : [j, i], vv = dir === 'n' || dir === 'w' ? C - 1 - v : v;
+      if (u < 4 || u > C - 5) continue;
+      const lv = vv % 8;
+      p(i, j, lv <= 4 ? TERRE[lv === 0 ? 0 : hash(i, j, 7) < 0.15 ? 1 : 2] : lv === 5 ? BOIS[3] : lv === 6 ? BOIS[2] : BOIS[0]);
+    }
+  });
+}
+
+/* ravins des montagnes (world/relief.js, montagne) : le vide, et les passerelles de bois qui le franchissent */
+/** le vide d'un ravin : presque noir, des traînées de brume et quelques éclats de roche au fond. Bords (là où le ravin
+ *  touche un sentier ou une passerelle) : `n`, la paroi du fond qui plonge et se perd dans le noir (on la voit de face) ;
+ *  `w` / `e`, la lèvre du sentier et une mince paroi qui tombe en biais */
+function ravin(R, seed, n, w, e) {
+  return toile((p) => {
+    for (let j = 0; j < C; j++) for (let i = 0; i < C; i++) {
+      const h = hash(i, j, seed), strie = hash(i >> 1, 3, seed + 1);
+      const brume = Math.sin((i + j * 0.6) / 5 + seed) * 0.5 + 0.5;
+      let col = brume > 0.82 && h < 0.5 ? '#1e2228' : h < 0.02 ? '#2a2c30' : ((i * 3 + j) & 7) === 0 && h < 0.3 ? '#121418' : '#0b0c0f';
+      if (n) {
+        // la paroi du fond : roche striée qui fonce vers le bas, tramée dans le noir
+        const fin = 22 + Math.floor(hash(i >> 2, 7, seed) * 6), t = j / fin;
+        if (j < fin) {
+          const k = Math.max(0, Math.round((1 - t) * 3.4 - 0.4 + (strie - 0.5) * 1.2 + (h < 0.15 ? -1 : 0)));
+          col = t > 0.72 && ((i + j) & 1) ? '#0c0d10' : k <= 0 ? '#16161a' : R[Math.min(4, k)];
+          if ((i + (strie * 7 | 0)) % 6 === 0 && t < 0.8 && t > 0.08) col = R[0];      // fissures verticales
+          if (j === 0) col = R[5]; else if (j === 1) col = R[4];                       // arête du bord
+        }
+      }
+      for (const [cote, on] of [['w', w], ['e', e]]) {
+        if (!on) continue;
+        // la lèvre du sentier : 3 px de roche claire, puis une paroi en biais qui se perd vers le bas de la case
+        const b = cote === 'w' ? i : C - 1 - i, larg = 3 + Math.floor(hash(j >> 2, cote === 'w' ? 5 : 6, seed) * 3) + (C - j) / 10;
+        if (b < larg) col = b === 0 ? R[2] : b < 2 ? R[4] : b < larg - 1 ? R[hash(i, j, seed + 9) < 0.3 ? 1 : 2] : R[0];
+        else if (b < larg + 2 && ((i + j) & 1)) col = '#14151a';
+      }
+      p(i, j, col);
+    }
+  });
+}
+/** la paroi du fond d'un ravin : la pente de roche de la montagne (versant, rv) qui continue sous le bord et se perd dans
+ *  le noir, de plus en plus sombre, tramée au bas */
+function plonge(fond, pente, seed) {
+  const c = mk(), x = c.getContext('2d'); x.drawImage(fond, 0, 0);
+  const t = mk(), tx = t.getContext('2d'); tx.drawImage(pente, 0, 0);
+  const a = x.getImageData(0, 0, C, C), b = tx.getImageData(0, 0, C, C);
+  for (let j = 0; j < C; j++) for (let i = 0; i < C; i++) {
+    const fin = 20 + Math.floor(hash(i >> 2, 7, seed) * 7), u = j / fin, k = (j * C + i) * 4;
+    if (j >= fin || !b.data[k + 3]) continue;
+    if (u > 0.7 && ((i + j) & 1) && hash(i, j, seed) < (u - 0.7) * 3.3) continue;   // tramé dans le noir
+    const f = 1 - 0.82 * Math.pow(u, 1.4);
+    for (let q = 0; q < 3; q++) a.data[k + q] = Math.round(b.data[k + q] * f);
+    a.data[k + 3] = 255;
+  }
+  x.putImageData(a, 0, 0);
+  return c;
+}
+/** passerelle de planches et de cordes ; 'ew' : on la traverse d'ouest en est (planches debout), 'ns' : du nord au sud ;
+ *  a / b : corde du côté nord / sud (ou ouest / est) ; d / f : poteaux au début / à la fin (bout de la passerelle, ancré au
+ *  sentier) ; entre les planches, le vide. Les planches tirées au sort (seed) ne sont pas toutes pareilles. */
+function passerelle(dir, a, b, d, f, seed) {
+  const BOIS = ['#3a2616', '#5a3c22', '#7a5430', '#9a6e40', '#b88a58'], CORDE = ['#4a3a22', '#8a7048', '#c8b080'];
+  return toile((p) => {
+    for (let j = 0; j < C; j++) for (let i = 0; i < C; i++) {
+      const [u, v] = dir === 'ew' ? [i, j] : [j, i];   // u : le long de la traversée, v : en travers
+      const bordA = a ? 7 : 0, bordB = b ? C - 7 : C;
+      let col = null;
+      if (v >= bordA && v < bordB) {
+        const pl = Math.floor((u + 1) / 5), lu = (u + 1) % 5, nh = hash(pl, 0, seed);
+        // une planche un peu de travers, une autre plus courte : l'usure d'un vieux pont suspendu
+        const court = nh > 0.9 && (v < bordA + 3 || v >= bordB - 3);
+        if (lu === 0 || court) col = (v & 3) === 0 ? BOIS[0] : null;               // jour entre deux planches : le vide
+        else {
+          const k = lu === 1 ? 3 : lu === 4 ? 1 : 2, use = hash(pl, v >> 2, seed + 2) < 0.12 ? -1 : 0;
+          col = BOIS[Math.max(0, Math.min(4, k + use + (nh < 0.3 ? -1 : nh > 0.8 ? 1 : 0)))];
+          if ((v === bordA + 2 || v === bordB - 3) && lu === 2) col = '#2a2a2e';   // clous
+        }
+        if ((v === bordA || v === bordB - 1) && col) col = BOIS[0];                 // tranche des planches
+      }
+      // cordes (tressées) tendues au-dessus du vide, leur ombre portée sur le vide ; suspentes vers les planches
+      const corde = (v0) => { if (v === v0) col = ((u >> 1) & 1) ? CORDE[2] : CORDE[1]; else if (v === v0 + 1) col = ((u >> 1) & 1) ? CORDE[1] : CORDE[0]; };
+      if (a) { corde(2); if (v > 3 && v < bordA && u % 5 === 2) col = CORDE[0]; }
+      if (b) { corde(C - 5); if (v > bordB - 1 && v < C - 5 && u % 5 === 2) col = CORDE[0]; }
+      // poteaux : un gros pieu de bois à chaque coin du bout de la passerelle
+      const poteau = (u0) => { if (u >= u0 && u < u0 + 4 && ((a && v <= 5) || (b && v >= C - 6))) col = u === u0 ? BOIS[1] : u === u0 + 3 ? BOIS[0] : (v === 0 || v === C - 1 ? BOIS[0] : BOIS[3]); };
+      if (d) poteau(0);
+      if (f) poteau(C - 4);
+      if (col) p(i, j, col);
+    }
+  });
+}
+
 /** une image d'un grand tourbillon (f sur 8, sens et phase selon v) : 64 × 64 pixels, spirale d'écume et œil sombre,
  *  rendu en quatre quarts de case (fond transparent) */
 export function tourbillon(f, v = 0) {
@@ -257,4 +400,28 @@ export function texturesRelief(putImg, img) {
     for (const d of ['s', 'n', 'e', 'w']) putImg(`marches_${d}_${bio}`, marches(d, R));
   }
   putImg('trou', trouPlancher());
+  // plateaux d'herbe, sans sol généré
+  Object.entries(LEVRES).forEach(([k, pal], n) => {
+    for (let v = 0; v < 2; v++) { putImg(`pente_${k}_s_${v}`, penteHerbe(pal, 61 + n * 7 + v * 101, false)); putImg(`pente_${k}_m_${v}`, penteHerbe(pal, 62 + n * 7 + v * 101, true)); }
+    for (const c of ['e', 'w', 'n']) putImg(`pente_bord_${c}_${k}`, penteBord(c, pal));
+    for (const c of ['e', 'w']) putImg(`pente_flanc_${c}_${k}`, penteFlanc(c, pal, c === 'e' ? 3 : 5));
+  });
+  putImg('pente_pied', penteOmbre());
+  for (const d of ['s', 'n', 'e', 'w']) putImg(`rondins_${d}`, rondins(d));
+  // ravins et passerelles des montagnes
+  // versant d'une falaise de montagne qui continue au-dessus (deux gradins ou plus l'un sur l'autre) : la pente des faces
+  // sud de relief.png (rf), sans le dessus du gradin, étirée sur toute la case
+  for (const k of Object.keys(img)) {
+    const m = /^rf_(.+)_(\d)$/.exec(k); if (!m) continue;
+    const c = mk(), x = c.getContext('2d'); x.imageSmoothingEnabled = false;
+    x.drawImage(img[k], 0, 11, C, C - 11, 0, 0, C, C);
+    putImg(`rv_${m[1]}_${m[2]}`, c);
+  }
+  // ravins et passerelles des montagnes : le vide (deux tirages), ses bords par biome (paroi du fond, lèvres de côté)
+  putImg('ravin_0', ravin(ROCHES.montagne, 11, 0, 0, 0)); putImg('ravin_1', ravin(ROCHES.montagne, 12, 0, 0, 0));
+  for (const [bio, R] of Object.entries(ROCHES)) for (let k = 1; k < 8; k++) {
+    const c = ravin(R, 13 + k, 0, k & 2, k & 4), pente = img[`rv_${bio}_${k & 3}`] || img[`rv_montagne_${k & 3}`];
+    putImg(`ravin_${bio}_${k}`, k & 1 && pente ? plonge(c, pente, 13 + k) : k & 1 ? ravin(R, 13 + k, 1, k & 2, k & 4) : c);
+  }
+  for (const d of ['ew', 'ns']) for (let k = 0; k < 16; k++) putImg(`passerelle_${d}_${k}`, passerelle(d, k & 1, k & 2, k & 4, k & 8, 21 + k));
 }

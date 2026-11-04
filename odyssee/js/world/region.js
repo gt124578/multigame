@@ -21,6 +21,7 @@ import { buildSud, BADGES_SUD, LEADERS_SUD, GYM_TRAINERS_SUD } from './sud.js';
 import { addVehicules } from './vehicules.js';
 import { addMine } from './mine.js';
 import { tourbillons, plateau, polygone, rectangle, sinueuse, boucher, massif, bande } from './relief.js';
+import { montLunaire, montGivre } from './montagnes.js';
 
 // toutes les lignées connues : la créature d'Odyssée (plus proposée, mais les parties déjà commencées avec elle restent valables),
 // le Pokémon de Rouge / Bleu et celui d'Or / Argent, avec leurs évolutions
@@ -703,7 +704,7 @@ export function buildWorld() {
   routeTrainer(W, r4, 0.4, 1, 4, 'Marin', 'Loïc', [[66, 16], [1033, 16]]);
   routeTrainer(W, r4, 0.62, -1, 4, 'Fillette', 'Romane', [[1037, 16], [179, 17]]);
   routeTrainer(W, r4, 0.85, 1, 3, 'Topdresseur', 'Kylian', [[1011, 18], [84, 17], [1026, 18]]);
-  routeItem(W, r4, 0.3, 1, 5, 'great-ball', 2); routeItem(W, r4, 0.72, -1, 5, 'water-stone');
+  routeItem(W, r4, 0.3, 1, 5, 'great-ball', 2); routeItem(W, r4, 0.72, -1, 5, 'water-stone', 1, 'monde:265,47');   // identifiant d'avant les talus (anciennes sauvegardes)
 
   const r5 = R('r5', 'Route 5', sinueuse([[283.5, 94], [281, 100], [266, 101], [248, 97], [230, 100.5], [212, 97.5], [196, 101], [182.5, 104], [182.5, 112]]), { w: 12, grass: 0.75, trees: 0.05, rocks: 0.01 }, 'r5');
   ledges(W, r5, [0.08], { reach: 6 });
@@ -992,6 +993,7 @@ export function buildWorld() {
   legend({ id: 'suicune', sp: 245, lvl: 40, ...xy(offRoute(gt, 0.25, -1, 2)), cond: 'beasts', intro: ['Un vent du nord souffle sur la glace...', 'C\'est Suicune, la bête des eaux pures !'] });
   // l'île se couvre de neige ; les arbres deviennent des sapins givrés, les sentiers des chemins pavés
   for (let y = 3; y <= 62; y++) for (let x = 344; x <= 436; x++) { const t = W.get(x, y); if (t === T.GRASS) W.set(x, y, T.SNOW); else if (t === T.TREE) W.set(x, y, T.PINE); else if (t === T.PATH) W.set(x, y, T.PAVE); }
+  montGivre({ W, trainerNpc, ENC });   // le Mont Givré, au nord du Rivage Gelé (world/montagnes.js)
 
   // mer de l'Est : rencontres en surfant
   W.zone(340, 64, 439, 279, { name: 'Mer de l\'Est', music: 'route2', enc: ENC.est, sea: true, prio: -1 });
@@ -1015,6 +1017,7 @@ export function buildWorld() {
   // le Mont Lunaire : la montagne que la grotte traverse, entre les deux bouts de la route 3 (la roche remplace la forêt)
   massif(W, polygone([[149, 14], [171, 12], [182, 19], [180, 30], [175, 37.5], [167, 45], [160, 50], [153, 45], [147, 37.5], [143, 26]]));
   W.zone(143, 12, 182, 37, { name: 'Mont Lunaire', music: 'route', prio: 0 });
+  montLunaire({ W, trainerNpc });   // le sentier qui grimpe au sommet (world/montagnes.js)
   const grotte = caveMap('grotte', 46, 32, 4242, [{ x: 4, y: 26 }, { x: 41, y: 26 }], { name: 'Grotte Lunaire', via: [{ x: 14, y: 8 }, { x: 30, y: 20 }, { x: 36, y: 6 }] });
   grotte.encounter = ENC.grotte; maps.grotte = grotte;
   for (const [cx, cy, out] of [[4, 26, g1in], [41, 26, g1out]]) {
