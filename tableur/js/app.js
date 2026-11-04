@@ -15,7 +15,7 @@ import { installerTCD } from './ui-tcd.js';
 import { installerDialogues } from './ui-dialogues.js';
 import { installerAnalyse } from './ui-analyse.js';
 import { installerImpression } from './ui-impression.js';
-import { rendreGraphiqueSVG, normaliser as normaliserGraphique } from './graphiques.js';
+import { rendreGraphiqueSVG, normaliser as normaliserGraphique, sparklineSVG } from './graphiques.js';
 import { antecedents, dependants, actualiserTablesDonnees } from './analyse.js';
 import { AIDE } from './aide-fonctions.js';
 import { matriceGraphique } from './graphiques-xlsx.js';
@@ -226,6 +226,12 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
       const bulle = cel.note || (cel.lien ? cel.lien + ' — Ctrl+clic pour suivre le lien' : '');
       html += `<div class="${cls}" style="${style}"${bulle ? ` title="${echapper(bulle).replace(/"/g, '&quot;')}"` : ''}>${afficherFormules && cel.f != null ? echapper(classeur.saisie(F, r, c)) : echapper(txt)}</div>`;
     }
+  }
+  // Graphiques sparkline : dessinés dans leur cellule
+  for (const sp of f.sparklines || []) {
+    if (sp.r < r1 || sp.r > r2 || sp.c < c1 || sp.c > c2 || !hauteurLig(sp.r) || !largeurCol(sp.c)) continue;
+    const vals = matriceGraphique(classeur, f, sp.donnees).flat();
+    html += `<div class="sparkline" style="left:${xCols[sp.c] + dx}px;top:${yLigs[sp.r] + dy}px;width:${largeurCol(sp.c)}px;height:${hauteurLig(sp.r)}px">${sparklineSVG(vals, largeurCol(sp.c) - 1, hauteurLig(sp.r) - 1, sp)}</div>`;
   }
   return html;
 }
@@ -2348,6 +2354,9 @@ function menuCellules(s) {
       ['Supprimer les doublons…', () => uiB.doublons()], ['Convertir en colonnes…', () => uiB.colonnes()], ['Validation des données…', () => uiD.validation.ouvrir()], ['Mettre sous forme de tableau', () => mettreEnTableau(), 'Ctrl+L']]],
     ['Mise en forme conditionnelle…', () => uiD.ouvrirMfc()],
     ...menuTableau(),
+    ...((feuille().sparklines || []).some((x) => x.r === curseur.r && x.c === curseur.c) ? [['Sparkline', [['Modifier le groupe…', () => uiB.sparklines(null, (feuille().sparklines.find((x) => x.r === curseur.r && x.c === curseur.c) || {}).groupe)],
+      ['Supprimer', () => { memoriser('formatCellules'); feuille().sparklines = feuille().sparklines.filter((x) => !(x.r === curseur.r && x.c === curseur.c)); classeur.version++; sauvegarderLocal(); rendre(); }],
+      ['Supprimer le groupe', () => { const gr = feuille().sparklines.find((x) => x.r === curseur.r && x.c === curseur.c).groupe; memoriser('formatCellules'); feuille().sparklines = feuille().sparklines.filter((x) => x.groupe !== gr); classeur.version++; sauvegarderLocal(); rendre(); }]]]] : []),
     ...(uiT.sousCurseur() ? [['Tableau croisé', [['Modifier les champs…', () => uiT.ouvrir()], ['Actualiser', () => { uiT.ouvrir(); uiT.toutActualiser(); }]]]] : [['Tableau croisé dynamique…', () => uiT.ouvrir()]]),
     ['Masquer / afficher', [
       ...(s.r2 >= 1048575 ? [] : [['Masquer les lignes', () => uiD.masquer('r', false), 'Ctrl+9'], ['Afficher les lignes masquées', () => uiD.masquer('r', true), 'Ctrl+Maj+9']]),
@@ -2784,7 +2793,8 @@ conteneur.addEventListener('wheel', (e) => {
 function menuPlus() {
   return [
     ['Format de cellule…', () => uiB.formatCellule(), 'Ctrl+1'], ['Collage spécial…', () => uiB.collageSpecial(), 'Ctrl+Alt+V'], ['Atteindre…', () => uiB.atteindre(), 'Ctrl+G'], null,
-    ['Insérer', [['Tableau…', () => mettreEnTableau(), 'Ctrl+L'], ['Graphique', () => uiG.insererDirect(), 'Alt+F1'], ['Image…', () => $('fichier-image').click()], ['Lien hypertexte…', () => uiB.lien(), 'Ctrl+K'], ['Note…', () => uiB.note(), 'Maj+F2']]],
+    ['Insérer', [['Tableau…', () => mettreEnTableau(), 'Ctrl+L'], ['Graphique', () => uiG.insererDirect(), 'Alt+F1'],
+      ['Sparklines', [['Courbe…', () => uiB.sparklines('ligne')], ['Histogramme…', () => uiB.sparklines('colonne')], ['Gain / perte…', () => uiB.sparklines('gainperte')]]], ['Image…', () => $('fichier-image').click()], ['Lien hypertexte…', () => uiB.lien(), 'Ctrl+K'], ['Note…', () => uiB.note(), 'Maj+F2']]],
     ['Données', [['Remplissage instantané', () => uiA.remplissage(), 'Ctrl+E'], ['Supprimer les doublons…', () => uiB.doublons()], ['Convertir en colonnes…', () => uiB.colonnes()], ['Validation des données…', () => uiD.validation.ouvrir()], null,
       ['Actualiser tout', () => { uiT.toutActualiser(); actualiserTablesDonnees(classeur); rendre(); sauvegarderLocal(); }, 'Ctrl+Alt+F5']]],
     ['Analyse', [['Valeur cible…', () => uiD.ouvrirCible()], ['Solveur…', () => uiA.ouvrirSolveur()], ['Table de données…', () => uiA.ouvrirTableDonnees()]]],

@@ -7,6 +7,8 @@
 //   plage, enLignes (séries en lignes plutôt qu'en colonnes), noms { i: nom }, couleurs { i: '#rrggbb' }
 //   titre, titreX, titreY, legende (droite | bas | haut | gauche | aucune), etiquettes (aucune | valeur | pourcentage | categorie)
 //   quadrillage, quadrillageX, yMin, yMax, formatY, marqueurs, lisse, epaisseur, palette, police, fond
+//   tendances { i: { type: lineaire|exponentielle|logarithmique|polynomiale|puissance|moyenne, ordre, periode, equation, r2 } }
+//   secondaire { i: true } : série tracée sur l'axe de droite (en courbe)
 //
 // Les données : une matrice de valeurs déjà calculées. La première ligne donne les noms des séries si ce
 // sont des textes, la première colonne les catégories (ou les X d'un nuage de points).
@@ -64,7 +66,71 @@ export function normaliser(g) {
   if (!g.etiquettes) g.etiquettes = 'aucune';
   if (!g.noms) g.noms = {};
   if (!g.couleurs) g.couleurs = {};
+  if (!g.tendances) g.tendances = {};
+  if (!g.secondaire) g.secondaire = {};
   return g;
+}
+
+// ---------------------------------------------------------------------------
+// Courbes de tendance (régressions comme Excel)
+// ---------------------------------------------------------------------------
+export const TYPES_TENDANCE = [['lineaire', 'Linéaire'], ['exponentielle', 'Exponentielle'], ['logarithmique', 'Logarithmique'], ['polynomiale', 'Polynomiale'], ['puissance', 'Puissance'], ['moyenne', 'Moyenne mobile']];
+function moindresCarres(X, y) {
+  // X : lignes [1, x, x²…] ; résout (XᵀX) b = Xᵀy par élimination de Gauss
+  const n = X[0].length, A = Array.from({ length: n }, () => new Array(n + 1).fill(0));
+  for (let k = 0; k < X.length; k++) for (let i = 0; i < n; i++) { for (let j = 0; j < n; j++) A[i][j] += X[k][i] * X[k][j]; A[i][n] += X[k][i] * y[k]; }
+  for (let i = 0; i < n; i++) {
+    let p = i; for (let k = i + 1; k < n; k++) if (Math.abs(A[k][i]) > Math.abs(A[p][i])) p = k;
+    [A[i], A[p]] = [A[p], A[i]];
+    if (Math.abs(A[i][i]) < 1e-300) return null;
+    for (let k = 0; k < n; k++) if (k !== i) { const f = A[k][i] / A[i][i]; for (let j = i; j <= n; j++) A[k][j] -= f * A[i][j]; }
+  }
+  return A.map((l, i) => l[n] / l[i]);
+}
+const r2De = (y, yh) => { const m = y.reduce((a, b) => a + b, 0) / y.length; const sst = y.reduce((a, v) => a + (v - m) ** 2, 0), sse = y.reduce((a, v, i) => a + (v - yh[i]) ** 2, 0); return sst ? 1 - sse / sst : 1; };
+const nombreEq = (v) => { const t = Math.abs(v) >= 1e5 || (Math.abs(v) < 1e-3 && v !== 0) ? v.toExponential(3) : String(+v.toPrecision(4)); return t.replace('.', ','); };
+const EXPOSANTS = ['', '', '²', '³', '⁴', '⁵', '⁶'];
+/**
+ * Ajuste une tendance sur des points (x, y). → { f(x), equation, r2 } ou null.
+ * Comme Excel : exponentielle et puissance par régression sur ln(y), leur R² est celui de cette régression.
+ */
+export function calculerTendance(xs, ys, spec) {
+  const pts = xs.map((x, i) => [x, ys[i]]).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+  const type = spec.type || 'lineaire';
+  if (type === 'moyenne') {
+    const p = Math.max(2, Math.min(pts.length, +spec.periode || 2));
+    if (pts.length < p) return null;
+    const moy = []; for (let i = p - 1; i < pts.length; i++) moy.push([pts[i][0], pts.slice(i - p + 1, i + 1).reduce((a, q) => a + q[1], 0) / p]);
+    return { points: moy, equation: '', r2: null };
+  }
+  if (pts.length < 2) return null;
+  let X, y, f, eq, r2;
+  const lin = (u, v) => { const b = moindresCarres(u.map((x) => [1, x]), v); return b && { a0: b[0], a1: b[1], r2: r2De(v, u.map((x) => b[0] + b[1] * x)) }; };
+  const signe = (v) => (v < 0 ? ' - ' + nombreEq(-v) : ' + ' + nombreEq(v));
+  if (type === 'lineaire') {
+    const L = lin(pts.map((p) => p[0]), pts.map((p) => p[1])); if (!L) return null;
+    f = (x) => L.a0 + L.a1 * x; eq = 'y = ' + nombreEq(L.a1) + 'x' + signe(L.a0); r2 = L.r2;
+  } else if (type === 'exponentielle') {
+    const q = pts.filter((p) => p[1] > 0); if (q.length < 2) return null;
+    const L = lin(q.map((p) => p[0]), q.map((p) => Math.log(p[1]))); if (!L) return null;
+    const a = Math.exp(L.a0); f = (x) => a * Math.exp(L.a1 * x); eq = 'y = ' + nombreEq(a) + 'e^(' + nombreEq(L.a1) + 'x)'; r2 = L.r2;
+  } else if (type === 'logarithmique') {
+    const q = pts.filter((p) => p[0] > 0); if (q.length < 2) return null;
+    const L = lin(q.map((p) => Math.log(p[0])), q.map((p) => p[1])); if (!L) return null;
+    f = (x) => (x > 0 ? L.a0 + L.a1 * Math.log(x) : NaN); eq = 'y = ' + nombreEq(L.a1) + 'ln(x)' + signe(L.a0); r2 = L.r2;
+  } else if (type === 'puissance') {
+    const q = pts.filter((p) => p[0] > 0 && p[1] > 0); if (q.length < 2) return null;
+    const L = lin(q.map((p) => Math.log(p[0])), q.map((p) => Math.log(p[1]))); if (!L) return null;
+    const a = Math.exp(L.a0); f = (x) => (x > 0 ? a * Math.pow(x, L.a1) : NaN); eq = 'y = ' + nombreEq(a) + 'x^' + nombreEq(L.a1); r2 = L.r2;
+  } else {
+    const ordre = Math.max(2, Math.min(6, +spec.ordre || 2, pts.length - 1));
+    X = pts.map((p) => Array.from({ length: ordre + 1 }, (_, k) => p[0] ** k)); y = pts.map((p) => p[1]);
+    const b = moindresCarres(X, y); if (!b) return null;
+    f = (x) => b.reduce((a, c, k) => a + c * x ** k, 0);
+    r2 = r2De(y, X.map((l) => l.reduce((a, v, k) => a + v * b[k], 0)));
+    eq = 'y = ' + b.map((c, k) => [c, k]).reverse().filter(([c]) => Math.abs(c) > 1e-12).map(([c, k], i) => (i === 0 ? (c < 0 ? '-' : '') : c < 0 ? ' - ' : ' + ') + nombreEq(Math.abs(c)) + (k ? 'x' + EXPOSANTS[k] : '')).join('');
+  }
+  return { f, equation: eq, r2, xmin: Math.min(...pts.map((p) => p[0])), xmax: Math.max(...pts.map((p) => p[0])) };
 }
 
 const ech = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -165,6 +231,7 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
   if ((g.titre || edition) && !mini) { svg += texte(W / 2, 6 + police * 1.35, g.titre || 'Titre du graphique', `data-zone="titre" text-anchor="middle" font-size="${Math.round(police * 1.3)}" font-weight="600" fill="${g.titre ? '#111827' : '#9ca3af'}"${g.titre ? '' : ' font-style="italic"'}${edition ? ' style="cursor:text"' : ''}`); haut += police * 1.6 + 4; }
   const circulaire = g.type === 'secteurs';
   const legendeItems = circulaire ? d.categories.map((c, i) => [c, couleur(i)]) : d.series.map((s, i) => [s.nom, couleur(i)]);
+  if (!circulaire && g.type !== 'radar') d.series.forEach((s, i) => { const t = g.tendances[i]; if (t && t.type) legendeItems.push([(TYPES_TENDANCE.find((x) => x[0] === t.type) || ['', 'Tendance'])[1] + ' (' + s.nom + ')', couleur(i), true]); });
   const pos = mini || g.legende === 'aucune' || (!circulaire && d.series.length < 2 && g.legende === 'droite' && !g.legendeForcee) ? 'aucune' : g.legende;
   if (pos !== 'aucune') {
     const items = legendeItems.slice(0, 24);
@@ -173,17 +240,17 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
       const x0 = pos === 'droite' ? W - lw - 4 : 6;
       const hTot = items.length * (police + 6);
       let y = Math.max(haut + 4, (H - hTot) / 2);
-      for (const [t, c] of items) { if (y + police > H - 4) break; svg += `<rect x="${x0}" y="${y}" width="${police - 1}" height="${police - 1}" rx="2" fill="${c}"/>` + texte(x0 + police + 4, y + police - 2, tronquer(t, Math.max(4, Math.floor((lw - police - 8) / (police * 0.55)))), 'fill="#374151"'); y += police + 6; }
+      for (const [t, c, pointille] of items) { if (y + police > H - 4) break; svg += (pointille ? `<line x1="${x0}" y1="${y + police / 2}" x2="${x0 + police}" y2="${y + police / 2}" stroke="${c}" stroke-width="2" stroke-dasharray="3 2"/>` : `<rect x="${x0}" y="${y}" width="${police - 1}" height="${police - 1}" rx="2" fill="${c}"/>`) + texte(x0 + police + 4, y + police - 2, tronquer(t, Math.max(4, Math.floor((lw - police - 8) / (police * 0.55)))), 'fill="#374151"'); y += police + 6; }
       if (pos === 'droite') droite += lw + 4; else gauche += lw + 4;
     } else {
       // En haut ou en bas, sur une ou plusieurs lignes centrées
       const lignes = [[]]; let largeurLigne = 0;
-      for (const [t, c] of items) { const lt = police + 8 + Math.min(t.length, 24) * police * 0.56; if (largeurLigne + lt > W - 16 && lignes[lignes.length - 1].length) { lignes.push([]); largeurLigne = 0; } lignes[lignes.length - 1].push([tronquer(t, 24), c, lt]); largeurLigne += lt; }
+      for (const [t, c, pointille] of items) { const lt = police + 8 + Math.min(t.length, 24) * police * 0.56; if (largeurLigne + lt > W - 16 && lignes[lignes.length - 1].length) { lignes.push([]); largeurLigne = 0; } lignes[lignes.length - 1].push([tronquer(t, 24), c, lt, pointille]); largeurLigne += lt; }
       const hL = lignes.length * (police + 6);
       let y = pos === 'haut' ? haut + 2 : H - hL - 2;
       for (const l of lignes) {
         let x = (W - l.reduce((s, it) => s + it[2], 0)) / 2;
-        for (const [t, c, lt] of l) { svg += `<rect x="${x}" y="${y}" width="${police - 1}" height="${police - 1}" rx="2" fill="${c}"/>` + texte(x + police + 3, y + police - 2, t, 'fill="#374151"'); x += lt; }
+        for (const [t, c, lt, pointille] of l) { svg += (pointille ? `<line x1="${x}" y1="${y + police / 2}" x2="${x + police}" y2="${y + police / 2}" stroke="${c}" stroke-width="2" stroke-dasharray="3 2"/>` : `<rect x="${x}" y="${y}" width="${police - 1}" height="${police - 1}" rx="2" fill="${c}"/>`) + texte(x + police + 3, y + police - 2, t, 'fill="#374151"'); x += lt; }
         y += police + 6;
       }
       if (pos === 'haut') haut += hL + 4; else bas += hL + 4;
@@ -203,23 +270,29 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
   const bornes = (s, i, base) => { const v = s.valeurs[i]; if (v === null) return null; const val = cent ? (totaux[i] ? v / totaux[i] : 0) : v; return [base, base + val]; };
   let min = Infinity, max = -Infinity;
   const emp = g.type === 'combine' ? false : empile;
+  // Axe secondaire : séries à droite, jamais empilées, dessinées en courbe
+  const sec = (k) => !!g.secondaire[k] && d.series.length > 1;
+  let min2 = Infinity, max2 = -Infinity;
+  d.series.forEach((s, k) => { if (sec(k)) s.valeurs.forEach((v) => { if (v !== null) { min2 = Math.min(min2, v); max2 = Math.max(max2, v); } }); });
+  const aSecondaire = min2 <= max2;
   const piles = d.series.map(() => new Array(nbCat));
   if (emp) {
     for (let i = 0; i < nbCat; i++) {
       let pos = 0, neg = 0;
       if (g.type === 'colonnes' || g.type === 'barres') {
         // Barres : les positives s'empilent au-dessus de zéro, les négatives en dessous
-        d.series.forEach((s, k) => { const b = bornes(s, i, 0); if (!b) return; const v = b[1]; if (v >= 0) { piles[k][i] = [pos, pos + v]; pos += v; } else { piles[k][i] = [neg, neg + v]; neg += v; } });
+        d.series.forEach((s, k) => { if (sec(k)) { if (s.valeurs[i] !== null) piles[k][i] = [0, s.valeurs[i]]; return; } const b = bornes(s, i, 0); if (!b) return; const v = b[1]; if (v >= 0) { piles[k][i] = [pos, pos + v]; pos += v; } else { piles[k][i] = [neg, neg + v]; neg += v; } });
         min = Math.min(min, neg); max = Math.max(max, pos);
       } else {
         // Courbes et aires : somme cumulée, comme Excel
         let cumul = 0;
-        d.series.forEach((s, k) => { const b = bornes(s, i, 0); if (!b) return; piles[k][i] = [cumul, cumul + b[1]]; cumul += b[1]; min = Math.min(min, cumul, 0); max = Math.max(max, cumul); });
+        d.series.forEach((s, k) => { if (sec(k)) { if (s.valeurs[i] !== null) piles[k][i] = [0, s.valeurs[i]]; return; } const b = bornes(s, i, 0); if (!b) return; piles[k][i] = [cumul, cumul + b[1]]; cumul += b[1]; min = Math.min(min, cumul, 0); max = Math.max(max, cumul); });
       }
     }
   } else {
-    d.series.forEach((s, k) => s.valeurs.forEach((v, i) => { if (v === null) return; piles[k][i] = [0, v]; min = Math.min(min, v); max = Math.max(max, v); }));
+    d.series.forEach((s, k) => s.valeurs.forEach((v, i) => { if (v === null) return; piles[k][i] = [0, v]; if (sec(k)) return; min = Math.min(min, v); max = Math.max(max, v); }));
   }
+  if (min > max) { min = min2; max = max2; }
   const nuage = d.nuage;
   let ex = null;
   if (nuage) {
@@ -236,6 +309,9 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
   // Marges pour les graduations et titres d'axes
   const etiquettesVal = []; for (let v = ey.min; v <= ey.max + ey.pas * 1e-6; v += ey.pas) etiquettesVal.push(+v.toPrecision(12));
   const largeurGrad = mini ? 0 : Math.max(...etiquettesVal.map((v) => fmtVal(v, cent).length)) * police * 0.58 + 6;
+  const ey2 = aSecondaire && !horizontal ? echelle(min2, max2, min2 <= 0 || g.type !== 'lignes') : null;
+  const etiquettesVal2 = []; if (ey2) for (let v = ey2.min; v <= ey2.max + ey2.pas * 1e-6; v += ey2.pas) etiquettesVal2.push(+v.toPrecision(12));
+  if (ey2 && !mini) droite += Math.max(...etiquettesVal2.map((v) => formatAuto(v).length)) * police * 0.58 + 8;
   if (g.titreY && !mini) { if (horizontal) bas += police + 6; else { gauche += police + 6; svg += texte(gauche - police + 2, (haut + H - bas) / 2, g.titreY, `data-zone="titreY" text-anchor="middle" fill="#374151"${edition ? ' style="cursor:text"' : ''} transform="rotate(-90 ${gauche - police + 2} ${(haut + H - bas) / 2})"`); } }
   if (g.titreX && !mini) { if (horizontal) { gauche += police + 6; svg += texte(gauche - police + 2, (haut + H - bas) / 2, g.titreX, `data-zone="titreX" text-anchor="middle" fill="#374151"${edition ? ' style="cursor:text"' : ''} transform="rotate(-90 ${gauche - police + 2} ${(haut + H - bas) / 2})"`); } else bas += police + 6; }
   const largeurCat = mini ? 0 : horizontal ? Math.min(W * 0.3, Math.max(...d.categories.map((c) => Math.min(c.length, 16))) * police * 0.58 + 8) : 0;
@@ -248,6 +324,8 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
   const pv = (v) => (horizontal ? zone.x + ((v - ey.min) / (ey.max - ey.min)) * zone.w : zone.y + zone.h - ((v - ey.min) / (ey.max - ey.min)) * zone.h);
   const pc = (i) => (horizontal ? zone.y + ((i + 0.5) / nbCat) * zone.h : zone.x + ((i + 0.5) / nbCat) * zone.w);
   const px = (x) => zone.x + ((x - ex.min) / (ex.max - ex.min)) * zone.w;
+  const pv2 = ey2 ? (v) => zone.y + zone.h - ((v - ey2.min) / (ey2.max - ey2.min)) * zone.h : pv;
+  if (ey2 && !mini) for (const v of etiquettesVal2) svg += texte(zone.x + zone.w + 4, pv2(v) + police * 0.35, formatAuto(v), 'text-anchor="start" fill="#6b7280"');
   // Quadrillage et graduations de valeurs
   const grad = mini ? 'none' : '#6b7280';
   for (const v of etiquettesVal) {
@@ -281,7 +359,7 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
   const titre = (s, i, v) => `<title>${ech(s.nom)} — ${ech(nuage ? formatAuto(d.xs[i]) : d.categories[i])} : ${ech(fmtVal(v, false))}</title>`;
 
   // Séries en barres (histogramme, barres, combiné : la première série)
-  const enBarres = (k) => g.type === 'colonnes' || g.type === 'barres' || (g.type === 'combine' && k === 0);
+  const enBarres = (k) => !sec(k) && (g.type === 'colonnes' || g.type === 'barres' || (g.type === 'combine' && k === 0));
   const seriesBarres = d.series.map((_, k) => k).filter(enBarres);
   if (seriesBarres.length) {
     const groupe = (horizontal ? zone.h : zone.w) / nbCat * (mini ? 0.8 : 0.72);
@@ -318,24 +396,46 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
       if (v === null) return;
       if (nuage && d.xs[i] === null) return;
       const b = piles[k][i]; if (!b) return;
-      pts.push([nuage ? px(d.xs[i]) : pc(i), pv(b[1]), v, i, b[0]]);
+      pts.push([nuage ? px(d.xs[i]) : pc(i), (sec(k) ? pv2 : pv)(b[1]), v, i, b[0]]);
     });
     if (!pts.length) continue;
     if (nuage) pts.sort((a, b) => a[0] - b[0]);
     const c = couleur(k);
-    if (aires) {
+    if (aires && !sec(k)) {
       const haut2 = pts.map((p) => [p[0], p[1]]);
       const bas2 = pts.map((p) => [p[0], pv(p[4])]).reverse();
       svg += `<path d="${cheminDroit(haut2)} L${bas2.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' L')} Z" fill="${c}" fill-opacity="${emp ? 0.85 : 0.45}" stroke="${c}" stroke-width="1"/>`;
     } else if (!nuage || g.variante !== 'points') {
       svg += `<path d="${lisse ? cheminLisse(pts) : cheminDroit(pts)}" fill="none" stroke="${c}" stroke-width="${ep}" stroke-linejoin="round" stroke-linecap="round"/>`;
     }
-    const marqueurs = nuage || g.marqueurs || (g.type === 'combine' && !mini);
+    const marqueurs = nuage || g.marqueurs || ((g.type === 'combine' || sec(k)) && !mini);
     for (const p of pts) {
       if (marqueurs) svg += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${nuage ? (mini ? 2 : 3.5) : mini ? 1.5 : 3}" fill="${nuage ? c : '#fff'}" stroke="${c}" stroke-width="${nuage ? 0 : 1.5}">${titre(s, p[3], p[2])}</circle>`;
       svg += etiquette(p[0], p[1] - 6, p[2], p[3], k);
     }
   }
+  // Courbes de tendance (pointillés), avec équation et R² en haut à droite du tracé
+  const lignesEq = [];
+  d.series.forEach((s, k) => {
+    const t = g.tendances[k];
+    if (!t || !t.type || horizontal) return;
+    const xs = s.valeurs.map((_, i) => (nuage ? d.xs[i] : i + 1)), ys = s.valeurs.map((v) => (v === null ? NaN : v));
+    const res = calculerTendance(xs, ys, t);
+    if (!res) return;
+    const versX = (x) => (nuage ? px(x) : pc(x - 1)), versY = sec(k) ? pv2 : pv;
+    let pts;
+    if (res.points) pts = res.points.map(([x, y]) => [versX(x), versY(y)]);
+    else {
+      const a = nuage ? res.xmin : 1, b = nuage ? res.xmax : nbCat, n = 60;
+      pts = [];
+      for (let i = 0; i <= n; i++) { const x = a + ((b - a) * i) / n, y = res.f(x); if (Number.isFinite(y)) pts.push([versX(x), versY(y)]); }
+    }
+    if (pts.length < 2) return;
+    const id = 'clip' + Math.random().toString(36).slice(2, 8);
+    svg += `<clipPath id="${id}"><rect x="${zone.x}" y="${zone.y}" width="${zone.w}" height="${zone.h}"/></clipPath><path clip-path="url(#${id})" d="${cheminDroit(pts)}" fill="none" stroke="${couleur(k)}" stroke-width="${mini ? 1 : 1.6}" stroke-dasharray="${mini ? '2 2' : '5 4'}"/>`;
+    if (!mini && (t.equation || t.r2) && !res.points) lignesEq.push([couleur(k), [t.equation ? res.equation : '', t.r2 ? 'R² = ' + nombreEq(res.r2) : ''].filter(Boolean).join('   ')]);
+  });
+  lignesEq.forEach(([c, t], i) => { svg += texte(zone.x + zone.w - 4, zone.y + police + 2 + i * (police + 4), t, `text-anchor="end" fill="${c}" font-weight="600" stroke="#fff" stroke-width="3" paint-order="stroke"`); });
   return svg + '</svg>';
 }
 
@@ -394,4 +494,42 @@ function radar(g, d, couleur, zone, police, mini, fmtVal) {
     if (g.marqueurs && !mini) for (const p of pts) out += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.5" fill="${couleur(k)}"/>`;
   });
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Graphiques sparkline (dans une cellule)
+// ---------------------------------------------------------------------------
+// sp : { type: 'ligne'|'colonne'|'gainperte', couleur, couleurNeg, marqueurs, haut, bas, premier, dernier, negatifs }
+export function sparklineSVG(valeurs, w, h, sp = {}) {
+  const v = valeurs.map((x) => (typeof x === 'number' && Number.isFinite(x) ? x : null));
+  const n = v.length, nums = v.filter((x) => x !== null);
+  const coul = sp.couleur || '#376092', neg = sp.couleurNeg || '#d00000', marq = sp.couleurMarqueurs || '#d00000';
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`;
+  if (!nums.length || n < 1) return svg + '</svg>';
+  const pad = 3, W = w - 2 * pad, H = h - 2 * pad;
+  const type = sp.type || 'ligne';
+  let min = Math.min(...nums), max = Math.max(...nums);
+  const iMax = v.indexOf(max), iMin = v.indexOf(min);
+  const premier = v.findIndex((x) => x !== null), dernier = v.length - 1 - [...v].reverse().findIndex((x) => x !== null);
+  const special = (i) => (sp.haut && i === iMax ? marq : sp.bas && i === iMin ? marq : sp.premier && i === premier ? marq : sp.dernier && i === dernier ? marq : sp.negatifs && v[i] < 0 ? neg : null);
+  if (type === 'ligne') {
+    if (min === max) { min -= 1; max += 1; }
+    const X = (i) => pad + (n === 1 ? W / 2 : (i * W) / (n - 1)), Y = (x) => pad + H - ((x - min) / (max - min)) * H;
+    let d = '', ouvert = false;
+    v.forEach((x, i) => { if (x === null) { ouvert = false; return; } d += (ouvert ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(x).toFixed(1); ouvert = true; });
+    svg += `<path d="${d}" fill="none" stroke="${coul}" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/>`;
+    v.forEach((x, i) => { if (x === null) return; const c = special(i) || (sp.marqueurs ? coul : null); if (c) svg += `<circle cx="${X(i).toFixed(1)}" cy="${Y(x).toFixed(1)}" r="2" fill="${c}"/>`; });
+  } else {
+    const gp = type === 'gainperte';
+    if (gp) { min = -1; max = 1; } else { min = Math.min(0, min); max = Math.max(0, max); if (min === max) max = 1; }
+    const Y = (x) => pad + H - ((x - min) / (max - min)) * H, zero = Y(0), lb = W / n;
+    v.forEach((x, i) => {
+      if (x === null || (gp && x === 0)) return;
+      const val = gp ? Math.sign(x) : x, y1 = Y(val);
+      const c = special(i) || (x < 0 && (gp || sp.negatifs) ? neg : coul);
+      svg += `<rect x="${(pad + i * lb + lb * 0.12).toFixed(1)}" y="${Math.min(y1, zero).toFixed(1)}" width="${Math.max(1, lb * 0.76).toFixed(1)}" height="${Math.max(1, Math.abs(zero - y1)).toFixed(1)}" fill="${c}"/>`;
+    });
+    if (gp || min < 0) svg += `<line x1="${pad}" x2="${pad + W}" y1="${zero}" y2="${zero}" stroke="#9ca3af" stroke-width=".6"/>`;
+  }
+  return svg + '</svg>';
 }

@@ -414,6 +414,47 @@ export function installerDialogues(api) {
     });
   }
 
-  return { ouvrir, protegerFeuille, creerTableau, styleTableau: styleTableauDlg, renommerTableau: renommerTableauDlg, redimensionnerTableau, formatCellule, collageSpecial, cellules, atteindre, lien, note, doublons, colonnes, ouvert: () => !fond.hidden };
+  // ---------------------------------------------------------------------------
+  // Graphiques sparkline : une petite courbe par ligne (ou colonne) de données, dans la cellule d'à côté
+  // ---------------------------------------------------------------------------
+  function sparklines(type, groupe) {
+    const f = api.feuille(), s = api.selectionBornee();
+    const existant = groupe ? (f.sparklines || []).filter((x) => x.groupe === groupe) : null;
+    const modele = existant && existant[0] ? { ...existant[0] } : { type: type || 'ligne', couleur: '#376092', couleurNeg: '#d00000', marqueurs: false, haut: false, bas: false, premier: false, dernier: false, negatifs: false };
+    // Données : la sélection ; emplacement : la colonne à droite (une sparkline par ligne), ou la ligne dessous pour une seule ligne choisie en colonne
+    let donnees = adresse(s.r1, s.c1) + ':' + adresse(s.r2, s.c2), lieu;
+    if (existant) { donnees = existant.map((x) => x.donnees).join(';'); lieu = existant.map((x) => adresse(x.r, x.c)).join(';'); }
+    else if (s.c2 > s.c1) lieu = adresse(s.r1, s.c2 + 1) + (s.r2 > s.r1 ? ':' + adresse(s.r2, s.c2 + 1) : '');
+    else lieu = adresse(s.r2 + 1, s.c1);
+    const html = `<div class="fc-liste" style="flex-direction:row">${[['ligne', 'Courbe'], ['colonne', 'Histogramme'], ['gainperte', 'Gain / perte']].map(([k, t]) => `<button data-sptype="${k}" class="${modele.type === k ? 'choisi' : ''}">${t}</button>`).join('')}</div>
+      ${existant ? '' : `<label>Plage de données <input id="sp-donnees" value="${ech(donnees)}" spellcheck="false"></label>
+      <label>Emplacement <input id="sp-lieu" value="${ech(lieu)}" spellcheck="false"></label>`}
+      <div class="fc-grille"><label>Couleur <input type="color" id="sp-couleur" value="${modele.couleur}"></label><label>Négatifs <input type="color" id="sp-neg" value="${modele.couleurNeg}"></label>
+      ${[['marqueurs', 'Marqueurs'], ['haut', 'Point haut'], ['bas', 'Point bas'], ['premier', 'Premier point'], ['dernier', 'Dernier point'], ['negatifs', 'Points négatifs']].map(([k, t]) => `<label class="case"><input type="checkbox" data-sp="${k}"${modele[k] ? ' checked' : ''}> ${t}</label>`).join('')}</div>`;
+    ouvrir(existant ? 'Groupe de sparklines' : 'Insérer des sparklines', html, () => {
+      fond.querySelectorAll('[data-sp]').forEach((x) => { modele[x.dataset.sp] = x.checked; });
+      modele.couleur = $('sp-couleur').value; modele.couleurNeg = $('sp-neg').value;
+      api.memoriser('formatCellules');
+      if (existant) { for (const x of existant) Object.assign(x, { ...modele, r: x.r, c: x.c, donnees: x.donnees, groupe }); }
+      else {
+        const d = parsePlage($('sp-donnees').value.replace(/\$/g, '').trim().toUpperCase()), l = parsePlage($('sp-lieu').value.replace(/\$/g, '').trim().toUpperCase());
+        if (!d || !l) { api.toast('Plage invalide', true); return false; }
+        const cellules = []; for (let r = l.r1; r <= l.r2; r++) for (let c = l.c1; c <= l.c2; c++) cellules.push({ r, c });
+        const enLignes = l.c1 === l.c2; // emplacement en colonne : une ligne de données par cellule
+        const n = enLignes ? d.r2 - d.r1 + 1 : d.c2 - d.c1 + 1;
+        if (cellules.length !== n && cellules.length !== 1) { api.toast('L\'emplacement doit avoir autant de cellules que la plage a de ' + (enLignes ? 'lignes' : 'colonnes') + ' (' + n + ')', true); return false; }
+        const gr = 'sp' + Date.now().toString(36);
+        f.sparklines = (f.sparklines || []).filter((x) => !cellules.some((c) => c.r === x.r && c.c === x.c));
+        cellules.forEach((cel, i) => {
+          const src = cellules.length === 1 ? d : enLignes ? { r1: d.r1 + i, c1: d.c1, r2: d.r1 + i, c2: d.c2 } : { r1: d.r1, c1: d.c1 + i, r2: d.r2, c2: d.c1 + i };
+          f.sparklines.push({ ...modele, groupe: gr, r: cel.r, c: cel.c, donnees: adresse(src.r1, src.c1) + ':' + adresse(src.r2, src.c2) });
+        });
+      }
+      api.classeur().version++; api.sauvegarder(); api.rendre();
+    });
+    fond.querySelectorAll('[data-sptype]').forEach((b) => b.addEventListener('click', () => { modele.type = b.dataset.sptype; fond.querySelectorAll('[data-sptype]').forEach((x) => x.classList.toggle('choisi', x === b)); }));
+  }
+
+  return { ouvrir, protegerFeuille, sparklines, creerTableau, styleTableau: styleTableauDlg, renommerTableau: renommerTableauDlg, redimensionnerTableau, formatCellule, collageSpecial, cellules, atteindre, lien, note, doublons, colonnes, ouvert: () => !fond.hidden };
 }
 

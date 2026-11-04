@@ -4,6 +4,7 @@
 
 import { ErreurFormule, formater, couleurFormat, colVersLettres, parsePlage } from './formules.js';
 import { styleTableau, styleCelluleTableau } from './tableaux.js';
+import { sparklineSVG } from './graphiques.js';
 
 export const PAPIERS = { A4: [210, 297], A3: [297, 420], A5: [148, 210], Letter: [215.9, 279.4], Legal: [215.9, 355.6] };
 export const CODES_PAPIER = { A4: 9, A3: 8, A5: 11, Letter: 1, Legal: 5 };
@@ -160,7 +161,16 @@ export function htmlPages(C, fi, regl, pag, { objets = [], styleCellule = null }
     if (st.retrait) css += 'padding-left:' + (3 + st.retrait * 9) + 'px;';
     const b = st.bordures || (st.bordure ? { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } : null);
     if (b) for (const [k, p] of [['h', 'top'], ['b', 'bottom'], ['g', 'left'], ['d', 'right']]) if (b[k]) css += `border-${p}:${{ thin: 1, medium: 2, thick: 3, double: 3 }[b[k]] || 1}px ${b[k] === 'double' ? 'double' : 'solid'} ${st.bordCouleur || '#000'};`;
-    return `<td${rowspan > 1 ? ` rowspan="${rowspan}"` : ''}${colspan > 1 ? ` colspan="${colspan}"` : ''} style="${css}">${ech(txt)}</td>`;
+    const sp = (f.sparklines || []).find((x) => x.r === r && x.c === c);
+    let dessin = '';
+    if (sp) {
+      const q = parsePlage(String(sp.donnees).replace(/^.*!/, '').replace(/\$/g, ''));
+      const fs = String(sp.donnees).includes('!') ? C.indexFeuille(String(sp.donnees).slice(0, String(sp.donnees).lastIndexOf('!')).replace(/^'|'$/g, '')) : fi;
+      const vals = []; if (q && fs >= 0) for (let i = q.r1; i <= q.r2; i++) for (let j = q.c1; j <= q.c2; j++) vals.push(C.valeur(fs, i, j));
+      dessin = `<div style="position:relative;height:0"><div style="position:absolute;left:-4px;top:${-hauteur(f, r) / 2}px">${sparklineSVG(vals, largeur(f, c), hauteur(f, r), sp)}</div></div>`;
+      css += 'vertical-align:middle;';
+    }
+    return `<td${rowspan > 1 ? ` rowspan="${rowspan}"` : ''}${colspan > 1 ? ` colspan="${colspan}"` : ''} style="${css}">${dessin}${ech(txt)}</td>`;
   };
   const pages = pag.pages.map((p, k) => {
     const lignes = [...pag.titresL.filter((r) => !p.lignes.includes(r) && r < p.lignes[0]), ...p.lignes];

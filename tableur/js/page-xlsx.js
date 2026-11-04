@@ -40,7 +40,7 @@ export const DROITS = [['selectionVerrouillees', 'selectLockedCells', 'Sélectio
   ['supprimerLignes', 'deleteRows', 'Supprimer des lignes', false], ['trier', 'sort', 'Trier', false], ['filtrer', 'autoFilter', 'Utiliser le filtre automatique', false], ['objets', 'objects', 'Modifier les objets', false]];
 
 export function ecrirePageXlsx(XLSX, octets, classeur) {
-  if (!classeur.feuilles.some((f) => f.miseEnPage || (f.protection && f.protection.active))) return octets;
+  if (!classeur.feuilles.some((f) => f.miseEnPage || (f.protection && f.protection.active) || (f.sparklines && f.sparklines.length))) return octets;
   const cfb = XLSX.CFB.read(octets, { type: 'array' });
   const norm = (p) => p.replace(/^Root Entry\//, '').replace(/^\//, '').toLowerCase();
   classeur.feuilles.forEach((f, k) => {
@@ -80,6 +80,24 @@ export function ecrirePageXlsx(XLSX, octets, classeur) {
         else if (permis) el += ' ' + xmlNom + '="0"';
       }
       xml = poser(xml, 'sheetProtection', el + '/>');
+    }
+    if (f.sparklines && f.sparklines.length) {
+      const nf = /^[A-Za-z_][\w.]*$/.test(f.nom) ? f.nom : "'" + f.nom.replace(/'/g, "''") + "'";
+      const groupes = new Map();
+      for (const sp of f.sparklines) { const k = sp.groupe || 'g'; if (!groupes.has(k)) groupes.set(k, []); groupes.get(k).push(sp); }
+      const rgb = (c, d) => 'FF' + String(c || d).replace('#', '').toUpperCase();
+      const lettres = (c) => { let t = ''; c++; while (c > 0) { const m = (c - 1) % 26; t = String.fromCharCode(65 + m) + t; c = Math.floor((c - 1) / 26); } return t; };
+      let grp = '';
+      for (const liste of groupes.values()) {
+        const m = liste[0];
+        grp += '<x14:sparklineGroup' + (m.type === 'colonne' ? ' type="column"' : m.type === 'gainperte' ? ' type="stacked"' : '') + ' displayEmptyCellsAs="gap"'
+          + ['marqueurs:markers', 'haut:high', 'bas:low', 'premier:first', 'dernier:last', 'negatifs:negative'].map((x) => { const [a, b] = x.split(':'); return m[a] ? ' ' + b + '="1"' : ''; }).join('') + '>'
+          + '<x14:colorSeries rgb="' + rgb(m.couleur, '#376092') + '"/><x14:colorNegative rgb="' + rgb(m.couleurNeg, '#D00000') + '"/><x14:colorAxis rgb="FF000000"/><x14:colorMarkers rgb="' + rgb(m.couleurNeg, '#D00000') + '"/>'
+          + '<x14:colorFirst rgb="' + rgb(m.couleurNeg, '#D00000') + '"/><x14:colorLast rgb="' + rgb(m.couleurNeg, '#D00000') + '"/><x14:colorHigh rgb="' + rgb(m.couleurNeg, '#D00000') + '"/><x14:colorLow rgb="' + rgb(m.couleurNeg, '#D00000') + '"/>'
+          + '<x14:sparklines>' + liste.map((sp) => '<x14:sparkline><xm:f>' + ech(String(sp.donnees).includes('!') ? sp.donnees : nf + '!' + sp.donnees) + '</xm:f><xm:sqref>' + lettres(sp.c) + (sp.r + 1) + '</xm:sqref></x14:sparkline>').join('') + '</x14:sparklines></x14:sparklineGroup>';
+      }
+      const ext = '<ext uri="{05C60535-1F16-4fd2-B633-F4F36F0B64E0}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:sparklineGroups xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main">' + grp + '</x14:sparklineGroups></ext>';
+      xml = xml.includes('</extLst>') ? xml.replace('</extLst>', ext + '</extLst>') : xml.replace('</worksheet>', '<extLst>' + ext + '</extLst></worksheet>');
     }
     cfb.FileIndex[i].content = enc(xml);
   });
@@ -136,6 +154,24 @@ export function lirePageXlsx(XLSX, octets) {
       }
       res.protection = p;
     }
+    // Graphiques sparkline (extension x14)
+    const sparks = [];
+    for (const gm of xml.matchAll(/<x14:sparklineGroup\b([^>]*)>([\s\S]*?)<\/x14:sparklineGroup>/g)) {
+      const tete = '<g ' + gm[1] + '>', corps = gm[2], groupe = 'sp' + Math.random().toString(36).slice(2, 8);
+      const couleur = (nom) => { const c = new RegExp('<x14:' + nom + '\\b[^>]*rgb="([0-9A-Fa-f]{6,8})"').exec(corps); return c ? '#' + c[1].slice(-6).toLowerCase() : null; };
+      const oui = (n) => /^(1|true)$/.test(attr(tete, n) || '');
+      const modele = { type: attr(tete, 'type') === 'column' ? 'colonne' : attr(tete, 'type') === 'stacked' ? 'gainperte' : 'ligne', couleur: couleur('colorSeries') || '#376092', couleurNeg: couleur('colorNegative') || '#d00000',
+        marqueurs: oui('markers'), haut: oui('high'), bas: oui('low'), premier: oui('first'), dernier: oui('last'), negatifs: oui('negative'), groupe };
+      for (const sm of corps.matchAll(/<x14:sparkline>[\s\S]*?<xm:f>([\s\S]*?)<\/xm:f>[\s\S]*?<xm:sqref>([\s\S]*?)<\/xm:sqref>[\s\S]*?<\/x14:sparkline>/g)) {
+        const cible = /^([A-Z]+)(\d+)$/.exec(sm[2].trim().replace(/\$/g, ''));
+        if (!cible) continue;
+        const c = cible[1].split('').reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+        const donnees = entites(sm[1]).replace(/\$/g, ''), nomF = attr(m[0], 'name') || '';
+        const local = donnees.replace(/^'?(.*?)'?!/, (t, n) => (n.replace(/''/g, "'").toLowerCase() === nomF.toLowerCase() ? '' : t));
+        sparks.push({ ...modele, r: +cible[2] - 1, c, donnees: local });
+      }
+    }
+    if (sparks.length) res.sparklines = sparks;
     if (Object.keys(res).length) out.set(attr(m[0], 'name'), res);
   }
   return out;

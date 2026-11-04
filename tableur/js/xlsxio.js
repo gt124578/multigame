@@ -139,6 +139,7 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
         if (!f) continue;
         if (res.miseEnPage) f.miseEnPage = { ...(f.miseEnPage || {}), ...res.miseEnPage };
         if (res.protection) f.protection = res.protection;
+        if (res.sparklines) f.sparklines = res.sparklines;
       }
     } catch (e) { console.warn('Mise en page non lue :', e); }
   }

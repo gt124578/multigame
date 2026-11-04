@@ -107,6 +107,13 @@ function serieXml(g, ref, s, k, couleur, genre) {
   if (g.etiquettes && g.etiquettes !== 'aucune') {
     x += '<c:dLbls><c:showLegendKey val="0"/><c:showVal val="' + (g.etiquettes === 'valeur' ? 1 : 0) + '"/><c:showCatName val="' + (g.etiquettes === 'categorie' ? 1 : 0) + '"/><c:showSerName val="0"/><c:showPercent val="' + (g.etiquettes === 'pourcentage' ? 1 : 0) + '"/><c:showBubbleSize val="0"/></c:dLbls>';
   }
+  const t = g.tendances && g.tendances[k];
+  if (t && t.type && genre !== 'secteur' && genre !== 'radar') {
+    const type = { lineaire: 'linear', exponentielle: 'exp', logarithmique: 'log', polynomiale: 'poly', puissance: 'power', moyenne: 'movingAvg' }[t.type] || 'linear';
+    x += '<c:trendline><c:spPr><a:ln w="19050" cap="rnd"><a:solidFill><a:srgbClr val="' + hex(couleur) + '"/></a:solidFill><a:prstDash val="sysDash"/></a:ln></c:spPr><c:trendlineType val="' + type + '"/>'
+      + (type === 'poly' ? '<c:order val="' + Math.max(2, Math.min(6, +t.ordre || 2)) + '"/>' : '') + (type === 'movingAvg' ? '<c:period val="' + Math.max(2, +t.periode || 2) + '"/>' : '')
+      + (type === 'movingAvg' ? '' : '<c:dispRSqr val="' + (t.r2 ? 1 : 0) + '"/><c:dispEq val="' + (t.equation ? 1 : 0) + '"/>') + '</c:trendline>';
+  }
   const cats = ref.d.categories;
   if (genre === 'nuage') {
     if (ref.xRef) x += '<c:xVal><c:numRef><c:f>' + ech(ref.xRef) + '</c:f>' + numCache(ref.d.xs) + '</c:numRef></c:xVal>';
@@ -139,17 +146,24 @@ export function chartXml(classeur, f, g0) {
   const couleur = (k) => g.couleurs[k] || palette[k % palette.length];
   const idA = 50010001, idB = 50010002;
   const grouping = { groupe: 'clustered', empile: 'stacked', empile100: 'percentStacked' }[g.variante] || 'clustered';
-  const ser = (genre, debut = 0, fin = ref.series.length) => ref.series.slice(debut, fin).map((s, i) => serieXml(g, ref, s, debut + i, couleur(debut + i), genre)).join('');
+  // Séries de l'axe secondaire : à part, dans une courbe sur ses propres axes (C, D)
+  const estSec = (k) => !!(g.secondaire && g.secondaire[k]) && ref.series.length > 1 && ['colonnes', 'lignes', 'aires', 'combine'].includes(g.type);
+  const ser = (genre, debut = 0, fin = ref.series.length) => ref.series.slice(debut, fin).map((s, i) => (estSec(debut + i) ? '' : serieXml(g, ref, s, debut + i, couleur(debut + i), genre))).join('');
+  const idC = 50010003, idD = 50010004;
+  const secs = ref.series.map((s, k) => (estSec(k) ? serieXml(g, ref, s, k, couleur(k), 'ligne') : '')).join('');
+  const groupeSec = secs ? '<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>' + secs + '<c:marker val="1"/><c:axId val="' + idC + '"/><c:axId val="' + idD + '"/></c:lineChart>' : '';
+  const axesSec = secs ? '<c:catAx><c:axId val="' + idC + '"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="1"/><c:axPos val="b"/><c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:crossAx val="' + idD + '"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>'
+    + '<c:valAx><c:axId val="' + idD + '"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="r"/><c:numFmt formatCode="General" sourceLinked="1"/><c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:crossAx val="' + idC + '"/><c:crosses val="max"/><c:crossBetween val="between"/></c:valAx>' : '';
   let corps;
   switch (g.type) {
     case 'colonnes': case 'barres':
-      corps = '<c:barChart><c:barDir val="' + (g.type === 'barres' ? 'bar' : 'col') + '"/><c:grouping val="' + grouping + '"/><c:varyColors val="0"/>' + ser('barre') + '<c:gapWidth val="80"/>' + (grouping !== 'clustered' ? '<c:overlap val="100"/>' : '') + '<c:axId val="' + idA + '"/><c:axId val="' + idB + '"/></c:barChart>' + axesXml(g, idA, idB, { horizontal: g.type === 'barres' });
+      corps = '<c:barChart><c:barDir val="' + (g.type === 'barres' ? 'bar' : 'col') + '"/><c:grouping val="' + grouping + '"/><c:varyColors val="0"/>' + ser('barre') + '<c:gapWidth val="80"/>' + (grouping !== 'clustered' ? '<c:overlap val="100"/>' : '') + '<c:axId val="' + idA + '"/><c:axId val="' + idB + '"/></c:barChart>' + groupeSec + axesXml(g, idA, idB, { horizontal: g.type === 'barres' }) + axesSec;
       break;
     case 'lignes':
-      corps = '<c:lineChart><c:grouping val="' + (g.variante === 'empile' ? 'stacked' : 'standard') + '"/><c:varyColors val="0"/>' + ser('ligne') + '<c:marker val="1"/><c:axId val="' + idA + '"/><c:axId val="' + idB + '"/></c:lineChart>' + axesXml(g, idA, idB);
+      corps = '<c:lineChart><c:grouping val="' + (g.variante === 'empile' ? 'stacked' : 'standard') + '"/><c:varyColors val="0"/>' + ser('ligne') + '<c:marker val="1"/><c:axId val="' + idA + '"/><c:axId val="' + idB + '"/></c:lineChart>' + groupeSec + axesXml(g, idA, idB) + axesSec;
       break;
     case 'aires':
-      corps = '<c:areaChart><c:grouping val="' + (g.variante === 'empile' ? 'stacked' : g.variante === 'empile100' ? 'percentStacked' : 'standard') + '"/><c:varyColors val="0"/>' + ser('aire') + '<c:axId val="' + idA + '"/><c:axId val="' + idB + '"/></c:areaChart>' + axesXml(g, idA, idB);
+      corps = '<c:areaChart><c:grouping val="' + (g.variante === 'empile' ? 'stacked' : g.variante === 'empile100' ? 'percentStacked' : 'standard') + '"/><c:varyColors val="0"/>' + ser('aire') + '<c:axId val="' + idA + '"/><c:axId val="' + idB + '"/></c:areaChart>' + groupeSec + axesXml(g, idA, idB) + axesSec;
       break;
     case 'secteurs':
       corps = g.variante === 'anneau'
@@ -164,7 +178,7 @@ export function chartXml(classeur, f, g0) {
       break;
     case 'combine':
       corps = '<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>' + ser('barre', 0, 1) + '<c:gapWidth val="80"/><c:axId val="' + idA + '"/><c:axId val="' + idB + '"/></c:barChart>'
-        + (ref.series.length > 1 ? '<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>' + ser('ligne', 1) + '<c:marker val="1"/><c:axId val="' + idA + '"/><c:axId val="' + idB + '"/></c:lineChart>' : '') + axesXml(g, idA, idB);
+        + (ref.series.slice(1).some((_, i) => !estSec(i + 1)) ? '<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>' + ser('ligne', 1) + '<c:marker val="1"/><c:axId val="' + idA + '"/><c:axId val="' + idB + '"/></c:lineChart>' : '') + groupeSec + axesXml(g, idA, idB) + axesSec;
       break;
     default: return null;
   }
@@ -268,7 +282,7 @@ export function specDepuisChartXml(xml, nomFeuille) {
   const types = ['barChart', 'bar3DChart', 'lineChart', 'line3DChart', 'areaChart', 'area3DChart', 'pieChart', 'pie3DChart', 'doughnutChart', 'ofPieChart', 'scatterChart', 'radarChart'];
   const presents = types.map((t) => ({ t, m: new RegExp('<c:' + t + '>([\\s\\S]*?)</c:' + t + '>').exec(P) })).filter((x) => x.m);
   if (!presents.length) return null;
-  const g = { id: 'g' + Math.random().toString(36).slice(2, 9), v: 2, couleurs: {}, noms: {} };
+  const g = { id: 'g' + Math.random().toString(36).slice(2, 9), v: 2, couleurs: {}, noms: {}, tendances: {}, secondaire: {} };
   const premier = presents[0], corps = premier.m[1];
   const grouping = val(corps, 'grouping');
   const variante = { clustered: 'groupe', standard: 'groupe', stacked: 'empile', percentStacked: 'empile100' }[grouping] || 'groupe';
@@ -284,8 +298,17 @@ export function specDepuisChartXml(xml, nomFeuille) {
   // Séries : références des cellules
   const refs = [];
   let horizontal = null, k = 0;
+  // Axe secondaire : le groupe dont l'axe des valeurs est à droite
+  const axesValeurs = new Map([...P.matchAll(/<c:valAx>([\s\S]*?)<\/c:valAx>/g)].map((a) => [val(a[1], 'axId'), val(a[1], 'axPos')]));
   for (const { m } of presents) for (const sm of m[1].matchAll(/<c:ser>([\s\S]*?)<\/c:ser>/g)) {
     const S = sm[1];
+    const ids = [...m[1].matchAll(/<c:axId val="(\d+)"/g)].map((x) => x[1]);
+    if (presents.length > 1 && ids.some((id) => axesValeurs.get(id) === 'r')) g.secondaire[k] = true;
+    const tl = /<c:trendline>([\s\S]*?)<\/c:trendline>/.exec(S);
+    if (tl) {
+      const ty = { linear: 'lineaire', exp: 'exponentielle', log: 'logarithmique', poly: 'polynomiale', power: 'puissance', movingAvg: 'moyenne' }[val(tl[1], 'trendlineType')];
+      if (ty) g.tendances[k] = { type: ty, ...(val(tl[1], 'order') ? { ordre: +val(tl[1], 'order') } : {}), ...(val(tl[1], 'period') ? { periode: +val(tl[1], 'period') } : {}), equation: val(tl[1], 'dispEq') === '1', r2: val(tl[1], 'dispRSqr') === '1' };
+    }
     const fval = /<c:(?:val|yVal)>[\s\S]*?<c:f>([\s\S]*?)<\/c:f>/.exec(S);
     if (!fval) return null;
     const rv = parseRef(fval[1]); if (!rv) return null;
@@ -311,7 +334,13 @@ export function specDepuisChartXml(xml, nomFeuille) {
   if (t) g.titre = texteDe(t[1]);
   const axes = [...P.matchAll(/<c:(catAx|valAx|dateAx)>([\s\S]*?)<\/c:\1>/g)];
   const axeCat = axes.find((a) => a[1] !== 'valAx') || (g.type === 'nuage' ? axes[0] : null);
-  const axeVal = axes.filter((a) => a[1] === 'valAx').pop();
+  const axeVal = axes.filter((a) => a[1] === 'valAx' && val(a[2], 'axPos') !== 'r').pop() || axes.filter((a) => a[1] === 'valAx').pop();
+  // Histogramme dont les courbes sont toutes sur l'axe secondaire : il reste un histogramme
+  if (g.type === 'combine') {
+    const enLigne = presents.filter((x) => /^line/.test(x.t)).flatMap((x) => [...x.m[1].matchAll(/<c:ser>[\s\S]*?<c:idx val="(\d+)"/g)].map((y) => +y[1]));
+    const enBarre = presents.filter((x) => /^bar/.test(x.t)).reduce((n, x) => n + [...x.m[1].matchAll(/<c:ser>/g)].length, 0);
+    if (enBarre > 1 || enLigne.every((i) => g.secondaire[i])) { g.type = 'colonnes'; g.variante = 'groupe'; }
+  }
   if (axeCat) { const ti = /<c:title>([\s\S]*?)<\/c:title>/.exec(axeCat[2]); if (ti) g.titreX = texteDe(ti[1]); if (/<c:majorGridlines/.test(axeCat[2])) g.quadrillageX = true; }
   if (axeVal && axeVal !== axeCat) {
     const ti = /<c:title>([\s\S]*?)<\/c:title>/.exec(axeVal[2]); if (ti) g.titreY = texteDe(ti[1]);
