@@ -173,6 +173,54 @@ function rondins(dir) {
   });
 }
 
+/* ravins des montagnes (world/relief.js, montagne) : le vide, et les passerelles de bois qui le franchissent */
+/** le vide d'un ravin : `haut`, juste sous la paroi du fond (la roche plonge et se perd dans le noir) ; sinon le fond,
+ *  presque noir, des traînées de brume et quelques éclats de roche */
+function ravin(R, seed, haut) {
+  return toile((p) => {
+    for (let j = 0; j < C; j++) for (let i = 0; i < C; i++) {
+      const h = hash(i, j, seed), strie = hash(i >> 1, 3, seed + 1);
+      let col;
+      if (haut && j < 26) {
+        const t = j / 26, k = Math.max(0, Math.round((1 - t) * 3 - 0.3 + (strie - 0.5) * 1.2 + (h < 0.15 ? -1 : 0)));
+        col = t > 0.75 && ((i + j) & 1) ? '#0c0d10' : k <= 0 ? '#16161a' : R[Math.min(3, k)];
+        if ((i + (strie * 7 | 0)) % 6 === 0 && t < 0.8) col = R[0];      // fissures verticales
+      } else {
+        const brume = Math.sin((i + j * 0.6) / 5 + seed) * 0.5 + 0.5;
+        col = brume > 0.82 && h < 0.5 ? '#1e2228' : h < 0.02 ? '#2a2c30' : ((i * 3 + j) & 7) === 0 && h < 0.3 ? '#121418' : '#0b0c0f';
+      }
+      p(i, j, col);
+    }
+  });
+}
+/** passerelle de planches et de cordes ; 'ew' : on la traverse d'ouest en est (planches debout), 'ns' : du nord au sud ;
+ *  a / b : corde (et poteaux) du côté nord / sud (ou ouest / est) ; entre les planches, le vide */
+function passerelle(dir, a, b, seed) {
+  const BOIS = ['#3a2616', '#5a3c22', '#7a5430', '#9a6e40', '#b88a58'], CORDE = ['#4a3a22', '#8a7048', '#c8b080'];
+  return toile((p) => {
+    for (let j = 0; j < C; j++) for (let i = 0; i < C; i++) {
+      const [u, v] = dir === 'ew' ? [i, j] : [j, i];   // u : le long de la traversée, v : en travers
+      const bordA = a ? 5 : 0, bordB = b ? C - 6 : C;
+      let col = null;
+      if (v >= bordA && v < bordB) {
+        const pl = Math.floor((u + 1) / 5), lu = (u + 1) % 5, nh = hash(pl, 0, seed);
+        if (lu === 0) col = (v & 3) === 0 ? BOIS[0] : '#0b0c0f';                // jour entre deux planches : le vide
+        else {
+          const k = lu === 1 ? 3 : lu === 4 ? 1 : 2, use = hash(pl, v >> 2, seed + 2) < 0.12 ? -1 : 0;
+          col = BOIS[Math.max(0, k + use + (nh < 0.3 ? -1 : nh > 0.85 ? 1 : 0))];
+          if ((v === bordA + 2 || v === bordB - 3) && lu === 2) col = '#2a2a2e';   // clous
+        }
+      }
+      // cordes (tressées) et leur ombre sur les planches ; poteaux aux deux bouts
+      const corde = (v0) => { if (v === v0) col = ((u >> 1) & 1) ? CORDE[2] : CORDE[1]; else if (v === v0 + 1) col = ((u >> 1) & 1) ? CORDE[1] : CORDE[0]; };
+      if (a) { corde(1); if (v === 3 && col) col = '#1c140c'; if (v === 0 || v === 4) col = v === 4 ? col : '#0b0c0f'; }
+      if (b) { corde(C - 4); if (v === C - 2) col = '#0b0c0f'; }
+      if ((a && v <= 4) || (b && v >= C - 5)) if (u <= 1 || u >= C - 2) col = u === 0 || u === C - 1 ? BOIS[0] : BOIS[2];
+      if (col) p(i, j, col);
+    }
+  });
+}
+
 /** une image d'un grand tourbillon (f sur 8, sens et phase selon v) : 64 × 64 pixels, spirale d'écume et œil sombre,
  *  rendu en quatre quarts de case (fond transparent) */
 export function tourbillon(f, v = 0) {
@@ -325,4 +373,8 @@ export function texturesRelief(putImg, img) {
   });
   putImg('pente_pied', penteOmbre());
   for (const d of ['s', 'n', 'e', 'w']) putImg(`rondins_${d}`, rondins(d));
+  // ravins et passerelles des montagnes
+  putImg('ravin_0', ravin(ROCHES.montagne, 11, false)); putImg('ravin_1', ravin(ROCHES.montagne, 12, false));
+  for (const [bio, R] of Object.entries(ROCHES)) putImg(`ravin_haut_${bio}`, ravin(R, 13, true));
+  for (const d of ['ew', 'ns']) for (const a of [0, 1]) for (const b of [0, 1]) putImg(`passerelle_${d}_${a}${b}`, passerelle(d, a, b, 21));
 }

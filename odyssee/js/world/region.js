@@ -21,6 +21,7 @@ import { buildSud, BADGES_SUD, LEADERS_SUD, GYM_TRAINERS_SUD } from './sud.js';
 import { addVehicules } from './vehicules.js';
 import { addMine } from './mine.js';
 import { tourbillons, plateau, polygone, rectangle, sinueuse, boucher, massif, bande } from './relief.js';
+import { montLunaire } from './montagnes.js';
 
 // toutes les lignées connues : la créature d'Odyssée (plus proposée, mais les parties déjà commencées avec elle restent valables),
 // le Pokémon de Rouge / Bleu et celui d'Or / Argent, avec leurs évolutions
@@ -1005,6 +1006,7 @@ export function buildWorld() {
   // le Mont Lunaire : la montagne que la grotte traverse, entre les deux bouts de la route 3 (la roche remplace la forêt)
   massif(W, polygone([[149, 14], [171, 12], [182, 19], [180, 30], [175, 37.5], [167, 45], [160, 50], [153, 45], [147, 37.5], [143, 26]]));
   W.zone(143, 12, 182, 37, { name: 'Mont Lunaire', music: 'route', prio: 0 });
+  montLunaire({ W, trainerNpc });   // le sentier qui grimpe au sommet (world/montagnes.js)
   const grotte = caveMap('grotte', 46, 32, 4242, [{ x: 4, y: 26 }, { x: 41, y: 26 }], { name: 'Grotte Lunaire', via: [{ x: 14, y: 8 }, { x: 30, y: 20 }, { x: 36, y: 6 }] });
   grotte.encounter = ENC.grotte; maps.grotte = grotte;
   for (const [cx, cy, out] of [[4, 26, g1in], [41, 26, g1out]]) {

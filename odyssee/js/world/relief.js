@@ -113,6 +113,8 @@ function marquer(W, k, v) {
   if (!W.pentes) { if (!v) return; W.pentes = new Uint8Array(W.w * W.h); }
   const [x, y] = k.split(',').map(Number); if (W.in(x, y)) W.pentes[y * W.w + x] = v;
 }
+/** la case est-elle le fond d'un ravin (montagne) ? Le rendu y dessine le vide */
+export const ravin = (W, x, y) => !!W.ravins && x >= 0 && y >= 0 && x < W.w && y < W.h && W.ravins[y * W.w + x] === 1;
 /** la case est-elle (dessus, talus ou marche) d'un plateau d'herbe ? */
 export const pente = (W, x, y) => !!W.pentes && x >= 0 && y >= 0 && x < W.w && y < W.h && W.pentes[y * W.w + x] === 1;
 
@@ -252,6 +254,41 @@ export function boucher(W, cells, depart, remplace = T.TREE) {
     const [x, y] = k.split(',').map(Number);
     if (!r[y * W.w + x] && SOL.has(W.get(x, y)) && !pris.has(k)) W.set(x, y, remplace);
   }
+}
+
+/**
+ * montagne à gravir, dessinée case par case (plan : une chaîne par rangée, à partir de (x0, y0)) :
+ *   '1' à '9'  roche (T.CAVEWALL) de cette hauteur, posée seulement là où la montagne (massif) est déjà de la roche ;
+ *   'a' à 'i'  sentier (T.PATH) à la hauteur 1 à 9 ; 'A' à 'I' : herbe rase à cette hauteur (palier, sommet) ;
+ *   '='        marches taillées dans la roche (T.STAIRS), à la hauteur du sentier le plus bas qui les touche ;
+ *   'v'        ravin : le vide (roche au fond, hauteur 0, que le rendu dessine comme un gouffre) ;
+ *   '#'        passerelle de bois au-dessus du ravin (T.BRIDGE), à la hauteur du sentier qu'elle relie ;
+ *   ' ' ou '.' rien ne change.
+ * Les gradins de roche sont dessinés comme les parois des grottes (bords en pente, world3d.js, paroiCell). Les cases de
+ * la montagne perdent leur marque de plateau d'herbe. Renvoie les cases du sentier (clés « x,y »).
+ */
+export function montagne(W, x0, y0, plan) {
+  const sentier = new Set(), ponts = [], marchesC = [];
+  if (!W.ravins) W.ravins = new Uint8Array(W.w * W.h);
+  plan.forEach((ligne, j) => [...ligne].forEach((ch, i) => {
+    const x = x0 + i, y = y0 + j; if (!W.in(x, y) || ch === ' ' || ch === '.') return;
+    if (W.pentes) W.pentes[y * W.w + x] = 0;
+    W.ravins[y * W.w + x] = 0;
+    if (ch >= '1' && ch <= '9') { if (W.get(x, y) === T.CAVEWALL || W.get(x, y) === T.CLIFF) { W.set(x, y, T.CAVEWALL); W.setHeight(x, y, +ch); } }
+    else if (ch >= 'a' && ch <= 'i') { W.set(x, y, T.PATH); W.setHeight(x, y, ch.charCodeAt(0) - 96); sentier.add(key(x, y)); }
+    else if (ch >= 'A' && ch <= 'I') { W.set(x, y, T.GRASS); W.setHeight(x, y, ch.charCodeAt(0) - 64); sentier.add(key(x, y)); }
+    else if (ch === '=') { W.set(x, y, T.STAIRS); marchesC.push([x, y]); sentier.add(key(x, y)); }
+    else if (ch === 'v') { W.set(x, y, T.CAVEWALL); W.setHeight(x, y, 0); W.ravins[y * W.w + x] = 1; }
+    else if (ch === '#') { W.set(x, y, T.BRIDGE); W.ravins[y * W.w + x] = 1; ponts.push([x, y]); sentier.add(key(x, y)); }
+  }));
+  // hauteur des marches et des passerelles : celle du sentier voisin (le plus bas pour une marche, le plus haut pour un pont)
+  const voisins = (x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [x + dx, y + dy]).filter(([a, b]) => sentier.has(key(a, b)) && W.get(a, b) !== T.STAIRS && W.get(a, b) !== T.BRIDGE).map(([a, b]) => W.height(a, b));
+  for (const [x, y] of marchesC) { const h = voisins(x, y); W.setHeight(x, y, h.length ? Math.min(...h) : W.height(x, y)); }
+  for (let k = 0; k < 3; k++) for (const [x, y] of ponts) {
+    const h = voisins(x, y), hp = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => W.get(x + dx, y + dy) === T.BRIDGE).map(([dx, dy]) => W.height(x + dx, y + dy));
+    const all = [...h, ...hp]; if (all.length) W.setHeight(x, y, Math.max(...all));
+  }
+  return sentier;
 }
 
 /** massif rocheux (montagne infranchissable) : la roche remplace la forêt dans le polygone ; ses cases reçoivent des

@@ -2,7 +2,7 @@
 // arbres / herbes / personnages en sprites verticaux, caméra inclinée en perspective étroite, rendu basse résolution.
 import * as THREE from 'three';
 import { T } from '../world/tiles.js';
-import { pente } from '../world/relief.js';
+import { pente, ravin } from '../world/relief.js';
 import { buildAtlas, buildAnimAtlas, buildSprites, applySpriteImages, facade, sideWall, roofTex, roofColors, kitColor, PAL, SOL16 } from './textures.js';
 import { SPRITES } from '../data/sprites.js';
 import { Sol } from './sol.js';
@@ -492,6 +492,13 @@ export class WorldView {
     if (deco?.k === 'sable') return { c: A.gl_sable };
     if (deco?.k === 'eau') return { anim: this.N.cells.water15 };
     if (t === T.LAVA) return { anim: this.N.cells.lava };
+    // passerelle de bois au-dessus d'un ravin (montagne) : le vide dessous, planches et cordes dans le sens de la traversée
+    if (t === T.BRIDGE && ravin(m, x, y)) {
+      const pont = (a, b) => m.get(a, b) === T.BRIDGE;
+      const ew = pont(x - 1, y) || pont(x + 1, y) || !(pont(x, y - 1) || pont(x, y + 1)) && m.get(x - 1, y) !== T.CAVEWALL;
+      const a = ew ? !pont(x, y - 1) : !pont(x - 1, y), b = ew ? !pont(x, y + 1) : !pont(x + 1, y);
+      return { c: A.ravin_0, passerelle: A[`passerelle_${ew ? 'ew' : 'ns'}_${a ? 1 : 0}${b ? 1 : 0}`] };
+    }
     if (t === T.BARRIER_R || t === T.BARRIER_B) return { c: A['floor_' + m.floor] || A.floor_wood };
     const isPathish = (q) => [T.PATH, T.PAVE, T.SAND, T.BUILD, T.DOOR, T.BRIDGE, T.SIGN, T.BLOCK, T.MAT].includes(q);
     if (SOL16 && m.outdoor) {
@@ -553,7 +560,7 @@ export class WorldView {
    *  aux quatre cases qui se touchent là (grille décalée d'une demi-case, comme les jeux de tuiles Wang) */
   wangChunk(O, x0, y0) {
     const m = this.map, A = this.A.cells;
-    const water = (x, y) => { const q = m.get(Math.max(0, Math.min(m.w - 1, x)), Math.max(0, Math.min(m.h - 1, y))); return q === T.WATER || q === T.BRIDGE; };
+    const water = (x, y) => { const a = Math.max(0, Math.min(m.w - 1, x)), b = Math.max(0, Math.min(m.h - 1, y)), q = m.get(a, b); return q === T.WATER || (q === T.BRIDGE && !ravin(m, a, b)); };
     const ORDER = ['herbes_neige', 'herbes_bois', 'sable', 'pave', 'neige', 'cendre', 'chemin'];
     const xe = x0 + CH >= m.w && !m.ext ? m.w + 1 : x0 + CH, ye = y0 + CH >= m.h && !m.ext ? m.h + 1 : y0 + CH;
     const couvert = this.sol.couvre() ? (a, b) => sorteCase(m, a, b) !== SORTE.X : null;
@@ -583,7 +590,22 @@ export class WorldView {
     const m = this.map, A = this.A.cells, b = bio || this.biome;
     // au-dessus du sol généré (sol.js) : ses coins arrondis laissent voir le sol fin, pas l'ancien sol de la case
     const yh = this.sol.couvre() ? 0.0049 : 0.004;
-    const rock = (dx, dy) => { const a = x + dx, c = y + dy; return a < 0 || c < 0 || a >= m.w || c >= m.h || m.get(a, c) === T.CAVEWALL; };
+    // dehors, les montagnes ont des gradins (massif, montagne de relief.js) : chaque gradin est un plateau de roche posé
+    // sur le précédent, ses bords en pente comme ceux des grottes ; la roche plus basse est « dehors »
+    const h0 = m.outdoor ? m.height(x, y) : 0;
+    const rock = (dx, dy) => { const a = x + dx, c = y + dy; return a < 0 || c < 0 || a >= m.w || c >= m.h || (m.get(a, c) === T.CAVEWALL && !ravin(m, a, c) && (!m.outdoor || m.height(a, c) >= h0)); };
+    if (m.outdoor) {
+      // sous les coins arrondis : le gradin du dessous (ou le vide d'un ravin), pas l'herbe
+      let bas = false, vide = false;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const a = x + dx, c = y + dy; if (!m.in(a, c) || m.get(a, c) !== T.CAVEWALL) continue;
+        if (ravin(m, a, c)) vide = true; else if (m.height(a, c) < h0) bas = true;
+      }
+      // à côté d'un sentier (case praticable), le pied de la paroi laisse voir le sentier : pas de roche dessous
+      const sol = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => m.in(x + dx, y + dy) && m.get(x + dx, y + dy) !== T.CAVEWALL);
+      const sous = vide ? A.ravin_0 : bas && !sol ? A[`rp_${b}_11`] : null;
+      if (sous) flat(G, x, y, x + 1, y + 1, yh - 0.0002, sous, vide ? 1 : 0.9);
+    }
     const W = !rock(-1, 0), E = !rock(1, 0), N = !rock(0, -1), S = !rock(0, 1);
     const cols = W && E ? [0, 5] : W ? [0, 1] : E ? [4, 5] : [2, 3];
     const rows = N && S ? [0, 5] : N ? [0, 1] : S ? [4, 5] : [2, 3];
@@ -701,6 +723,7 @@ export class WorldView {
     }
     if (t === T.CAVEWALL) {
       const bm = bioDehors(th);
+      if (A[`rp_${bm}_00`]) return;   // gradins dessinés en plateaux de roche aux bords en pente (paroiCell)
       // montagne en gradins : une paroi là où la roche du dessus est plus haute, un rebord sur les côtés
       if (m.get(x, y - 1) === T.CAVEWALL && m.height(x, y - 1) > h) {
         const rw = A[`rw_${bm}_${Math.floor(v * 3)}`] || A.rw_montagne_0;
@@ -745,6 +768,7 @@ export class WorldView {
       if (g.c) flat(G, x, y, x + 1, y + 1, 0, g.c, g.shade);
       if (g.anim) flat(N, x, y, x + 1, y + 1, 0, g.anim);
       if (g.bridge && !this.sol.couvre()) flat(G, x - 0.02, y, x + 1.02, y + 1, 0.012, g.bridge);   // le sol généré dessine ses pontons
+      if (g.passerelle) flat(G, x, y, x + 1, y + 1, 0.012, g.passerelle);
       // détails de l'herbe (touffes, trèfles, cailloux, fleurettes…) : une case d'herbe sur six environ, jamais deux
       // fois le même détail côte à côte ; des feuilles mortes et des champignons en forêt
       if (m.outdoor && !this.sol.couvre() && (t === T.GRASS || t === T.FENCE) && this.detailAt(x, y)) {
@@ -791,11 +815,16 @@ export class WorldView {
       } else if (t === T.CAVEWALL) {
         // dehors (montagnes des entrées de grottes, bord du monde) : mêmes plateaux de roche que dans les grottes
         const bioC = m.outdoor ? bioDehors(theme) : this.biome;
-        if ((this.tiers || m.outdoor) && A['rp_' + bioC + '_00']) {
+        if (m.outdoor && ravin(m, x, y)) {
+          // le vide d'un ravin : sous la paroi du fond, la roche qui plonge ; plus bas, le noir
+          const n = m.get(x, y - 1), fond = n === T.CAVEWALL && !ravin(m, x, y - 1);
+          const k = fond ? A[`ravin_haut_${bioC}`] || A.ravin_haut_montagne : A[`ravin_${hash(x, y) < 0.5 ? 0 : 1}`];
+          if (k) flat(O0, x, y, x + 1, y + 1, this.sol.couvre() ? 0.0049 : 0.004, k);
+        } else if ((this.tiers || m.outdoor) && A['rp_' + bioC + '_00']) {
           this.paroiCell(O0, x, y, bioC);
           // de temps en temps un rocher pointu au milieu d'un plateau
           const b = bioC, v2 = hash(x * 5 + 3, y * 7 + 11), m2 = this.map;
-          const inner = [[1, 0], [-1, 0], [0, 1], [0, -1], [0, 2]].every(([dx, dy]) => m2.get(x + dx, y + dy) === T.CAVEWALL || m2.get(x + dx, y + dy) == null);
+          const inner = [[1, 0], [-1, 0], [0, 1], [0, -1], [0, 2]].every(([dx, dy]) => (m2.get(x + dx, y + dy) === T.CAVEWALL && m2.height(x + dx, y + dy) === m2.height(x, y) && !ravin(m2, x + dx, y + dy)) || m2.get(x + dx, y + dy) == null);
           if (inner && v2 < 0.1) {
             const r = v2 < 0.04 ? S[`pic_${b}_${Math.floor(hash(x + 41, y + 43) * 3)}`] : S[`cone_${b}_${Math.floor(hash(x + 41, y + 43) * 3)}`];
             if (r) billboard(P, x + 0.5 + (v - 0.5) * 0.25, y + 0.62, SW(r), SH(r), r, 0, v > 0.5);

@@ -45,7 +45,7 @@ export function sorteCase(m, x, y) {
   const jardin = th === 'automne';
   switch (t) {
     case T.WATER: return K.W;
-    case T.BRIDGE: return K.B;
+    case T.BRIDGE: return m.ravins?.[y * m.w + x] ? K.X : K.B;   // passerelle au-dessus d'un ravin : dessinée par le jeu
     case T.PAVE: return GRANDES_VILLES.has(m.zoneAt?.(x, y)?.name) ? K.A : K.V;
     case T.PATH: case T.DOOR: return K.P;
     case T.SNOW: return K.SN;
