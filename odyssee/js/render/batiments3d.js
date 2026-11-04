@@ -24,7 +24,7 @@ export function atelier(D) {
       g.putImageData(im, 0, 0);
     }
     const t = new THREE.CanvasTexture(c); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
-    t.colorSpace = THREE.SRGBColorSpace; if (rep) t.wrapS = t.wrapT = THREE.RepeatWrapping; cache.set(key, t); return t;
+    t.colorSpace = THREE.SRGBColorSpace; if (rep) t.wrapS = t.wrapT = THREE.RepeatWrapping; t.userData.cle = key; cache.set(key, t); return t;
   }
   const TX = {
     enduit: (col) => tex('e' + col, D, D, (g, px, w, h) => { g.fillStyle = col; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const u = hash(x, y, 1); if (u < 0.06) px(x, y, mix(col, -0.07)); else if (u > 0.96) px(x, y, mix(col, 0.25)); } }),

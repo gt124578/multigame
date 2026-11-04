@@ -883,6 +883,8 @@ export class WorldView {
       const m0 = p.mat0;
       const mat = frontDepth(new THREE.MeshBasicMaterial({ map: m0.map || null, vertexColors: true, transparent: !!m0.transparent, opacity: m0.opacity ?? 1, side: m0.side, alphaTest: m0.alphaTest || 0 }), zf);
       mat.userData.base = couleurBase(m0); mat.userData.ownTint = true; mat.userData.op0 = m0.transparent ? (m0.opacity ?? 1) : 1;
+      const cle = m0.map?.userData?.cle || '';
+      if (/^(verre|vr|vt|r#|rs|ev|ed)/.test(cle)) mat.userData.vitre = true;   // vitres : allumées la nuit
       mat.color.copy(mat.userData.base).multiply(this.tint);
       this.tinted.push(mat);
       g.add(new THREE.Mesh(p.geo, mat));
@@ -1053,7 +1055,7 @@ export class WorldView {
     const indoorOrCave = !this.map?.outdoor;
     const k = indoorOrCave ? (this.map?.floor === 'cave' ? [0.82, 0.8, 0.86] : [1, 1, 1]) : this.eclipse ? [0.3, 0.17, 0.44] : c;
     this.tint.setRGB(k[0], k[1], k[2]);
-    for (const m of this.tinted) { const base = m.userData.base; if (base) m.color.copy(base).multiply(this.tint); else m.color.copy(this.tint); }
+    for (const m of this.tinted) { const base = m.userData.base; if (m.userData.vitre && !indoorOrCave && this.night > 0.5) m.color.setRGB(1.25, 1.0, 0.62); else if (base) m.color.copy(base).multiply(this.tint); else m.color.copy(this.tint); }
     if (this.nightGroup) this.nightGroup.visible = !indoorOrCave && this.night > 0.5;
     if (this.glows) this.glows.visible = !indoorOrCave && this.night > 0.5;
   }
