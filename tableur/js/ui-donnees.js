@@ -43,7 +43,7 @@ export function installerDonnees(api) {
     if (f.filtre && api.curseur().r >= f.filtre.r1 && api.curseur().r <= f.filtre.r2 && api.curseur().c >= f.filtre.c1 && api.curseur().c <= f.filtre.c2) { p = { ...f.filtre }; entete = true; }
     else entete = aUnEntete(C, fi, p);
     if (p.r2 - p.r1 < (entete ? 2 : 1)) return api.toast('Rien à trier : choisissez une plage de plusieurs lignes', true);
-    api.memoriser();
+    api.memoriser('trier');
     try { trierPlage(C, fi, p, [{ c: Math.max(p.c1, Math.min(p.c2, api.curseur().c)), desc }], { entete }); } catch (e) { return api.toast(e.message, true); }
     if (f.filtre) appliquerFiltre(C, fi);
     api.selectionner(p);
@@ -85,7 +85,7 @@ export function installerDonnees(api) {
     $('tri-ajouter').addEventListener('click', () => { const pris = new Set(tri.cles.map((k) => k.c)); tri.cles.push({ c: colonnes.find((c) => !pris.has(c)) ?? colonnes[0], desc: false }); construireTri(); });
     $('tri-ok').addEventListener('click', () => {
       const q = parsePlage(tri.plage); if (!q) return api.toast('Plage invalide', true);
-      api.memoriser();
+      api.memoriser('trier');
       try { trierPlage(C, fi, q, tri.cles, { entete: tri.entete }); } catch (e) { return api.toast(e.message, true); }
       if (api.feuille().filtre) appliquerFiltre(C, fi);
       api.selectionner(q); finir(); api.toast('Trié sur ' + tri.cles.length + ' niveau' + (tri.cles.length > 1 ? 'x' : ''));
@@ -98,7 +98,7 @@ export function installerDonnees(api) {
   // ---------------------------------------------------------------------------
   function basculerFiltre() {
     const C = api.classeur(), fi = api.fi(), f = api.feuille();
-    api.memoriser();
+    api.memoriser('filtrer');
     if (f.filtre) { f.filtre = null; f.filtrees = new Set(); C.modifie(); finir(); return api.toast('Filtre retiré'); }
     const p = plageFiltre(f, bornee());
     if (p.r2 <= p.r1) return api.toast('Choisissez un tableau avec une ligne d\'en-têtes et des données', true);
@@ -150,14 +150,14 @@ export function installerDonnees(api) {
       for (const x of cases) { const l = x.closest('label'); l.hidden = !!q && !l.dataset.t.includes(q); x.checked = !l.hidden && (q ? true : coches.has(valeurs[+x.dataset.i].texte)); }
     });
     popup.querySelectorAll('[data-tri]').forEach((b) => b.addEventListener('click', () => {
-      api.memoriser();
+      api.memoriser('trier');
       try { trierPlage(C, fi, { ...flt }, [{ c, desc: b.dataset.tri === '1' }], { entete: true }); } catch (e) { return api.toast(e.message, true); }
       appliquerFiltre(C, fi); fermerPopup(); finir();
     }));
     $('pf-annuler').addEventListener('click', fermerPopup);
-    $('pf-effacer').addEventListener('click', () => { api.memoriser(); delete flt.criteres[c]; appliquerFiltre(C, fi); C.modifie(); fermerPopup(); finir(); });
+    $('pf-effacer').addEventListener('click', () => { api.memoriser('filtrer'); delete flt.criteres[c]; appliquerFiltre(C, fi); C.modifie(); fermerPopup(); finir(); });
     $('pf-ok').addEventListener('click', () => {
-      api.memoriser();
+      api.memoriser('filtrer');
       const choisies = cases.filter((x) => x.checked && !x.closest('label').hidden).map((x) => valeurs[+x.dataset.i].texte);
       const op = $('pf-op').value, val = $('pf-val').value;
       const nouveau = {};
@@ -171,8 +171,8 @@ export function installerDonnees(api) {
     // Sur téléphone, pas de clavier qui surgit : on ne met le focus dans la recherche qu'avec une souris
     if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => $('pf-cherche').focus({ preventScroll: true }), 0);
   }
-  function reappliquerFiltre() { const f = api.feuille(); if (!f.filtre) return; api.memoriser(); appliquerFiltre(api.classeur(), api.fi()); api.classeur().modifie(); finir(); }
-  function effacerFiltres() { const f = api.feuille(); if (!f.filtre) return; api.memoriser(); f.filtre.criteres = {}; f.filtrees = new Set(); api.classeur().modifie(); finir(); }
+  function reappliquerFiltre() { const f = api.feuille(); if (!f.filtre) return; api.memoriser('filtrer'); appliquerFiltre(api.classeur(), api.fi()); api.classeur().modifie(); finir(); }
+  function effacerFiltres() { const f = api.feuille(); if (!f.filtre) return; api.memoriser('filtrer'); f.filtre.criteres = {}; f.filtrees = new Set(); api.classeur().modifie(); finir(); }
 
   // ---------------------------------------------------------------------------
   // Rechercher / remplacer
@@ -512,7 +512,7 @@ export function installerDonnees(api) {
   // ---------------------------------------------------------------------------
   function figer(quoi) {
     const f = api.feuille(), cur = api.curseur();
-    api.memoriser();
+    api.memoriser('affichage');
     if (quoi === 'aucun') f.figer = null;
     else if (quoi === 'ligne') f.figer = { r: 1, c: 0 };
     else if (quoi === 'colonne') f.figer = { r: 0, c: 1 };
@@ -669,7 +669,7 @@ export function installerDonnees(api) {
     const { r, c, items } = listeCible;
     fermerListe();
     if (items[i] === undefined) return;
-    api.memoriser();
+    api.memoriser(api.verrouillee && api.verrouillee(r, c) ? null : 'cellules');
     api.classeur().saisir(api.fi(), r, c, items[i].startsWith('=') ? "'" + items[i] : items[i]);
     finir();
   }

@@ -4,7 +4,8 @@ import { Classeur, PROPRIETES_FEUILLE } from './classeur.js';
 import { styleTableau, styleCelluleTableau } from './tableaux.js';
 import { couleurFormat, formater, colVersLettres, lettresVersCol, parsePlage, parseAdresse, adresse, ErreurFormule, NOMS_FONCTIONS, ALIAS, referencesDe, decalerFormule, fonction } from './formules.js';
 import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from './xlsxio.js';
-import { estChiffre, dechiffrerOffice, ErreurMotDePasse } from './chiffrement.js';
+import { estChiffre, dechiffrerOffice, ErreurMotDePasse, sha512, sha384, sha256, sha1 } from './chiffrement.js';
+import { hacherMotDePasse, verifierShaMotDePasse, DROITS } from './page-xlsx.js';
 import { executerMacro, analyserVBA, ErreurVBA, InterpreteurVBA, creerUDF } from './vba.js';
 import { listerProcedures, procedureALaLigne, insererMacro, supprimerProcedure, ajouterAuProjet, nomVBAValide } from './projetvba.js';
 import { installerGraphiques } from './ui-graphiques.js';
@@ -13,6 +14,8 @@ import { installerDonnees } from './ui-donnees.js';
 import { installerTCD } from './ui-tcd.js';
 import { installerDialogues } from './ui-dialogues.js';
 import { installerAnalyse } from './ui-analyse.js';
+import { installerImpression } from './ui-impression.js';
+import { rendreGraphiqueSVG, normaliser as normaliserGraphique } from './graphiques.js';
 import { antecedents, dependants, actualiserTablesDonnees } from './analyse.js';
 import { AIDE } from './aide-fonctions.js';
 import { matriceGraphique } from './graphiques-xlsx.js';
@@ -52,7 +55,7 @@ const selDiv = $('selection'), cursDiv = $('curseur'), poignee = $('poignee'), e
 
 const feuille = () => classeur.feuilles[classeur.active];
 // Texte de la barre de formule : les nombres bruts s'affichent avec la virgule décimale
-function saisieAffichee(r, c) { const cel = feuille().get(r, c); const s = classeur.saisie(fi(), r, c); return cel && cel.f == null && typeof cel.v === 'number' && !(cel.z && /[dmyjhs]/i.test(cel.z)) ? s.replace('.', ',') : s; }
+function saisieAffichee(r, c) { const cel = feuille().get(r, c); if (cel && cel.f != null && cel.s && cel.s.masquee && feuilleProtegee()) return ''; const s = classeur.saisie(fi(), r, c); return cel && cel.f == null && typeof cel.v === 'number' && !(cel.z && /[dmyjhs]/i.test(cel.z)) ? s.replace('.', ',') : s; }
 const fi = () => classeur.active;
 
 // ---------------------------------------------------------------------------
@@ -70,9 +73,51 @@ function geometrie() {
   for (let r = 0; r < nbLignes; r++) yLigs[r + 1] = yLigs[r] + hauteurLig(r);
   $('grille-dimension').style.left = (LARGEUR_ENTETE + xCols[nbColonnes]) + 'px';
   $('grille-dimension').style.top = (HAUTEUR_DEFAUT + yLigs[nbLignes]) + 'px';
+  const taille = 13 * Z() + 'px';
+  if (cellulesDiv.style.fontSize !== taille) { cellulesDiv.style.fontSize = taille; $('volets').style.fontSize = taille; editeur.style.fontSize = matchMedia('(pointer: coarse)').matches ? Math.max(16, 13 * Z()) + 'px' : taille; }
 }
-const largeurCol = (c) => { const l = feuille().largeurs[c]; return l === undefined ? LARGEUR_DEFAUT : l; };
-const hauteurLig = (r) => { const f = feuille(); if (f.filtrees && f.filtrees.size && f.filtrees.has(r)) return 0; const h = f.hauteurs[r]; return h === undefined ? HAUTEUR_DEFAUT : h; };
+/** Change le zoom de la feuille en gardant le point sous `ancre` (coordonnées dans la grille) au même endroit. */
+function definirZoom(z, ancre) {
+  z = Math.round(Math.min(4, Math.max(0.1, z)) * 100) / 100;
+  const f = feuille(), avant = Z();
+  if (Math.abs(z - avant) < 0.001) return;
+  const ax = ancre ? ancre.x : conteneur.clientWidth / 2, ay = ancre ? ancre.y : conteneur.clientHeight / 2;
+  const cx = (conteneur.scrollLeft + ax - LARGEUR_ENTETE) / avant, cy = (conteneur.scrollTop + ay - HAUTEUR_DEFAUT) / avant;
+  if (z === 1) delete f.zoom; else f.zoom = z;
+  geometrie();
+  while (xCols[nbColonnes] < cx * z + conteneur.clientWidth && nbColonnes < 16384) { nbColonnes += 20; geometrie(); }
+  while (yLigs[nbLignes] < cy * z + conteneur.clientHeight && nbLignes < 1048576) { nbLignes += 100; geometrie(); }
+  conteneur.scrollLeft = Math.max(0, cx * z - ax + LARGEUR_ENTETE); conteneur.scrollTop = Math.max(0, cy * z - ay + HAUTEUR_DEFAUT);
+  rendre(); sauvegarderLocal();
+}
+const PALIERS_ZOOM = [0.25, 0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4];
+function zoomPas(sens, ancre) { const z = Z(); const p = sens > 0 ? PALIERS_ZOOM.find((x) => x > z + 0.001) : [...PALIERS_ZOOM].reverse().find((x) => x < z - 0.001); if (p) definirZoom(p, ancre); }
+function zoomSelection() {
+  const s = selectionBornee(), z = Z();
+  const w = (xCols[Math.min(s.c2 + 1, nbColonnes)] - xCols[s.c1]) / z, h = (yLigs[Math.min(s.r2 + 1, nbLignes)] - yLigs[s.r1]) / z;
+  definirZoom(Math.min((conteneur.clientWidth - LARGEUR_ENTETE - 20) / w, (conteneur.clientHeight - HAUTEUR_DEFAUT - 20) / h, 4));
+  defiler({ r: s.r1, c: s.c1 });
+}
+function menuZoom(x, y) {
+  ouvrirMenu(x, y, [...[0.5, 0.75, 1, 1.25, 1.5, 2].map((z) => [(Math.abs(Z() - z) < 0.001 ? '✓ ' : '') + Math.round(z * 100) + ' %', () => definirZoom(z)]), null,
+    ['Zoom sur la sélection', () => zoomSelection()], ['Personnalisé…', () => { const v = prompt('Zoom (10 à 400 %) :', Math.round(Z() * 100)); if (v) definirZoom(+String(v).replace('%', '').replace(',', '.') / 100); }]]);
+}
+// ----- Thème clair / sombre -----
+let theme = (() => { try { return localStorage.getItem('sprezz.theme') || 'clair'; } catch { return 'clair'; } })();
+function appliquerTheme() {
+  const sombre = theme === 'sombre' || (theme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.body.classList.toggle('sombre', sombre);
+  const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = sombre ? '#1e2127' : '#1f7a4d';
+}
+function choisirTheme(t) { theme = t; try { localStorage.setItem('sprezz.theme', t); } catch { /* navigation privée */ } appliquerTheme(); rendre(); }
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if (theme === 'auto') { appliquerTheme(); rendre(); } });
+appliquerTheme();
+// En thème sombre, un texte noir par défaut sur une cellule claire reste noir ; sans fond, il devient clair
+function clair(hex) { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return true; const n = parseInt(m[1], 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 > 0.55; }
+// Zoom de la feuille (comme Excel : propre à chaque feuille) : toute la géométrie des cellules est mise à l'échelle
+const Z = () => feuille().zoom || 1;
+const largeurCol = (c) => { const l = feuille().largeurs[c]; return (l === undefined ? LARGEUR_DEFAUT : l) * Z(); };
+const hauteurLig = (r) => { const f = feuille(); if (f.filtrees && f.filtrees.size && f.filtrees.has(r)) return 0; const h = f.hauteurs[r]; return (h === undefined ? HAUTEUR_DEFAUT : h) * Z(); };
 function indexDepuis(tab, pos) { // dichotomie : indice i tel que tab[i] <= pos < tab[i+1]
   let lo = 0, hi = tab.length - 2;
   while (lo < hi) { const m = (lo + hi + 1) >> 1; if (tab[m] <= pos) lo = m; else hi = m - 1; }
@@ -96,7 +141,7 @@ function afficherValeur(v, z) { return formater(v, z); }
 const mesureur = document.createElement('canvas').getContext('2d');
 function largeurTexte(t, s) {
   mesureur.font = (s && s.italique ? 'italic ' : '') + (s && s.gras ? '700 ' : '400 ') + ((s && s.taille) || 13) + 'px "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif';
-  return mesureur.measureText(t).width;
+  return mesureur.measureText(t).width * Z();
 }
 
 let rendRequis = false;
@@ -105,6 +150,7 @@ function rendre() { if (rendRequis) return; rendRequis = true; requestAnimationF
 function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
   let html = '';
   const entourerInvalides = uiD.validation.entourer();
+  const sombre = document.body.classList.contains('sombre');
   const zonesDebord = classeur.evaluateur.zonesDebord(F) || [];
   const fusionDe = (r, c) => f.fusions.find((m) => r >= m.r1 && r <= m.r2 && c >= m.c1 && c <= m.c2);
   // Tableaux structurés : leur style passe sous la mise en forme propre de chaque cellule
@@ -136,11 +182,12 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
       if (typeof v === 'number') {
         const dispo = (fus ? w : largeurCol(c)) - 6, besoinN = largeurTexte(txt, cel.s);
         // Un peu trop large (notre police est plus large que l'Arial 10 d'Excel) : on serre plutôt que « ##### »
-        if (besoinN > dispo && besoinN <= dispo * 1.3) reduction = Math.floor(((cel.s && cel.s.taille) || 13) * dispo / besoinN * 10) / 10;
+        if (besoinN > dispo && besoinN <= dispo * 1.3) reduction = Math.floor(((cel.s && cel.s.taille) || 13) * Z() * dispo / besoinN * 10) / 10;
         else if (besoinN > dispo) txt = ajusterNombre(v, cel.z, dispo, cel.s);
       }
       let s = cel.s || {};
       if (ts) s = { ...ts, ...s, bordures: s.bordures || ts.bordures, bordCouleur: s.bordures ? s.bordCouleur : ts.bordCouleur };
+      if (sombre) { if (s.fond && clair(s.fond) && !s.couleur) s = { ...s, couleur: '#111827' }; else if (!s.fond && s.couleur && !clair(s.couleur) && /^#(000|0{6}|1[0-9a-f]{5})$/i.test(s.couleur)) s = { ...s, couleur: null }; }
       const mfc = f.mfc && f.mfc.length ? styleConditionnel(classeur, F, r, c) : null;
       if (mfc) { s = { ...s }; for (const k of ['fond', 'couleur', 'gras', 'italique']) if (mfc[k] !== undefined) s[k] = mfc[k]; }
       if (v instanceof ErreurFormule) cls += ' erreur';
@@ -161,15 +208,15 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
         } else {
           let cc = c + 1;
           while (cc < nbColonnes && cc <= c2 + 1 && !f.get(r, cc) && ww < besoin) { ww += largeurCol(cc); cc++; }
-          if (ww > w) { w = ww; cls += ' deborde'; style += 'background:#fff;'; }
+          if (ww > w) { w = ww; cls += ' deborde'; style += 'background:var(--papier);'; }
         }
       }
       style += `width:${w}px;`;
       if (s.gras) style += 'font-weight:700;'; if (s.italique) style += 'font-style:italic;';
       if (s.souligne || s.barre) style += `text-decoration:${[s.souligne && 'underline', s.barre && 'line-through'].filter(Boolean).join(' ')};`;
-      if (s.retrait) style += `padding-${s.align === 'right' ? 'right' : 'left'}:${4 + s.retrait * 9}px;`;
+      if (s.retrait) style += `padding-${s.align === 'right' ? 'right' : 'left'}:${4 + s.retrait * 9 * Z()}px;`;
       const cFormat = typeof v === 'number' && cel.z ? couleurFormat(v, cel.z) : null;
-      if (cFormat && !(mfc && mfc.couleur)) style += `color:${cFormat};`; else if (s.couleur) style += `color:${s.couleur};`; if (s.taille) style += `font-size:${s.taille}px;`;
+      if (cFormat && !(mfc && mfc.couleur)) style += `color:${cFormat};`; else if (s.couleur) style += `color:${s.couleur};`; if (s.taille) style += `font-size:${s.taille * Z()}px;`;
       if (reduction) style += `font-size:${reduction}px;padding:0 2px;`;
       if (mfc && mfc.barre) { const b = mfc.barre; style += `background:linear-gradient(90deg,transparent ${b.debut}%,${b.negatif ? '#ff5555' : b.couleur} ${b.debut}%,${(b.negatif ? '#ff5555' : b.couleur) + '55'} ${b.fin}%,transparent ${b.fin}%)${s.fond ? ',' + s.fond : ''};`; }
       style += css({ ...s, fond: mfc && mfc.barre ? null : s.fond });
@@ -202,7 +249,7 @@ function suivreVolets() {
 }
 // Dans quel volet se trouve un objet (bouton, image : sa cellule d'ancrage ; graphique : son coin haut-gauche)
 function zoneObjet(o, z = zoneFigee()) { return (o.de.r < z.r ? 'H' : '') + (o.de.c < z.c ? 'G' : ''); }
-function zoneGraphique(g, z = zoneFigee()) { return (z.r && g.y < z.FH ? 'H' : '') + (z.c && g.x < z.FW ? 'G' : ''); }
+function zoneGraphique(g, z = zoneFigee()) { return (z.r && g.y * Z() < z.FH ? 'H' : '') + (z.c && g.x * Z() < z.FW ? 'G' : ''); }
 function rendreVolets(f, F, z, sl, st, W, H, rv1, r2, cv1, c2) {
   const volets = $('volets');
   if (!z.r && !z.c) { if (volets.innerHTML) volets.innerHTML = ''; return; }
@@ -210,7 +257,7 @@ function rendreVolets(f, F, z, sl, st, W, H, rv1, r2, cv1, c2) {
   let html = '';
   // Le contenu d'un volet est dessiné dans le repère de la feuille, décalé pour que la bonne partie apparaisse
   const panneau = (cls, x, y, w, h, dx, dy, contenu) => (w > 0 && h > 0 ? `<div class="volet ${cls}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"><div class="volet-contenu" style="left:${dx}px;top:${dy}px">${contenu}</div></div>` : '');
-  const objets = (quoi) => rendreObjets(f, quoi) + uiG.rendreSurFeuille(f, (g) => zoneGraphique(g, z) === quoi);
+  const objets = (quoi) => rendreObjets(f, quoi) + uiG.rendreSurFeuille(f, (g) => zoneGraphique(g, z) === quoi, Z());
   voletsRendus = { sl, st };
   if (z.r) html += panneau('volet-haut', L + z.FW, T, W - L - z.FW, z.FH, -sl - z.FW, 0, htmlCellules(f, F, 0, z.r - 1, cv1, c2) + objets('H'));
   if (z.c) html += panneau('volet-gauche', L, T + z.FH, z.FW, H - T - z.FH, 0, -st - z.FH, htmlCellules(f, F, rv1, r2, 0, z.c - 1) + objets('G'));
@@ -253,6 +300,7 @@ function rendreMaintenant() {
   html += rendreObjets(f);
   html += rendreGraphiques(f);
   html += rendreFleches(F);
+  html += rendreSauts(f);
   cellulesDiv.innerHTML = html;
   positionnerSelection();
   rendreOnglets();
@@ -262,9 +310,10 @@ function rendreMaintenant() {
 
 // ----- Boutons (macros) et images posés sur la feuille -----
 function rectObjet(o) {
-  const x1 = xCols[Math.min(o.de.c, nbColonnes)] + (o.de.dx || 0), y1 = yLigs[Math.min(o.de.r, nbLignes)] + (o.de.dy || 0);
-  if (o.a) { const x2 = xCols[Math.min(o.a.c, nbColonnes)] + (o.a.dx || 0), y2 = yLigs[Math.min(o.a.r, nbLignes)] + (o.a.dy || 0); return { x: x1, y: y1, w: Math.max(16, x2 - x1), h: Math.max(12, y2 - y1) }; }
-  return { x: x1, y: y1, w: o.w || 80, h: o.h || 24 };
+  const z = Z();
+  const x1 = xCols[Math.min(o.de.c, nbColonnes)] + (o.de.dx || 0) * z, y1 = yLigs[Math.min(o.de.r, nbLignes)] + (o.de.dy || 0) * z;
+  if (o.a) { const x2 = xCols[Math.min(o.a.c, nbColonnes)] + (o.a.dx || 0) * z, y2 = yLigs[Math.min(o.a.r, nbLignes)] + (o.a.dy || 0) * z; return { x: x1, y: y1, w: Math.max(16, x2 - x1), h: Math.max(12, y2 - y1) }; }
+  return { x: x1, y: y1, w: (o.w || 80) * z, h: (o.h || 24) * z };
 }
 function rendreObjets(f, quoi = '') {
   let html = '';
@@ -294,8 +343,9 @@ function surObjets(type, fn, capture) { cellulesDiv.addEventListener(type, fn, c
 // Pose une image (repère de la grille, en pixels) : ancrée à la cellule sous son coin haut-gauche
 function placerImage(im, x, y, w, h) {
   const c = indexDepuis(xCols, x), r = indexDepuis(yLigs, y);
-  im.de = { c, dx: Math.round(x - xCols[c]), r, dy: Math.round(y - yLigs[r]) };
-  delete im.a; im.w = Math.round(w); im.h = Math.round(h);
+  const z = Z();
+  im.de = { c, dx: Math.round((x - xCols[c]) / z), r, dy: Math.round((y - yLigs[r]) / z) };
+  delete im.a; im.w = Math.round(w / z); im.h = Math.round(h / z);
 }
 function objetSelectionne() {
   if (graphiqueActif) { const o = feuille().graphiques.find((x) => x.id === graphiqueActif); if (o) return { genre: 'graphique', o }; }
@@ -331,7 +381,7 @@ function collerObjet() {
   o.id = (p.genre === 'graphique' ? 'g' : 'i') + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   const x = xCols[curseur.c], y = yLigs[curseur.r];
   if (p.genre === 'graphique') {
-    o.x = x; o.y = y;
+    o.x = x / Z(); o.y = y / Z();
     // Collé sur une autre feuille du même classeur : il garde ses données d'origine
     if (p.classeur === classeur && p.feuilleNom !== feuille().nom && !String(o.plage || '').includes('!')) o.plage = refNomFeuille(p.feuilleNom) + '!' + o.plage;
     feuille().graphiques.push(o); graphiqueActif = o.id; imageActive = null;
@@ -423,7 +473,7 @@ function insererBouton() {
 // Un module vide (Module1 créé à l'ouverture de l'éditeur) ne fait pas un classeur à macros
 function aDesMacros(c) { return !!c.vbaBrut || c.modulesVBA().some((m) => (m.code || '').trim()); }
 function donneesGraphique(f, plage) { return matriceGraphique(classeur, f, plage); }
-function rendreGraphiques(f) { const z = zoneFigee(); return uiG.rendreSurFeuille(f, z.r || z.c ? (g) => zoneGraphique(g, z) === '' : null); }
+function rendreGraphiques(f) { const z = zoneFigee(); return uiG.rendreSurFeuille(f, z.r || z.c ? (g) => zoneGraphique(g, z) === '' : null, Z()); }
 function creerGraphique() { uiG.ouvrirGalerie(); }
 const uiG = installerGraphiques({
   feuille: () => feuille(),
@@ -431,7 +481,7 @@ const uiG = installerGraphiques({
   selection: () => selectionBornee(),
   adresse: (r, c) => adresse(r, c),
   plageValide: (t) => !!plageDepuisTexte(String(t).replace(/\$/g, '').replace(/^.*!/, '').trim()),
-  position: (s2) => ({ x: xCols[Math.min(s2.c2 + 1, nbColonnes - 1)] + 10, y: yLigs[s2.r1] }),
+  position: (s2) => ({ x: (xCols[Math.min(s2.c2 + 1, nbColonnes - 1)] + 10) / Z(), y: yLigs[s2.r1] / Z() }),
   rendre: () => rendre(),
   sauvegarder: () => { classeur.version++; sauvegarderLocal(); },
   toast: (m, e) => toast(m, e),
@@ -445,7 +495,7 @@ const uiD = installerDonnees({
   selection: () => selectionNormalisee(), curseur: () => curseur,
   selectionner: (p, cur) => { selection = { r1: p.r1, c1: p.c1, r2: p.r2, c2: p.c2 }; curseur = cur || { r: p.r1, c: p.c1 }; },
   allerA: (i, r, c) => { if (i !== fi()) { memoriserVue(); activerFeuille(i); } placerCurseur(r, c); },
-  rendre: () => rendre(), sauvegarder: () => sauvegarderLocal(), memoriser: () => memoriser(), toast: (m, e) => toast(m, e),
+  rendre: () => rendre(), sauvegarder: () => sauvegarderLocal(), memoriser: (perm) => memoriser(perm), toast: (m, e) => toast(m, e),
   ouvrirMenu: (x, y, items) => ouvrirMenu(x, y, items),
   ouvrirPanneau: (nom) => ouvrirPanneau(nom), panneauOuvert: (nom) => panneauCourant === nom && !$('panneau').hidden,
   commencerEdition: (t) => { conteneur.focus(); commencerEdition(t); },
@@ -455,13 +505,14 @@ const uiT = installerTCD({
   selectionner: (p) => { selection = { ...p }; curseur = { r: p.r1, c: p.c1 }; },
   activerFeuille: (i) => { memoriserVue(); activerFeuille(i); },
   nouvelleFeuille: (base) => { let n = base, i = 1; while (classeur.indexFeuille(n) >= 0) n = base + (++i); memoriserVue(); classeur.ajouterFeuille(n, fi() + 1); return classeur.indexFeuille(n); },
-  rendre: () => rendre(), sauvegarder: () => sauvegarderLocal(), memoriser: () => memoriser(), toast: (m, e) => toast(m, e),
+  rendre: () => rendre(), sauvegarder: () => sauvegarderLocal(), memoriser: (perm) => memoriser(perm), toast: (m, e) => toast(m, e),
   ouvrirPanneau: (nom) => ouvrirPanneau(nom), panneauOuvert: (nom) => panneauCourant === nom && !$('panneau').hidden,
 });
 const uiB = installerDialogues({
   classeur: () => classeur, fi: () => fi(), feuille: () => feuille(), selection: () => selectionNormalisee(), selectionBornee: () => selectionBornee(), curseur: () => curseur,
   selectionner: (p, cur) => { selection = { ...p }; curseur = cur || { r: p.r1, c: p.c1 }; },
-  memoriser: () => memoriser(), rendre: () => rendre(), sauvegarder: () => sauvegarderLocal(), toast: (m, e) => toast(m, e),
+  memoriser: (perm) => memoriser(perm), rendre: () => rendre(), sauvegarder: () => sauvegarderLocal(), toast: (m, e) => toast(m, e),
+  hacher: (m) => hacherMotDePasse(m), verifierSha: (m, x) => verifierShaMotDePasse(m, x, { 'SHA-512': sha512, 'SHA-384': sha384, 'SHA-256': sha256, 'SHA-1': sha1 }), droits: DROITS,
   pressePapier: () => pressePapier, allerA: (t) => allerA(t), focusGrille: () => conteneur.focus({ preventScroll: true }),
   surSelection: (cb) => { const s = selectionBornee(); for (let r = s.r1; r <= Math.max(s.r2, s.r1); r++) for (let c = s.c1; c <= Math.max(s.c2, s.c1); c++) cb(r, c); },
   appliquerBordures: (mode, style) => appliquerBordures(mode, style, false),
@@ -473,9 +524,28 @@ const uiA = installerAnalyse({
   classeur: () => classeur, fi: () => fi(), feuille: () => feuille(), selection: () => selectionNormalisee(), selectionBornee: () => selectionBornee(), curseur: () => curseur,
   selectionner: (p, cur) => { selection = { r1: p.r1, c1: p.c1, r2: p.r2, c2: p.c2 }; curseur = cur || { r: p.r1, c: p.c1 }; },
   allerA: (i, r, c) => { if (i !== fi()) { memoriserVue(); activerFeuille(i); } placerCurseur(r, c); },
-  rendre: () => rendre(), sauvegarder: () => sauvegarderLocal(), memoriser: () => memoriser(), toast: (m, e) => toast(m, e),
+  rendre: () => rendre(), sauvegarder: () => sauvegarderLocal(), memoriser: (perm) => memoriser(perm), toast: (m, e) => toast(m, e),
   ouvrirPanneau: (nom) => ouvrirPanneau(nom), panneauOuvert: (nom) => panneauCourant === nom && !$('panneau').hidden,
   dialogue: (titre, html, ok, opts) => uiB.ouvrir(titre, html, ok, opts),
+});
+const uiP = installerImpression({
+  classeur: () => classeur, fi: () => fi(), feuille: () => feuille(), selectionBornee: () => selectionBornee(),
+  memoriser: (perm) => memoriser(perm), sauvegarder: () => sauvegarderLocal(), rendre: () => rendre(), toast: (m, e) => toast(m, e),
+  dialogue: (titre, html, ok, opts) => uiB.ouvrir(titre, html, ok, opts),
+  styleCellule: (F, r, c) => (classeur.feuilles[F].mfc && classeur.feuilles[F].mfc.length ? styleConditionnel(classeur, F, r, c) : null),
+  // Graphiques et images de la feuille, en pixels (repère des colonnes et lignes de cette feuille)
+  objets: (f) => {
+    const X = (c) => { let x = 0; for (let k = 0; k < c; k++) x += f.largeurs[k] === undefined ? LARGEUR_DEFAUT : f.largeurs[k]; return x; };
+    const Y = (r) => { let y = 0; for (let k = 0; k < r; k++) y += f.filtrees && f.filtrees.has(k) ? 0 : f.hauteurs[k] === undefined ? HAUTEUR_DEFAUT : f.hauteurs[k]; return y; };
+    const out = [];
+    for (const g of f.graphiques || []) { try { normaliserGraphique(g); out.push({ x: g.x, y: g.y, w: g.w, h: g.h, html: rendreGraphiqueSVG(g, donneesGraphique(f, g.plage), g.w, g.h, {}) }); } catch (e) { console.warn(e); } }
+    for (const im of f.images || []) {
+      const x1 = X(im.de.c) + (im.de.dx || 0), y1 = Y(im.de.r) + (im.de.dy || 0);
+      const x2 = im.a ? X(im.a.c) + (im.a.dx || 0) : x1 + (im.w || 80), y2 = im.a ? Y(im.a.r) + (im.a.dy || 0) : y1 + (im.h || 24);
+      out.push({ x: x1, y: y1, w: x2 - x1, h: y2 - y1, html: `<img src="${im.src}" style="width:100%;height:100%;${im.transparentBlanc ? 'mix-blend-mode:multiply;' : ''}">` });
+    }
+    return out;
+  },
 });
 // Bouton ▾ d'un en-tête de filtre
 surObjets('mousedown', (e) => {
@@ -522,9 +592,9 @@ surObjets('mousedown', (e) => {
   conteneur.focus();
   imageActive = null;
   if (edition) validerEdition();
-  memoriser();
+  memoriser('objets');
   if (e.target.classList.contains('graphique-redim')) glisse = { mode: 'graphique-redim', g, x0: e.clientX, y0: e.clientY, w: g.w, h: g.h };
-  else glisse = { mode: 'graphique', g, x0: e.clientX, y0: e.clientY, x: g.x, y: g.y };
+  else glisse = { mode: 'graphique', g, x0: e.clientX, y0: e.clientY, x: g.x * Z(), y: g.y * Z() };
   rendre();
 });
 surObjets('click', (e) => {
@@ -677,6 +747,9 @@ function rendreStatut() {
   }
   const fmt = (x) => afficherValeur(Math.round(x * 1e10) / 1e10);
   $('statut').textContent = nbNum ? `Somme : ${fmt(somme)}   Moyenne : ${fmt(somme / nbNum)}   Nb : ${nb}` : (nb ? `Nb : ${nb}` : (classeur.nomFichier || ''));
+  $('zoom-valeur').textContent = Math.round(Z() * 100) + ' %';
+  $('ind-protection').hidden = !feuilleProtegee();
+  $('ind-calcul').hidden = !classeur.calculManuel;
 }
 
 // ---------------------------------------------------------------------------
@@ -741,7 +814,29 @@ function instantane() {
     validations: JSON.parse(JSON.stringify(f.validations || [])), tcd: JSON.parse(JSON.stringify(f.tcd || [])),
     extra: Object.fromEntries(PROPRIETES_FEUILLE.map((k) => [k, f[k] === undefined ? undefined : JSON.parse(JSON.stringify(f[k]))])) };
 }
-function memoriser() { historique.push(instantane()); if (historique.length > 100) historique.shift(); futur = []; }
+// ----- Feuille protégée : toute modification passe par memoriser(), qui la refuse si elle n'est pas permise -----
+class ErreurProtection extends Error {}
+let permission = null; // ce que l'action en cours modifie : 'cellules' (déverrouillées), 'formatCellules', 'insererLignes'…
+function feuilleProtegee(f = feuille()) { const p = f && f.protection; return p && p.active ? p : null; }
+function verrouillee(r, c, f = feuille()) { const cel = f.get(r, c); return !(cel && cel.s && cel.s.deverrouille); }
+function plageVerrouillee(s, f = feuille()) {
+  if (!feuilleProtegee(f)) return false;
+  if ((s.r2 - s.r1 + 1) * (s.c2 - s.c1 + 1) > 200000) return true;
+  for (let r = s.r1; r <= s.r2; r++) for (let c = s.c1; c <= s.c2; c++) if (verrouillee(r, c, f)) return true;
+  return false;
+}
+function avec(perm, fn) { const av = permission; permission = perm; try { return fn(); } finally { permission = av; } }
+function signalerProtection() { toast('Feuille protégée : modification impossible ici. Pour la permettre : menu … › Révision › Ôter la protection.', true); }
+window.addEventListener('error', (e) => { if (e.error instanceof ErreurProtection) { e.preventDefault(); signalerProtection(); } });
+window.addEventListener('unhandledrejection', (e) => { if (e.reason instanceof ErreurProtection) { e.preventDefault(); signalerProtection(); } });
+function memoriser(perm = permission) {
+  const p = feuilleProtegee();
+  if (p && !macroEnCours) {
+    const a = p.autoriser || {};
+    if (!(perm === 'cellules' || perm === 'affichage' || (perm && a[perm]))) throw new ErreurProtection('feuille protégée');
+  }
+  historique.push(instantane()); if (historique.length > 100) historique.shift(); futur = [];
+}
 function restaurer(s) {
   const f = classeur.feuilles[s.fi]; if (!f) return;
   f.cellules = s.cells; f.largeurs = s.largeurs; f.hauteurs = s.hauteurs; f.fusions = s.fusions; f.graphiques = s.graphiques; f.boutons = s.boutons; if (s.images) f.images = s.images; f.recalculerZone();
@@ -760,6 +855,7 @@ function retablir() { if (!futur.length) return; historique.push(instantane()); 
 function commencerEdition(initial, origine = 'cellule') {
   if (edition) return;
   const { r, c } = curseur;
+  if (feuilleProtegee() && verrouillee(r, c)) { if (origine === 'barre') barre.blur(); return signalerProtection(); }
   edition = { r, c, origine };
   const texte = initial !== undefined ? initial : saisieAffichee(r, c);
   if (origine === 'cellule') {
@@ -789,7 +885,7 @@ function validerEdition(mouvement) {
   editeur.hidden = true;
   const ancien = saisieAffichee(r, c);
   if (texte !== ancien) {
-    memoriser();
+    memoriser(verrouillee(r, c) ? null : 'cellules');
     const avant = feuille().get(r, c);
     const copie = avant ? { ...avant } : null;
     try { classeur.saisir(fi(), r, c, texte); } catch (e) { toast(e.message, true); }
@@ -816,7 +912,7 @@ function remplirSelection() {
   const { r, c } = edition;
   fermerSuggestions(); edition = null; editeur.hidden = true;
   const n = selectionNormalisee(), s = { r1: n.r1, c1: n.c1, r2: Math.min(n.r2, n.r1 + 5000), c2: Math.min(n.c2, n.c1 + 200) };
-  memoriser();
+  memoriser(plageVerrouillee(s) ? null : 'cellules');
   const sel = s.r1 === s.r2 && s.c1 === s.c2 ? { r1: r, c1: c, r2: r, c2: c } : s;
   for (let i = sel.r1; i <= sel.r2; i++) for (let j = sel.c1; j <= sel.c2; j++) classeur.saisir(fi(), i, j, texte.startsWith('=') ? decalerFormule(texte, i - r, j - c) : texte);
   sauvegarderLocal(); conteneur.focus(); rendre();
@@ -875,7 +971,12 @@ async function coller(texteSysteme) {
     }
   }
   const dest = selectionNormalisee();
-  memoriser();
+  if (feuilleProtegee()) {
+    // Taille de ce qui est collé : la cible doit être entièrement déverrouillée
+    const lignes = texte ? texte.replace(/\r?\n$/, '').split(/\r?\n/) : null;
+    const h = pressePapier && !texte ? pressePapier.r2 - pressePapier.r1 : lignes ? lignes.length - 1 : 0, w = pressePapier && !texte ? pressePapier.c2 - pressePapier.c1 : lignes ? Math.max(...lignes.map((l) => l.split('\t').length)) - 1 : 0;
+    memoriser(plageVerrouillee({ r1: dest.r1, c1: dest.c1, r2: Math.max(dest.r2, dest.r1 + h), c2: Math.max(dest.c2, dest.c1 + w) }) ? null : 'cellules');
+  } else memoriser();
   // Copie interne prioritaire si le presse-papiers du système est vide, inaccessible ou n'a pas pu la recevoir
   if (pressePapier && (texte == null || texte === '' || !pressePapier.systeme || texte === pressePapier.texte || texte.replace(/\r/g, '') === pressePapier.texte)) {
     const src = pressePapier;
@@ -996,12 +1097,12 @@ function recopierVers(cible) { // poignée : étend la sélection vers cible (s�
 // Mise en forme
 // ---------------------------------------------------------------------------
 
-function surSelection(cb) { const s = selectionBornee(); memoriser(); for (let r = s.r1; r <= Math.max(s.r2, s.r1); r++) for (let c = s.c1; c <= Math.max(s.c2, s.c1); c++) cb(r, c); sauvegarderLocal(); rendre(); }
+function surSelection(cb) { const s = selectionBornee(); memoriser('formatCellules'); for (let r = s.r1; r <= Math.max(s.r2, s.r1); r++) for (let c = s.c1; c <= Math.max(s.c2, s.c1); c++) cb(r, c); sauvegarderLocal(); rendre(); }
 function basculerStyle(prop) { const cel = feuille().get(curseur.r, curseur.c); const val = !(cel && cel.s && cel.s[prop]); surSelection((r, c) => classeur.style(fi(), r, c, { [prop]: val })); }
 function appliquerBordures(mode, style = 'thin', memo = true) {
   const s = selectionBornee();
   const sel = selectionNormalisee();
-  if (memo) memoriser();
+  if (memo) memoriser('formatCellules');
   for (let r = s.r1; r <= Math.max(s.r2, s.r1); r++) for (let c = s.c1; c <= Math.max(s.c2, s.c1); c++) {
     const cel = feuille().get(r, c);
     const b = { ...((cel && cel.s && cel.s.bordures) || {}) };
@@ -1337,7 +1438,7 @@ function nouveauClasseur() {
 function serialiserClasseur(c) {
   return JSON.stringify({ nomFichier: c.nomFichier, active: c.active, macros: c.macros || '', calculManuel: !!c.calculManuel, noms: [...c.noms.values()], modifie: estModifie(c),
     feuilles: c.feuilles.map((f, fi2) => ({ nom: f.nom, codeNom: f.codeNom, cachee: f.cachee, largeurs: f.largeurs, hauteurs: f.hauteurs, fusions: f.fusions, graphiques: f.graphiques, boutons: f.boutons, images: f.images, noms: [...f.noms.values()], figer: f.figer, mfc: f.mfc, filtre: f.filtre, filtrees: [...(f.filtrees || [])], validations: f.validations, tcd: f.tcd, couleur: f.couleur,
-      ...Object.fromEntries(PROPRIETES_FEUILLE.filter((k) => f[k] !== undefined).map((k) => [k, f[k]])),
+      ...Object.fromEntries(PROPRIETES_FEUILLE.filter((k) => f[k] !== undefined).map((k) => [k, f[k]])), zoom: f.zoom,
       cellules: [...f.cellules].map(([k, cel]) => {
         const o = { ...cel, v: cel.v instanceof ErreurFormule ? { erreur: cel.v.code } : cel.v };
         // Comme Excel à l'enregistrement : la dernière valeur calculée d'une formule est gardée
@@ -1352,6 +1453,7 @@ function deserialiserClasseur(data) {
     const f = c.ajouterFeuille(fd.nom); if (fd.codeNom) { try { c.changerCodeNom(f, fd.codeNom); } catch { /* nom pris */ } } f.cachee = !!fd.cachee; f.largeurs = fd.largeurs || {}; f.hauteurs = fd.hauteurs || {}; f.fusions = fd.fusions || []; f.graphiques = fd.graphiques || []; f.boutons = fd.boutons || []; f.images = fd.images || [];
     f.figer = fd.figer || null; f.mfc = fd.mfc || []; f.filtre = fd.filtre || null; f.filtrees = new Set(fd.filtrees || []); f.validations = fd.validations || []; f.tcd = fd.tcd || []; if (fd.couleur) f.couleur = fd.couleur;
     for (const k of PROPRIETES_FEUILLE) if (fd[k] !== undefined) f[k] = fd[k];
+    if (fd.zoom) f.zoom = fd.zoom;
     for (const n of fd.noms || []) f.noms.set(n.nom.toUpperCase(), n);
     for (const [k, cel] of fd.cellules) { if (cel.v && typeof cel.v === 'object' && cel.v.erreur) cel.v = new ErreurFormule(cel.v.erreur); f.cellules.set(k, cel); }
     f.recalculerZone();
@@ -2017,12 +2119,12 @@ document.addEventListener('mousemove', (e) => {
     // Déplacement d'un graphique ou d'une image ; Alt : aligné sur les cellules (comme Excel)
     let x = Math.max(0, glisse.x + e.clientX - glisse.x0), y = Math.max(0, glisse.y + e.clientY - glisse.y0);
     if (e.altKey) { x = xCols[indexDepuis(xCols, x + largeurCol(indexDepuis(xCols, x)) / 2)]; y = yLigs[indexDepuis(yLigs, y + hauteurLig(indexDepuis(yLigs, y)) / 2)]; }
-    if (glisse.mode === 'graphique') { glisse.g.x = x; glisse.g.y = y; } else placerImage(glisse.g, x, y, glisse.w, glisse.h);
+    if (glisse.mode === 'graphique') { glisse.g.x = x / Z(); glisse.g.y = y / Z(); } else placerImage(glisse.g, x, y, glisse.w, glisse.h);
     glisse.bouge = true;
     rendre();
-  } else if (glisse.mode === 'graphique-redim') { glisse.g.w = Math.max(160, glisse.w + e.clientX - glisse.x0); glisse.g.h = Math.max(110, glisse.h + e.clientY - glisse.y0); rendre(); }
-  else if (glisse.mode === 'redim-col') { const w = Math.max(20, glisse.base + e.clientX - glisse.x0); feuille().largeurs[glisse.c] = w; rendre(); }
-  else if (glisse.mode === 'redim-lig') { const h = Math.max(14, glisse.base + e.clientY - glisse.y0); feuille().hauteurs[glisse.r] = h; rendre(); }
+  } else if (glisse.mode === 'graphique-redim') { glisse.g.w = Math.max(160, glisse.w + (e.clientX - glisse.x0) / Z()); glisse.g.h = Math.max(110, glisse.h + (e.clientY - glisse.y0) / Z()); rendre(); }
+  else if (glisse.mode === 'redim-col') { const w = Math.max(20, (glisse.base + e.clientX - glisse.x0) / Z()); feuille().largeurs[glisse.c] = Math.round(w); rendre(); }
+  else if (glisse.mode === 'redim-lig') { const h = Math.max(14, (glisse.base + e.clientY - glisse.y0) / Z()); feuille().hauteurs[glisse.r] = Math.round(h); rendre(); }
 });
 document.addEventListener('mouseup', (e) => {
   if (!glisse) return;
@@ -2065,6 +2167,16 @@ function tracer(genre) {
   }
   if (!n) toast(genre === 'ant' ? (deja.length ? 'Pas d\'autre niveau d\'antécédents' : 'Cette cellule ne lit aucune autre cellule') : (deja.length ? 'Pas d\'autre niveau de dépendants' : 'Aucune formule ne lit cette cellule'));
   rendre();
+}
+// Sauts de page manuels (pointillés) et contour de la zone d'impression, comme l'affichage d'Excel après un aperçu
+function rendreSauts(f) {
+  const m = f.miseEnPage;
+  if (!m) return '';
+  let h = '';
+  for (const r of m.sautsLignes || []) if (r < nbLignes) h += `<div class="saut-page lig" style="top:${yLigs[r] - 1}px;width:${xCols[nbColonnes]}px"></div>`;
+  for (const c of m.sautsColonnes || []) if (c < nbColonnes) h += `<div class="saut-page col" style="left:${xCols[c] - 1}px;height:${yLigs[nbLignes]}px"></div>`;
+  for (const z of String(m.zone || '').split(/[;,]/)) { const p = parsePlage(z.replace(/\$/g, '').replace(/^.*!/, '').trim().toUpperCase()); if (p && p.r2 < nbLignes + 1000) h += `<div class="zone-impression" style="left:${xCols[p.c1]}px;top:${yLigs[p.r1]}px;width:${xCols[Math.min(p.c2 + 1, nbColonnes)] - xCols[p.c1]}px;height:${yLigs[Math.min(p.r2 + 1, nbLignes)] - yLigs[p.r1]}px"></div>`; }
+  return h;
 }
 function effacerFleches() { fleches = []; rendre(); }
 // Ctrl+[ et Ctrl+] : sélectionne les antécédents / les dépendants directs (le premier groupe, sur cette feuille)
@@ -2113,7 +2225,7 @@ function ajusterAuto(el) {
     for (const c of cols) {
       let w = 0;
       f.chaque((r, cc, cel) => { if (cc !== c || f.fusions.some((m) => r >= m.r1 && r <= m.r2 && c >= m.c1 && c <= m.c2 && m.c2 > m.c1)) return; const v = classeur.valeur(fi(), r, cc); if (v === null || v === '') return; w = Math.max(w, largeurTexte(afficherValeur(v, cel.z), cel.s) + 12); });
-      if (w) f.largeurs[c] = Math.min(500, Math.max(24, Math.ceil(w)));
+      if (w) f.largeurs[c] = Math.min(500, Math.max(24, Math.ceil(w / Z())));
     }
   } else {
     const r0 = +el.dataset.r, entieres = s.c2 >= 16383 && r0 >= s.r1 && r0 <= s.r2;
@@ -2123,7 +2235,7 @@ function ajusterAuto(el) {
       for (let c = 0; c <= f.zone.c2; c++) {
         const cel = f.get(r, c); if (!cel) continue;
         const t = afficherValeur(classeur.valeur(fi(), r, c), cel.z), taille = (cel.s && cel.s.taille) || 13;
-        const n = cel.s && cel.s.renvoi ? Math.max(1, Math.ceil(largeurTexte(t, cel.s) / Math.max(10, largeurCol(c) - 8))) + (t.match(/\n/g) || []).length : 1 + (t.match(/\n/g) || []).length;
+        const n = cel.s && cel.s.renvoi ? Math.max(1, Math.ceil(largeurTexte(t, cel.s) / Math.max(10, largeurCol(c) - 8 * Z()))) + (t.match(/\n/g) || []).length : 1 + (t.match(/\n/g) || []).length;
         h = Math.max(h, n * taille * 1.25 + 6);
       }
       if (h <= HAUTEUR_DEFAUT) delete f.hauteurs[r]; else f.hauteurs[r] = Math.ceil(h);
@@ -2259,7 +2371,7 @@ function menuTableau() {
   ]]];
 }
 function lignesColonnes(inserer, axe) {
-  const s = selectionNormalisee(); memoriser();
+  const s = selectionNormalisee(); memoriser((inserer ? 'inserer' : 'supprimer') + (axe === 'r' ? 'Lignes' : 'Colonnes'));
   if (axe === 'r') { const n = s.r2 - s.r1 + 1; if (inserer) classeur.insererLignes(fi(), s.r1, n); else classeur.supprimerLignes(fi(), s.r1, n); }
   else { const n = s.c2 - s.c1 + 1; if (inserer) classeur.insererColonnes(fi(), s.c1, n); else classeur.supprimerColonnes(fi(), s.c1, n); }
   sauvegarderLocal(); rendre();
@@ -2327,7 +2439,7 @@ conteneur.addEventListener('keydown', (e) => {
   if (k === 'Home') { e.preventDefault(); return ctrl ? placerCurseur(0, 0) : placerCurseur(curseur.r, 0); }
   if (k === 'End' && ctrl) { e.preventDefault(); return placerCurseur(Math.max(0, feuille().zone.r2), Math.max(0, feuille().zone.c2)); }
   if (k === 'PageDown' || k === 'PageUp') { e.preventDefault(); const n = Math.max(1, Math.floor((conteneur.clientHeight - HAUTEUR_DEFAUT) / HAUTEUR_DEFAUT) - 1); return placerCurseur(curseur.r + (k === 'PageDown' ? n : -n), curseur.c, e.shiftKey); }
-  if (k === 'Delete') { e.preventDefault(); const s = selectionBornee(); memoriser(); classeur.effacer(fi(), s.r1, s.c1, s.r2, s.c2); sauvegarderLocal(); return rendre(); }
+  if (k === 'Delete') { e.preventDefault(); const s = selectionBornee(); memoriser(plageVerrouillee(s) ? null : 'cellules'); classeur.effacer(fi(), s.r1, s.c1, s.r2, s.c2); sauvegarderLocal(); return rendre(); }
   if (k === 'Backspace') { e.preventDefault(); return commencerEdition(''); }
   if (k === 'F2') { e.preventDefault(); return commencerEdition(); }
   if (k === 'F9') { e.preventDefault(); if (ctrl && e.altKey) { classeur.abandonnerCaches(); classeur.evaluateur.recalculerTout(); actualiserTablesDonnees(classeur); toast('Tout est recalculé (valeurs du fichier oubliées)'); return rendre(); } return recalculer(); }
@@ -2356,7 +2468,7 @@ conteneur.addEventListener('keydown', (e) => {
     if (K === 'f') { e.preventDefault(); return uiD.ouvrirRecherche(false); }
     if (K === 'h') { e.preventDefault(); return uiD.ouvrirRecherche(true); }
     if (K === 'l' && e.shiftKey) { e.preventDefault(); return uiD.basculerFiltre(); }
-    if (K === 'p') { e.preventDefault(); return uiD.imprimer(); }
+    if (K === 'p') { e.preventDefault(); return uiP.ouvrir(); }
     if (k === ';') { e.preventDefault(); const d = new Date(); return (memoriser(), classeur.saisir(fi(), curseur.r, curseur.c, `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`), sauvegarderLocal(), rendre()); }
     return;
   }
@@ -2373,6 +2485,8 @@ function raccourciExcel(e) {
   const ctrl = e.ctrlKey || e.metaKey, k = e.key, code = e.code;
   const fait = (fn) => { e.preventDefault(); fn(); return true; };
   if (ctrl && e.altKey && (k === 'v' || k === 'V')) return fait(() => uiB.collageSpecial());
+  if (ctrl && e.altKey && (code === 'Equal' || code === 'NumpadAdd' || k === '=' || k === '+')) return fait(() => zoomPas(1));
+  if (ctrl && e.altKey && (code === 'Minus' || code === 'NumpadSubtract' || k === '-' || k === '6')) return fait(() => zoomPas(-1));
   if (ctrl && !e.altKey && (k === '+' || code === 'NumpadAdd' || (code === 'Equal' && e.shiftKey))) return fait(() => uiB.cellules(true));
   if (ctrl && e.shiftKey && FORMATS_RAPIDES[code] !== undefined) return fait(() => poserFormat(FORMATS_RAPIDES[code]));
   if (ctrl && e.shiftKey && code === 'Digit7') return fait(() => { appliquerBordures('contour'); derniereAction = () => appliquerBordures('contour'); });
@@ -2421,7 +2535,7 @@ function raccourciExcel(e) {
   if ((e.shiftKey && k === 'F10') || k === 'ContextMenu') return fait(() => { const r = $('curseur').getBoundingClientRect(); ouvrirMenu(r.left + 10, r.bottom, menuCellules(selectionNormalisee())); });
   if (!ctrl && !e.shiftKey && k === 'F12') return fait(() => enregistrer());
   if (ctrl && !e.shiftKey && k === 'F12') return fait(() => $('fichier').click());
-  if (ctrl && !e.shiftKey && k === 'F2') return fait(() => uiD.imprimer());
+  if (ctrl && !e.shiftKey && k === 'F2') return fait(() => uiP.ouvrir());
   if (!ctrl && e.shiftKey && k === 'F11') return fait(() => { memoriserVue(); classeur.ajouterFeuille(null, fi() + 1); activerFeuille(fi() + 1); sauvegarderLocal(); });
   if (!ctrl && e.shiftKey && k === 'F3') return fait(() => ouvrirPanneau('fonctions'));
   if (!ctrl && e.shiftKey && k === 'F4') return fait(() => uiD.rechercherSuivant(1));
@@ -2653,6 +2767,19 @@ $('btn-tcd').addEventListener('click', () => uiT.ouvrir());
 $('btn-mfc').addEventListener('click', () => uiD.menuMfc(...sousBouton('btn-mfc')));
 $('btn-figer').addEventListener('click', () => uiD.menuFiger(...sousBouton('btn-figer')));
 $('btn-plus').addEventListener('click', () => ouvrirMenu(...sousBouton('btn-plus'), menuPlus()));
+$('zoom-moins').addEventListener('click', () => zoomPas(-1));
+$('zoom-plus').addEventListener('click', () => zoomPas(1));
+$('zoom-valeur').addEventListener('click', (e) => { const r = e.currentTarget.getBoundingClientRect(); menuZoom(r.left, r.top - 4); });
+$('ind-calcul').addEventListener('click', () => recalculer());
+$('ind-protection').addEventListener('click', () => uiB.protegerFeuille());
+// Ctrl + molette : zoom autour du pointeur (comme Excel)
+conteneur.addEventListener('wheel', (e) => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  e.preventDefault();
+  const r = conteneur.getBoundingClientRect(), ancre = { x: e.clientX - r.left, y: e.clientY - r.top };
+  // Pavé tactile (pincement) : petits pas continus ; molette : paliers
+  if (Math.abs(e.deltaY) < 40 && !Number.isInteger(e.deltaY)) definirZoom(Z() * Math.exp(-e.deltaY / 100), ancre); else zoomPas(e.deltaY < 0 ? 1 : -1, ancre);
+}, { passive: false });
 // Menu « … » : tout ce qui n'a pas de bouton, rangé comme les onglets d'Excel
 function menuPlus() {
   return [
@@ -2667,7 +2794,14 @@ function menuPlus() {
       [afficherFormules ? 'Afficher les résultats' : 'Afficher les formules', () => { afficherFormules = !afficherFormules; rendre(); }, 'Ctrl+`'], null,
       [(classeur.calculManuel ? '✓ ' : '') + 'Calcul manuel', () => basculerCalculManuel()],
       ['Recalculer', () => recalculer(), 'F9'], ['Tout recalculer', () => { classeur.abandonnerCaches(); classeur.evaluateur.recalculerTout(); actualiserTablesDonnees(classeur); rendre(); toast('Tout est recalculé (valeurs du fichier oubliées)'); }, 'Ctrl+Alt+F9']]],
-    ['Mise en page', [['Imprimer / PDF', () => uiD.imprimer(), 'Ctrl+P'], ['Imprimer la sélection', () => uiD.imprimer({ selectionSeule: true })]]],
+    ['Mise en page', [['Imprimer / PDF…', () => uiP.ouvrir(), 'Ctrl+P'], ['Imprimer la sélection…', () => uiP.ouvrir({ quoi: 'selection' })], null,
+      ['Définir la zone d\'impression', () => uiP.definirZone()], ['Effacer la zone d\'impression', () => uiP.effacerZone()], null,
+      ['Insérer un saut de page', () => uiP.saut(true, curseur)], ['Supprimer le saut de page', () => uiP.saut(false, curseur)], ['Rétablir tous les sauts de page', () => uiP.retablirSauts()]]],
+    ['Affichage', [['Zoom', [...[0.5, 0.75, 1, 1.25, 1.5, 2].map((z) => [(Math.abs(Z() - z) < 0.001 ? '✓ ' : '') + Math.round(z * 100) + ' %', () => definirZoom(z)]), ['Zoom sur la sélection', () => zoomSelection()], ['Zoom avant', () => zoomPas(1), 'Ctrl+Alt+='], ['Zoom arrière', () => zoomPas(-1), 'Ctrl+Alt+-']]],
+      ['Thème', [['clair', 'Clair'], ['sombre', 'Sombre'], ['auto', 'Comme le système']].map(([k, t]) => [(theme === k ? '✓ ' : '') + t, () => choisirTheme(k)])],
+      ['Figer les volets', () => uiD.menuFiger(...sousBouton('btn-plus'))]]],
+    ['Révision', [[feuilleProtegee() ? 'Ôter la protection de la feuille…' : 'Protéger la feuille…', () => uiB.protegerFeuille()], ['Déverrouiller les cellules choisies', () => { surSelection((r, c) => classeur.style(fi(), r, c, { deverrouille: true })); toast('Cellules déverrouillées : elles resteront modifiables quand la feuille sera protégée'); }],
+      ['Verrouiller les cellules choisies', () => surSelection((r, c) => classeur.style(fi(), r, c, { deverrouille: null }))]]],
     ['Feuille', [['Nouvelle feuille', () => { memoriserVue(); classeur.ajouterFeuille(null, fi() + 1); activerFeuille(fi() + 1); sauvegarderLocal(); }, 'Maj+F11'], ['Feuille suivante', () => changerFeuille(1), 'Ctrl+PgSuiv'], ['Feuille précédente', () => changerFeuille(-1), 'Ctrl+PgPréc'], ['Dupliquer cette feuille', () => dupliquerFeuille(fi())]]],
     ['Nouveau classeur', () => nouveauClasseur(), 'Ctrl+Alt+N'], ['Raccourcis clavier', () => { if (panneauCourant !== 'aide') ouvrirPanneau('aide'); }, '?'],
   ];
@@ -2686,10 +2820,10 @@ $('btn-renvoi').addEventListener('click', () => basculerStyle('renvoi'));
 $('bordures').addEventListener('change', (e) => { if (e.target.value) appliquerBordures(e.target.value); e.target.value = ''; conteneur.focus(); });
 $('btn-decimales-moins').addEventListener('click', () => changerDecimales(-1));
 $('btn-decimales-plus').addEventListener('click', () => changerDecimales(1));
-$('btn-inserer-ligne').addEventListener('click', () => { const s = selectionNormalisee(); memoriser(); classeur.insererLignes(fi(), s.r1, s.r2 - s.r1 + 1); sauvegarderLocal(); rendre(); });
-$('btn-supprimer-ligne').addEventListener('click', () => { const s = selectionNormalisee(); memoriser(); classeur.supprimerLignes(fi(), s.r1, s.r2 - s.r1 + 1); sauvegarderLocal(); rendre(); });
-$('btn-inserer-colonne').addEventListener('click', () => { const s = selectionNormalisee(); memoriser(); classeur.insererColonnes(fi(), s.c1, s.c2 - s.c1 + 1); sauvegarderLocal(); rendre(); });
-$('btn-supprimer-colonne').addEventListener('click', () => { const s = selectionNormalisee(); memoriser(); classeur.supprimerColonnes(fi(), s.c1, s.c2 - s.c1 + 1); sauvegarderLocal(); rendre(); });
+$('btn-inserer-ligne').addEventListener('click', () => lignesColonnes(true, 'r'));
+$('btn-supprimer-ligne').addEventListener('click', () => lignesColonnes(false, 'r'));
+$('btn-inserer-colonne').addEventListener('click', () => lignesColonnes(true, 'c'));
+$('btn-supprimer-colonne').addEventListener('click', () => lignesColonnes(false, 'c'));
 $('btn-noms').addEventListener('click', () => ouvrirPanneau('noms'));
 $('btn-fonctions').addEventListener('click', () => ouvrirPanneau('fonctions'));
 $('btn-macros').addEventListener('click', () => ouvrirPanneau('macros'));
@@ -2756,8 +2890,21 @@ function souris(type, cible, x, y, extra = {}) {
 
 const vivant = (el, x, y) => (el && el.isConnected ? el : document.elementFromPoint(x, y) || conteneur);
 
+// Deux doigts : zoom de la feuille (pincement), autour du milieu des doigts
+let pincement = null;
+const ecartDoigts = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
 conteneur.addEventListener('touchstart', (e) => {
-  if (e.touches.length !== 1) { toucher = null; return; } // deux doigts : zoom du navigateur
+  if (e.touches.length !== 2) return;
+  const r = conteneur.getBoundingClientRect();
+  pincement = { d0: ecartDoigts(e.touches), z0: Z(), ancre: { x: (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top } };
+  // Les cellules sont redessinées pendant le geste : on écoute directement les éléments touchés (même détachés)
+  const cibles = [...new Set([...e.touches].map((t) => t.target))];
+  const bouger = (ev) => { if (!pincement || ev.touches.length !== 2) return; ev.preventDefault(); definirZoom(pincement.z0 * ecartDoigts(ev.touches) / pincement.d0, pincement.ancre); };
+  const fin = (ev) => { if (ev.touches.length >= 2) return; pincement = null; for (const c of cibles) { c.removeEventListener('touchmove', bouger); c.removeEventListener('touchend', fin); c.removeEventListener('touchcancel', fin); } };
+  for (const c of cibles) { c.addEventListener('touchmove', bouger, { passive: false }); c.addEventListener('touchend', fin); c.addEventListener('touchcancel', fin); }
+}, { passive: true });
+conteneur.addEventListener('touchstart', (e) => {
+  if (e.touches.length !== 1) { toucher = null; return; } // deux doigts : zoom de la feuille (ci-dessus)
   const t = e.touches[0], cible = e.target;
   // Les vrais contrôles posés sur la grille (boutons de macro, barre d'un graphique, images-boutons) gardent leur comportement
   if (cible === editeur || cible.closest('button, select, input, a, .image-feuille.cliquable')) { toucher = null; return; }

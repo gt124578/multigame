@@ -112,6 +112,8 @@ export function lireVuesXlsx(XLSX, octets) {
     const res = {};
     const tab = /<sheetPr\b[^>]*>[\s\S]*?<tabColor\b[^>]*>/.exec(xml);
     if (tab) { const c = lireCouleur(/<tabColor\b[^>]*>/.exec(tab[0])[0], theme); if (c) res.couleur = c; }
+    const vue = /<sheetView\b[^>]*>/.exec(xml);
+    if (vue && attr(vue[0], 'zoomScale') && +attr(vue[0], 'zoomScale') !== 100) res.zoom = Math.min(4, Math.max(0.1, +attr(vue[0], 'zoomScale') / 100));
     // Volets figés
     const pane = /<pane\b[^>]*>/.exec(xml);
     if (pane && /state="frozen(Split)?"/.test(pane[0])) {
@@ -277,7 +279,7 @@ const OPS_FILTRE_INV = Object.fromEntries(Object.entries(OPS_FILTRE).map(([k, v]
  * Le filtre lui-même (<autoFilter ref>) est écrit par SheetJS (ws['!autofilter']), qui ajoute le nom _FilterDatabase.
  */
 export function ecrireVuesXlsx(XLSX, octets, feuilles) {
-  if (!feuilles.some((f) => (f.figer && (f.figer.r || f.figer.c)) || (f.mfc && f.mfc.length) || (f.validations && f.validations.length) || f.couleur || (f.filtre && Object.keys(f.filtre.criteres || {}).length))) return octets;
+  if (!feuilles.some((f) => f.zoom || (f.figer && (f.figer.r || f.figer.c)) || (f.mfc && f.mfc.length) || (f.validations && f.validations.length) || f.couleur || (f.filtre && Object.keys(f.filtre.criteres || {}).length))) return octets;
   const cfb = XLSX.CFB.read(octets, { type: 'array' });
   const z = fichiers(cfb);
   const chemins = cheminsFeuilles(z);
@@ -294,6 +296,7 @@ export function ecrireVuesXlsx(XLSX, octets, feuilles) {
       else if (/<sheetPr\b[^>]*>/.test(xml)) xml = xml.replace(/(<sheetPr\b[^>]*>)/, '$1' + tc);
       else xml = xml.replace(/(<worksheet\b[^>]*>)/, '$1<sheetPr>' + tc + '</sheetPr>');
     }
+    if (f.zoom && f.zoom !== 1) { const z = Math.round(f.zoom * 100); xml = xml.replace(/<sheetView\b/, '<sheetView zoomScale="' + z + '" zoomScaleNormal="' + z + '"'); }
     const g = f.figer;
     if (g && (g.r || g.c)) {
       const pane = g.r && g.c ? 'bottomRight' : g.r ? 'bottomLeft' : 'topRight';

@@ -19,6 +19,8 @@ import * as graphiquesXlsx from '../tableur/js/graphiques-xlsx.js';
 import { trierPlage, comparerTri, zoneContigue, aUnEntete, appliquerFiltre, valeursFiltre, rechercher, remplacer, styleConditionnel, valeurCible, formuleAutomatique, validationDe, elementsListe, valeurValide, cellulesInvalides, collerSpecial, decalerCellules, supprimerDoublons, convertirEnColonnes } from '../tableur/js/donnees.js';
 import { champsSource, calculerTCD, ecrireTCD, tcdA, actualiserTout, typeChamp } from '../tableur/js/tcd.js';
 import { solveur, lireContrainte, calculerTableDonnees, remplissageInstantane, antecedents, dependants, etapesEvaluation, verifierErreurs } from '../tableur/js/analyse.js';
+import { paginer, htmlPages, zonesImpression, mp, versExcel, depuisExcel } from '../tableur/js/impression.js';
+import { hacherMotDePasse, verifierShaMotDePasse } from '../tableur/js/page-xlsx.js';
 import crypto from 'node:crypto';
 
 const require = createRequire(import.meta.url);
@@ -1148,6 +1150,34 @@ test('Table de données, remplissage instantané, audit des formules', () => {
   const et = etapesEvaluation(c, 0, 2, 0); egal([et[0].texte, et[et.length - 1].resultat], ['=SOMME(⟦A1:A2⟧) * B1', '#DIV/0!']);
   c.saisir(0, 5, 0, '=A1*2'); c.saisir(0, 6, 0, '=A1*3'); c.saisir(0, 7, 0, '=A3*2'); c.saisir(0, 8, 0, "'12");
   egal(verifierErreurs(c, 0).map((e) => e.type + '@' + e.r + ',' + e.c), ['erreur@0,1', 'incoherente@6,0', 'texte@8,0']);
+});
+
+test('mise en page : découpage en pages, titres, en-têtes, fichier xlsx', () => {
+  const c = Classeur.nouveau(), f = c.feuilles[0];
+  for (let r = 0; r < 120; r++) for (let k = 0; k < 14; k++) c.saisir(0, r, k, String(r * 100 + k));
+  f.miseEnPage = { orientation: 'portrait', titresLignes: '1:1' };
+  let pag = paginer(f, mp(f), zonesImpression(f, mp(f)));
+  egal([pag.pages.length, pag.pages[0].colonnes.length, pag.pages[1].lignes[0] > 0], [8, 7, true]);
+  f.miseEnPage = { orientation: 'paysage', ajuster: { l: 1, h: 0 }, titresLignes: '1:1', pied: { g: '', c: 'Page &[Page] sur &[Pages]', d: '' } };
+  pag = paginer(f, mp(f), zonesImpression(f, mp(f)));
+  egal(Math.max(...pag.pages.map((p) => p.larges)), 1, 'toutes les colonnes sur une page');
+  const html = htmlPages(c, 0, mp(f), pag);
+  egal([html.length === pag.pages.length, /Page 2 sur/.test(html[1]), /<td[^>]*>0<\/td>/.test(html[1])], [true, true, true], 'titre répété et pied de page');
+  egal(versExcel({ g: '&[Fichier]', c: 'Page &[Page] sur &[Pages]', d: 'A & B' }), '&L&F&CPage &P sur &N&RA && B');
+  egal(depuisExcel('&L&"Arial,Gras"&12&F&CPage &P&R&D'), { g: '&[Fichier]', c: 'Page &[Page]', d: '&[Date]' });
+  f.miseEnPage = { ...mp(f), zone: 'A1:F40', titresColonnes: 'A:A', sautsLignes: [20], quadrillage: true };
+  f.protection = { active: true, hash: hacherMotDePasse('secret'), autoriser: { trier: true } };
+  f.zoom = 1.5;
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c), 'x.xlsx'), g = e.feuilles[0], R = g.miseEnPage;
+  egal([R.orientation, R.ajuster, R.zone, R.titresLignes, R.titresColonnes, R.sautsLignes, R.quadrillage, R.pied.c], ['paysage', { l: 1, h: 0 }, 'A1:F40', '1:1', 'A:A', [20], true, 'Page &[Page] sur &[Pages]']);
+  egal([g.protection.active, g.protection.hash, g.protection.autoriser.trier, g.protection.autoriser.formatCellules, g.zoom], [true, 'DAA7', true, false, 1.5]);
+  egal([hacherMotDePasse('test'), hacherMotDePasse('')], ['CBEB', 'CE4B']);
+  // Hachage moderne : SHA-512 salé et itéré (comme les fichiers d'Excel récents)
+  const sel = crypto.randomBytes(16), mdp = 'Prime2026';
+  let h = crypto.createHash('sha512').update(Buffer.concat([sel, Buffer.from(mdp, 'utf16le')])).digest();
+  for (let i = 0; i < 1000; i++) { const it = Buffer.alloc(4); it.writeUInt32LE(i); h = crypto.createHash('sha512').update(Buffer.concat([h, it])).digest(); }
+  const sha = { algo: 'SHA-512', hash: h.toString('base64'), sel: sel.toString('base64'), tours: 1000 };
+  egal([verifierShaMotDePasse(mdp, sha, { 'SHA-512': sha512 }), verifierShaMotDePasse('autre', sha, { 'SHA-512': sha512 })], [true, false]);
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);

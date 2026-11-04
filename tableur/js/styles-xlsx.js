@@ -109,6 +109,8 @@ export function lireStylesXlsx(XLSX, octets) {
     const va = /<alignment[^>]*vertical="(top|center)"/.exec(x); if (va) s.valign = va[1];
     if (/<alignment[^>]*wrapText="(1|true)"/.test(x)) s.renvoi = true;
     const ind = /<alignment[^>]*indent="(\d+)"/.exec(x); if (ind && +ind[1]) s.retrait = +ind[1];
+    if (/<protection[^>]*locked="(0|false)"/.test(x)) s.deverrouille = true;
+    if (/<protection[^>]*hidden="(1|true)"/.test(x)) s.masquee = true;
     return Object.keys(s).length ? s : null;
   });
   if (!xfs.some(Boolean)) return new Map();
@@ -139,7 +141,7 @@ export function lireStylesXlsx(XLSX, octets) {
 function cleStyle(s) {
   if (!s) return '';
   const b = s.bordures || (s.bordure ? { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } : null);
-  return [s.gras ? 'B' : '', s.italique ? 'I' : '', s.souligne ? 'U' : '', s.couleur || '', s.fond || '', s.taille || '', s.align || '', s.valign || '', s.renvoi ? 'W' : '', s.barre ? 'S' : '', s.retrait || '',
+  return [s.gras ? 'B' : '', s.italique ? 'I' : '', s.souligne ? 'U' : '', s.couleur || '', s.fond || '', s.taille || '', s.align || '', s.valign || '', s.renvoi ? 'W' : '', s.barre ? 'S' : '', s.retrait || '', s.deverrouille ? 'L' : '', s.masquee ? 'H' : '',
     b ? ['h', 'b', 'g', 'd'].map((k) => b[k] || '-').join(',') : ''].join('|');
 }
 
@@ -182,9 +184,12 @@ export function ecrireStylesXlsx(XLSX, octets, feuilles) {
       const cote = (nom, v) => (v ? '<' + nom + ' style="' + v + '"><color auto="1"/></' + nom + '>' : '<' + nom + '/>');
       borderId = indexDe(borders, '<border>' + cote('left', b.g) + cote('right', b.d) + cote('top', b.h) + cote('bottom', b.b) + '<diagonal/></border>');
     }
+    const aligne = s.align || s.valign || s.renvoi || s.retrait, protege = s.deverrouille || s.masquee;
+    const enfants = (aligne ? '<alignment' + (s.align ? ' horizontal="' + s.align + '"' : s.retrait ? ' horizontal="left"' : '') + (s.valign ? ' vertical="' + s.valign + '"' : '') + (s.renvoi ? ' wrapText="1"' : '') + (s.retrait ? ' indent="' + s.retrait + '"' : '') + '/>' : '')
+      + (protege ? '<protection' + (s.deverrouille ? ' locked="0"' : '') + (s.masquee ? ' hidden="1"' : '') + '/>' : '');
     const xf = '<xf numFmtId="' + numFmtId + '" fontId="' + fontId + '" fillId="' + fillId + '" borderId="' + borderId + '" xfId="0"'
       + (numFmtId !== '0' ? ' applyNumberFormat="1"' : '') + (fontId ? ' applyFont="1"' : '') + (fillId ? ' applyFill="1"' : '') + (borderId ? ' applyBorder="1"' : '')
-      + (s.align || s.valign || s.renvoi || s.retrait ? ' applyAlignment="1"><alignment' + (s.align ? ' horizontal="' + s.align + '"' : s.retrait ? ' horizontal="left"' : '') + (s.valign ? ' vertical="' + s.valign + '"' : '') + (s.renvoi ? ' wrapText="1"' : '') + (s.retrait ? ' indent="' + s.retrait + '"' : '') + '/></xf>' : '/>');
+      + (aligne ? ' applyAlignment="1"' : '') + (protege ? ' applyProtection="1"' : '') + (enfants ? '>' + enfants + '</xf>' : '/>');
     const i = indexDe(xfs, xf);
     cache.set(cle, i);
     return i;
