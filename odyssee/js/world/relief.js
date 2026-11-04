@@ -2,7 +2,7 @@
 // sous leur bord sud, marches taillées là où un chemin franchit un bord. La grille garde la vérité du jeu : chaque case a
 // une hauteur (GameMap.hg) ; on ne passe d'une hauteur à l'autre que par une marche (T.STAIRS, un niveau d'écart),
 // la paroi (T.CLIFF) est infranchissable. Le rendu (world3d.js, reliefDehors) dessine tout ça à plat, façon HeartGold.
-import { T } from './tiles.js';
+import { T, walkable } from './tiles.js';
 import { along, rng } from './mapgen.js';
 
 const key = (x, y) => x + ',' + y;
@@ -256,37 +256,105 @@ export function boucher(W, cells, depart, remplace = T.TREE) {
   }
 }
 
+/** la case fait-elle partie d'une montagne à gravir (montagne) ? Le rendu y lit le relief au niveau des cases */
+export const mont = (W, x, y) => !!W.monts && x >= 0 && y >= 0 && x < W.w && y < W.h && W.monts[y * W.w + x] !== 0;
+
 /**
- * montagne à gravir, dessinée case par case (plan : une chaîne par rangée, à partir de (x0, y0)) :
- *   '1' à '9'  roche (T.CAVEWALL) de cette hauteur, posée seulement là où la montagne (massif) est déjà de la roche ;
- *   'a' à 'i'  sentier (T.PATH) à la hauteur 1 à 9 ; 'A' à 'I' : herbe rase à cette hauteur (palier, sommet) ;
- *   '='        marches taillées dans la roche (T.STAIRS), à la hauteur du sentier le plus bas qui les touche ;
- *   'v'        ravin : le vide (roche au fond, hauteur 0, que le rendu dessine comme un gouffre) ;
- *   '#'        passerelle de bois au-dessus du ravin (T.BRIDGE), à la hauteur du sentier qu'elle relie ;
- *   ' ' ou '.' rien ne change.
- * Les gradins de roche sont dessinés comme les parois des grottes (bords en pente, world3d.js, paroiCell). Les cases de
- * la montagne perdent leur marque de plateau d'herbe. Renvoie les cases du sentier (clés « x,y »).
+ * montagne à gravir, dessinée case par case (plan : une chaîne par rangée, à partir de (x0, y0)), façon Mont Argenté :
+ *   'a' à 'n'  sentier à la hauteur 1 à 14 (o.sentier : T.PATH, ou T.SNOW sur la neige) ;
+ *   '+'        roche (T.CAVEWALL), hauteur calculée (voir plus bas) ; 'A' à 'N' : roche de hauteur imposée (1 à 14) ;
+ *   '='        marches taillées dans la roche (T.STAIRS) : une volée relie deux sentiers de hauteurs h et h + 2 (marches à
+ *              h + 1) ou h et h + 1 (marches à h) ;
+ *   'v'        ravin : le vide (roche au fond, que le rendu dessine comme un gouffre) ;
+ *   '#'        passerelle de bois au-dessus du ravin (T.BRIDGE), à la hauteur des sentiers qu'elle relie ;
+ *   ' '        rien ne change.
+ * o.herbe : rectangles [x0, y0, x1, y1] où le sentier est un replat d'herbe (o.herbeT : T.GRASS ou T.SNOW).
+ * Hauteur de la roche '+' : entre deux sentiers d'une même colonne, elle descend du plus haut (la falaise part du bord du
+ * sentier du dessus) vers le plus bas, un gradin par rangée ; au-dessous du dernier sentier, la montagne descend d'un
+ * gradin toutes les deux rangées ; à côté d'un sentier (est, ouest, au nord), la roche le dépasse toujours d'un gradin
+ * (pas de roche au ras du sentier). Le rendu dessine chaque gradin comme les parois des grottes (bords en pente, world3d.js,
+ * paroiCell) : une falaise de deux rangées montre deux pentes l'une sous l'autre.
+ * Les cases de la montagne sont marquées dans W.monts (2 : sentier, 1 : roche), perdent leur marque de plateau d'herbe,
+ * et les ravins dans W.ravins. Renvoie les cases praticables (clés « x,y »).
  */
-export function montagne(W, x0, y0, plan) {
-  const sentier = new Set(), ponts = [], marchesC = [];
+export function montagne(W, x0, y0, plan, o = {}) {
+  const sentierT = o.sentier ?? T.PATH, herbeT = o.herbeT ?? T.GRASS;
+  const sentier = new Set(), ponts = [], marchesC = [], auto = [];
   if (!W.ravins) W.ravins = new Uint8Array(W.w * W.h);
+  if (!W.monts) W.monts = new Uint8Array(W.w * W.h);
+  const herbe = (x, y) => (o.herbe || []).some(([a, b, c, d]) => x >= a && x <= c && y >= b && y <= d);
   plan.forEach((ligne, j) => [...ligne].forEach((ch, i) => {
-    const x = x0 + i, y = y0 + j; if (!W.in(x, y) || ch === ' ' || ch === '.') return;
-    if (W.pentes) W.pentes[y * W.w + x] = 0;
-    W.ravins[y * W.w + x] = 0;
-    if (ch >= '1' && ch <= '9') { if (W.get(x, y) === T.CAVEWALL || W.get(x, y) === T.CLIFF) { W.set(x, y, T.CAVEWALL); W.setHeight(x, y, +ch); } }
-    else if (ch >= 'a' && ch <= 'i') { W.set(x, y, T.PATH); W.setHeight(x, y, ch.charCodeAt(0) - 96); sentier.add(key(x, y)); }
-    else if (ch >= 'A' && ch <= 'I') { W.set(x, y, T.GRASS); W.setHeight(x, y, ch.charCodeAt(0) - 64); sentier.add(key(x, y)); }
-    else if (ch === '=') { W.set(x, y, T.STAIRS); marchesC.push([x, y]); sentier.add(key(x, y)); }
-    else if (ch === 'v') { W.set(x, y, T.CAVEWALL); W.setHeight(x, y, 0); W.ravins[y * W.w + x] = 1; }
-    else if (ch === '#') { W.set(x, y, T.BRIDGE); W.ravins[y * W.w + x] = 1; ponts.push([x, y]); sentier.add(key(x, y)); }
+    const x = x0 + i, y = y0 + j, k = y * W.w + x; if (!W.in(x, y) || ch === ' ') return;
+    if (W.pentes) W.pentes[k] = 0;
+    W.ravins[k] = 0; W.monts[k] = 1;
+    if (ch === '+') { W.set(x, y, T.CAVEWALL); auto.push([x, y]); }
+    else if (ch >= 'A' && ch <= 'N') { W.set(x, y, T.CAVEWALL); W.setHeight(x, y, ch.charCodeAt(0) - 64); }
+    else if (ch >= 'a' && ch <= 'n') { W.set(x, y, herbe(x, y) ? herbeT : sentierT); W.setHeight(x, y, ch.charCodeAt(0) - 96); sentier.add(key(x, y)); W.monts[k] = 2; }
+    else if (ch === '=') { W.set(x, y, T.STAIRS); marchesC.push([x, y]); sentier.add(key(x, y)); W.monts[k] = 2; }
+    else if (ch === 'v') { W.set(x, y, T.CAVEWALL); W.setHeight(x, y, 0); W.ravins[k] = 1; }
+    else if (ch === '#') { W.set(x, y, T.BRIDGE); W.ravins[k] = 1; ponts.push([x, y]); sentier.add(key(x, y)); W.monts[k] = 2; }
+    else throw new Error(`montagne : signe inconnu « ${ch} » en ${x},${y}`);
   }));
-  // hauteur des marches et des passerelles : celle du sentier voisin (le plus bas pour une marche, le plus haut pour un pont)
-  const voisins = (x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [x + dx, y + dy]).filter(([a, b]) => sentier.has(key(a, b)) && W.get(a, b) !== T.STAIRS && W.get(a, b) !== T.BRIDGE).map(([a, b]) => W.height(a, b));
-  for (const [x, y] of marchesC) { const h = voisins(x, y); W.setHeight(x, y, h.length ? Math.min(...h) : W.height(x, y)); }
-  for (let k = 0; k < 3; k++) for (const [x, y] of ponts) {
-    const h = voisins(x, y), hp = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => W.get(x + dx, y + dy) === T.BRIDGE).map(([dx, dy]) => W.height(x + dx, y + dy));
-    const all = [...h, ...hp]; if (all.length) W.setHeight(x, y, Math.max(...all));
+  const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const sol = (x, y) => sentier.has(key(x, y)) && W.get(x, y) !== T.STAIRS && W.get(x, y) !== T.BRIDGE;
+  // volées de marches : chaque volée (cases de marches qui se touchent) relie le sentier le plus bas et le plus haut
+  const vu = new Set();
+  for (const [sx, sy] of marchesC) {
+    if (vu.has(key(sx, sy))) continue;
+    const volee = [], q = [[sx, sy]]; vu.add(key(sx, sy));
+    while (q.length) { const [x, y] = q.pop(); volee.push([x, y]); for (const [dx, dy] of N4) { const a = x + dx, b = y + dy; if (W.get(a, b) === T.STAIRS && sentier.has(key(a, b)) && !vu.has(key(a, b))) { vu.add(key(a, b)); q.push([a, b]); } } }
+    const hs = [];
+    // (le sol au pied de la montagne compte : la première volée part du chemin d'en bas)
+    for (const [x, y] of volee) for (const [dx, dy] of N4) { const a = x + dx, b = y + dy; if (sol(a, b) || (!mont(W, a, b) && W.in(a, b) && walkable(W.get(a, b)) && W.get(a, b) !== T.STAIRS)) hs.push(W.height(a, b)); }
+    const lo = Math.min(...hs), hi = Math.max(...hs);
+    for (const [x, y] of volee) W.setHeight(x, y, hi - lo >= 2 ? lo + 1 : lo);
+  }
+  // passerelles : à la hauteur des sentiers qu'elles relient
+  for (let k = 0; k < 4; k++) for (const [x, y] of ponts) {
+    const hs = N4.filter(([dx, dy]) => sol(x + dx, y + dy) || W.get(x + dx, y + dy) === T.BRIDGE && ravin(W, x + dx, y + dy)).map(([dx, dy]) => W.height(x + dx, y + dy));
+    if (hs.length) W.setHeight(x, y, Math.max(...hs));
+  }
+  // roche '+' : hauteur lue sur la colonne (sentiers au nord et au sud), puis sur la rangée pour la roche sans sentier
+  const praticable = (x, y) => sentier.has(key(x, y)) || (!mont(W, x, y) && W.get(x, y) !== T.CAVEWALL && W.get(x, y) !== T.TREE && W.get(x, y) !== T.PINE && W.get(x, y) !== T.WATER && W.in(x, y));
+  const fait = new Map();
+  const cherche = (x, y, dy) => {
+    for (let d = 1; d < 40; d++) {
+      const b = y + dy * d;
+      if (!W.in(x, b) || ravin(W, x, b)) return null;
+      if (praticable(x, b)) return [d, W.height(x, b)];
+      if (W.get(x, b) !== T.CAVEWALL) return null;
+    }
+    return null;
+  };
+  for (const [x, y] of auto) {
+    const n = cherche(x, y, -1), s = cherche(x, y, 1);
+    let h = null;
+    if (n && s) {
+      const nb = n[0] + s[0] - 1, [dh, Hh, Hl] = n[1] >= s[1] ? [n[0], n[1], s[1]] : [s[0], s[1], n[1]];
+      h = Hh === Hl ? Hh + 1 : Math.max(Hl + 1, Hh - Math.round((dh - 1) * (Hh - Hl - 1) / Math.max(1, nb - 1)));
+    } else if (n) h = Math.max(1, n[1] - Math.floor((n[0] - 1) / 2));
+    else if (s) h = s[1] + 1 + Math.floor((s[0] - 1) / 2);
+    if (h != null) fait.set(key(x, y), h);
+  }
+  for (const [x, y] of auto) {
+    if (fait.has(key(x, y))) continue;
+    let best = null;
+    for (let d = 1; d < 40 && !best; d++) for (const a of [x - d, x + d]) if (fait.has(key(a, y))) { best = Math.max(1, fait.get(key(a, y)) - Math.floor((d - 1) / 2)); break; }
+    fait.set(key(x, y), best ?? 1);
+  }
+  // lissage (médiane sur cinq cases de large et trois de haut) : pas de marche verticale entre deux colonnes voisines
+  for (const [x, y] of auto) {
+    const v = [];
+    for (let e = -1; e <= 1; e++) for (let d = -2; d <= 2; d++) if (fait.has(key(x + d, y + e))) v.push(fait.get(key(x + d, y + e)));
+    v.sort((a, b) => a - b); W.setHeight(x, y, v[v.length >> 1]);
+  }
+  // juste sous un sentier, la roche ne le dépasse pas (le sentier tient le haut de la falaise) ; à côté d'un sentier (à
+  // l'est, à l'ouest ou au nord), elle le dépasse d'un gradin : un bord en pente, pas un raccord à plat
+  for (const [x, y] of auto) {
+    let h = W.height(x, y);
+    if (sol(x, y - 1)) h = Math.min(h, W.height(x, y - 1));
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1]]) if (sol(x + dx, y + dy)) h = Math.max(h, W.height(x + dx, y + dy) + 1);
+    W.setHeight(x, y, h);
   }
   return sentier;
 }

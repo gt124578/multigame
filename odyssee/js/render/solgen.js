@@ -20,7 +20,9 @@ export const TRANSPARENT = 255;
 export const K = { X: 0, G: 1, F: 2, T: 3, TD: 4, P: 5, V: 6, W: 7, B: 8, C: 9, L: 10, LE: 11, LW: 12, CW: 13,
   GF: 14, SN: 15, AS: 16, SA: 17, TS: 18, A: 19,
   // relief et lieux (world/relief.js) : feuilles mortes d'automne, gravier ratissé des jardins, mousse, sol ocre des canyons
-  FA: 20, GR: 21, MO: 22, RC: 23, TA: 24 };   // … hautes herbes dorées de l'automne   // … bitume des grandes villes
+  FA: 20, GR: 21, MO: 22, RC: 23, TA: 24,
+  // montagnes à gravir (world/relief.js, montagne) : sol de roche (comme celui des grottes) et sol sous les gradins
+  MT: 25, MR: 26, MP: 27 };   // … hautes herbes dorées de l'automne   // … bitume des grandes villes
 /** grandes villes : rues en bitume et trottoirs, escaliers à l'entrée ; les autres sont des villages pavés */
 export const GRANDES_VILLES = new Set(['Métropole', 'Voltacité', 'Forge-Acier']);   // … hautes herbes enneigées   // herbe de forêt, neige, cendre, sable
 /** sols « d'herbe » : on y marche, le décor (arbres, rochers…) s'y pose ; la zone choisit lequel */
@@ -43,6 +45,11 @@ export function sorteCase(m, x, y) {
     : th === 'automne' ? K.FA : th === 'desert' ? K.SA : th === 'canyon' ? K.RC : K.G;
   const herbeux = fond === K.G || fond === K.GF || fond === K.FA;
   const jardin = th === 'automne';
+  // montagne à gravir (hors neige) : sol de roche, le sentier en terre par-dessus ; passerelle au-dessus d'un ravin : le jeu
+  if (fond === K.G && m.monts && x >= 0 && y >= 0 && x < m.w && y < m.h && m.monts[y * m.w + x]) {
+    if (t === T.BRIDGE) return K.X;
+    return t === T.PATH ? K.MP : t === T.CAVEWALL ? K.MR : t === T.GRASS ? K.G : K.MT;   // le sommet garde son herbe
+  }
   switch (t) {
     case T.WATER: return K.W;
     case T.BRIDGE: return m.ravins?.[y * m.w + x] ? K.X : K.B;   // passerelle au-dessus d'un ravin : dessinée par le jeu
@@ -712,7 +719,7 @@ function feuilles(Z, img, mask) {
     const sx = ox + 1, sy = oy + (vert ? 3 : 2); if (sx < Wd && sy < Z.H && mask[sy * Wd + sx] && hash2(X, Y, s + 7) < 0.6) img[sy * Wd + sx] = AG[1];
   }
 }
-function grotte(Z, img, mask, C) {
+function grotte(Z, img, mask, C, roche = K.CW) {
   const s = Z.s, Wd = Z.W;
   const t1 = Z.field(50, s + 80), t2 = Z.field(12, s + 81, 3, mask), plate = Z.field(20, s + 82);
   const cr = Z.field(26, s + 84, 3, mask), crz = Z.field(60, s + 89, 2), pf = Z.field(22, s + 85, 2);
@@ -740,11 +747,11 @@ function grotte(Z, img, mask, C) {
   }
   cailloux(Z, img, andNot(mask, pud), s + 88, C[0], 1 / 420);
   // ombre de contact au pied des plateaux de roche (silhouette arrondie comme leurs coins) : la roche se pose sur le sol
-  if (Z.k.includes(K.CW)) {
-    const roc = Z.region((k) => k === K.CW, s + 90, { wobble: 0, round: 0.22 }), dr = edt(roc, Wd, Z.H, 0);
+  if (Z.k.includes(roche)) {
+    const roc = Z.region((k) => k === roche, s + 90, { wobble: 0, round: 0.22 }), dr = edt(roc, Wd, Z.H, 0);
     const pos = new Int8Array(256).fill(-1); C.forEach((v, i) => (pos[v] = i));
     for (let i = 0; i < Z.N; i++) {
-      if (roc[i] || dr[i] > 3.2 || pos[img[i]] < 0) continue;
+      if (roc[i] || !mask[i] || dr[i] > 3.2 || pos[img[i]] < 0) continue;
       img[i] = dr[i] <= 1.2 ? C[1] : C[Math.max(1, pos[img[i]] - 1)];
     }
   }
@@ -1075,7 +1082,7 @@ export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = n
   const has = (k) => kinds.includes(k);
   const isW = (k) => k === K.W || k === K.B;
   const water = has(K.W) || has(K.B) ? Z.region(isW, seed + 100, { wobble: 0.7, round: 0.45 }) : new Uint8Array(Z.N);
-  let path = has(K.P) ? Z.region((k) => k === K.P, seed + 101, { wobble: 0.9, round: 0.55, band: c >> 1 }) : new Uint8Array(Z.N);
+  let path = has(K.P) || has(K.MP) ? Z.region((k) => k === K.P || k === K.MP, seed + 101, { wobble: 0.9, round: 0.55, band: c >> 1 }) : new Uint8Array(Z.N);
   const asph = has(K.A) ? Z.region((k) => k === K.A, seed + 104, { wobble: 0, round: 0.05, band: c >> 3 }) : new Uint8Array(Z.N);
   const pave = has(K.V) ? Z.region((k) => k === K.V, seed + 103, { wobble: 0.35, round: 0.1, band: c >> 2 }) : new Uint8Array(Z.N);
   // sols de fond des zones (neige, cendre, sable) : bords naturels sur une demi-case, c'est du décor
@@ -1092,13 +1099,17 @@ export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = n
   let tall = has(K.T) || has(K.TD) || has(K.TS) || has(K.TA) ? Z.region((k) => k === K.T || k === K.TD || k === K.TS || k === K.TA, seed + 106, { wobble: 1.6, round: 0.3, freq: 0.25 }) : new Uint8Array(Z.N);
   let caveM = new Uint8Array(Z.N);
   if (cave) caveM = andNot(Z.px((k) => k !== K.X), water);
+  // montagnes à gravir : sol de roche (bords naturels vers l'herbe d'à côté)
+  const estMont = (k) => k === K.MT || k === K.MR || k === K.MP;
+  const mont = has(K.MT) || has(K.MR) || has(K.MP) ? andNot(or(Z.region(estMont, seed + 140, { wobble: 0.8, round: 0.5, band: c >> 1, freq: 0.3 }), Z.px(estMont)), water) : null;
   const hard = or(water, pave, caveM, asph);
   path = andNot(path, hard); tall = andNot(tall, or(hard, path));
   const C = cave ? caveRamp(cave) : null;
   let lv = null;
   if (!cave) {
-    const grass = new Uint8Array(Z.N); for (let i = 0; i < Z.N; i++) grass[i] = hard[i] | path[i] ? 0 : 1;
+    const grass = new Uint8Array(Z.N); for (let i = 0; i < Z.N; i++) grass[i] = hard[i] | path[i] | (mont ? mont[i] : 0) ? 0 : 1;
     lv = herbe(Z, img, grass, water, foret);
+    if (mont) grotte(Z, img, andNot(mont, or(path, hard)), caveRamp('montagne'), K.MR);
     let fondAll = new Uint8Array(Z.N);
     for (const [k, mk] of fonds) {
       const m2 = andNot(andNot(mk, hard), path); fondZone(Z, img, m2, andNot(grass, or(mk, fondAll)), k); fondAll = or(fondAll, m2);
@@ -1112,7 +1123,7 @@ export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = n
       if (anyOf(tsR)) hautesHerbes(Z, img, tsR, lv, HS);
       if (anyOf(taR)) hautesHerbes(Z, img, taR, lv, HA);
     }
-    if (anyOf(path)) chemin(Z, img, path, or(water, hard));
+    if (anyOf(path)) chemin(Z, img, path, mont ? or(water, hard, mont) : or(water, hard));
     // automne : feuilles mortes sur l'herbe et les chemins de la zone
     if (has(K.FA)) {
       const fa = Z.region((q) => q === K.FA || q === K.P, seed + 130, { wobble: 1.2, round: 0.5, band: c >> 1, freq: 0.3 });
