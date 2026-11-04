@@ -12,8 +12,8 @@
       <div class="groupe">
         <span class="logo">▦ Tableur</span>
         <button id="btn-nouveau" title="Nouveau classeur (Ctrl+Alt+N)">Nouveau</button>
-        <button id="btn-ouvrir" title="Ouvrir un fichier .xlsx / .xlsm / .csv (Ctrl+O)">Ouvrir…</button>
-        <input type="file" id="fichier" accept=".xlsx,.xlsm,.xls,.csv,.tsv,.ods" hidden>
+        <button id="btn-ouvrir" title="Ouvrir un fichier .xlsx / .xlsm / .csv / .docx (tableaux) / .bas (module VBA) (Ctrl+O)">Ouvrir…</button>
+        <input type="file" id="fichier" accept=".xlsx,.xlsm,.xls,.csv,.tsv,.ods,.docx,.bas,.cls,.frm" hidden>
         <button id="btn-enregistrer" title="Télécharger le classeur (Ctrl+S)">Enregistrer</button>
         <select id="format-export" title="Format d'enregistrement">
           <option value="xlsx">.xlsx</option>
@@ -33,6 +33,18 @@
         <button data-align="left" title="Aligner à gauche">⇤</button>
         <button data-align="center" title="Centrer">↔</button>
         <button data-align="right" title="Aligner à droite">⇥</button>
+        <select id="bordures" title="Bordures">
+          <option value="">▦ Bordures</option>
+          <option value="toutes">Toutes les bordures</option>
+          <option value="contour">Contour</option>
+          <option value="contour-epais">Contour épais</option>
+          <option value="bas">Bordure inférieure</option>
+          <option value="bas-epais">Bordure inférieure épaisse</option>
+          <option value="haut">Bordure supérieure</option>
+          <option value="gauche">Bordure gauche</option>
+          <option value="droite">Bordure droite</option>
+          <option value="aucune">Aucune bordure</option>
+        </select>
         <span class="sep"></span>
         <select id="format-nombre" title="Format de nombre">
           <option value="">Standard</option>
@@ -57,6 +69,17 @@
         <button id="btn-supprimer-ligne" title="Supprimer la ou les lignes">− Ligne</button>
         <button id="btn-inserer-colonne" title="Insérer une colonne à gauche">+ Col.</button>
         <button id="btn-supprimer-colonne" title="Supprimer la ou les colonnes">− Col.</button>
+        <span class="sep"></span>
+        <select id="graphique-type" title="Insérer un graphique à partir de la sélection">
+          <option value="">📈 Graphique</option>
+          <option value="barres">Barres</option>
+          <option value="barres-empilees">Barres empilées</option>
+          <option value="courbes">Courbes</option>
+          <option value="aires">Aires</option>
+          <option value="secteurs">Secteurs</option>
+          <option value="anneau">Anneau</option>
+          <option value="nuage">Nuage de points (X, Y)</option>
+        </select>
         <span class="sep"></span>
         <button id="btn-noms" title="Noms définis">Noms</button>
         <button id="btn-fonctions" title="Liste des fonctions">ƒx</button>

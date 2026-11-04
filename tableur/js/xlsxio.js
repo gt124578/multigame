@@ -3,8 +3,10 @@
 import { Classeur } from './classeur.js';
 import { ErreurFormule, parseAdresse, colVersLettres, ERR, convertirFormule } from './formules.js';
 import { extraireModulesVBA } from './vbaextract.js';
+import { lireStylesXlsx, ecrireStylesXlsx } from './styles-xlsx.js';
 
 const FEUILLE_MACROS = '_MacrosTableur';
+const FEUILLE_GRAPHIQUES = '_GraphiquesTableur';
 
 /** Lit un fichier (ArrayBuffer / Uint8Array) et renvoie un Classeur. */
 export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
@@ -13,8 +15,13 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
   classeur.nomFichier = nomFichier;
   const infos = (wb.Workbook && wb.Workbook.Sheets) || [];
   const macrosLignes = [];
+  const graphiques = [];
   wb.SheetNames.forEach((nom, i) => {
     const ws = wb.Sheets[nom];
+    if (nom === FEUILLE_GRAPHIQUES) {
+      for (let r = 1; r <= 1000; r++) { const a = ws['A' + r], b = ws['B' + r]; if (!a || !b) break; try { graphiques.push([String(a.v), JSON.parse(String(b.v))]); } catch { /* ligne illisible */ } }
+      return;
+    }
     if (nom === FEUILLE_MACROS) {
       // Nos macros texte, une ligne de code par ligne de feuille
       const ref = ws['!ref'];
@@ -57,6 +64,23 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
     if (ws['!merges']) f.fusions = ws['!merges'].map((m) => ({ r1: m.s.r, c1: m.s.c, r2: m.e.r, c2: m.e.c }));
   });
   if (!classeur.feuilles.length) classeur.ajouterFeuille('Feuil1');
+  // Styles (gras, couleurs, bordures) : lus directement dans le zip
+  if (donnees.length > 4 && donnees[0] === 0x50 && donnees[1] === 0x4b) {
+    try {
+      const styles = lireStylesXlsx(XLSX, donnees);
+      for (const [nom, cellules] of styles) {
+        const f = classeur.feuille(nom);
+        if (!f) continue;
+        for (const [adr, st] of cellules) {
+          const a = parseAdresse(adr); if (!a) continue;
+          const cel = f.get(a.r, a.c) || {};
+          cel.s = { ...(cel.s || {}), ...st };
+          for (const k of Object.keys(cel.s)) if (cel.s[k] === undefined) delete cel.s[k];
+          f.set(a.r, a.c, cel);
+        }
+      }
+    } catch (e) { console.warn('Styles non lus :', e); }
+  }
   // Noms définis
   if (wb.Workbook && wb.Workbook.Names) {
     for (const n of wb.Workbook.Names) {
@@ -64,6 +88,7 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
       try { classeur.definirNom(n.Name, convertirFormule('=' + n.Ref, 'fr').slice(1)); } catch { /* nom non géré */ }
     }
   }
+  for (const [nomF, g] of graphiques) { const f = classeur.feuille(nomF); if (f) f.graphiques.push(g); }
   // Macros
   if (macrosLignes.length) classeur.macros = macrosLignes.join('\n');
   if (wb.vbaraw) {
@@ -126,14 +151,65 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
     XLSX.utils.book_append_sheet(wb, ws, FEUILLE_MACROS);
     wb.Workbook.Sheets.push({ name: FEUILLE_MACROS, Hidden: 2 });
   }
+  const graphiques = [];
+  for (const f of classeur.feuilles) for (const g of f.graphiques || []) graphiques.push([f.nom, JSON.stringify(g)]);
+  if (graphiques.length) {
+    const ws = {};
+    graphiques.forEach(([n, j], i) => { ws['A' + (i + 1)] = { t: 's', v: n }; ws['B' + (i + 1)] = { t: 's', v: j }; });
+    ws['!ref'] = 'A1:B' + graphiques.length;
+    XLSX.utils.book_append_sheet(wb, ws, FEUILLE_GRAPHIQUES);
+    wb.Workbook.Sheets.push({ name: FEUILLE_GRAPHIQUES, Hidden: 2 });
+  }
   let bookType = options.bookType || 'xlsx';
   if (classeur.vbaBrut && bookType === 'xlsm') wb.vbaraw = classeur.vbaBrut;
   if (bookType === 'csv') {
     const texte = XLSX.utils.sheet_to_csv(wb.Sheets[classeur.feuilles[classeur.active].nom], { FS: ';' });
     return new TextEncoder().encode('﻿' + texte);
   }
-  const out = XLSX.write(wb, { bookType, type: 'array', compression: true });
-  return new Uint8Array(out);
+  let out = new Uint8Array(XLSX.write(wb, { bookType, type: 'array', compression: true }));
+  try { out = ecrireStylesXlsx(XLSX, out, classeur.feuilles); } catch (e) { console.warn('Styles non écrits :', e); }
+  return out;
 }
 
-export { FEUILLE_MACROS };
+/** Lit les tableaux d'un document Word (.docx) : chaque tableau devient une feuille. */
+export function lireDocx(XLSX, octets, nomFichier = 'Document.docx') {
+  const cfb = XLSX.CFB.read(octets, { type: 'array' });
+  const i = cfb.FullPaths.findIndex((p) => p.toLowerCase().endsWith('word/document.xml'));
+  if (i < 0) throw new Error('document.xml introuvable : ce n\'est pas un .docx');
+  const xml = new TextDecoder('utf-8').decode(cfb.FileIndex[i].content);
+  const entites = (t) => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCodePoint(+n)).replace(/&amp;/g, '&');
+  const texteDe = (fragment) => entites(fragment.replace(/<w:tab\/>/g, '\t').replace(/<w:br\/>|<\/w:p>/g, '\n').replace(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g, '$1').replace(/<[^>]+>/g, '')).replace(/\n+$/, '').trim();
+  const classeur = new Classeur();
+  classeur.nomFichier = nomFichier.replace(/\.docx$/i, '') + '.xlsx';
+  const tableaux = xml.match(/<w:tbl>[\s\S]*?<\/w:tbl>/g) || [];
+  tableaux.forEach((tbl, k) => {
+    const f = classeur.ajouterFeuille('Tableau ' + (k + 1));
+    const lignes = tbl.match(/<w:tr[\s>][\s\S]*?<\/w:tr>/g) || [];
+    lignes.forEach((tr, r) => {
+      const cellules = tr.match(/<w:tc[\s>][\s\S]*?<\/w:tc>/g) || [];
+      let c = 0;
+      for (const tc of cellules) {
+        const span = /<w:gridSpan w:val="(\d+)"/.exec(tc);
+        classeur.saisir(f, r, c, texteDe(tc));
+        c += span ? +span[1] : 1;
+      }
+    });
+  });
+  if (!tableaux.length) {
+    const f = classeur.ajouterFeuille('Texte');
+    const paragraphes = (xml.match(/<w:p[\s>][\s\S]*?<\/w:p>/g) || []).map(texteDe).filter(Boolean);
+    paragraphes.forEach((t, r) => classeur.saisir(f, r, 0, t));
+  }
+  classeur.modifie();
+  return classeur;
+}
+
+/** Nettoie un module VBA exporté (.bas, .cls, .frm) : en-tête et lignes Attribute. */
+export function nettoyerModuleVBA(texte, nomFichier = '') {
+  let t = texte.replace(/\r\n?/g, '\n');
+  t = t.replace(/^VERSION [\d.]+ CLASS\n(?:BEGIN\n[\s\S]*?\nEND\n)?/i, '').replace(/^Attribute VB_.*$\n?/gm, '').trim();
+  const nom = nomFichier.replace(/\.(bas|cls|frm|txt)$/i, '');
+  return (nom ? "' ===== Module " + nom + ' =====\n' : '') + t + '\n';
+}
+
+export { FEUILLE_MACROS, FEUILLE_GRAPHIQUES };
