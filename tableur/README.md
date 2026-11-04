@@ -28,14 +28,18 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 - **Fichiers** : ouverture de `.xlsx` / `.xlsm` / `.csv` (feuilles, formules, formats, styles, largeurs, noms, feuilles masquées),
   de `.docx` (chaque tableau Word devient une feuille) et de modules VBA `.bas` / `.cls` / `.frm` (ajoutés à l'éditeur) ;
   enregistrement en `.xlsx` / `.xlsm` / `.csv`. Le classeur est aussi gardé dans le navigateur (`localStorage`).
-- **Macros** : éditeur VBA, liste des procédures, exécution (`F5`), journal `Debug.Print`, `MsgBox` / `InputBox`.
+- **Macros** : projet VBA comme dans l'éditeur d'Excel (`Alt+F11`) — un module de code par feuille (`Feuil1 (Hypothèses)`),
+  `ThisWorkbook` et des modules standard nommés (créer, renommer, supprimer, exporter en `.bas`), avec la liste des procédures de
+  chaque module ; boîte **Macros** (`Alt+F8`) pour exécuter, modifier, créer (en la nommant) ou supprimer une macro ; exécution
+  (`F5`, la macro sous le curseur), journal `Debug.Print`, `MsgBox` / `InputBox`. Dans un module de feuille, `Range`, `Cells` et `Me`
+  désignent la feuille ; `Feuil1.Range("A1")` (nom de code) et `Module1.MaMacro` (appel qualifié) sont compris.
   Le code VBA d'un `.xlsm` est extrait du `vbaProject.bin` (décompression MS-OVBA) et affiché.
   Les `Function` du code sont utilisables dans les cellules comme des fonctions personnalisées : `=MaFonction(A1;B1)`
   (une plage arrive en `Range`, un tableau renvoyé s'affiche par sa première valeur ou s'utilise dans `SOMME(...)`).
 
 ## Limites connues
 
-- Les macros écrites ici sont enregistrées dans une feuille masquée `_MacrosTableur` (et relues par ce tableur) : Excel ne peut pas
+- Les macros écrites ici sont enregistrées dans une feuille masquée `_MacrosTableur`, un en-tête par module (et relues par ce tableur) : Excel ne peut pas
   les exécuter, car le tableur ne compile pas de projet VBA. Le projet VBA d'origine d'un `.xlsm` est réécrit tel quel.
 - Les graphiques ne sont pas écrits au format graphique d'Excel (seulement dans la feuille masquée) ; pas de tableaux croisés,
   de validation de données ni de mise en forme conditionnelle. Couleurs de bordure : noir seulement.
@@ -51,6 +55,7 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 | `js/formules.js` | Analyse et évaluation des formules, bibliothèque de fonctions (EN + alias FR), formats de nombre et de date, conversion FR ↔ EN des formules |
 | `js/classeur.js` | Modèle : feuilles, cellules `{ v, f, z, s }`, noms, saisie, copie, insertion/suppression |
 | `js/vba.js` | Interpréteur VBA : lexique, syntaxe, exécution, modèle objet Excel (`Application`, `Workbook`, `Worksheet`, `Range`, `WorksheetFunction`, `Collection`, `Dictionary`) |
+| `js/projetvba.js` | Projet VBA : modules de feuille, `ThisWorkbook`, modules nommés ; format texte avec en-têtes (`' ===== Module X =====`), liste tolérante des procédures |
 | `js/vbaextract.js` | Lecture du `vbaProject.bin` (CFB via SheetJS, décompression MS-OVBA) |
 | `js/xlsxio.js` | Lecture / écriture `.xlsx` / `.xlsm` / `.csv` avec SheetJS, import `.docx` et `.bas` |
 | `js/styles-xlsx.js` | Styles de cellules dans le zip `.xlsx` (styles.xml, sheetN.xml) |

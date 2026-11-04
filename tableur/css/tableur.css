@@ -68,10 +68,46 @@ input[type=color] { width: 30px; height: 26px; padding: 1px 2px; border: 1px sol
 .panneau-contenu { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 8px; gap: 6px; overflow: auto; }
 .panneau-barre { display: flex; gap: 4px; flex-wrap: wrap; }
 .panneau-barre select, .panneau-barre input { flex: 1; min-width: 80px; }
-#code-vba { flex: 1; min-height: 200px; resize: none; font: 12.5px/1.45 var(--mono); border: 1px solid var(--bord); border-radius: 4px; padding: 6px; tab-size: 4; white-space: pre; background: #fbfbfd; }
+#code-vba { flex: 1; min-height: 160px; resize: none; font: 12.5px/1.45 var(--mono); border: 1px solid var(--bord); border-radius: 4px; padding: 6px; tab-size: 4; white-space: pre; background: #fbfbfd; }
 #sortie-vba { height: 140px; overflow: auto; font: 12px/1.4 var(--mono); background: #111827; color: #d1fae5; padding: 6px 8px; border-radius: 4px; white-space: pre-wrap; }
 #sortie-vba .err { color: #fca5a5; }
 #sortie-vba .msg { color: #fde68a; }
+/* Projet VBA : arborescence des modules */
+#projet-vba { border: 1px solid var(--bord); border-radius: 4px; display: flex; flex-direction: column; flex: 0 0 auto; max-height: 38%; min-height: 90px; }
+.projet-barre { display: flex; gap: 4px; align-items: center; padding: 4px 6px; background: var(--entete); border-bottom: 1px solid var(--bord); flex-wrap: wrap; }
+.projet-titre { font-weight: 600; flex: 1; min-width: 70px; }
+.projet-barre button { padding: 1px 6px; font-size: 12px; }
+.arbre { overflow: auto; padding: 3px 0; user-select: none; }
+.arbre-groupe { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--sourd); padding: 5px 8px 2px; }
+.arbre-module { display: flex; align-items: center; gap: 6px; padding: 2px 8px 2px 14px; cursor: pointer; white-space: nowrap; }
+.arbre-module:hover, .arbre-proc:hover { background: #f3f4f6; }
+.arbre-module.actif { background: var(--accent-clair); color: var(--accent); font-weight: 600; }
+.arbre-icone { width: 16px; text-align: center; }
+.arbre-nom { overflow: hidden; text-overflow: ellipsis; }
+.arbre-note { font-size: 11px; color: var(--sourd); font-style: italic; }
+.arbre-proc { padding: 1px 8px 1px 40px; cursor: pointer; font: 12px var(--mono); color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arbre-proc.macro { color: var(--accent); }
+.arbre-vide { padding: 4px 14px; color: var(--sourd); font-style: italic; font-size: 12px; }
+.module-entete { font-size: 12px; color: var(--sourd); }
+#module-titre { font-weight: 600; color: var(--texte); font-family: var(--mono); }
+/* Boîte « Macros » (Alt+F8) */
+.dialogue-fond { position: fixed; inset: 0; z-index: 70; background: rgba(17, 24, 39, .35); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.dialogue { background: var(--papier); border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,.25); width: 520px; max-width: 100%; max-height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.dialogue-titre { padding: 8px 14px; font-weight: 600; background: var(--entete); border-bottom: 1px solid var(--bord); }
+.dialogue-corps { display: flex; gap: 12px; padding: 12px 14px; min-height: 0; }
+.dialogue-gauche { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.dialogue-gauche label { font-size: 12px; color: var(--sourd); }
+#macro-nom { font-family: var(--mono); }
+#macros-liste { height: 220px; overflow: auto; border: 1px solid var(--bord); border-radius: 4px; }
+.macro-item { display: flex; justify-content: space-between; gap: 8px; padding: 3px 8px; cursor: pointer; font-family: var(--mono); }
+.macro-item small { color: var(--sourd); font-family: var(--police); white-space: nowrap; }
+.macro-item:hover { background: #f3f4f6; }
+.macro-item.choisi { background: var(--accent); color: #fff; } .macro-item.choisi small { color: #e5e7eb; }
+.macro-item.estompe { opacity: .45; }
+.dialogue-boutons { display: flex; flex-direction: column; gap: 6px; width: 104px; padding-top: 18px; }
+.dialogue-boutons .espace { flex: 1; }
+.dialogue-boutons button:disabled { opacity: .45; cursor: default; }
+@media (max-width: 520px) { .dialogue-corps { flex-direction: column; } .dialogue-boutons { flex-direction: row; flex-wrap: wrap; width: auto; padding-top: 0; } }
 #liste-fonctions, #liste-noms { overflow: auto; flex: 1; }
 .fonction { padding: 4px 6px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
 .fonction:hover { background: var(--accent-clair); }

@@ -4,6 +4,7 @@
 // Cellule : { v: valeur calculée ou saisie, f: formule « =… » ou undefined,
 //             z: format de nombre (ex. « 0.00% »), s: style { gras, italique, couleur, fond, align } }
 
+import { serialiserProjet, appliquerProjet, nomVBAValide } from './projetvba.js';
 import { Evaluateur, ErreurFormule, versNombre, parsePlage, colVersLettres, adresse, decalerFormule, formater, dateVersSerie } from './formules.js';
 
 export class Feuille {
@@ -16,6 +17,8 @@ export class Feuille {
     this.graphiques = [];      // { id, type, plage: 'A1:C5', titre, x, y, w, h }
     this.zone = { r2: -1, c2: -1 };
     this.cachee = false;
+    this.codeNom = nom;        // nom de code VBA (Feuil1…), fixé par le classeur
+    this.code = '';            // module de code VBA de la feuille
   }
   static cle(r, c) { return r + ',' + c; }
   get(r, c) { return this.cellules.get(Feuille.cle(r, c)); }
@@ -50,7 +53,8 @@ export class Classeur {
   constructor() {
     this.feuilles = [];
     this.noms = new Map();   // NOM (majuscules) → { nom, ref }
-    this.macros = '';        // code VBA (texte)
+    this.modules = [];       // modules VBA standard : { nom, code } (les modules de feuille sont sur chaque feuille)
+    this.codeClasseur = '';  // module ThisWorkbook
     this.vbaBrut = null;     // vbaProject.bin d'origine (Uint8Array) pour le réécrire tel quel
     this.active = 0;
     this.nomFichier = 'Classeur1.xlsx';
@@ -80,6 +84,7 @@ export class Classeur {
     if (!nom) nom = this.nomLibre();
     if (this.indexFeuille(nom) >= 0) throw new Error('Une feuille « ' + nom + ' » existe déjà');
     const f = new Feuille(nom);
+    f.codeNom = this.codeNomLibre();
     if (position == null || position >= this.feuilles.length) this.feuilles.push(f);
     else this.feuilles.splice(position, 0, f);
     this.modifie();
@@ -109,6 +114,78 @@ export class Classeur {
     const [f] = this.feuilles.splice(de, 1);
     this.feuilles.splice(vers, 0, f);
     this.modifie();
+  }
+
+  // ----- Projet VBA : un module par feuille, ThisWorkbook, modules standard -----
+  /** Tout le code VBA en un texte (avec un en-tête par module) ; l'affecter remplace tout le projet. */
+  get macros() { return serialiserProjet(this); }
+  set macros(texte) { appliquerProjet(this, texte); }
+
+  /** Liste ordonnée des modules : { cle, genre: 'feuille'|'classeur'|'module', nom, libelle, code, feuille } */
+  modulesVBA() {
+    const out = this.feuilles.map((f) => ({ cle: 'feuille:' + f.codeNom, genre: 'feuille', nom: f.codeNom, libelle: f.codeNom + ' (' + f.nom + ')', code: f.code || '', feuille: f }));
+    out.push({ cle: 'classeur', genre: 'classeur', nom: 'ThisWorkbook', libelle: 'ThisWorkbook', code: this.codeClasseur || '', feuille: null });
+    for (const m of this.modules) out.push({ cle: 'module:' + m.nom, genre: 'module', nom: m.nom, libelle: m.nom, code: m.code || '', feuille: null });
+    return out;
+  }
+  moduleVBA(cle) { return this.modulesVBA().find((m) => m.cle.toLowerCase() === String(cle).toLowerCase()) || null; }
+  definirCodeModule(cle, code) {
+    const m = this.moduleVBA(cle);
+    if (!m) throw new Error('Module introuvable : ' + cle);
+    if (m.genre === 'feuille') m.feuille.code = code;
+    else if (m.genre === 'classeur') this.codeClasseur = code;
+    else this.modules.find((x) => x.nom === m.nom).code = code;
+    this.version++;
+  }
+  nomModulePris(nom, sauf = null) {
+    const n = String(nom).toLowerCase();
+    if (n === 'thisworkbook') return true;
+    return this.feuilles.some((f) => f !== sauf && f.codeNom && f.codeNom.toLowerCase() === n) || this.modules.some((m) => m !== sauf && m.nom.toLowerCase() === n);
+  }
+  /** « Module1 », « Module2 »… ou « Calculs », « Calculs2 »… selon la base donnée. */
+  nomModuleLibre(base = 'Module') {
+    base = String(base).replace(/\d+$/, '') || 'Module';
+    if (base !== 'Module' && !this.nomModulePris(base)) return base;
+    let i = base === 'Module' ? 1 : 2;
+    while (this.nomModulePris(base + i)) i++;
+    return base + i;
+  }
+  codeNomLibre() {
+    let i = 1;
+    while (this.nomModulePris('Feuil' + i)) i++;
+    return 'Feuil' + i;
+  }
+  /** Donne le nom de code `nom` à la feuille f (une autre feuille qui l'avait prend l'ancien nom de f). */
+  changerCodeNom(f, nom) {
+    if (f.codeNom === nom) return;
+    const autre = this.feuilles.find((x) => x !== f && x.codeNom.toLowerCase() === String(nom).toLowerCase());
+    if (autre) autre.codeNom = f.codeNom;
+    else if (this.modules.some((m) => m.nom.toLowerCase() === String(nom).toLowerCase())) throw new Error('Le nom « ' + nom + ' » est déjà pris par un module');
+    f.codeNom = nom;
+  }
+  ajouterModule(nom) {
+    nom = nom ? String(nom).trim() : this.nomModuleLibre('Module');
+    if (!nomVBAValide(nom)) throw new Error('Nom de module invalide : une lettre, puis des lettres, chiffres ou _ (31 caractères au plus), sans espace');
+    if (this.nomModulePris(nom)) throw new Error('Le nom « ' + nom + ' » est déjà pris');
+    this.modules.push({ nom, code: '' });
+    this.version++;
+    return nom;
+  }
+  renommerModule(ancien, nouveau) {
+    nouveau = String(nouveau).trim();
+    const m = this.modules.find((x) => x.nom.toLowerCase() === String(ancien).toLowerCase());
+    if (!m) throw new Error('Module introuvable : ' + ancien);
+    if (!nomVBAValide(nouveau)) throw new Error('Nom de module invalide : une lettre, puis des lettres, chiffres ou _ (31 caractères au plus), sans espace');
+    if (this.nomModulePris(nouveau, m)) throw new Error('Le nom « ' + nouveau + ' » est déjà pris');
+    m.nom = nouveau;
+    this.version++;
+    return nouveau;
+  }
+  supprimerModule(nom) {
+    const i = this.modules.findIndex((x) => x.nom.toLowerCase() === String(nom).toLowerCase());
+    if (i < 0) throw new Error('Module introuvable : ' + nom);
+    this.modules.splice(i, 1);
+    this.version++;
   }
 
   // ----- Cellules -----
@@ -286,7 +363,8 @@ export class Classeur {
   vider() {
     this.feuilles = [];
     this.noms.clear();
-    this.macros = '';
+    this.modules = [];
+    this.codeClasseur = '';
     this.vbaBrut = null;
     this.active = 0;
     this.ajouterFeuille('Feuil1');

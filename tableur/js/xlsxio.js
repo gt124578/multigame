@@ -33,6 +33,7 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
     }
     const f = classeur.ajouterFeuille(nom);
     if (infos[i] && infos[i].Hidden) f.cachee = true;
+    if (infos[i] && infos[i].CodeName) { try { classeur.changerCodeNom(f, String(infos[i].CodeName)); } catch { /* nom déjà pris */ } }
     for (const k of Object.keys(ws)) {
       if (k[0] === '!') continue;
       const a = parseAdresse(k);
@@ -96,7 +97,16 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
     if (!classeur.macros) {
       try {
         const modules = extraireModulesVBA(XLSX.CFB, classeur.vbaBrut);
-        classeur.macros = modules.filter((m) => m.code.trim()).map((m) => "' ===== Module " + m.nom + ' =====\n' + m.code.trim()).join('\n\n');
+        const nomClasseur = wb.Workbook && wb.Workbook.WBProps && wb.Workbook.WBProps.CodeName;
+        // Modules de document : ThisWorkbook et un module par feuille (retrouvée par son nom de code)
+        classeur.macros = modules.filter((m) => m.code.trim() || m.type === 'module').map((m) => {
+          const num = /^(?:Sheet|Feuil|Tabelle|Hoja|Foglio|Blad)(\d+)$/i.exec(m.nom);
+          const f = m.type === 'document' && (classeur.feuilles.find((x) => x.codeNom.toLowerCase() === m.nom.toLowerCase()) || (num && classeur.feuilles[num[1] - 1]));
+          const entete = m.type === 'document' && (m.nom === nomClasseur || /^(ThisWorkbook|CeClasseur|DieseArbeitsmappe|EsteLibro)$/i.test(m.nom)) ? "' ===== ThisWorkbook ====="
+            : f ? "' ===== Feuille " + m.nom + ' (' + f.nom + ') ====='
+            : "' ===== Module " + m.nom + ' =====';
+          return entete + '\n' + m.code.trim();
+        }).join('\n\n');
       } catch (e) {
         classeur.macros = "' Le projet VBA du fichier n'a pas pu être lu : " + e.message;
       }
@@ -207,8 +217,9 @@ export function lireDocx(XLSX, octets, nomFichier = 'Document.docx') {
 /** Nettoie un module VBA exporté (.bas, .cls, .frm) : en-tête et lignes Attribute. */
 export function nettoyerModuleVBA(texte, nomFichier = '') {
   let t = texte.replace(/\r\n?/g, '\n');
+  const vbNom = /^Attribute VB_Name\s*=\s*"([^"]+)"/m.exec(t);
   t = t.replace(/^VERSION [\d.]+ CLASS\n(?:BEGIN\n[\s\S]*?\nEND\n)?/i, '').replace(/^Attribute VB_.*$\n?/gm, '').trim();
-  const nom = nomFichier.replace(/\.(bas|cls|frm|txt)$/i, '');
+  const nom = (vbNom ? vbNom[1] : nomFichier.replace(/^.*[\\/]/, '').replace(/\.(bas|cls|frm|txt|vba)$/i, '')).replace(/[^\wÀ-ÖØ-öø-ÿ]+/g, '_').replace(/^(\d)/, 'M$1').slice(0, 31);
   return (nom ? "' ===== Module " + nom + ' =====\n' : '') + t + '\n';
 }
 
