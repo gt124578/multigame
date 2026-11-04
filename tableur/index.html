@@ -2,7 +2,10 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f7a4d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Tableur — Arcadia</title>
   <link rel="stylesheet" href="css/tableur.css">
 </head>
@@ -22,6 +25,9 @@
         </select>
       </div>
       <div class="groupe">
+        <button id="btn-annuler" title="Annuler (Ctrl+Z)">↶</button>
+        <button id="btn-retablir" title="Rétablir (Ctrl+Y)">↷</button>
+        <span class="sep"></span>
         <button id="btn-gras" title="Gras (Ctrl+B)"><b>G</b></button>
         <button id="btn-italique" title="Italique (Ctrl+I)"><i>I</i></button>
         <button id="btn-souligne" title="Souligné (Ctrl+U)"><u>S</u></button>
@@ -94,6 +100,7 @@
       <button id="btn-nouveau-classeur" title="Nouveau classeur">+</button>
     </nav>
     <div id="barre-formule">
+      <button id="btn-outils" title="Afficher ou masquer les outils">▴</button>
       <input id="zone-nom" title="Cellule active ou nom à définir" value="A1" spellcheck="false">
       <span class="fx">ƒx</span>
       <textarea id="saisie-formule" rows="1" spellcheck="false" placeholder="Saisie ou formule (=SOMME(A1:A5), =SI(…), =VPM(…))"></textarea>

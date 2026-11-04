@@ -509,16 +509,24 @@ function texteSelection(valeursAffichees = true) {
 async function copier(couper = false) {
   const s = selectionBornee();
   const texte = texteSelection();
-  pressePapier = { classeur, feuille: feuille(), ...s, couper, texte };
-  try { await navigator.clipboard.writeText(texte); } catch { /* presse-papiers système indisponible */ }
+  pressePapier = { classeur, feuille: feuille(), ...s, couper, texte, systeme: false };
+  try { await navigator.clipboard.writeText(texte); pressePapier.systeme = true; } catch { /* presse-papiers système indisponible (mobile, permissions) */ }
   rendre();
 }
 async function coller(texteSysteme) {
   let texte = texteSysteme;
-  if (texte === undefined) { try { texte = await navigator.clipboard.readText(); } catch { texte = null; } }
+  if (texte === undefined) {
+    // Le navigateur peut attendre indéfiniment une autorisation (mobile) : on n'attend pas plus d'une demi-seconde
+    if (pressePapier && !pressePapier.systeme) texte = null;
+    else {
+      try { texte = await Promise.race([navigator.clipboard.readText(), new Promise((ok) => setTimeout(() => ok(null), 500))]); }
+      catch { texte = null; }
+    }
+  }
   const dest = selectionNormalisee();
   memoriser();
-  if (pressePapier && (texte == null || texte === pressePapier.texte || texte.replace(/\r/g, '') === pressePapier.texte)) {
+  // Copie interne prioritaire si le presse-papiers du système est vide, inaccessible ou n'a pas pu la recevoir
+  if (pressePapier && (texte == null || texte === '' || !pressePapier.systeme || texte === pressePapier.texte || texte.replace(/\r/g, '') === pressePapier.texte)) {
     const src = pressePapier;
     const nl = src.r2 - src.r1 + 1, nc = src.c2 - src.c1 + 1;
     const repL = dest.r2 - dest.r1 + 1 >= nl && (dest.r2 - dest.r1 + 1) % nl === 0 ? (dest.r2 - dest.r1 + 1) / nl : 1;
@@ -1435,6 +1443,7 @@ function rendreAide() {
 <li>Autres feuilles : <code>=Hypothèses!B2</code>, <code>='Ma feuille'!A1:A9</code>. Noms définis : zone à gauche de la barre de formule.</li>
 <li>Pendant la saisie d'une formule, cliquez ou glissez sur la grille pour insérer une référence.</li>
 <li>Copier / couper / coller (<code>Ctrl+C/X/V</code>) décale les références relatives (<code>$A$1</code> reste fixe). Poignée en bas à droite : recopie et séries. <code>Ctrl+D</code> recopie vers le bas, <code>Ctrl+R</code> vers la droite.</li>
+<li><b>Au doigt</b> (téléphone, tablette) : un appui sélectionne une cellule, un second appui la modifie (le clavier s'ouvre) ; glisser depuis la sélection l'étend, glisser ailleurs fait défiler ; un appui long ouvre le menu (copier, coller, insérer…) sur les cellules, les onglets, les boutons et les graphiques. Le bouton ☰ à gauche de la barre de formule masque les outils (masqués d'office en paysage). ↶ ↷ : annuler, rétablir.</li>
 <li><code>Ctrl+Z</code> / <code>Ctrl+Y</code> annuler / rétablir. <code>Ctrl+flèches</code> saute au bord d'un bloc. Clic droit : menu.</li>
 <li>Formats : <code>Ctrl+B/I/U</code>, couleurs, alignement, menu <b>Bordures</b>, formats de nombre, boutons de décimales : tout est lu et écrit dans le <code>.xlsx</code>.</li>
 <li>Graphiques : sélectionnez la plage (en-têtes compris) puis le menu <b>📈 Graphique</b>. Déplacez-le par sa barre, redimensionnez par le coin, changez le type dans sa barre, double-clic pour le titre, <code>Suppr</code> ou ✕ pour l'enlever.</li>
@@ -1725,6 +1734,148 @@ $('code-vba').addEventListener('keydown', (e) => {
 document.addEventListener('dragover', (e) => { e.preventDefault(); });
 document.addEventListener('drop', async (e) => { e.preventDefault(); for (const f of e.dataTransfer.files) await ouvrirFichier(f); });
 window.addEventListener('beforeunload', () => { memoriserVue(); sauvegarderLocal(); });
+
+// ---------------------------------------------------------------------------
+// Écrans tactiles (téléphone, tablette)
+// ---------------------------------------------------------------------------
+// Un appui sur une cellule la sélectionne ; un second appui sur la même cellule la modifie (clavier).
+// Glisser depuis la sélection l'étend ; glisser ailleurs fait défiler. Appui long : le menu (clic droit).
+// Les gestes sont traduits en évènements souris pour réutiliser toute la logique du bureau.
+
+const SEUIL_GLISSE = 10;
+let toucher = null, dernierToucher = 0, appuiLong = 0, minuterieAppui = null, departAppui = null;
+
+function souris(type, cible, x, y, extra = {}) {
+  cible.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: type === 'contextmenu' ? 2 : 0, view: window, ...extra }));
+}
+
+const vivant = (el, x, y) => (el && el.isConnected ? el : document.elementFromPoint(x, y) || conteneur);
+
+conteneur.addEventListener('touchstart', (e) => {
+  if (e.touches.length !== 1) { toucher = null; return; } // deux doigts : zoom du navigateur
+  const t = e.touches[0], cible = e.target;
+  // Les vrais contrôles posés sur la grille (boutons de macro, barre d'un graphique, images-boutons) gardent leur comportement
+  if (cible === editeur || cible.closest('button, select, input, a, .image-feuille.cliquable')) { toucher = null; return; }
+  const rect = conteneur.getBoundingClientRect();
+  const x = t.clientX - rect.left, y = t.clientY - rect.top;
+  let mode = 'appui';
+  if (cible === poignee || cible.classList.contains('redim-col') || cible.classList.contains('redim-lig') || cible.classList.contains('graphique-redim') || cible.closest('.graphique-barre')) mode = 'glisser';
+  else if (!edition && x > LARGEUR_ENTETE && y > HAUTEUR_DEFAUT) {
+    const cel = celluleDepuisPoint(x, y), s2 = selectionNormalisee();
+    if (cel.r >= s2.r1 && cel.r <= s2.r2 && cel.c >= s2.c1 && cel.c <= s2.c2) mode = 'selection';
+  }
+  toucher = { mode, x0: t.clientX, y0: t.clientY, t0: Date.now(), cible, bouge: false, actif: false };
+  // La grille est redessinée pendant le geste : l'élément touché quitte la page mais reçoit toujours la suite du geste,
+  // et seulement lui (plus de propagation). On écoute donc directement sur lui.
+  const finir = () => { cible.removeEventListener('touchmove', bouger); cible.removeEventListener('touchend', lacher); cible.removeEventListener('touchcancel', annulerGeste); };
+  const bouger = (ev) => toucheBouge(ev);
+  const lacher = (ev) => { finir(); toucheFin(ev); };
+  const annulerGeste = () => { finir(); if (toucher && toucher.actif) souris('mouseup', document, 0, 0); toucher = null; };
+  cible.addEventListener('touchmove', bouger, { passive: false });
+  cible.addEventListener('touchend', lacher, { passive: false });
+  cible.addEventListener('touchcancel', annulerGeste);
+  if (mode === 'glisser') { e.preventDefault(); souris('mousedown', cible, t.clientX, t.clientY); toucher.actif = true; }
+  else if (mode === 'selection') e.preventDefault(); // pas de défilement : le doigt étend la sélection
+}, { passive: false });
+
+function toucheBouge(e) {
+  if (!toucher) return;
+  const t = e.touches[0];
+  if (Math.hypot(t.clientX - toucher.x0, t.clientY - toucher.y0) > SEUIL_GLISSE) toucher.bouge = true;
+  if (toucher.mode === 'appui') { if (toucher.bouge) toucher = null; return; } // défilement natif
+  e.preventDefault();
+  if (toucher.mode === 'selection' && toucher.bouge && !toucher.actif) { souris('mousedown', vivant(toucher.cible, toucher.x0, toucher.y0), toucher.x0, toucher.y0, { shiftKey: true }); toucher.actif = true; }
+  if (toucher.actif) {
+    souris('mousemove', document, t.clientX, t.clientY);
+    // Défilement automatique quand le doigt approche du bord
+    const rect = conteneur.getBoundingClientRect(), marge = 36;
+    if (t.clientY > rect.bottom - marge) conteneur.scrollTop += 16; else if (t.clientY < rect.top + HAUTEUR_DEFAUT + marge) conteneur.scrollTop -= 16;
+    if (t.clientX > rect.right - marge) conteneur.scrollLeft += 16; else if (t.clientX < rect.left + LARGEUR_ENTETE + marge) conteneur.scrollLeft -= 16;
+  }
+}
+
+function toucheFin(e) {
+  if (!toucher) return;
+  const g = toucher; toucher = null;
+  const t = e.changedTouches[0];
+  e.preventDefault(); // pas d'évènements souris en double
+  if (g.actif) { souris('mouseup', document, t.clientX, t.clientY); return; }
+  if (g.bouge || Date.now() - appuiLong < 800) return;
+  const rect = conteneur.getBoundingClientRect();
+  const x = t.clientX - rect.left, y = t.clientY - rect.top;
+  const cible = vivant(g.cible, t.clientX, t.clientY);
+  if (!edition && x > LARGEUR_ENTETE && y > HAUTEUR_DEFAUT && !cible.closest('.graphique, .image-feuille, .bouton-macro')) {
+    const cel = celluleDepuisPoint(x, y);
+    const unique = selection.r1 === selection.r2 && selection.c1 === selection.c2;
+    // Second appui sur la cellule active : on la modifie (le focus pendant le geste ouvre le clavier)
+    if (unique && cel.r === curseur.r && cel.c === curseur.c) { commencerEdition(); return; }
+  }
+  souris('mousedown', cible, t.clientX, t.clientY);
+  souris('mouseup', document, t.clientX, t.clientY);
+  souris('click', cible, t.clientX, t.clientY);
+}
+
+// Appui long n'importe où (grille, onglets, boutons, graphiques) : le menu contextuel
+document.addEventListener('touchstart', (e) => {
+  dernierToucher = Date.now();
+  clearTimeout(minuterieAppui);
+  if (e.touches.length !== 1) return;
+  const t = e.touches[0], cible = e.target;
+  if (cible.closest('input, textarea, select, .menu, .dialogue, .voile, .dialogue-fond, #panneau, #barre-outils, #barre-formule')) return;
+  departAppui = { x: t.clientX, y: t.clientY };
+  minuterieAppui = setTimeout(() => {
+    if (toucher && (toucher.bouge || toucher.actif)) return;
+    toucher = null;
+    appuiLong = Date.now();
+    if (navigator.vibrate) navigator.vibrate(12);
+    souris('contextmenu', vivant(cible, departAppui.x, departAppui.y), departAppui.x, departAppui.y);
+  }, 520);
+}, { passive: true, capture: true });
+document.addEventListener('touchmove', (e) => {
+  if (!departAppui) return;
+  const t = e.touches[0];
+  if (Math.hypot(t.clientX - departAppui.x, t.clientY - departAppui.y) > SEUIL_GLISSE) { clearTimeout(minuterieAppui); departAppui = null; }
+}, { passive: true, capture: true });
+document.addEventListener('touchend', (e) => {
+  clearTimeout(minuterieAppui); departAppui = null;
+  if (Date.now() - appuiLong < 1500 && dernierToucher <= appuiLong) e.preventDefault(); // fin de l'appui long : rien n'est cliqué
+}, { passive: false, capture: true });
+// Android termine parfois un appui long par de vrais clics souris (sans fin de toucher) : ils fermeraient le menu
+for (const type of ['mousedown', 'mouseup', 'click']) document.addEventListener(type, (e) => {
+  // Tant que le doigt de l'appui long ne s'est pas reposé, aucun clic ne passe (pas même sur le menu ouvert sous le doigt)
+  if (e.isTrusted && Date.now() - appuiLong < 1500 && dernierToucher <= appuiLong) { e.preventDefault(); e.stopPropagation(); }
+}, true);
+// Au doigt, c'est le second appui qui modifie une cellule : les doubles-clics fabriqués par le navigateur sont ignorés
+document.addEventListener('dblclick', (e) => {
+  if (e.isTrusted && Date.now() - dernierToucher < 1500 && !e.target.closest('input, textarea')) { e.preventDefault(); e.stopPropagation(); }
+}, true);
+// Le menu natif du navigateur (appui long) est remplacé par le nôtre
+document.addEventListener('contextmenu', (e) => {
+  if (e.isTrusted && Date.now() - dernierToucher < 1500 && !e.target.closest('input, textarea')) { e.preventDefault(); e.stopPropagation(); }
+}, true);
+
+// Barre d'outils repliable (téléphone en paysage : la grille garde la place)
+let choixOutils = null;
+const ecranMobile = () => window.matchMedia('(pointer: coarse), (max-width: 820px)').matches;
+function appliquerOutils() {
+  barre.placeholder = ecranMobile() ? 'Saisie ou =formule' : 'Saisie ou formule (=SOMME(A1:A5), =SI(…), =VPM(…))';
+  const replie = ecranMobile() && (choixOutils ?? window.innerHeight < 500);
+  document.body.classList.toggle('outils-replies', replie);
+  $('btn-outils').textContent = replie ? '☰' : '▴';
+  $('btn-outils').title = replie ? 'Afficher les outils' : 'Masquer les outils';
+}
+$('btn-outils').addEventListener('click', () => { choixOutils = !document.body.classList.contains('outils-replies'); appliquerOutils(); rendre(); });
+let derniereOrientation = window.innerWidth > window.innerHeight;
+window.addEventListener('resize', () => {
+  const paysage = window.innerWidth > window.innerHeight;
+  if (paysage !== derniereOrientation) { derniereOrientation = paysage; choixOutils = null; } // chaque orientation retrouve son réglage
+  appliquerOutils();
+});
+appliquerOutils();
+// Clavier virtuel : la cellule modifiée reste visible
+if (window.visualViewport) window.visualViewport.addEventListener('resize', () => { if (edition) { defiler({ r: edition.r, c: edition.c }); rendre(); } });
+$('btn-annuler').addEventListener('click', () => { if (edition) annulerEdition(); annuler(); });
+$('btn-retablir').addEventListener('click', () => { if (edition) validerEdition(); retablir(); });
 
 // ---------------------------------------------------------------------------
 // Démarrage
