@@ -167,7 +167,7 @@ export function addCendree({ W, maps, trainerNpc, spot, enc }) {
   m.item(...spot(m, 167, 189), 'full-heal', 2);
   m.item(...spot(m, 270, 161), 'fire-stone');
   m.item(...spot(m, 168, 170), 'max-repel');
-  m.sign(217, 189, 'FORÊT DES TORII\n← Tour Cendrée · Temple Kagura →');
+  m.sign(217, 189, 'FORÊT DES TORII\n← Tour Cendrée · Temple Kagura et Tour Dorée →');
   m.sign(258, 172, 'FORÊT DES TORII\n↑ Jardin des érables · ← Tour Cendrée par la corniche');
   m.zone(TX - 4, 153, TX + 14, TY + 14, { name: 'Tour Cendrée', music: 'forest', theme: 'automne', route: 'torii', prio: 0 });
 
@@ -186,7 +186,7 @@ export function addCendree({ W, maps, trainerNpc, spot, enc }) {
   rdc.prop('poutre_brulee', 8, 6, true, { w: 2 }); rdc.set(9, 6, T.BLOCK);
   for (const [x, y] of [[1, 2], [5, 2], [13, 2], [1, 10], [13, 10], [6, 9]]) rdc.prop('gravats', x, y);
   rdc.item(2, 9, 'charcoal');
-  rdc.npc({ id: 'cendree:historien', x: 4, y: 7, sprite: 'savant', dir: 'right', text: ['Cette tour était la sœur de la Tour de la Grue, sur son île.', 'Un soir d\'orage, la foudre l\'a frappée. Elle a brûlé trois jours et trois nuits.', 'Depuis, personne n\'ose descendre en bas... Il paraît qu\'on y entend respirer.'] });
+  rdc.npc({ id: 'cendree:historien', x: 4, y: 7, sprite: 'savant', dir: 'right', text: ['Cette tour était la sœur de la Tour Dorée, juste à côté, dans le parc du temple.', 'Un soir d\'orage, la foudre l\'a frappée. Elle a brûlé trois jours et trois nuits.', 'Depuis, personne n\'ose descendre en bas... Il paraît qu\'on y entend respirer.'] });
   // le trou avec son échelle (vers le sous-sol), et l'échelle qui remonte
   rdc.deco.push({ k: 'echelle', x: 12, y: 3 }); rdc.warp(12, 3, { map: sous.id, x: 2, y: 4, dir: 'down', step: true });
   sous.deco.push({ k: 'echelle_jour', x: 2, y: 3 }); sous.warp(2, 3, { map: rdc.id, x: 12, y: 4, dir: 'down', step: true });

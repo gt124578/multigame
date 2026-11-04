@@ -24,7 +24,7 @@ Object.assign(ITEMS, {
   'bouteille-mer': { pocket: 'cles', price: 0, key: true, icon: 'fresh-water', name: 'Bouteille à la mer', desc: 'Une bouteille avec un message : « Je suis Sven, pêcheur à Givrebourg. Écris-moi ! »' },
   'flacon-parfum': { pocket: 'cles', price: 0, key: true, icon: 'gift', name: 'Flacon de parfum', desc: 'Un parfum de fleurs de Floralia, pour Madame Opaline, à Mirage.' },
   'collier-miaouss': { pocket: 'cles', price: 0, key: true, icon: 'soothe-bell', name: 'Collier à clochette', desc: 'Un petit collier rouge avec une clochette. Celui d\'un Miaouss ?' },
-  clochette: { pocket: 'cles', price: 0, key: true, icon: 'cleanse-tag', name: 'Clochette de vent', desc: 'Une clochette de la Tour de la Grue, emportée par la tempête. Il y en a trois.' },
+  clochette: { pocket: 'cles', price: 0, key: true, icon: 'cleanse-tag', name: 'Clochette de vent', desc: 'Une clochette du Jardin de la Grue, emportée par la tempête. Il y en a trois.' },
 });
 
 // la Master Ball (donnée par le Dr Lumen, le chercheur de Mirage, l'Ancien de Fumerolle et Drakos) : connue dès le départ
@@ -65,7 +65,7 @@ export const MISSIONS = [
     journal: { name: 'Le casque de Firmin', start: 'Firmin, un mineur de Pierrefort, a perdu son casque en fuyant la Team Éclipse dans la Grotte Lunaire.', end: 'Firmin a retrouvé son casque.' } },
 
   { id: 'mLettre', town: 'C', at: [28, 9], sprite: 'vieil_homme', who: 'Vieux Léon', kind: 'relay', item: 'lettre-mineurs',
-    to: { town: 'K', at: [6, 16], sprite: 'habitante', who: 'Mère Ardoise', reward: [['hyper-potion', 3]],
+    to: { town: 'K', at: [26, 14], sprite: 'habitante', who: 'Mère Ardoise', reward: [['hyper-potion', 3]],
       idle: ['Je suis la mère des trois frères. Drakos, Pyros, Basalte...', 'Ils ne viennent plus me voir. Le continent non plus.'],
       thanks: ['Une lettre de Pierrefort ? Les mineurs se souviennent de mon Basalte...', 'Mes trois garçons se sont perdus dans la rancune de l\'aîné.', 'Merci, petit. Prends ça. Et si tu les croises, dis-leur que leur mère les attend pour dîner.'],
       done: (st) => (st.badges[7] ? ['Ils sont venus dîner, tous les trois. Pour la première fois depuis dix ans.'] : ['Basalte m\'a répondu. Les choses changent, je crois.']) },
@@ -133,13 +133,13 @@ export const MISSIONS = [
     thanks: ['Une Pierre Feu ! Goupix, regarde !', 'Voilà, comme promis.'], done: ['Mon Feunard est magnifique, non ?'],
     journal: { name: 'La pierre de Goupix', start: 'Salomé, à Cendrelune, cherche une Pierre Feu pour faire évoluer son Goupix.', end: 'Le Goupix de Salomé est devenu un Feunard.' } },
 
-  { id: 'mRacket', town: 'K', at: [23, 7], sprite: 'pecheur', who: 'Gaël', kind: 'check', test: (st, g) => g.missionTrainers('r11').every((id) => st.flags['T:' + id]), reward: [['ultra-ball', 4]],
+  { id: 'mRacket', town: 'K', at: [26, 8], sprite: 'pecheur', who: 'Gaël', kind: 'check', test: (st, g) => g.missionTrainers('r11').every((id) => st.flags['T:' + id]), reward: [['ultra-ball', 4]],
     ask: ['Sur la Grande Île, deux Gardes d\'Écaille arrêtent les pêcheurs pour prélever « la part de Drakos ».', 'Si quelqu\'un leur donnait une bonne leçon...'],
     again: ['Ces deux gardes sont sur la route qui mène à Fort-Écaille.'],
     thanks: ['Ronan et Solène ont rendu nos pêches ? C\'est grâce à toi !', 'Tiens. Les pêcheurs de Granit n\'oublient pas.'], done: ['On pêche de nouveau sans peur.'],
     journal: { name: 'La part de Drakos', start: 'Gaël, pêcheur de Port-Granit, se plaint de deux Gardes d\'Écaille qui rackettent les pêcheurs sur la Grande Île.', end: 'Les deux Gardes d\'Écaille ont rendu les pêches de Granit.' } },
 
-  { id: 'mDoute', town: 'L', at: [30, 21], sprite: 'garde', who: 'Garde Yvon', kind: 'check', test: (st) => !!st.badges[7], reward: [['max-potion', 2], ['full-restore', 1]],
+  { id: 'mDoute', town: 'L', at: [33, 25], sprite: 'garde', who: 'Garde Yvon', kind: 'check', test: (st) => !!st.badges[7], reward: [['max-potion', 2], ['full-restore', 1]],
     ask: ['Je sers Drakos depuis dix ans. Mais je ne reconnais plus l\'homme qui nous a recrutés.', 'Il faudrait que quelqu\'un le batte. Pour qu\'il se souvienne de qui il était.'],
     again: ['Drakos t\'attend dans sa tour. Moi, je n\'ose pas le défier.'],
     thanks: ['Drakos a perdu ? Et il a rouvert les ports...', 'Alors je peux enfin rentrer chez moi, à Port-Azur. Prends ça, je n\'en aurai plus besoin.'], done: ['Je pars demain par le premier bateau.'],
@@ -159,10 +159,10 @@ export const MISSIONS = [
 
   { id: 'mClochettes', town: 'Q', at: [27, 21], sprite: 'pretre', who: 'Frère Anselme', kind: 'bring', item: 'clochette', qty: 3,
     place: [{ route: 'grue1', t: 0.3, side: -1, off: 5 }, { route: 'grue2', t: 0.55, side: 1, off: 5 }, { route: 'grue1', t: 0.85, side: 1, off: 5 }], reward: [['rare-candy', 2]],
-    ask: ['La tempête a arraché les trois clochettes de vent de la Tour de la Grue.', 'Sans leur chant, les Sages disent que la tour se tait... Si tu les trouves, rapporte-les-moi.'],
+    ask: ['La tempête a arraché les trois clochettes de vent du Jardin de la Grue.', 'Les Sages de la Tour Dorée venaient méditer à leur chant... Si tu les trouves, rapporte-les-moi.'],
     again: (st) => [`Il manque encore ${3 - (st.bag.clochette || 0)} clochette${3 - (st.bag.clochette || 0) > 1 ? 's' : ''}...`],
-    thanks: ['Les trois clochettes ! Écoute : la tour chante de nouveau.', 'Que le vent te porte, voyageur.'], done: ['Ding... Ding... La tour respire.'],
-    journal: { name: 'Les clochettes de vent', start: 'Frère Anselme, à Hautegrue, a perdu les trois clochettes de vent de la Tour de la Grue dans la tempête.', end: 'Les trois clochettes chantent de nouveau à la Tour de la Grue.' } },
+    thanks: ['Les trois clochettes ! Écoute : le jardin chante de nouveau.', 'Que le vent te porte, voyageur.'], done: ['Ding... Ding... Le jardin respire.'],
+    journal: { name: 'Les clochettes de vent', start: 'Frère Anselme, à Hautegrue, a perdu les trois clochettes de vent du Jardin de la Grue dans la tempête.', end: 'Les trois clochettes chantent de nouveau au Jardin de la Grue.' } },
 
   { id: 'mGlace', town: 'V', at: [9, 18], sprite: 'enfant', who: 'Inuk', kind: 'show', test: has('ice'), reward: [['ice-heal', 3], ['ultra-ball', 2]],
     ask: ['Ici, tout le monde a un Pokémon Glace. Sauf moi...', 'Tu m\'en montres un ? Je veux voir s\'il a froid, lui aussi.'],
@@ -171,7 +171,7 @@ export const MISSIONS = [
     journal: { name: 'Le Pokémon des glaces', start: 'Inuk, à Givrebourg, voudrait voir un Pokémon Glace.', end: 'Inuk a vu mon Pokémon Glace.' } },
 
   // après la Ligue : la fin de l'histoire des trois frères et de Théo
-  { id: 'mRevanche', town: 'L', at: [20, 3], sprite: 'drakos', who: 'Drakos', kind: 'duel', showIf: 'champion', cat: 'main',
+  { id: 'mRevanche', town: 'L', at: [22, 5], sprite: 'drakos', who: 'Drakos', kind: 'duel', showIf: 'champion', cat: 'main',
     duel: { cls: 'Champion', name: 'Drakos', bs: 'drakos', team: [[149, 64], [1051, 64], [1050, 63], [373, 64], [445, 65], [1044, 63]], prize: 300 },
     ask: ['Maître de la Ligue, hein ? Célestine a trouvé son héritière.', 'Je t\'avais dit que le vieux Drakos attendait sa revanche. Pas contre elle. Contre toi.', 'Cette fois, mes dragons ne retiendront rien.'],
     lose: 'Ha ! Je savais que tu ne me ferais pas de cadeau.',
