@@ -130,6 +130,11 @@ const QUESTS = [
       [atLeast('songes', 7), 'Darkrai s\'est apaisé.'],
       [fin('songes'), 'Les enfants de Floralia dorment de nouveau sur leurs deux oreilles.'],
     ] },
+  { id: 'mine', cat: 'side', name: 'Le fond de la mine', giver: 'Albin', started: atLeast('mine', 1), done: fin('mine'),
+    notes: [
+      [atLeast('mine', 1), 'Albin, le chef mineur de Pierrefort, m\'a parlé d\'un fossile resté au fond de la mine, derrière un éboulement.'],
+      [fin('mine'), 'Le Dr Silex a ranimé le fossile de la mine.'],
+    ] },
   { id: 'kagura', cat: 'side', name: 'Les talismans du Temple Kagura', giver: 'Dame Hana', started: atLeast('kagura', 1), done: fin('kagura'),
     notes: [
       [atLeast('kagura', 1), 'Dame Hana, à Mirage, m\'a parlé de trois talismans volés au Temple Kagura.'],

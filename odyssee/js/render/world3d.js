@@ -784,6 +784,14 @@ export class WorldView {
       // décor posé (lampadaires, panneaux, meubles…)
       const d = this.decoAt.get(x + ',' + y);
       // décalques des arènes au sol : flèches, souffles, courants, dalles, téléporteurs, socles des barrières
+      // mine : rails (orientés selon les rails voisins) et échelles entre les niveaux
+      if (m.rails?.has(x + ',' + y)) {
+        const R = (dx, dy) => m.rails.has((x + dx) + ',' + (y + dy));
+        const n = R(0, -1), e = R(1, 0), so = R(0, 1), w = R(-1, 0);
+        const k = (n || so) && !(e || w) ? 'ns' : (e || w) && !(n || so) ? 'ew' : n && e ? 'ne' : e && so ? 'es' : so && w ? 'sw' : n && w ? 'nw' : 'ew';
+        if (A['rail_' + k]) flat(O0, x, y, x + 1, y + 1, 0.0052, A['rail_' + k]);
+      }
+      if ((d?.k === 'echelle' || d?.k === 'echelle_jour') && A[d.k]) flat(O0, x, y, x + 1, y + 1, 0.0053, A[d.k]);
       if (d && DECALS.has(d.k)) { const k = 'dec_' + d.k + (d.dir ? '_' + d.dir : d.g ? '_' + d.g : ''); if (A[k]) flat(O0, x, y, x + 1, y + 1, 0.005, A[k]); }
       if (d) {
         if (d.k === 'counter') {

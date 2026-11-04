@@ -96,6 +96,14 @@ try {
   await talk('magma:caverne', 'q:nox2'); ok(S('magma') === 3, 'magma : Groudon');
   await leg('groudon'); await talk(anc.id, 'ancien'); ok(S('magma') === 'fin' && bag['master-ball'], 'magma : terminée');
   ok(W.legends.find((q) => q.id === 'heatran').cond(F, game), 'Heatran après la quête');
+  // Le fond de la mine (Pierrefort) : trois niveaux reliés par des échelles, le fossile tout au fond
+  await talk('monde', 'mine:albin'); ok(S('mine') === 1, 'mine : lancée');
+  { const ech = (m) => [...maps[m].warps.values()].filter((w) => w.step).map((w) => w.map);
+    ok(ech('mine1').includes('mine2') && ech('mine2').includes('mine3') && ech('mine3').includes('mine2'), 'mine : échelles entre les niveaux');
+    const f = maps.mine3.items.find((i) => i.item === 'fossile-dome'); ok(!!f, 'mine : le fossile est au fond');
+    const r = maps.mine2.reach(5, 5, true, false, new Set()), sansForce = [...maps.mine2.warps.keys()].some((k) => { const [x, y] = k.split(',').map(Number); return maps.mine2.warps.get(k).map === 'mine3' && r[y * maps.mine2.w + x]; });
+    ok(!sansForce, 'mine : l\'éboulement demande Force'); }
+  bag['fossile-dome'] = 1; await talk('monde', 'mine:silex'); ok(S('mine') === 'fin' && !bag['fossile-dome'] && party.some((m) => m.sp === 140), 'mine : fossile ranimé');
 } catch (e) { fails++; console.log('ÉCHEC :', e.message); }
 
 for (const [id, q] of Object.entries(W.quests)) ok(F['Q:' + id] === 'fin', `quête ${id} (${q.name}) terminée`);

@@ -179,6 +179,36 @@ function pontRouge() {
     }
   });
 }
+/** rails de la mine : deux rails d'acier sur des traverses de bois ; `m` = liaisons (n, e, s, w), lignes droites ou
+ *  virages en quart de cercle autour du coin commun */
+function rails(m) {
+  return toile((p) => {
+    const dirs = ['n', 'e', 's', 'w'].filter((d) => m.includes(d));
+    const coin = { ne: [C, 0], en: [C, 0], es: [C, C], se: [C, C], sw: [0, C], ws: [0, C], nw: [0, 0], wn: [0, 0] }[dirs.join('')];
+    for (let j = 0; j < C; j++) for (let i = 0; i < C; i++) {
+      let u, v;   // u : position en travers (0 au bord gauche de la voie), v : le long de la voie
+      if (coin) { const dx = i + 0.5 - coin[0], dy = j + 0.5 - coin[1]; u = Math.hypot(dx, dy) - 5; v = Math.atan2(Math.abs(dy), Math.abs(dx)) * 16; }
+      else if (dirs.includes('e') || dirs.includes('w')) { u = j - 5; v = i; } else { u = i - 5; v = j; }
+      if (u < 0 || u > 21) continue;
+      const rail = (u >= 4 && u <= 5) || (u >= 16 && u <= 17), trav = Math.floor(v) % 8 < 3;
+      if (rail) p(i, j, u === 4 || u === 16 ? '#c8d0d8' : '#5a6068');
+      else if (trav) p(i, j, Math.floor(v) % 8 === 0 ? '#9a7048' : u < 1 || u > 20 ? '#3a2614' : '#6e4a2c');
+    }
+  });
+}
+/** trou et échelle vers le niveau du dessous (ou du dessus, plus clair) */
+function echelle(jour) {
+  return toile((p) => {
+    for (let j = 0; j < C; j++) for (let i = 0; i < C; i++) {
+      const bord = i < 3 || i > C - 4 || j < 3 || j > C - 4;
+      let col = bord ? (i + j) % 3 ? '#4a3a2e' : '#2e241c' : jour ? (j < 12 ? '#5a4a3a' : '#3a3026') : (j < 8 ? '#1a1410' : '#0a0806');
+      if (!bord && (i === 9 || i === 10 || i === 21 || i === 22)) col = i === 9 || i === 21 ? '#b88a52' : '#6e4826';
+      if (!bord && i > 10 && i < 21 && j % 6 === 2) col = '#94683a';
+      if (!bord && i > 10 && i < 21 && j % 6 === 3) col = '#4a2e18';
+      p(i, j, col);
+    }
+  });
+}
 /** copie recolorée d'une case de roche (terre → ocre des canyons) */
 function ocre(src) {
   const c = mk(), x = c.getContext('2d'); x.drawImage(src, 0, 0);
@@ -200,6 +230,8 @@ export function texturesRelief(putImg, img) {
   Object.entries(LEVRES).forEach(([k, pal], i) => { for (let v = 0; v < 2; v++) putImg(`fal_levre_${k}_${v}`, levre(pal, 31 + i * 7 + v * 101)); });
   putImg('fal_pied', pied());
   putImg('pont_rouge', pontRouge());
+  for (const m of ['ns', 'ew', 'ne', 'es', 'sw', 'nw']) putImg('rail_' + m, rails(m));
+  putImg('echelle', echelle(false)); putImg('echelle_jour', echelle(true));
   for (const [bio, R] of Object.entries(ROCHES)) {
     for (const c of ['e', 'w', 'n']) putImg(`fal_bord_${c}_${bio}`, bord(c, R, c.charCodeAt(0)));
     for (const c of ['e', 'w']) putImg(`fal_bout_${c}_${bio}`, bout(c, R));

@@ -19,6 +19,7 @@ import { applyRetouches } from './retouches.js';
 import { buildArena } from './arenes.js';
 import { buildSud, BADGES_SUD, LEADERS_SUD, GYM_TRAINERS_SUD } from './sud.js';
 import { addVehicules } from './vehicules.js';
+import { addMine } from './mine.js';
 import { tourbillons, plateau, polygone, sinueuse, boucher, massif } from './relief.js';
 
 // toutes les lignées connues : la créature d'Odyssée (plus proposée, mais les parties déjà commencées avec elle restent valables),
@@ -971,6 +972,8 @@ export function buildWorld() {
   addHabitants({ W, maps, towns, routes });
   // quêtes du vélo (Voltacité) et du permis bateau (Port-Azur)
   addVehicules({ W, maps, towns });
+  // la mine de Pierrefort (trois niveaux, un fossile au fond)
+  addMine({ W, maps, towns, trainerNpc, ENC });
   { const tz = W.zones.filter((z) => z.town || z.trigger), sz = W.zones.filter((z) => z.sea), rz = W.zones.filter((z) => !z.town && !z.trigger && !z.sea); W.zones = [...sz, ...rz, ...tz]; }
   // petites barrières de bois le long des chemins des routes (jamais là où elles couperaient un passage)
   fenceRoutes(W, legends);
