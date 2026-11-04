@@ -3,7 +3,7 @@
 // le pot, le bouton du donneur ; on se couche, on parle ou on suit, on relance du montant choisi (↑ ↓), ou on fait tapis.
 import * as H from '../../core/holdem.js';
 import { rng } from '../../core/casino.js';
-import { texte, pave, ease, clamp, etiquette } from '../pixel.js';
+import { texte, ease, clamp, etiquette } from '../pixel.js';
 import { moquette, tableOvale, perso, piles, boutonDonneur, tour, emplacement } from './dessin.js';
 import { ouvrir, fr, Cartes } from './commun.js';
 import { esc } from '../ui.js';

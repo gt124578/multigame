@@ -1,7 +1,7 @@
 // odyssee/js/ui/casino/blackjack.js — la table de blackjack : le croupier derrière son demi-cercle de feutre, le sabot,
 // les cartes qui glissent jusqu'aux places, la carte cachée qui se retourne, les jetons sur le cercle de mise.
 import * as C from '../../core/casino.js';
-import { texte, rect, pave, ellipse } from '../pixel.js';
+import { texte, rect, pave } from '../pixel.js';
 import { moquette, perso, piles, jeton } from './dessin.js';
 import { ouvrir, fr, pastille, Cartes } from './commun.js';
 

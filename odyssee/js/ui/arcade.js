@@ -215,7 +215,9 @@ export async function arcadeScreen(game, jeu) {
 
   T.boucle((now, dt) => {
     // les touches du moment
-    const h = { haut: tenu.has('haut'), bas: tenu.has('bas'), gauche: tenu.has('gauche'), droite: tenu.has('droite'), A: tenu.has('A'), B: tenu.has('B') };
+    // (un appui très bref, relâché avant l'image, compte quand même pour cette image)
+    const f = new Set(appuis), t = (k) => tenu.has(k) || f.has(k);
+    const h = { haut: t('haut'), bas: t('bas'), gauche: t('gauche'), droite: t('droite'), A: t('A'), B: t('B') };
     while (appuis.length) {
       const k = appuis.shift();
       if (k === 'pause') { if (etat === 'jeu') { etat = 'pause'; ui.sound.sfx('cancel'); } else if (etat === 'pause' || etat === 'titre' || etat === 'fin') { quitter(); return; } continue; }
