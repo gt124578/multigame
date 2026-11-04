@@ -4,12 +4,13 @@
 // `flags['Q:id']` (1, 2, 3… puis 'fin') ; ses PNJ apparaissent et disparaissent selon l'étape (`when`), ses scripts
 // (`talk`, `use`, `onWin`, `after`) reçoivent les outils de game.api().
 import { T, walkable } from './tiles.js';
-import { GameMap, carveRoute, along, nearestWalkable, rng } from './mapgen.js';
+import { GameMap, carveRoute, along, nearestWalkable, rng, GRAND } from './mapgen.js';
 import { room, caveMap } from './interiors.js';
 import { plateau, rectangle, sinueuse } from './relief.js';
 import { ITEMS } from '../core/items.js';
 import { enrichirTout } from './rencontres.js';
 import { addCendree } from './cendree.js';
+import { tourDoree } from './tourdoree.js';
 
 /* ---------------- objets de quête ---------------- */
 Object.assign(ITEMS, {
@@ -498,7 +499,7 @@ export function buildQuests(ctx) {
     const path = sinueuse([[276, 164.5], [271, 168], [266, 167.5], [259, 171], [252, 179], [244, 184], [236, 189.5], [229, 191.5], [222.5, 191.5]], 2.5);
     carveRoute(m, path, { seed: 4242, w: 9, grass: 1.0, tall: T.TALL, trees: 0.06, flowers: 0.01, taperStart: true, taperEnd: false });
     routes.push({ id: 'torii', name: 'Forêt des Torii', pts: path });
-    m.sign(280, 162, 'FORÊT DES TORII ←\nTemple Kagura.');
+    m.sign(280, 162, 'FORÊT DES TORII ←\nTemple Kagura · Tour Dorée · Tour Cendrée.');
     // l'allée des torii : du bout du sentier jusqu'au pied de l'escalier du temple, un portique toutes les deux rangées
     m.rect(219, 183, 224, 193, T.GRASS, [T.TREE, T.TALL, T.FLOWER]); m.rect(221, 183, 222, 193, T.PATH);
     for (const y of [184, 186, 188, 190, 192]) {
@@ -513,41 +514,46 @@ export function buildQuests(ctx) {
     m.rect(258, 179, 268, 182, T.GRASS, [T.TREE]); m.rect(259, 180, 266, 180, T.PATH, [T.GRASS]);
     m.prop('stele', 267, 181);
     for (const [x, y] of [[258, 182], [268, 183], [261, 178]]) if (m.get(x, y) === T.TREE) m.prop('rocher_grand', x, y);
-    // l'enceinte du temple, sur sa butte
+    // l'enceinte du temple, sur sa butte : au fond, dans l'axe de l'allée des torii, la Tour Dorée (l'ancienne Tour de la
+    // Grue, voisine de la Tour Cendrée) ; à gauche, le pavillon du Temple Kagura ; à droite, le jardin sec et la cloche ;
+    // devant, l'étang aux carpes (à gauche de l'allée) et le Centre de soins (à droite)
     const K = { id: 'kagura', name: 'Temple Kagura', x: KX, y: KY, w: 34, h: 26, exits: [['s', 16]], stock: 6, music: 'mystic', theme: 'automne',
-      roads: [[16, 9, 17, 25, T.PAVE], [18, 21, 26, 21, T.PAVE]],
+      roads: [[16, 13, 17, 25, T.PAVE], [11, 13, 22, 14, T.PAVE], [5, 10, 6, 14, T.PATH], [7, 13, 10, 14, T.PATH], [23, 13, 27, 13, T.PATH], [18, 22, 27, 22, T.PAVE]],
       deco: [
-        // lanternes de pierre le long de l'allée
-        ['lanterne', 14, 9], ['lanterne', 19, 9], ['lanterne', 14, 13], ['lanterne', 19, 13], ['lanterne', 14, 18], ['lanterne', 19, 18], ['lanterne', 14, 22], ['lanterne', 19, 22],
-        // jardin sec (gravier ratissé et rochers) devant le temple, à l'est de l'allée, bordé de mousse
-        ['sand', 20, 8, 26, 12], ['rocher_grand', 22, 9], ['rocher_grand', 25, 11], ['butte', 21, 11],
-        ['flowers', 20, 7, 26, 7], ['flowers', 27, 8, 27, 12],
-        // l'étang aux carpes, à l'ouest, et son pont rouge
-        ['water', 8, 10, 4.6, 2.6],
+        // lanternes de pierre : au pied de la tour et le long de l'allée
+        ['lanterne', 12, 15], ['lanterne', 21, 15], ['lanterne', 14, 17], ['lanterne', 19, 17], ['lanterne', 14, 20], ['lanterne', 19, 20], ['lanterne', 14, 23], ['lanterne', 19, 23],
+        // jardin sec (gravier ratissé et rochers) à l'est de la tour, bordé de mousse
+        ['sand', 23, 3, 30, 8], ['rocher_grand', 25, 4], ['rocher_grand', 28, 7], ['butte', 24, 7],
+        ['flowers', 23, 9, 30, 9], ['flowers', 31, 3, 31, 8],
+        // l'étang aux carpes, au sud-ouest, et son pont rouge
+        ['water', 7, 18, 3.6, 2.2],
         // érables et cerisiers du jardin
-        ['trees', 3, 3, 4, 5], ['trees', 28, 3, 30, 5], ['trees', 2, 21, 3, 23], ['trees', 29, 12, 30, 15],
-        ['erable', 11, 6], ['erable', 4, 15], ['arbre_automne', 12, 19], ['erable', 22, 18], ['arbre_automne', 7, 22], ['cerisier', 27, 23],
-        ['sign', 15, 23, 'TEMPLE KAGURA\nOn y prie pour les rêves paisibles.']],
+        ['trees', 2, 21, 3, 23], ['trees', 30, 10, 31, 12],
+        ['erable', 10, 2], ['erable', 22, 2], ['arbre_automne', 12, 20], ['erable', 22, 17], ['arbre_automne', 7, 23], ['cerisier', 30, 15], ['erable', 2, 15],
+        ['sign', 15, 14, 'TOUR DORÉE\nAutrefois appelée Tour de la Grue.\nLà où l\'oiseau arc-en-ciel se posait jadis.'],
+        ['sign', 8, 11, 'TEMPLE KAGURA\nOn y prie pour les rêves paisibles.'],
+        ['sign', 15, 23, 'TEMPLE KAGURA\n↑ Tour Dorée · ← Temple · → Centre de soins']],
       buildings: [
-        { kind: 'tower', x: 13, y: 5, w: 7, d: 4, h: 4, door: 3, roof: 'red', name: 'Temple Kagura', interior: (id) => templeInterior(id) },
-        { kind: 'center', x: 24, y: 17 },
+        tourDoree(ctx, 11, 2),
+        // le temple garde son intérieur (et son identifiant de carte) : pavillon de bois rouge à double toit
+        { kind: 'tower', ...GRAND.pavillon, x: 2, y: 3, roof: 'red', opts: { toit: '#7a3a2a' }, name: 'Temple Kagura', mapId: 'kagura:tower13', interior: (id) => templeInterior(id) },
+        { kind: 'center', ...GRAND.center, x: 24, y: 17 },
       ],
-      npcs: [{ id: 'moine', x: 11, y: 16, sprite: 'pretre', move: 'turn', text: ['Le temple garde la mémoire des rêves de la région.', 'Au fond, derrière l\'autel, se trouve le sanctuaire. Seul le Grand Prêtre peut l\'ouvrir.'] }],
+      npcs: [{ id: 'moine', x: 9, y: 12, sprite: 'pretre', move: 'turn', text: ['Le temple garde la mémoire des rêves de la région.', 'Au fond, derrière l\'autel, se trouve le sanctuaire. Seul le Grand Prêtre peut l\'ouvrir.', 'La tour dorée, à côté, appartient aux Sages. Ils ne laissent monter que ceux qui viennent en paix.'] }],
     };
     buildTown(m, maps, K);
-    // pont rouge en travers de l'étang (d'une rive à l'autre)
-    for (let x = KX + 3; x <= KX + 13; x++) if (m.get(x, KY + 10) === T.WATER) m.set(x, KY + 10, T.BRIDGE);
-    for (const x of [KX + 3, KX + 13]) if (m.get(x, KY + 10) !== T.BRIDGE) m.set(x, KY + 10, T.PATH);
-    m.rect(KX + 13, KY + 10, KX + 15, KY + 10, T.PATH, [T.GRASS, T.FLOWER]);
+    // pont rouge en travers de l'étang (d'une rive à l'autre), puis un chemin jusqu'à l'allée
+    for (let x = KX + 2; x <= KX + 12; x++) if (m.get(x, KY + 18) === T.WATER) m.set(x, KY + 18, T.BRIDGE);
+    m.rect(KX + 12, KY + 18, KX + 15, KY + 18, T.PATH, [T.GRASS, T.FLOWER, T.SAND]);
     // coussins de mousse sous les érables et au bord de l'étang
-    for (const [x, y, rx, ry] of [[6, 18.5, 3.4, 1.6], [21.5, 15.5, 2.2, 1.4], [5.5, 6, 2, 1.2], [11, 21, 2.4, 1.3], [27, 21, 1.8, 1.5]]) m.blob(KX + x, KY + y, rx, ry, T.FLOWER, rng(x * 13 + y), [T.GRASS]);
+    for (const [x, y, rx, ry] of [[3.5, 12, 1.6, 1], [12.5, 17, 1.4, 1], [21, 19.5, 1.4, 1.1], [29, 14.5, 1.2, 1.4], [11, 22, 2, 1], [27, 10.5, 2.4, 0.8]]) m.blob(KX + x, KY + y, rx, ry, T.FLOWER, rng(x * 13 + y), [T.GRASS]);
     // des carpes koï dans l'étang
-    for (const [x, y] of [[KX + 6, KY + 9], [KX + 10, KY + 11], [KX + 8, KY + 11], [KX + 11, KY + 9]]) if (m.get(x, y) === T.WATER) m.deco.push({ k: 'koi', x, y });
+    for (const [x, y] of [[KX + 5, KY + 17], [KX + 9, KY + 19], [KX + 8, KY + 17], [KX + 6, KY + 19]]) if (m.get(x, y) === T.WATER) m.deco.push({ k: 'koi', x, y });
     // la butte : toute l'enceinte est un niveau plus haut, l'escalier de pierre descend vers l'allée des torii
     plateau(m, rectangle(KX, KY, KX + 33, KY + 24), 1);   // la paroi prend la rangée du bas de l'enceinte
-    // la cloche, à l'est de la cour
-    chose(m, 'cloche', KX + 24, KY + 6, { use: async (A) => cloche(A) });
-    m.item(...spot(m, 274, 176), 'eclat-etoile', 1, 'etoile:torii1'); m.item(...spot(m, KX + 3, KY + 7), 'eclat-etoile', 1, 'etoile:torii2');
+    // la cloche, à l'est de la cour (entre le jardin sec et le Centre de soins)
+    chose(m, 'cloche', KX + 28, KY + 11, { use: async (A) => cloche(A) });
+    m.item(...spot(m, 274, 176), 'eclat-etoile', 1, 'etoile:torii1'); m.item(...spot(m, KX + 3, KY + 13), 'eclat-etoile', 1, 'etoile:torii2');
     m.item(...spot(m, 247, 177), 'ultra-ball', 2); m.item(...spot(m, 233, 186), 'max-repel');
     trainerNpc(m, ...spot(m, 270, 172), 'left', 'Médium', 'Ombeline', [[92, 35], [200, 36]], { sight: 4 });
     trainerNpc(m, ...spot(m, 251, 183), 'right', 'Moine', 'Jōkan', [[163, 36], [177, 36], [302, 37]], { sight: 4, intro: 'La forêt éprouve ceux qui marchent vers le temple.' });
@@ -635,7 +641,7 @@ export function buildQuests(ctx) {
     await A.give('ultra-ball', 5);
     await A.set('kagura', 'fin');
   }
-  legend({ id: 'uxie', sp: 480, lvl: 45, map: 'monde', x: KX + 9, y: KY + 7, cond: (f) => done(f, 'kagura'), intro: ['Une créature jaune médite au bord de l\'étang, les yeux clos.', 'Créhelf, le gardien du savoir.'] });
+  legend({ id: 'uxie', sp: 480, lvl: 45, map: 'monde', x: KX + 7, y: KY + 15, cond: (f) => done(f, 'kagura'), intro: ['Une créature jaune médite au bord de l\'étang, les yeux clos.', 'Créhelf, le gardien du savoir.'] });
 
   /* ====================================================================================================
      Île du Magma (bateau de l'Embarcadère, pour le Maître) · Quête : Le cœur du volcan (Groudon, Heatran)

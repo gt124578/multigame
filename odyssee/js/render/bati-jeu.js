@@ -36,7 +36,7 @@ export function choisirModele(b, ctx = {}) {
   else if (b.kind === 'gym') r = { nom: 'areneCour', o: { type: TYPE_ARENE[ctx.typeArene] || 'feu' } };
   else if (b.kind === 'league') r = { nom: 'ligue', o: {} };
   else if (b.kind === 'tower') {
-    if (/Grue/.test(n)) r = { nom: 'pagode', o: {} };
+    if (/Grue|Dorée/.test(n)) r = { nom: 'pagode', o: {} };
     else if (/Casino/.test(n)) r = { nom: 'casino', o: {} };
     else if (/Bourse/.test(n)) r = { nom: 'bourse', o: {} };
     else if (/Phare/.test(n)) r = { nom: 'phare', o: {}, ajuste: true };

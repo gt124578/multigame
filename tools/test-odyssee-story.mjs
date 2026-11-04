@@ -139,6 +139,13 @@ item('monde', 'medaillon'); talk('sylve:medaillon');
 cannot('Mirage est bloquée par la Team Éclipse', leaderId(4));
 beat('ecl:rep1', 'ecl:rep2', 'ecl:rep3', 'ecl:nyx2', 'ecl:rep4', 'ecl:rep5', 'ecl:boss1'); st.flags.eclipse = true;
 leader(4); talk('mirage:voyante', () => { st.bag['plume-argent'] = 1; st.flags.plumeArgent = true; });
+// la Tour Dorée (l'ancienne Tour de la Grue), dans le parc du Temple Kagura, à côté de la Tour Cendrée : on monte jusqu'au
+// Grand Sage Hoël, qui confie la Plume Arc-en-ciel ; sans elle, le novice barre l'escalier du toit, avec elle, Ho-Oh s'y pose
+{ const hooh = W.legends.find((q) => q.id === 'hooh'), toit = maps[hooh.map], sage = maps['grue:tour3'].npcs.find((n) => n.trainer?.name === 'Hoël');
+  const surLeToit = () => { const seen = explore(pos); return [[0, 1], [0, -1], [1, 0], [-1, 0]].some(([dx, dy]) => seen.has(key(toit.id, hooh.x + dx, hooh.y + dy))); };
+  ok(hooh.map === 'grue:tour-toit' && !surLeToit(), 'le toit de la Tour Dorée est fermé tant qu\'on n\'a pas la Plume Arc-en-ciel');
+  talk(sage.id, () => { st.flags['T:' + sage.id] = true; st.flags.plume = true; st.bag['plume-arc'] = 1; });
+  reach('Ho-Oh, sur le toit de la Tour Dorée', toit.id, hooh.x, hooh.y); }
 // la Tour Cendrée, dans la Forêt des Torii : on descend au sous-sol par l'échelle, les trois bêtes s'y réveillent
 // (elles ne se montrent ensuite dans les îles qu'à partir de 5 badges : légendaires `cond: 'beasts'`)
 { const sous = maps['cendree:sous-sol'], [ex, ey] = sous.betesSortie; if (reach('sous-sol de la Tour Cendrée', sous.id, ex, ey)) st.flags.beasts = true; }
