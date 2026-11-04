@@ -1420,6 +1420,9 @@ export class Evaluateur {
       this.courant = sauve;
       this.enCours.delete(cle);
     }
+    // Une fonction VBA qui ne peut pas encore répondre (table pas chargée, macro absente) : comme Excel à l'ouverture,
+    // on garde la valeur enregistrée dans le fichier tant que la cellule n'a pas été recalculée pour de bon.
+    if (v instanceof ErreurFormule && v.vba && cel.cache !== undefined && cel.cache !== null && !(cel.cache instanceof ErreurFormule)) v = cel.cache;
     this.cache.set(cle, v);
     return v;
   }
@@ -1466,7 +1469,7 @@ export class Evaluateur {
       case 'err': throw err(n.v);
       case 'ref': return this.plageDepuisToken({ feuille: n.feuille, v: n.plage });
       case 'nom': {
-        const def = this.classeur.nom(n.v);
+        const def = this.classeur.nom(n.v, this.courant.feuille);
         if (def === undefined) throw err(ERR.NOM, n.v);
         if (typeof def === 'number' || typeof def === 'boolean') return def;
         return this.evaluer(analyser(String(def).startsWith('=') ? def : '=' + def));
@@ -1478,7 +1481,7 @@ export class Evaluateur {
       case 'fn': {
         let def = fonction(n.nom);
         if (!def && this.classeur.udf) { const u = this.classeur.udf(n.nom); if (u) def = { nom: n.nom, fn: u }; }
-        if (!def) throw err(ERR.NOM, n.nom);
+        if (!def) { const e = err(ERR.NOM, n.nom); if (this.classeur.macros) e.vba = true; throw e; }
         // Dans les arguments d'une fonction, les plages s'évaluent en tableau (pas d'intersection implicite).
         this.profondeurFn = (this.profondeurFn || 0) + 1;
         try {

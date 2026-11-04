@@ -33,9 +33,17 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
   chaque module ; boîte **Macros** (`Alt+F8`) pour exécuter, modifier, créer (en la nommant) ou supprimer une macro ; exécution
   (`F5`, la macro sous le curseur), journal `Debug.Print`, `MsgBox` / `InputBox`. Dans un module de feuille, `Range`, `Cells` et `Me`
   désignent la feuille ; `Feuil1.Range("A1")` (nom de code) et `Module1.MaMacro` (appel qualifié) sont compris.
+- **Fichiers protégés** : les classeurs chiffrés par mot de passe (méthode « Agile » d'Excel 2010+ et « Standard »
+  d'Excel 2007 / LibreOffice, AES) s'ouvrent après saisie du mot de passe ; déchiffrement en JavaScript dans le navigateur
+  (`js/chiffrement.js` : AES, SHA-1/256/384/512). Protections de feuille et projets VBA verrouillés : ouverts sans mot de passe.
+- **Boutons et images** : les boutons de formulaire (et formes) reliés à une macro, les images et les commentaires d'un `.xlsx`
+  sont affichés (`js/objets-xlsx.js`) ; un clic sur un bouton lance sa macro. Bouton « 🔘 Bouton » pour en créer.
   Le code VBA d'un `.xlsm` est extrait du `vbaProject.bin` (décompression MS-OVBA) et affiché.
   Les `Function` du code sont utilisables dans les cellules comme des fonctions personnalisées : `=MaFonction(A1;B1)`
   (une plage arrive en `Range`, un tableau renvoyé s'affiche par sa première valeur ou s'utilise dans `SOMME(...)`).
+  Un seul interpréteur par classeur : les variables `Public` remplies par une macro (table chargée par un bouton) servent
+  ensuite aux fonctions des cellules. Tant qu'une fonction VBA ne peut pas répondre, la cellule garde la valeur enregistrée
+  par Excel (comme à l'ouverture dans Excel) ; `Ctrl+Alt+F9` recalcule tout.
 
 ## Limites connues
 
@@ -45,6 +53,8 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
   de validation de données ni de mise en forme conditionnelle. Couleurs de bordure : noir seulement.
 - Les formules matricielles dynamiques ne « débordent » pas : une formule qui renvoie un tableau affiche sa première valeur
   (sauf dans une fonction qui attend un tableau).
+- Boutons, graphiques et images sont réécrits dans une feuille masquée que seul ce tableur relit : Excel ne les affiche pas.
+- Pas de volets figés ni de mise en forme conditionnelle à l'affichage.
 - Pas de références externes entre classeurs (`=[Autre.xlsx]Feuil1!A1`) ; une macro VBA ne voit que son propre classeur.
 - VBA : pas de formulaires, d'événements, de classes, de `Property`, de fichiers ni d'API Windows.
 
@@ -60,6 +70,8 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 | `js/xlsxio.js` | Lecture / écriture `.xlsx` / `.xlsm` / `.csv` avec SheetJS, import `.docx` et `.bas` |
 | `js/styles-xlsx.js` | Styles de cellules dans le zip `.xlsx` (styles.xml, sheetN.xml) |
 | `js/graphiques.js` | Rendu SVG des graphiques |
+| `js/chiffrement.js` | Ouverture des fichiers protégés par mot de passe (MS-OFFCRYPTO) |
+| `js/objets-xlsx.js` | Boutons de macro, formes et images d'un `.xlsx` |
 | `js/app.js` | Interface : grille virtualisée, barre de formule, onglets, presse-papiers, panneaux |
 | `lib/xlsx.full.min.js` | SheetJS 0.18.5 (Apache-2.0, `lib/LICENSE-sheetjs.txt`) |
 

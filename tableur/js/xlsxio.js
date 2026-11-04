@@ -4,9 +4,12 @@ import { Classeur } from './classeur.js';
 import { ErreurFormule, parseAdresse, colVersLettres, ERR, convertirFormule } from './formules.js';
 import { extraireModulesVBA } from './vbaextract.js';
 import { lireStylesXlsx, ecrireStylesXlsx } from './styles-xlsx.js';
+import { lireObjetsXlsx } from './objets-xlsx.js';
 
 const FEUILLE_MACROS = '_MacrosTableur';
-const FEUILLE_GRAPHIQUES = '_GraphiquesTableur';
+const FEUILLE_GRAPHIQUES = '_GraphiquesTableur';   // ancien format : graphiques seuls
+const FEUILLE_OBJETS = '_ObjetsTableur';           // graphiques, boutons, images (une ligne par objet)
+const TYPES_OBJETS = { graphique: 'graphiques', bouton: 'boutons', image: 'images' };
 
 /** Lit un fichier (ArrayBuffer / Uint8Array) et renvoie un Classeur. */
 export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
@@ -15,11 +18,19 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
   classeur.nomFichier = nomFichier;
   const infos = (wb.Workbook && wb.Workbook.Sheets) || [];
   const macrosLignes = [];
-  const graphiques = [];
+  const objets = []; // [nomFeuille, type, objet]
   wb.SheetNames.forEach((nom, i) => {
     const ws = wb.Sheets[nom];
     if (nom === FEUILLE_GRAPHIQUES) {
-      for (let r = 1; r <= 1000; r++) { const a = ws['A' + r], b = ws['B' + r]; if (!a || !b) break; try { graphiques.push([String(a.v), JSON.parse(String(b.v))]); } catch { /* ligne illisible */ } }
+      for (let r = 1; r <= 1000; r++) { const a = ws['A' + r], b = ws['B' + r]; if (!a || !b) break; try { objets.push([String(a.v), 'graphique', JSON.parse(String(b.v))]); } catch { /* ligne illisible */ } }
+      return;
+    }
+    if (nom === FEUILLE_OBJETS) {
+      for (let r = 1; r <= 5000; r++) {
+        const a = ws['A' + r], b = ws['B' + r]; if (!a || !b) break;
+        let json = ''; for (let c = 2; c < 200; c++) { const x = ws[colVersLettres(c) + r]; if (!x) break; json += String(x.v); }
+        try { objets.push([String(a.v), String(b.v), JSON.parse(json)]); } catch { /* ligne illisible */ }
+      }
       return;
     }
     if (nom === FEUILLE_MACROS) {
@@ -50,7 +61,12 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
         case 'e': cel.v = new ErreurFormule(c.w || ERR.VALEUR); break;
         default: cel.v = c.v ?? null;
       }
-      if (cel.f) delete cel.v; // la valeur sera recalculée
+      if (cel.f) {
+        // La valeur calculée par Excel est gardée de côté : elle sert tant qu'une fonction VBA ne peut pas répondre
+        if (cel.v !== undefined && cel.v !== null && !(cel.v instanceof ErreurFormule)) cel.cache = cel.v;
+        delete cel.v;
+      }
+      if (Array.isArray(c.c) && c.c.length) cel.note = c.c.map((x) => String(x.t || '').trim()).filter(Boolean).join('\n');
       if (c.s && typeof c.s === 'object') {
         const s = {};
         if (c.s.font) { if (c.s.font.bold) s.gras = true; if (c.s.font.italic) s.italique = true; if (c.s.font.color && c.s.font.color.rgb) s.couleur = '#' + c.s.font.color.rgb.slice(-6); }
@@ -86,10 +102,26 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
   if (wb.Workbook && wb.Workbook.Names) {
     for (const n of wb.Workbook.Names) {
       if (!n.Name || n.Name.startsWith('_xlnm.') || !n.Ref) continue;
-      try { classeur.definirNom(n.Name, convertirFormule('=' + n.Ref, 'fr').slice(1)); } catch { /* nom non géré */ }
+      // Un nom peut être propre à une feuille (même nom sur plusieurs feuilles, comme « MortTable »)
+      const fi = n.Sheet !== undefined && n.Sheet !== null ? classeur.indexFeuille(wb.SheetNames[n.Sheet]) : null;
+      try { classeur.definirNom(n.Name, convertirFormule('=' + n.Ref, 'fr').slice(1), fi !== null && fi >= 0 ? fi : null); } catch { /* nom non géré */ }
     }
   }
-  for (const [nomF, g] of graphiques) { const f = classeur.feuille(nomF); if (f) f.graphiques.push(g); }
+  // Boutons reliés à des macros et images posées sur les feuilles
+  if (donnees.length > 4 && donnees[0] === 0x50 && donnees[1] === 0x4b) {
+    try {
+      for (const [nomF, o] of lireObjetsXlsx(XLSX, donnees)) {
+        const f = classeur.feuille(nomF);
+        if (!f) continue;
+        f.boutons.push(...o.boutons); f.images.push(...o.images);
+      }
+    } catch (e) { console.warn('Objets non lus :', e); }
+  }
+  for (const [nomF, type, o] of objets) {
+    const f = classeur.feuille(nomF);
+    const cle = TYPES_OBJETS[type];
+    if (f && cle && !f[cle].some((x) => x.id === o.id)) f[cle].push(o);
+  }
   // Macros
   if (macrosLignes.length) classeur.macros = macrosLignes.join('\n');
   if (wb.vbaraw) {
@@ -136,6 +168,7 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
       else if (typeof v === 'boolean') { o.t = 'b'; o.v = v; }
       else { o.t = 's'; o.v = String(v); }
       if (cel.z) o.z = cel.z;
+      if (cel.note) o.c = [{ a: 'Tableur', t: cel.note }];
       ws[k] = o;
       if (r > r2) r2 = r;
       if (c > c2) c2 = c;
@@ -152,6 +185,7 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
     wb.Workbook.Sheets.push({ name: f.nom, Hidden: f.cachee ? 1 : 0 });
   });
   for (const d of classeur.noms.values()) wb.Workbook.Names.push({ Name: d.nom, Ref: convertirFormule('=' + d.ref, 'en').slice(1) });
+  classeur.feuilles.forEach((f, i) => { for (const d of f.noms.values()) wb.Workbook.Names.push({ Name: d.nom, Ref: convertirFormule('=' + d.ref, 'en').slice(1), Sheet: i }); });
   const macros = (classeur.macros || '').trim();
   if (macros) {
     const ws = {};
@@ -161,14 +195,20 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
     XLSX.utils.book_append_sheet(wb, ws, FEUILLE_MACROS);
     wb.Workbook.Sheets.push({ name: FEUILLE_MACROS, Hidden: 2 });
   }
-  const graphiques = [];
-  for (const f of classeur.feuilles) for (const g of f.graphiques || []) graphiques.push([f.nom, JSON.stringify(g)]);
-  if (graphiques.length) {
+  // Graphiques, boutons et images : une feuille masquée que ce tableur relit (Excel ne les affiche pas)
+  const lignes = [];
+  for (const f of classeur.feuilles) for (const [type, cle] of Object.entries(TYPES_OBJETS)) for (const o of f[cle] || []) lignes.push([f.nom, type, JSON.stringify(o)]);
+  if (lignes.length) {
     const ws = {};
-    graphiques.forEach(([n, j], i) => { ws['A' + (i + 1)] = { t: 's', v: n }; ws['B' + (i + 1)] = { t: 's', v: j }; });
-    ws['!ref'] = 'A1:B' + graphiques.length;
-    XLSX.utils.book_append_sheet(wb, ws, FEUILLE_GRAPHIQUES);
-    wb.Workbook.Sheets.push({ name: FEUILLE_GRAPHIQUES, Hidden: 2 });
+    let cmax = 2;
+    lignes.forEach(([n, t, j], i) => {
+      ws['A' + (i + 1)] = { t: 's', v: n }; ws['B' + (i + 1)] = { t: 's', v: t };
+      // Une cellule Excel ne dépasse pas 32 767 caractères : les images sont coupées en morceaux
+      for (let k = 0, c = 2; k < j.length; k += 30000, c++) { ws[colVersLettres(c) + (i + 1)] = { t: 's', v: j.slice(k, k + 30000) }; cmax = Math.max(cmax, c); }
+    });
+    ws['!ref'] = 'A1:' + colVersLettres(cmax) + lignes.length;
+    XLSX.utils.book_append_sheet(wb, ws, FEUILLE_OBJETS);
+    wb.Workbook.Sheets.push({ name: FEUILLE_OBJETS, Hidden: 2 });
   }
   let bookType = options.bookType || 'xlsx';
   if (classeur.vbaBrut && bookType === 'xlsm') wb.vbaraw = classeur.vbaBrut;
@@ -223,4 +263,4 @@ export function nettoyerModuleVBA(texte, nomFichier = '') {
   return (nom ? "' ===== Module " + nom + ' =====\n' : '') + t + '\n';
 }
 
-export { FEUILLE_MACROS, FEUILLE_GRAPHIQUES };
+export { FEUILLE_MACROS, FEUILLE_GRAPHIQUES, FEUILLE_OBJETS };

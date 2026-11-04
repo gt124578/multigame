@@ -15,6 +15,9 @@ export class Feuille {
     this.hauteurs = {};        // r → hauteur en px
     this.fusions = [];         // { r1, c1, r2, c2 }
     this.graphiques = [];      // { id, type, plage: 'A1:C5', titre, x, y, w, h }
+    this.boutons = [];         // { id, texte, macro, de: { r, c, dx, dy }, a: { r, c, dx, dy } }
+    this.images = [];          // { id, src (data URL), de, a, transparentBlanc }
+    this.noms = new Map();     // noms définis propres à cette feuille (NOM → { nom, ref })
     this.zone = { r2: -1, c2: -1 };
     this.cachee = false;
     this.codeNom = nom;        // nom de code VBA (Feuil1…), fixé par le classeur
@@ -107,7 +110,7 @@ export class Classeur {
     const re = new RegExp("(^|[^\\w'])(?:'" + ancien.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/'/g, "''") + "'|" + ancien.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')!', 'gi');
     const nouveau = /[^\w]/.test(nom) ? "'" + nom.replace(/'/g, "''") + "'!" : nom + '!';
     for (const f of this.feuilles) f.chaque((r, c, cel) => { if (cel.f && re.test(cel.f)) cel.f = cel.f.replace(re, '$1' + nouveau); });
-    for (const [k, d] of this.noms) if (re.test(d.ref)) d.ref = d.ref.replace(re, '$1' + nouveau);
+    for (const d of [...this.noms.values(), ...this.feuilles.flatMap((f) => [...f.noms.values()])]) if (re.test(d.ref)) d.ref = d.ref.replace(re, '$1' + nouveau);
     this.modifie();
   }
   deplacerFeuille(de, vers) {
@@ -197,17 +200,27 @@ export class Classeur {
     const feuille = typeof f === 'number' ? this.feuilles[f] : f;
     return feuille ? feuille.zone : { r2: -1, c2: -1 };
   }
-  nom(n) {
-    const d = this.noms.get(String(n).toUpperCase());
+  /** Référence d'un nom défini : d'abord ceux de la feuille (fi), puis ceux du classeur. */
+  nom(n, fi) {
+    const k = String(n).toUpperCase();
+    const f = typeof fi === 'number' ? this.feuilles[fi] : null;
+    const d = (f && f.noms.get(k)) || this.noms.get(k);
     return d ? d.ref : undefined;
   }
-  definirNom(nom, ref) {
+  definirNom(nom, ref, fi = null) {
     nom = String(nom).trim();
     if (!/^[A-Za-z_\\][\w.]*$/.test(nom) || parsePlage(nom)) throw new Error('Nom invalide');
-    this.noms.set(nom.toUpperCase(), { nom, ref: String(ref).replace(/^=/, '') });
+    const cible = fi === null || fi === undefined ? this.noms : this.feuilles[fi].noms;
+    cible.set(nom.toUpperCase(), { nom, ref: String(ref).replace(/^=/, '') });
     this.modifie();
   }
-  supprimerNom(nom) { this.noms.delete(String(nom).toUpperCase()); this.modifie(); }
+  supprimerNom(nom, fi = null) { (fi === null || fi === undefined ? this.noms : this.feuilles[fi].noms).delete(String(nom).toUpperCase()); this.modifie(); }
+
+  /** Oublie les valeurs enregistrées dans le fichier : tout est recalculé (Ctrl+Alt+F9). */
+  abandonnerCaches(fi = null) {
+    for (const [i, f] of this.feuilles.entries()) if (fi === null || fi === i) f.chaque((r, c, cel) => { delete cel.cache; });
+    this.modifie();
+  }
 
   /** Valeur calculée d'une cellule. */
   valeur(f, r, c) {
@@ -319,7 +332,9 @@ export class Classeur {
     const bloc = [];
     for (let r = src.r1; r <= src.r2; r++) for (let c = src.c1; c <= src.c2; c++) {
       const cel = feuille.get(r, c);
-      bloc.push({ r: r + dr, c: c + dc, cel: cel ? { ...cel, f: couper ? cel.f : decalerFormule(cel.f, dr, dc) } : null });
+      const copie = cel ? { ...cel, f: couper ? cel.f : decalerFormule(cel.f, dr, dc) } : null;
+      if (copie && !couper) delete copie.cache;
+      bloc.push({ r: r + dr, c: c + dc, cel: copie });
       if (couper) feuille.set(r, c, null);
     }
     for (const b of bloc) feuille.set(b.r, b.c, b.cel);
@@ -351,6 +366,7 @@ export class Classeur {
       });
     }
     for (const d of this.noms.values()) d.ref = ajusterReferences('=' + d.ref, false, feuille.nom, this, axe, idx, n).slice(1);
+    for (const d of feuille.noms.values()) d.ref = ajusterReferences('=' + d.ref, true, feuille.nom, this, axe, idx, n).slice(1);
     this.modifie();
   }
 
