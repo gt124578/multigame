@@ -139,6 +139,9 @@ item('monde', 'medaillon'); talk('sylve:medaillon');
 cannot('Mirage est bloquée par la Team Éclipse', leaderId(4));
 beat('ecl:rep1', 'ecl:rep2', 'ecl:rep3', 'ecl:nyx2', 'ecl:rep4', 'ecl:rep5', 'ecl:boss1'); st.flags.eclipse = true;
 leader(4); talk('mirage:voyante', () => { st.bag['plume-argent'] = 1; st.flags.plumeArgent = true; });
+// la Tour Cendrée, dans la Forêt des Torii : on descend au sous-sol par l'échelle, les trois bêtes s'y réveillent
+// (elles ne se montrent ensuite dans les îles qu'à partir de 5 badges : légendaires `cond: 'beasts'`)
+{ const sous = maps['cendree:sous-sol'], [ex, ey] = sous.betesSortie; if (reach('sous-sol de la Tour Cendrée', sous.id, ex, ey)) st.flags.beasts = true; }
 item('monde', 'rare-candy', W.towns.D.x + 26, W.towns.D.y + 1); // îlot du port (Surf)
 leader(5); leader(6); leader(7);
 cannot('la Route Victoire reste fermée tant que dure l\'Éclipse', 'c4:1');

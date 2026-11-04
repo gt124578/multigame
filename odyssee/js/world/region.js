@@ -833,7 +833,7 @@ export function buildWorld() {
   W.prop('statue', 415, 159); W.prop('statue', 424, 159);
   W.zone(406, 156, 430, 175, { name: 'Pic Tonnerre', music: 'mystic' });
   legend({ id: 'zapdos', sp: 145, lvl: 30, x: 419, y: 160, cond: 'pylons', intro: ['Le ciel se zèbre d\'éclairs...', 'Électhor, l\'oiseau de foudre, déploie ses ailes !'] });
-  legend({ id: 'raikou', sp: 243, lvl: 40, ...xy(offRoute(so, 0.55, 1, 2)), cond: 'beasts', intro: ['Un rugissement fait trembler l\'herbe...', 'C\'est Raikou, la bête du tonnerre, échappée de la Tour de la Grue !'] });
+  legend({ id: 'raikou', sp: 243, lvl: 40, ...xy(offRoute(so, 0.55, 1, 2)), cond: 'beasts', intro: ['Un rugissement fait trembler l\'herbe...', 'C\'est Raikou, la bête du tonnerre, échappée de la Tour Cendrée !'] });
   // Côte des Ruines : trois stèles, l'autel de Mew, et le sanctuaire scellé de Mewtwo
   const cr = R('orage2', 'Côte des Ruines', [[379.5, 215.5], [394, 221], [410, 225], [424, 225]], { w: 10, grass: 0.8, trees: 0.04, flowers: 0.03 }, 'orage', 'island');
   routeTrainer(W, cr, 0.3, 1, 3, 'Médium', 'Céleste', [[1039, 26], [1023, 27]]);
@@ -884,7 +884,7 @@ export function buildWorld() {
       { kind: 'center', x: 5, y: 4 }, { kind: 'mart', x: 10, y: 4 },
       { kind: 'tower', ...GRAND.pagode, x: 21, y: 14, roof: 'brown', id: 'tour', name: 'Tour de la Grue', interior: tower, more: towerMore },
       { kind: 'house', x: 4, y: 16, roof: 'brown', id: 'doyenne', name: 'Maison de la Doyenne', npcs: [{ id: 'doyenne', x: 4, y: 4, sprite: 'vieil_homme', script: 'doyenne' }] },
-      { kind: 'house', x: 22, y: 4, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'habitante', text: ['Il y a longtemps, trois créatures ont péri dans l\'incendie de l\'ancienne tour.', 'On raconte que Ho-Oh les a ramenées à la vie : Raikou, Entei et Suicune.'] }] },
+      { kind: 'house', x: 22, y: 4, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'habitante', text: ['Il y a longtemps, trois créatures ont péri dans l\'incendie de l\'ancienne tour, la sœur de la nôtre :', 'la Tour Cendrée, là-bas, dans la Forêt des Torii.', 'On raconte que Ho-Oh les a ramenées à la vie : Raikou, Entei et Suicune.'] }] },
       { kind: 'house', x: 10, y: 17, roof: 'teal', npcs: [{ x: 2, y: 4, sprite: 'montagnard', text: ['À l\'est, le chemin du Mont Brasier est barré par des arbustes.', 'Avec Coupe, tu pourrais aller voir le cratère... on dit qu\'un oiseau de feu y niche.'] }] },
     ],
     npcs: [{ id: 'enfant', x: 12, y: 15, sprite: 'enfant', move: 'wander', text: ['Mamie dit que la Tour de la Grue touche presque les nuages !'] }],

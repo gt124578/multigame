@@ -9,6 +9,7 @@ import { room, caveMap } from './interiors.js';
 import { plateau, rectangle, sinueuse } from './relief.js';
 import { ITEMS } from '../core/items.js';
 import { enrichirTout } from './rencontres.js';
+import { addCendree } from './cendree.js';
 
 /* ---------------- objets de quête ---------------- */
 Object.assign(ITEMS, {
@@ -552,6 +553,8 @@ export function buildQuests(ctx) {
     trainerNpc(m, ...spot(m, 251, 183), 'right', 'Moine', 'Jōkan', [[163, 36], [177, 36], [302, 37]], { sight: 4, intro: 'La forêt éprouve ceux qui marchent vers le temple.' });
     trainerNpc(m, ...spot(m, 224, 189), 'left', 'Dame Kimono', 'Sakura', [[196, 37], [197, 37]], { sight: 2, intro: 'Je danse pour les esprits de la forêt. Danse avec moi !' });
   }
+  // la forêt agrandie vers l'ouest, ses sentiers, son relief, et la Tour Cendrée (world/cendree.js)
+  addCendree({ W, maps, trainerNpc, spot, enc: ENC.torii });
   function templeInterior(id) {
     const m = room(id, 13, 10, { floor: 'temple', music: 'mystic', name: 'Temple Kagura', wall: 'wall_league' });
     m.prop('brasero', 2, 2); m.prop('brasero', 10, 2); m.prop('statue_dragon', 1, 5); m.prop('statue_dragon', 11, 5);

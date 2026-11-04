@@ -6,4 +6,6 @@ export const DECOR_PLUS = {
   etai: ['nature', 2], poteau: ['nature', 2], wagonnet: ['nature', 2], lampe_mine: ['nature', 2], minerai: ['nature', 2],
   // désert de la route 16 (tools/odyssee-desert.py)
   cactus: ['nature', 2], cactus2: ['nature', 2],
+  // Tour Cendrée (tools/odyssee-cendree.py)
+  souche_brulee: ['nature', 2], pilier_brule: ['nature', 2], poutre_brulee: ['nature', 2], gravats: ['nature', 2],
 };

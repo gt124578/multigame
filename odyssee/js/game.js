@@ -412,19 +412,38 @@ export class Game {
     if (this.mapObj.id === 'domaine' && st.domaine) await arrivees(this);   // des Pokémon dont l'habitat est prêt viennent s'installer
     { const h = this.hour(); if (h >= 20 || h < 5) st.flags['VN:' + this.mapObj.id] = true; }
     // au labo, le professeur accueille le joueur avant qu'il ne touche aux capsules
-    // Tour de la Grue : trois bêtes s'enfuient à l'arrivée du joueur
-    if (this.mapObj.id === 'grue:tour' && !st.flags.beasts) {
-      st.flags.beasts = true;
-      this.sound.sfx('bang'); this.view.shake = 0.25;
-      await this.ui.say(['Un grondement fait trembler le plancher de la tour...', 'Trois créatures bondissent devant toi et s\'enfuient par la porte !', 'Un éclair jaune... une flamme... un souffle cristallin...', 'Raikou, Entei et Suicune se sont dispersés dans les îles.']);
-      await this.ui.flash(2, '#ffffff', 80);
-    }
+    // sous-sol de la Tour Cendrée : trois bêtes se réveillent à l'arrivée du joueur et s'enfuient (m.betes : [espèce, x, y])
+    if (this.mapObj.betes && !st.flags.beasts) await this.reveilBetes();
     if (this.mapObj.id === 'aube:labo' && !st.flags.metProf) {
       const prof = this.npcs.find((n) => n.id === 'prof');
       await this.playerWalk('up', 2);
       if (prof) prof.dir = 'down';
       await this.script('prof', prof);
     }
+  }
+
+  /** les trois bêtes du sous-sol de la Tour Cendrée : elles dorment, se réveillent, bondissent vers l'échelle et
+   *  disparaissent ; on les croise ensuite dans les îles (légendaires `cond: 'beasts'`) */
+  async reveilBetes() {
+    const st = this.state, m = this.mapObj, v = this.view, ids = m.betes.map(([sp]) => 'betes:' + sp);
+    st.flags.beasts = true;
+    const imgs = await Promise.all(m.betes.map(([sp]) => loadImg(ASSETS.front(sp)).catch(() => null)));
+    if (this.mapObj !== m) return;
+    const acteurs = m.betes.map(([sp, x, y], i) => { if (!imgs[i]) return null; const a = v.imageActor(ids[i], imgs[i], 0.5); v.place(a, x, y - 0.1); return a; });
+    await this.ui.say(['Au fond du sous-sol, trois grandes silhouettes sont couchées dans la cendre...', 'Elles respirent lentement, comme si elles dormaient depuis très longtemps.']);
+    this.sound.sfx('bang'); v.shake = 0.3;
+    this.sound.cry(ASSETS.cry(m.betes[1]?.[0] ?? m.betes[0][0]));
+    await this.ui.say('Les trois créatures ouvrent les yeux et se dressent d\'un bond !');
+    // chacune file à son tour vers l'échelle, en sautant, puis s'évanouit
+    const [ex, ey] = m.betesSortie || [2, 3];
+    for (let i = 0; i < m.betes.length; i++) {
+      const a = acteurs[i]; if (!a) continue;
+      const [, x0, y0] = m.betes[i], t0 = performance.now(), dur = 520;
+      for (let t = 0; t < 1; t = (performance.now() - t0) / dur) { v.place(a, x0 + (ex - x0) * t, y0 - 0.1 + (ey - y0) * t, Math.sin(t * Math.PI) * 0.8); await wait(16); }
+      v.removeActor(ids[i]);
+    }
+    await this.ui.flash(2, '#ffffff', 80);
+    await this.ui.say(['Un éclair jaune... une flamme... un souffle cristallin...', 'Raikou, Entei et Suicune se sont enfuis de la tour et dispersés dans les îles.']);
   }
 
   /* ================= boucle ================= */

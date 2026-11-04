@@ -188,9 +188,9 @@ const QUESTS = [
       [(f) => f.plume, 'Le Grand Sage Hoël m\'a confié la Plume Arc-en-ciel.'],
       [(f) => f['L:hooh'], 'Ho-Oh s\'est posé sur la Tour de la Grue.'],
     ] },
-  { id: 'betes', cat: 'legend', name: 'Les trois bêtes', giver: 'La Tour de la Grue', started: (f) => !!f.beasts, done: (f) => !!(f['L:raikou'] && f['L:entei'] && f['L:suicune']),
+  { id: 'betes', cat: 'legend', name: 'Les trois bêtes', giver: 'La Tour Cendrée', started: (f) => !!f.beasts, done: (f) => !!(f['L:raikou'] && f['L:entei'] && f['L:suicune']),
     notes: [
-      [(f) => f.beasts, 'À la Tour de la Grue, Raikou, Entei et Suicune se sont enfuis devant moi et se sont dispersés dans les îles.'],
+      [(f) => f.beasts, 'Dans le sous-sol de la Tour Cendrée, Raikou, Entei et Suicune se sont réveillés et se sont enfuis dans les îles.'],
       [(f) => f['L:raikou'], 'J\'ai croisé Raikou.'], [(f) => f['L:entei'], 'J\'ai croisé Entei.'], [(f) => f['L:suicune'], 'J\'ai croisé Suicune.'],
     ] },
   { id: 'ermite', cat: 'legend', name: 'Le gardien des mers', giver: 'L\'Ermite', started: (f) => !!f.ermite, done: (f) => f['L:lugia'] === 'caught' || (!!f['L:lugia'] && !!f.lugia),

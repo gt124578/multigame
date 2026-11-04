@@ -158,6 +158,26 @@ for (const q of legends) {
   ok(near(seen, m, q.x, q.y), `légendaire ${q.id} atteignable`);
   ok(SPECIES[q.sp] && q.lvl > 0, `légendaire ${q.id} valide`);
 }
+// la Tour Cendrée (Forêt des Torii) : posée dans la forêt d'automne, atteignable avec 5 badges ; l'échelle du
+// rez-de-chaussée mène au sous-sol, où (et seulement où) se joue l'évènement des trois bêtes
+{ const porte = [...W.warps].find(([, w]) => w.map === 'cendree:rdc'); ok(!!porte, 'Tour Cendrée posée sur la carte du monde');
+  const [x, y] = porte[0].split(',').map(Number), bat = W.buildings.find((b) => b.name === 'Tour Cendrée');
+  ok(bat && bat.modele === 'tourCendree' && W.zoneAt(x, y + 1)?.theme === 'automne', 'Tour Cendrée : modèle 3D, dans la forêt d\'automne');
+  const abil5 = new Set(Object.entries(FIELD).filter(([f, d]) => d.badge <= 5 && FIELD_T[f] != null).map(([f]) => FIELD_T[f]));
+  ok(!!explore(5, abil5)[at(W, x, y + 1)], 'Tour Cendrée atteignable avec 5 badges');
+  const rdc = maps['cendree:rdc'], sous = maps['cendree:sous-sol'];
+  const lad = [...rdc.warps].find(([, w]) => w.map === sous.id)?.[0].split(',').map(Number);
+  const sr = rdc.reach(rdc.exitX, rdc.exitY, true, true);
+  ok(lad && reachable(rdc, sr, lad[0], lad[1]), 'Tour Cendrée : l\'échelle du sous-sol est atteignable depuis l\'entrée');
+  const arr = rdc.warpAt(...lad), ss = sous.reach(arr.x, arr.y, true, true);
+  ok(sous.betes?.length === 3 && sous.betes.every(([sp, bx, by]) => SPECIES[sp] && walkable(sous.get(bx, by)) && reachable(sous, ss, bx, by)), 'Tour Cendrée : les trois bêtes dorment au sous-sol, sur des cases qu\'on approche');
+  ok(Object.values(maps).filter((q) => q.betes).length === 1 && !maps['grue:tour']?.betes, 'l\'évènement des bêtes ne se joue qu\'au sous-sol de la Tour Cendrée');
+  const src = (await import('fs')).readFileSync(new URL('../odyssee/js/game.js', import.meta.url), 'utf8');
+  ok(/this\.mapObj\.betes && !st\.flags\.beasts/.test(src) && !/'grue:tour' && !st\.flags\.beasts/.test(src), 'game.js : l\'évènement des bêtes suit m.betes'); }
+// aucun bâtiment de la carte du monde n'en chevauche un autre
+{ const B = W.buildings, croise = [];
+  for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) { const a = B[i], b = B[j]; if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.d && b.y < a.y + a.d) croise.push(`${a.name || a.kind}@${a.x},${a.y} × ${b.name || b.kind}@${b.x},${b.y}`); }
+  ok(!croise.length, 'bâtiments qui se chevauchent : ' + croise.join(' ; ')); }
 // les quinze Champions et la Maître existent
 const leaders = Object.values(maps).flatMap((m) => m.npcs.filter((n) => n.leader != null));
 ok(leaders.length === NB, `${NB} Champions`);
