@@ -155,12 +155,14 @@ export function htmlPages(C, fi, regl, pag, { objets = [], styleCellule = null }
     if (coul || st.couleur) css += 'color:' + (coul || st.couleur) + ';';
     if (st.fond) css += 'background:' + st.fond + ';';
     if (st.taille) css += 'font-size:' + st.taille + 'px;';
+    if (st.police) css += "font-family:'" + String(st.police).replace(/'/g, '') + "', sans-serif;";
     css += 'text-align:' + (st.align || (typeof v === 'number' ? 'right' : typeof v === 'boolean' || v instanceof ErreurFormule ? 'center' : 'left')) + ';';
     if (st.valign) css += 'vertical-align:' + (st.valign === 'top' ? 'top' : 'middle') + ';';
     if (st.renvoi) css += 'white-space:pre-wrap;';
     if (st.retrait) css += 'padding-left:' + (3 + st.retrait * 9) + 'px;';
     const b = st.bordures || (st.bordure ? { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } : null);
-    if (b) for (const [k, p] of [['h', 'top'], ['b', 'bottom'], ['g', 'left'], ['d', 'right']]) if (b[k]) css += `border-${p}:${{ thin: 1, medium: 2, thick: 3, double: 3 }[b[k]] || 1}px ${b[k] === 'double' ? 'double' : 'solid'} ${st.bordCouleur || '#000'};`;
+    const TR = { thin: '1px solid', medium: '2px solid', thick: '3px solid', double: '3px double', dashed: '1px dashed', mediumDashed: '2px dashed', dotted: '1px dotted', hair: '1px dotted' };
+    if (b) for (const [k, p] of [['h', 'top'], ['b', 'bottom'], ['g', 'left'], ['d', 'right']]) if (b[k]) css += `border-${p}:${TR[b[k]] || '1px solid'} ${st.bordCouleur || '#000'};`;
     const sp = (f.sparklines || []).find((x) => x.r === r && x.c === c);
     let dessin = '';
     if (sp) {
@@ -170,7 +172,10 @@ export function htmlPages(C, fi, regl, pag, { objets = [], styleCellule = null }
       dessin = `<div style="position:relative;height:0"><div style="position:absolute;left:-4px;top:${-hauteur(f, r) / 2}px">${sparklineSVG(vals, largeur(f, c), hauteur(f, r), sp)}</div></div>`;
       css += 'vertical-align:middle;';
     }
-    return `<td${rowspan > 1 ? ` rowspan="${rowspan}"` : ''}${colspan > 1 ? ` colspan="${colspan}"` : ''} style="${css}">${dessin}${ech(txt)}</td>`;
+    // Texte riche : chaque morceau garde sa mise en forme
+    const riche = cel && cel.riche && cel.f == null && typeof v === 'string' && cel.riche.map((x) => x.t).join('') === v
+      ? cel.riche.map((x) => { const q = x.s || {}; const c2 = (q.gras !== undefined ? 'font-weight:' + (q.gras ? 700 : 400) + ';' : '') + (q.italique !== undefined ? 'font-style:' + (q.italique ? 'italic' : 'normal') + ';' : '') + (q.souligne || q.barre ? 'text-decoration:' + [q.souligne && 'underline', q.barre && 'line-through'].filter(Boolean).join(' ') + ';' : '') + (q.couleur ? 'color:' + q.couleur + ';' : '') + (q.taille ? 'font-size:' + q.taille + 'px;' : ''); return c2 ? `<span style="${c2}">${ech(x.t)}</span>` : ech(x.t); }).join('') : null;
+    return `<td${rowspan > 1 ? ` rowspan="${rowspan}"` : ''}${colspan > 1 ? ` colspan="${colspan}"` : ''} style="${css}">${dessin}${riche ?? ech(txt)}</td>`;
   };
   const pages = pag.pages.map((p, k) => {
     const lignes = [...pag.titresL.filter((r) => !p.lignes.includes(r) && r < p.lignes[0]), ...p.lignes];

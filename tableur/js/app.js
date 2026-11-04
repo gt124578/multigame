@@ -138,16 +138,24 @@ function celluleDepuisPoint(x, y) {
 
 function afficherValeur(v, z) { return formater(v, z); }
 
+// Polices proposées, avec leurs équivalents libres (Carlito pour Calibri, Liberation pour Arial / Times / Courier…)
+const POLICES = { Calibri: 'Calibri, Carlito, "Segoe UI", sans-serif', Arial: 'Arial, "Liberation Sans", Arimo, Helvetica, sans-serif', 'Times New Roman': '"Times New Roman", "Liberation Serif", Tinos, Times, serif',
+  'Courier New': '"Courier New", "Liberation Mono", Cousine, monospace', Verdana: 'Verdana, "DejaVu Sans", sans-serif', Georgia: 'Georgia, "DejaVu Serif", serif', Tahoma: 'Tahoma, "DejaVu Sans", sans-serif',
+  'Trebuchet MS': '"Trebuchet MS", "Fira Sans", sans-serif', Cambria: 'Cambria, Caladea, Georgia, serif', Garamond: 'Garamond, "EB Garamond", Georgia, serif', 'Comic Sans MS': '"Comic Sans MS", "Comic Neue", cursive', 'Segoe UI': '"Segoe UI", system-ui, sans-serif' };
+const famille = (p) => (p ? POLICES[p] || '"' + String(p).replace(/"/g, '') + '", sans-serif' : '"Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif');
 // Largeur réelle d'un texte dans la police des cellules (pour « ##### » et les débordements)
 const mesureur = document.createElement('canvas').getContext('2d');
 function largeurTexte(t, s) {
-  mesureur.font = (s && s.italique ? 'italic ' : '') + (s && s.gras ? '700 ' : '400 ') + ((s && s.taille) || 13) + 'px "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif';
+  mesureur.font = (s && s.italique ? 'italic ' : '') + (s && s.gras ? '700 ' : '400 ') + ((s && s.taille) || 13) + 'px ' + famille(s && s.police);
   return mesureur.measureText(t).width * Z();
 }
 
 let rendRequis = false;
 function rendre() { if (rendRequis) return; rendRequis = true; requestAnimationFrame(() => { rendRequis = false; rendreMaintenant(); }); }
 
+// Style de trait d'une bordure (noms d'Excel) → CSS
+const TRAITS = { thin: '1px solid', medium: '2px solid', thick: '3px solid', double: '3px double', dashed: '1px dashed', mediumDashed: '2px dashed', dotted: '1px dotted', hair: '1px dotted', dashDot: '1px dashed', mediumDashDot: '2px dashed', dashDotDot: '1px dashed', slantDashDot: '2px dashed' };
+const traitBordure = (t) => TRAITS[t] || '1px solid';
 function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
   let html = '';
   const entourerInvalides = uiD.validation.entourer();
@@ -161,7 +169,7 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
     let o = '';
     if (s.fond) o += `background:${s.fond};`;
     const bo = s.bordures || (s.bordure ? { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } : null);
-    if (bo) { const ep = { thin: 1, medium: 2, thick: 3, double: 3 }; for (const [k, cs] of [['h', 'top'], ['b', 'bottom'], ['g', 'left'], ['d', 'right']]) if (bo[k]) o += `border-${cs}:${ep[bo[k]] || 1}px ${bo[k] === 'double' ? 'double' : 'solid'} ${s.bordCouleur || '#1f2937'};`; }
+    if (bo) for (const [k, cs] of [['h', 'top'], ['b', 'bottom'], ['g', 'left'], ['d', 'right']]) if (bo[k]) o += `border-${cs}:${traitBordure(bo[k])} ${s.bordCouleur || 'var(--texte)'};`;
     return o;
   };
   for (let r = r1; r <= r2; r++) {
@@ -213,7 +221,7 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
         }
       }
       style += `width:${w}px;`;
-      if (s.gras) style += 'font-weight:700;'; if (s.italique) style += 'font-style:italic;';
+      if (s.gras) style += 'font-weight:700;'; if (s.italique) style += 'font-style:italic;'; if (s.police) style += `font-family:${famille(s.police).replace(/"/g, "'")};`;
       if (s.souligne || s.barre) style += `text-decoration:${[s.souligne && 'underline', s.barre && 'line-through'].filter(Boolean).join(' ')};`;
       if (s.retrait) style += `padding-${s.align === 'right' ? 'right' : 'left'}:${4 + s.retrait * 9 * Z()}px;`;
       const cFormat = typeof v === 'number' && cel.z ? couleurFormat(v, cel.z) : null;
@@ -225,7 +233,8 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
       if (cel.lien) cls += ' lien';
       if (entourerInvalides && f.validations.length) { const dv = validationDe(f, r, c); if (dv && !valeurValide(classeur, F, dv, r, c)) cls += ' invalide'; }
       const bulle = cel.note || (cel.lien ? cel.lien + ' — Ctrl+clic pour suivre le lien' : '');
-      html += `<div class="${cls}" style="${style}"${bulle ? ` title="${echapper(bulle).replace(/"/g, '&quot;')}"` : ''}>${afficherFormules && cel.f != null ? echapper(classeur.saisie(F, r, c)) : echapper(txt)}</div>`;
+      const riche = cel.riche && cel.f == null && typeof v === 'string' && !afficherFormules && texteRuns(cel.riche) === v;
+      html += `<div class="${cls}" style="${style}"${bulle ? ` title="${echapper(bulle).replace(/"/g, '&quot;')}"` : ''}>${afficherFormules && cel.f != null ? echapper(classeur.saisie(F, r, c)) : riche ? htmlRuns(cel.riche) : echapper(txt)}</div>`;
     }
   }
   // Graphiques sparkline : dessinés dans leur cellule
@@ -522,7 +531,7 @@ const uiB = installerDialogues({
   hacher: (m) => hacherMotDePasse(m), verifierSha: (m, x) => verifierShaMotDePasse(m, x, { 'SHA-512': sha512, 'SHA-384': sha384, 'SHA-256': sha256, 'SHA-1': sha1 }), droits: DROITS,
   pressePapier: () => pressePapier, allerA: (t) => allerA(t), focusGrille: () => conteneur.focus({ preventScroll: true }),
   surSelection: (cb) => { const s = selectionBornee(); for (let r = s.r1; r <= Math.max(s.r2, s.r1); r++) for (let c = s.c1; c <= Math.max(s.c2, s.c1); c++) cb(r, c); },
-  appliquerBordures: (mode, style) => appliquerBordures(mode, style, false),
+  appliquerBordures: (mode, style, couleur) => appliquerBordures(mode, style, false, couleur),
   selectionFusionnee: () => { const s = selectionNormalisee(); return feuille().fusions.some((m) => m.r1 === s.r1 && m.c1 === s.c1); },
   fusionner: (oui) => fusionnerSelection(oui, false),
   lignesColonnes: (inserer, axe) => lignesColonnes(inserer, axe),
@@ -663,6 +672,7 @@ function rectPlage(r1, c1, r2, c2) {
 function poser(el, rect) { el.style.left = rect.left + 'px'; el.style.top = rect.top + 'px'; el.style.width = rect.width + 'px'; el.style.height = rect.height + 'px'; el.style.visibility = rect.width > 0 && rect.height > 0 ? '' : 'hidden'; }
 
 function positionnerSelection() {
+  { const s0 = (feuille().get(curseur.r, curseur.c) || {}).s || {}; const pol = $('police'), tai = $('taille-police'); if (document.activeElement !== pol) pol.value = s0.police && [...pol.options].some((o) => o.value === s0.police) ? s0.police : ''; if (document.activeElement !== tai) { const t = String(Math.round((s0.taille || 13) * 0.75)); if ([...tai.options].some((o) => o.value === String(s0.taille || 13) || o.textContent === t)) tai.value = [...tai.options].find((o) => o.textContent === t)?.value ?? tai.value; } }
   const multi = selection.r1 !== selection.r2 || selection.c1 !== selection.c2;
   selDiv.style.display = multi ? 'block' : 'none';
   if (multi) poser(selDiv, rectPlage(selection.r1, selection.c1, selection.r2, selection.c2));
@@ -865,9 +875,17 @@ function commencerEdition(initial, origine = 'cellule') {
   if (feuilleProtegee() && verrouillee(r, c)) { if (origine === 'barre') barre.blur(); return signalerProtection(); }
   edition = { r, c, origine };
   const texte = initial !== undefined ? initial : saisieAffichee(r, c);
+  const celR = feuille().get(r, c);
+  if (origine === 'cellule' && initial === undefined && celR && celR.riche && celR.f == null && texteRuns(celR.riche) === celR.v) {
+    barre.value = texte;
+    passerEnRiche(texte.length, texte.length, celR.riche);
+    positionnerSelection();
+    return;
+  }
   if (origine === 'cellule') {
     const rect = rectPlage(r, c, r, c);
     poser(editeur, { ...rect, width: Math.max(rect.width, 120) });
+    editeur.spellcheck = !String(texte).startsWith('=');
     editeur.hidden = false;
     editeur.value = texte;
     ajusterEditeur();
@@ -877,6 +895,115 @@ function commencerEdition(initial, origine = 'cellule') {
   }
   positionnerSelection();
 }
+// ----- Texte riche : une partie du texte d'une cellule en gras, en couleur… (cel.riche = [{ t, s }]) -----
+const texteRuns = (runs) => runs.map((x) => x.t).join('');
+function cssRun(s) {
+  let o = '';
+  if (s.gras !== undefined) o += `font-weight:${s.gras ? 700 : 400};`;
+  if (s.italique !== undefined) o += `font-style:${s.italique ? 'italic' : 'normal'};`;
+  if (s.souligne || s.barre) o += `text-decoration:${[s.souligne && 'underline', s.barre && 'line-through'].filter(Boolean).join(' ')};`;
+  if (s.couleur) o += `color:${s.couleur};`;
+  if (s.taille) o += `font-size:${s.taille * Z()}px;`;
+  if (s.police) o += `font-family:${famille(s.police).replace(/"/g, "'")};`;
+  return o;
+}
+function htmlRuns(runs) { return runs.map((x) => (Object.keys(x.s || {}).length ? `<span style="${cssRun(x.s)}">${echapper(x.t)}</span>` : echapper(x.t))).join(''); }
+const editeurRiche = document.createElement('div');
+editeurRiche.id = 'editeur-riche'; editeurRiche.contentEditable = 'true'; editeurRiche.hidden = true; editeurRiche.spellcheck = true; editeurRiche.lang = 'fr';
+conteneur.appendChild(editeurRiche);
+const hexa = (rgb) => { const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(rgb || ''); return m ? '#' + [m[1], m[2], m[3]].map((x) => (+x).toString(16).padStart(2, '0')).join('') : null; };
+/** Lit les morceaux de texte du contenu modifiable, avec leur mise en forme par rapport à celle de la cellule. */
+function runsDepuisDom(el) {
+  const base = getComputedStyle(el), bGras = +base.fontWeight >= 600, bIt = base.fontStyle === 'italic', bCoul = hexa(base.color), bTaille = parseFloat(base.fontSize);
+  const runs = [];
+  const deco = (n) => { const d = new Set(); for (let p = n; p && p !== el; p = p.parentElement) { const t = getComputedStyle(p).textDecorationLine; for (const x of t.split(' ')) d.add(x); if (p.tagName === 'U') d.add('underline'); if (p.tagName === 'S' || p.tagName === 'STRIKE') d.add('line-through'); } return d; };
+  const visiter = (n) => {
+    for (const ch of n.childNodes) {
+      if (ch.nodeType === 3) {
+        if (!ch.data) continue;
+        const cs = getComputedStyle(ch.parentElement), s = {};
+        const g = +cs.fontWeight >= 600; if (g !== bGras) s.gras = g;
+        const it = cs.fontStyle === 'italic'; if (it !== bIt) s.italique = it;
+        const d = deco(ch.parentElement); if (d.has('underline')) s.souligne = true; if (d.has('line-through')) s.barre = true;
+        const coul = hexa(cs.color); if (coul && coul !== bCoul) s.couleur = coul;
+        const t = parseFloat(cs.fontSize); if (Math.abs(t - bTaille) > 0.5) s.taille = Math.round(t / Z());
+        runs.push({ t: ch.data, s });
+      } else if (ch.nodeName === 'BR') runs.push({ t: '\n', s: {} });
+      else { if (ch.nodeName === 'DIV' && runs.length) runs.push({ t: '\n', s: {} }); visiter(ch); }
+    }
+  };
+  visiter(el);
+  // Fusionne les morceaux voisins de même mise en forme
+  const out = [];
+  for (const x of runs) { const d = out[out.length - 1]; if (d && JSON.stringify(d.s) === JSON.stringify(x.s)) d.t += x.t; else out.push({ t: x.t, s: x.s }); }
+  return out;
+}
+// Position (en caractères) ↔ point du contenu modifiable
+function pointDe(el, pos) {
+  const it = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let n, reste = pos, dernier = null;
+  while ((n = it.nextNode())) { dernier = n; if (reste <= n.data.length) return [n, reste]; reste -= n.data.length; }
+  return dernier ? [dernier, dernier.data.length] : [el, 0];
+}
+function choisirDans(el, a, b) { const r = document.createRange(); r.setStart(...pointDe(el, a)); r.setEnd(...pointDe(el, b)); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+function styleBaseEditeur(r, c) {
+  const cel = feuille().get(r, c) || {}, s = cel.s || {};
+  const rect = rectPlage(r, c, r, c);
+  poser(editeurRiche, { ...rect, width: Math.max(rect.width, 120) });
+  editeurRiche.style.minHeight = rect.height + 'px'; editeurRiche.style.height = 'auto';
+  editeurRiche.style.fontWeight = s.gras ? 700 : 400; editeurRiche.style.fontStyle = s.italique ? 'italic' : 'normal';
+  editeurRiche.style.color = s.couleur || ''; editeurRiche.style.fontSize = (s.taille || 13) * Z() + 'px'; editeurRiche.style.fontFamily = famille(s.police);
+  editeurRiche.style.textDecoration = [s.souligne && 'underline', s.barre && 'line-through'].filter(Boolean).join(' ') || 'none';
+}
+/** Passe la saisie en texte riche (texte simple, pas une formule) ; garde la sélection a..b. */
+function passerEnRiche(a, b, runs = null) {
+  if (!edition || edition.origine !== 'cellule') return false;
+  const texte = runs ? texteRuns(runs) : editeur.value;
+  if (texte.startsWith('=')) return false;
+  edition.riche = true;
+  styleBaseEditeur(edition.r, edition.c);
+  editeurRiche.innerHTML = runs ? htmlRuns(runs) : echapper(texte);
+  editeur.hidden = true; editeurRiche.hidden = false;
+  editeurRiche.focus();
+  choisirDans(editeurRiche, a, b);
+  document.execCommand('styleWithCSS', false, true);
+  return true;
+}
+/** Gras, italique… sur la partie choisie du texte en cours de saisie ; renvoie vrai si c'est fait. */
+function styleDansSaisie(prop, valeur) {
+  if (!edition || edition.origine !== 'cellule') return false;
+  if (!edition.riche) {
+    const a = editeur.selectionStart, b = editeur.selectionEnd;
+    if (a === b || editeur.value.startsWith('=')) return false;
+    passerEnRiche(a, b);
+  }
+  editeurRiche.focus();
+  const cmd = { gras: 'bold', italique: 'italic', souligne: 'underline', barre: 'strikeThrough', couleur: 'foreColor' }[prop];
+  if (!cmd) return false;
+  if (edition.plage) { const sel = getSelection(); sel.removeAllRanges(); sel.addRange(edition.plage); edition.plage = null; }
+  document.execCommand(cmd, false, valeur);
+  barre.value = editeurRiche.innerText;
+  return true;
+}
+editeurRiche.addEventListener('keydown', (e) => {
+  if (!edition) return;
+  e.stopPropagation();
+  const ctrl = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+  if (e.key === 'Enter' && e.altKey) { e.preventDefault(); document.execCommand('insertText', false, '\n'); }
+  else if (e.key === 'Enter') { e.preventDefault(); validerEdition({ dr: e.shiftKey ? -1 : 1 }); }
+  else if (e.key === 'Tab') { e.preventDefault(); validerEdition({ dc: e.shiftKey ? -1 : 1 }); }
+  else if (e.key === 'Escape') { e.preventDefault(); annulerEdition(); }
+  else if (ctrl && (k === 'b' || k === 'g' || e.code === 'Digit2')) { e.preventDefault(); document.execCommand('bold'); }
+  else if (ctrl && (k === 'i' || e.code === 'Digit3')) { e.preventDefault(); document.execCommand('italic'); }
+  else if (ctrl && (k === 'u' || e.code === 'Digit4')) { e.preventDefault(); document.execCommand('underline'); }
+  else if (ctrl && e.code === 'Digit5') { e.preventDefault(); document.execCommand('strikeThrough'); }
+});
+editeurRiche.addEventListener('paste', (e) => { e.preventDefault(); document.execCommand('insertText', false, e.clipboardData.getData('text/plain')); });
+editeurRiche.addEventListener('input', () => { barre.value = editeurRiche.innerText; });
+editeurRiche.addEventListener('blur', () => { if (edition && edition.riche && !glisse && !edition.pause) setTimeout(() => { if (edition && edition.riche && !edition.pause && document.activeElement !== editeurRiche) validerEdition(); }, 150); });
+// Pendant une saisie, les boutons de la barre d'outils ne prennent pas le focus (la sélection du texte reste)
+document.getElementById('barre-outils').addEventListener('mousedown', (e) => { if (edition && edition.origine === 'cellule' && e.target.closest('button')) e.preventDefault(); });
+
 function ajusterEditeur() {
   const rect = rectPlage(edition.r, edition.c, edition.r, edition.c);
   const largeurTexte = editeur.value.length * 7.5 + 16;
@@ -887,15 +1014,19 @@ function validerEdition(mouvement) {
   if (!edition) return;
   fermerSuggestions();
   const { r, c, origine } = edition;
-  const texte = origine === 'barre' ? barre.value : editeur.value;
+  const runs = edition.riche ? runsDepuisDom(editeurRiche) : null;
+  const texte = origine === 'barre' ? barre.value : runs ? texteRuns(runs) : editeur.value;
   edition = null;
-  editeur.hidden = true;
+  editeur.hidden = true; editeurRiche.hidden = true;
   const ancien = saisieAffichee(r, c);
-  if (texte !== ancien) {
+  const avantRiche = (feuille().get(r, c) || {}).riche;
+  if (texte !== ancien || (runs && JSON.stringify(runs) !== JSON.stringify(avantRiche || [{ t: texte, s: {} }]))) {
     memoriser(verrouillee(r, c) ? null : 'cellules');
     const avant = feuille().get(r, c);
     const copie = avant ? { ...avant } : null;
     try { classeur.saisir(fi(), r, c, texte); } catch (e) { toast(e.message, true); }
+    // Texte riche : gardé si la cellule reste un texte et qu'une partie a une mise en forme à elle
+    if (runs) { const cel = feuille().get(r, c); if (cel && typeof cel.v === 'string' && cel.v === texteRuns(runs) && runs.some((x) => Object.keys(x.s).length)) { cel.riche = runs; classeur.modifie(); } }
     if (fleches.length) fleches = [];
     // Tableau structuré : il s'agrandit si on écrit juste à côté ; une formule devient une colonne calculée
     if (texte !== '') { try { classeur.etendreTableau(fi(), r, c); if (classeur.colonneCalculee(fi(), r, c)) toast('Colonne calculée : formule recopiée dans tout le tableau'); } catch (e) { console.warn(e); } }
@@ -927,7 +1058,7 @@ function remplirSelection() {
 function annulerEdition() {
   if (!edition) return;
   fermerSuggestions();
-  edition = null; editeur.hidden = true; conteneur.focus(); rendre();
+  edition = null; editeur.hidden = true; editeurRiche.hidden = true; conteneur.focus(); rendre();
 }
 function insererReference(r1, c1, r2, c2) {
   // Pendant la saisie d'une formule, un clic insère ou remplace la référence au niveau du curseur.
@@ -1106,7 +1237,7 @@ function recopierVers(cible) { // poignée : étend la sélection vers cible (s�
 
 function surSelection(cb) { const s = selectionBornee(); memoriser('formatCellules'); for (let r = s.r1; r <= Math.max(s.r2, s.r1); r++) for (let c = s.c1; c <= Math.max(s.c2, s.c1); c++) cb(r, c); sauvegarderLocal(); rendre(); }
 function basculerStyle(prop) { const cel = feuille().get(curseur.r, curseur.c); const val = !(cel && cel.s && cel.s[prop]); surSelection((r, c) => classeur.style(fi(), r, c, { [prop]: val })); }
-function appliquerBordures(mode, style = 'thin', memo = true) {
+function appliquerBordures(mode, style = 'thin', memo = true, couleur = undefined) {
   const s = selectionBornee();
   const sel = selectionNormalisee();
   if (memo) memoriser('formatCellules');
@@ -1127,7 +1258,7 @@ function appliquerBordures(mode, style = 'thin', memo = true) {
       case 'aucune': delete b.h; delete b.b; delete b.g; delete b.d; break;
     }
     if (mode === 'aucune' && !cel) continue;
-    classeur.style(fi(), r, c, { bordures: Object.keys(b).length ? b : null });
+    classeur.style(fi(), r, c, { bordures: Object.keys(b).length ? b : null, ...(couleur !== undefined && mode !== 'aucune' ? { bordCouleur: couleur && couleur !== '#000000' ? couleur : null } : {}) });
   }
   sauvegarderLocal(); rendre();
 }
@@ -2696,7 +2827,8 @@ document.addEventListener('keydown', (e) => {
 conteneur.addEventListener('paste', (e) => { if (edition) return; e.preventDefault(); coller(e.clipboardData.getData('text/plain')); });
 
 // ----- Éditeur de cellule -----
-editeur.addEventListener('input', () => { barre.value = editeur.value; edition.refEnCours = null; ajusterEditeur(); positionnerSelection(); });
+editeur.lang = 'fr';
+editeur.addEventListener('input', () => { barre.value = editeur.value; edition.refEnCours = null; editeur.spellcheck = !editeur.value.startsWith('='); ajusterEditeur(); positionnerSelection(); });
 editeur.addEventListener('input', (e) => {
   if (!edition || edition.origine !== 'cellule' || !e.inputType || !e.inputType.startsWith('insert')) return;
   const t = editeur.value;
@@ -2830,6 +2962,11 @@ function toucheEdition(e, origine) {
   if (!edition) return;
   e.stopPropagation();
   if (toucheSuggestions(e)) return;
+  const kk = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && origine === 'cellule') {
+    const prop = kk === 'b' || kk === 'g' || e.code === 'Digit2' ? 'gras' : kk === 'i' || e.code === 'Digit3' ? 'italique' : kk === 'u' || e.code === 'Digit4' ? 'souligne' : e.code === 'Digit5' ? 'barre' : null;
+    if (prop && styleDansSaisie(prop)) { e.preventDefault(); return; }
+  }
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.altKey) { e.preventDefault(); remplirSelection(); }
   else if (e.key === 'Enter' && !e.altKey) { e.preventDefault(); validerEdition({ dr: e.shiftKey ? -1 : 1 }); }
   else if (e.key === 'Enter' && e.altKey) { e.preventDefault(); const t = e.target; const p = t.selectionStart; t.value = t.value.slice(0, p) + '\n' + t.value.slice(p); t.setSelectionRange(p + 1, p + 1); if (origine === 'cellule') ajusterEditeur(); }
@@ -2864,10 +3001,22 @@ $('btn-ouvrir-menu').addEventListener('click', () => menuOuvrir(...sousBouton('b
 $('fichier').addEventListener('change', async (e) => { const fichiers = [...e.target.files]; e.target.value = ''; for (const f of fichiers) await ouvrirFichier(f); });
 $('btn-nouveau-classeur').addEventListener('click', nouveauClasseur);
 $('btn-enregistrer').addEventListener('click', () => enregistrer());
-$('btn-gras').addEventListener('click', () => basculerStyle('gras'));
-$('btn-italique').addEventListener('click', () => basculerStyle('italique'));
-$('btn-souligne').addEventListener('click', () => basculerStyle('souligne'));
-$('couleur-texte').addEventListener('input', (e) => surSelection((r, c) => classeur.style(fi(), r, c, { couleur: e.target.value })));
+$('btn-gras').addEventListener('click', () => { if (!styleDansSaisie('gras')) basculerStyle('gras'); });
+$('btn-italique').addEventListener('click', () => { if (!styleDansSaisie('italique')) basculerStyle('italique'); });
+$('btn-souligne').addEventListener('click', () => { if (!styleDansSaisie('souligne')) basculerStyle('souligne'); });
+// Couleur du texte : pendant une saisie avec une partie choisie, seulement cette partie
+$('couleur-texte').addEventListener('mousedown', () => {
+  if (!edition || edition.origine !== 'cellule') return;
+  const sel = getSelection();
+  if (edition.riche && sel.rangeCount && !sel.isCollapsed) { edition.pause = true; edition.plage = sel.getRangeAt(0).cloneRange(); }
+  else if (!edition.riche && editeur.selectionStart !== editeur.selectionEnd && !editeur.value.startsWith('=')) { edition.pause = true; const a = editeur.selectionStart, b = editeur.selectionEnd; passerEnRiche(a, b); edition.plage = getSelection().getRangeAt(0).cloneRange(); edition.pause = true; }
+});
+$('couleur-texte').addEventListener('input', (e) => {
+  if (edition && edition.pause) { styleDansSaisie('couleur', e.target.value); edition.pause = false; return; }
+  surSelection((r, c) => classeur.style(fi(), r, c, { couleur: e.target.value }));
+});
+$('couleur-texte').addEventListener('blur', () => { if (edition && edition.pause) { edition.pause = false; editeurRiche.focus(); } });
+$('police').addEventListener('change', (e) => { const v = e.target.value; surSelection((r, c) => classeur.style(fi(), r, c, { police: v || null })); conteneur.focus(); });
 $('btn-fond').addEventListener('click', () => surSelection((r, c) => classeur.style(fi(), r, c, { fond: $('couleur-fond').value })));
 $('couleur-fond').addEventListener('input', (e) => surSelection((r, c) => classeur.style(fi(), r, c, { fond: e.target.value })));
 $('btn-sans-fond').addEventListener('click', () => surSelection((r, c) => classeur.style(fi(), r, c, { fond: null })));

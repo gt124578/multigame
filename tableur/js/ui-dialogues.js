@@ -96,7 +96,7 @@ export function installerDialogues(api) {
     const cel = f.get(cur.r, cur.c) || {}, s0 = cel.s || {};
     const v0 = api.classeur().valeur(api.fi(), cur.r, cur.c);
     const exemple = typeof v0 === 'number' ? v0 : -1234.5678;
-    const etat = { ...lireCode(cel.z), s: JSON.parse(JSON.stringify(s0)), bord: { style: 'thin', cotes: {} }, fusion: api.selectionFusionnee() };
+    const etat = { ...lireCode(cel.z), s: JSON.parse(JSON.stringify(s0)), bord: { style: 'thin', cotes: {}, couleur: s0.bordCouleur }, fusion: api.selectionFusionnee() };
     const ONGLETS = [['nombre', 'Nombre'], ['alignement', 'Alignement'], ['police', 'Police'], ['bordure', 'Bordure'], ['remplissage', 'Remplissage'], ['protection', 'Protection']];
     const boite = ouvrir('Format de cellule', `<div class="onglets-boite">${ONGLETS.map(([k, t]) => `<button data-onglet="${k}">${t}</button>`).join('')}</div><div class="onglet-contenu" id="fc-contenu"></div>`, appliquer, { large: true });
     const contenu = $('fc-contenu');
@@ -141,11 +141,12 @@ export function installerDialogues(api) {
           <label class="case"><input type="checkbox" id="fc-i"${s.italique ? ' checked' : ''}> <i>Italique</i></label>
           <label class="case"><input type="checkbox" id="fc-u"${s.souligne ? ' checked' : ''}> <u>Souligné</u></label>
           <label class="case"><input type="checkbox" id="fc-b"${s.barre ? ' checked' : ''}> <s>Barré</s></label>
+          <label>Police <select id="fc-p">${opt([['', 'Par défaut'], ...['Calibri', 'Arial', 'Times New Roman', 'Cambria', 'Georgia', 'Garamond', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Segoe UI', 'Courier New', 'Comic Sans MS'].map((x) => [x, x]), ...(s.police && !['Calibri', 'Arial', 'Times New Roman', 'Cambria', 'Georgia', 'Garamond', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Segoe UI', 'Courier New', 'Comic Sans MS'].includes(s.police) ? [[s.police, s.police]] : [])], s.police || '')}</select></label>
           <label>Taille <select id="fc-t">${opt(tailles.map((t) => [String(Math.round(t / 0.75)), String(t)]), String(s.taille || 13))}</select></label>
           <label>Couleur <input type="color" id="fc-c" value="${s.couleur || '#000000'}"> <button class="petit" id="fc-c0">Automatique</button></label>
           <div class="fc-apercu" id="fc-pol">AaBbCc 123</div></div>`;
-        const maj = () => { s.gras = $('fc-g').checked || undefined; s.italique = $('fc-i').checked || undefined; s.souligne = $('fc-u').checked || undefined; s.barre = $('fc-b').checked || undefined; const t = +$('fc-t').value; s.taille = t !== 13 ? t : undefined; apercuPolice(); };
-        const apercuPolice = () => { const el = $('fc-pol'); el.style.fontWeight = s.gras ? 700 : 400; el.style.fontStyle = s.italique ? 'italic' : 'normal'; el.style.textDecoration = [s.souligne && 'underline', s.barre && 'line-through'].filter(Boolean).join(' ') || 'none'; el.style.fontSize = (s.taille || 13) + 'px'; el.style.color = s.couleur || '#000'; };
+        const maj = () => { s.gras = $('fc-g').checked || undefined; s.italique = $('fc-i').checked || undefined; s.souligne = $('fc-u').checked || undefined; s.barre = $('fc-b').checked || undefined; const t = +$('fc-t').value; s.taille = t !== 13 ? t : undefined; s.police = $('fc-p').value || undefined; apercuPolice(); };
+        const apercuPolice = () => { const el = $('fc-pol'); el.style.fontFamily = s.police ? '"' + s.police + '", sans-serif' : ''; el.style.fontWeight = s.gras ? 700 : 400; el.style.fontStyle = s.italique ? 'italic' : 'normal'; el.style.textDecoration = [s.souligne && 'underline', s.barre && 'line-through'].filter(Boolean).join(' ') || 'none'; el.style.fontSize = (s.taille || 13) + 'px'; el.style.color = s.couleur || '#000'; };
         contenu.querySelectorAll('input:not([type=color]), select').forEach((el) => el.addEventListener('input', maj));
         $('fc-c').addEventListener('input', (e) => { s.couleur = e.target.value; apercuPolice(); });
         $('fc-c0').addEventListener('click', () => { delete s.couleur; $('fc-c').value = '#000000'; apercuPolice(); });
@@ -154,13 +155,15 @@ export function installerDialogues(api) {
         const b = etat.bord;
         contenu.innerHTML = `<div class="fc-bord">
           <div class="fc-liste">${[['aucune', 'Aucune'], ['contour', 'Contour'], ['interieur', 'Intérieur'], ['toutes', 'Toutes']].map(([k, t]) => `<button data-pre="${k}" class="${b.preset === k ? 'choisi' : ''}">${t}</button>`).join('')}</div>
-          <label>Trait <select id="fc-bs">${opt([['thin', 'Fin'], ['medium', 'Moyen'], ['thick', 'Épais']], b.style)}</select></label>
+          <label>Trait <select id="fc-bs">${opt([['thin', 'Fin'], ['medium', 'Moyen'], ['thick', 'Épais'], ['double', 'Double'], ['dashed', 'Tirets'], ['dotted', 'Pointillés'], ['mediumDashed', 'Tirets moyens']], b.style)}</select></label>
+          <label>Couleur <input type="color" id="fc-bc" value="${b.couleur || '#000000'}"></label>
           <p class="aide-petite">Ou choisissez les côtés du contour :</p>
           <div class="fc-cotes">${[['h', 'Haut'], ['b', 'Bas'], ['g', 'Gauche'], ['d', 'Droite']].map(([k, t]) => `<button data-cote="${k}" class="${b.cotes[k] ? 'choisi' : ''}">${t}</button>`).join('')}</div>
-          <div class="fc-apercu-bord" style="${['h', 'b', 'g', 'd'].map((k) => (b.cotes[k] || b.preset === 'contour' || b.preset === 'toutes' ? `border-${{ h: 'top', b: 'bottom', g: 'left', d: 'right' }[k]}:${{ thin: 1, medium: 2, thick: 3 }[b.style]}px solid #111;` : '')).join('')}">${b.preset === 'interieur' || b.preset === 'toutes' ? '<i class="v"></i><i class="h"></i>' : ''}Texte</div></div>`;
+          <div class="fc-apercu-bord" style="${['h', 'b', 'g', 'd'].map((k) => (b.cotes[k] || b.preset === 'contour' || b.preset === 'toutes' ? `border-${{ h: 'top', b: 'bottom', g: 'left', d: 'right' }[k]}:${{ thin: '1px solid', medium: '2px solid', thick: '3px solid', double: '3px double', dashed: '1px dashed', dotted: '1px dotted', mediumDashed: '2px dashed' }[b.style]} ${b.couleur || '#111'};` : '')).join('')}">${b.preset === 'interieur' || b.preset === 'toutes' ? '<i class="v"></i><i class="h"></i>' : ''}Texte</div></div>`;
         contenu.querySelectorAll('[data-pre]').forEach((x) => x.addEventListener('click', () => { b.preset = b.preset === x.dataset.pre ? null : x.dataset.pre; b.cotes = {}; dessiner(); }));
         contenu.querySelectorAll('[data-cote]').forEach((x) => x.addEventListener('click', () => { b.preset = null; b.cotes[x.dataset.cote] = !b.cotes[x.dataset.cote]; dessiner(); }));
         $('fc-bs').addEventListener('change', (e) => { b.style = e.target.value; dessiner(); });
+        $('fc-bc').addEventListener('input', (e) => { b.couleur = e.target.value; dessiner(); });
       } else if (courant === 'protection') {
         contenu.innerHTML = `<div class="fc-grille">
           <label class="case"><input type="checkbox" id="fc-verr"${s.deverrouille ? '' : ' checked'}> Verrouillée</label>
@@ -185,15 +188,15 @@ export function installerDialogues(api) {
       const zAvant = cel.z || '';
       // Seules les propriétés changées sont posées sur toute la sélection (les autres cellules gardent les leurs)
       const patch = {};
-      for (const k of ['gras', 'italique', 'souligne', 'barre', 'taille', 'couleur', 'fond', 'align', 'valign', 'renvoi', 'retrait', 'deverrouille', 'masquee']) if ((etat.s[k] ?? null) !== (s0[k] ?? null)) patch[k] = etat.s[k] ?? null;
+      for (const k of ['gras', 'italique', 'souligne', 'barre', 'taille', 'police', 'couleur', 'fond', 'align', 'valign', 'renvoi', 'retrait', 'deverrouille', 'masquee']) if ((etat.s[k] ?? null) !== (s0[k] ?? null)) patch[k] = etat.s[k] ?? null;
       api.memoriser('formatCellules');
       api.surSelection((r, c) => {
         if (Object.keys(patch).length) api.classeur().style(api.fi(), r, c, patch);
         if (z !== zAvant && (z || api.feuille().get(r, c))) api.classeur().format(api.fi(), r, c, z || null);
       }, false);
       const b = etat.bord;
-      if (b.preset) api.appliquerBordures(b.preset, b.style);
-      else for (const [k, nom] of [['h', 'haut'], ['b', 'bas'], ['g', 'gauche'], ['d', 'droite']]) if (b.cotes[k]) api.appliquerBordures(nom, b.style);
+      if (b.preset) api.appliquerBordures(b.preset, b.style, b.couleur);
+      else for (const [k, nom] of [['h', 'haut'], ['b', 'bas'], ['g', 'gauche'], ['d', 'droite']]) if (b.cotes[k]) api.appliquerBordures(nom, b.style, b.couleur);
       if (etat.fusion !== api.selectionFusionnee()) api.fusionner(etat.fusion);
       api.sauvegarder(); api.rendre();
     }

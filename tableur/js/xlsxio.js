@@ -3,11 +3,12 @@
 import { Classeur } from './classeur.js';
 import { ErreurFormule, parseAdresse, colVersLettres, ERR, convertirFormule, adresse } from './formules.js';
 import { extraireModulesVBA } from './vbaextract.js';
-import { lireStylesXlsx, ecrireStylesXlsx } from './styles-xlsx.js';
+import { lireStylesXlsx, ecrireStylesXlsx, lireRichesXlsx } from './styles-xlsx.js';
 import { lireObjetsXlsx } from './objets-xlsx.js';
 import { lireVuesXlsx, ecrireVuesXlsx } from './vues-xlsx.js';
 import { lireTableauxXlsx, ecrireTableauxXlsx } from './tableaux-xlsx.js';
 import { lirePageXlsx, ecrirePageXlsx } from './page-xlsx.js';
+import { ecrireOds, lireStylesOds } from './ods.js';
 import { ecrireGraphiquesXlsx, specDepuisChartXml, positionAncre } from './graphiques-xlsx.js';
 
 const FEUILLE_MACROS = '_MacrosTableur';
@@ -88,6 +89,21 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
     if (ws['!merges']) f.fusions = ws['!merges'].map((m) => ({ r1: m.s.r, c1: m.s.c, r2: m.e.r, c2: m.e.c }));
   });
   if (!classeur.feuilles.length) classeur.ajouterFeuille('Feuil1');
+  // .ods : mise en forme, largeurs et hauteurs lues dans content.xml
+  if (/\.ods$/i.test(nomFichier) || (wb.bookType === 'ods')) {
+    try {
+      for (const [nom, res] of lireStylesOds(XLSX, donnees)) {
+        const f = classeur.feuille(nom); if (!f) continue;
+        Object.assign(f.largeurs, res.largeurs); Object.assign(f.hauteurs, res.hauteurs);
+        for (const [k, st0] of res.cellules) {
+          const { _z, ...st } = st0; const [r, c] = k.split(',').map(Number); const cel = f.get(r, c);
+          if (cel) { if (Object.keys(st).length) cel.s = { ...st, ...(cel.s || {}) }; if (_z) cel.z = _z; } else if (Object.keys(st).length || _z) f.set(r, c, { ...(Object.keys(st).length ? { s: { ...st } } : {}), ...(_z ? { z: _z } : {}) });
+        }
+        for (const [k, fo] of res.formules) { const [r, c] = k.split(',').map(Number); const cel = f.get(r, c); if (cel) cel.f = convertirFormule(fo, 'fr'); }
+        f.recalculerZone();
+      }
+    } catch (e) { console.warn('Styles .ods non lus :', e); }
+  }
   // Styles (gras, couleurs, bordures) : lus directement dans le zip
   if (donnees.length > 4 && donnees[0] === 0x50 && donnees[1] === 0x4b) {
     try {
@@ -104,6 +120,15 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
         }
       }
     } catch (e) { console.warn('Styles non lus :', e); }
+  }
+  // Texte riche (une partie du texte d'une cellule en gras, en couleur…)
+  if (donnees.length > 4 && donnees[0] === 0x50 && donnees[1] === 0x4b) {
+    try {
+      for (const [nom, m] of lireRichesXlsx(XLSX, donnees)) {
+        const f = classeur.feuille(nom); if (!f) continue;
+        for (const [adr, runs] of m) { const a = parseAdresse(adr), cel = a && f.get(a.r, a.c); if (cel && typeof cel.v === 'string' && runs.map((x) => x.t).join('') === cel.v) cel.riche = runs; }
+      }
+    } catch (e) { console.warn('Texte riche non lu :', e); }
   }
   // Volets figés, filtre automatique, mise en forme conditionnelle
   if (donnees.length > 4 && donnees[0] === 0x50 && donnees[1] === 0x4b) {
@@ -216,6 +241,7 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
 
 /** Écrit le classeur : renvoie un Uint8Array (.xlsx, ou .xlsm si des macros ou un projet VBA existent). */
 export function ecrireClasseur(XLSX, classeur, options = {}) {
+  if (options.bookType === 'ods') return ecrireOds(XLSX, classeur);
   const wb = XLSX.utils.book_new();
   wb.Workbook = { Sheets: [], Names: [], CalcPr: { fullCalcOnLoad: true }, Views: [{ activeTab: classeur.active }] };
   classeur.feuilles.forEach((f, fi) => {
