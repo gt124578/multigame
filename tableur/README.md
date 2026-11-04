@@ -9,6 +9,9 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 
 ## Ce qu'il fait
 
+- **Plusieurs classeurs** : chaque fichier ouvert ou nouveau a son onglet en haut (renommer, dupliquer, fermer, ● si non
+  enregistré) ; copier-coller d'un classeur à l'autre (formules gardées, collées en valeur si elles citent une feuille ou un nom
+  absent du classeur d'arrivée) ; annuler/rétablir propre à chaque classeur ; tous gardés dans le navigateur.
 - **Feuilles** : onglets, ajout, renommage, duplication, masquage, déplacement ; références entre feuilles (`=Hypothèses!B2`).
 - **Saisie** : nombres (`12,5` ou `12.5`), pourcentages, dates (`12/03/2024`), heures, booléens, texte ; formules avec `;` ou `,`.
 - **Formules** : ~280 fonctions (logique, maths, statistiques et lois, finance, recherche, texte, dates, matrices),
@@ -38,6 +41,7 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
   de validation de données ni de mise en forme conditionnelle. Couleurs de bordure : noir seulement.
 - Les formules matricielles dynamiques ne « débordent » pas : une formule qui renvoie un tableau affiche sa première valeur
   (sauf dans une fonction qui attend un tableau).
+- Pas de références externes entre classeurs (`=[Autre.xlsx]Feuil1!A1`) ; une macro VBA ne voit que son propre classeur.
 - VBA : pas de formulaires, d'événements, de classes, de `Property`, de fichiers ni d'API Windows.
 
 ## Code

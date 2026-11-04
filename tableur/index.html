@@ -11,9 +11,9 @@
     <header id="barre-outils">
       <div class="groupe">
         <span class="logo">▦ Tableur</span>
-        <button id="btn-nouveau" title="Nouveau classeur (Ctrl+Alt+N)">Nouveau</button>
+        <button id="btn-nouveau" title="Nouveau classeur, ouvert à côté des autres (Ctrl+Alt+N)">Nouveau</button>
         <button id="btn-ouvrir" title="Ouvrir un fichier .xlsx / .xlsm / .csv / .docx (tableaux) / .bas (module VBA) (Ctrl+O)">Ouvrir…</button>
-        <input type="file" id="fichier" accept=".xlsx,.xlsm,.xls,.csv,.tsv,.ods,.docx,.bas,.cls,.frm" hidden>
+        <input type="file" id="fichier" accept=".xlsx,.xlsm,.xls,.csv,.tsv,.ods,.docx,.bas,.cls,.frm" multiple hidden>
         <button id="btn-enregistrer" title="Télécharger le classeur (Ctrl+S)">Enregistrer</button>
         <select id="format-export" title="Format d'enregistrement">
           <option value="xlsx">.xlsx</option>
@@ -87,6 +87,10 @@
         <button id="btn-aide" title="Aide">?</button>
       </div>
     </header>
+    <nav id="barre-classeurs" title="Classeurs ouverts">
+      <div id="liste-classeurs"></div>
+      <button id="btn-nouveau-classeur" title="Nouveau classeur">+</button>
+    </nav>
     <div id="barre-formule">
       <input id="zone-nom" title="Cellule active ou nom à définir" value="A1" spellcheck="false">
       <span class="fx">ƒx</span>

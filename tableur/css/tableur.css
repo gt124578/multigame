@@ -21,6 +21,14 @@ input[type=color] { width: 30px; height: 26px; padding: 1px 2px; border: 1px sol
 .logo { font-weight: 700; color: var(--accent); margin-right: 6px; }
 .sep { width: 1px; height: 20px; background: var(--bord); margin: 0 4px; }
 
+#barre-classeurs { display: flex; align-items: flex-end; gap: 2px; padding: 4px 10px 0; background: var(--entete); border-bottom: 1px solid var(--bord); }
+#liste-classeurs { display: flex; gap: 2px; overflow-x: auto; min-width: 0; }
+.classeur-onglet { display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 12px; background: #e5e7eb; border: 1px solid var(--bord); border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; user-select: none; white-space: nowrap; max-width: 260px; }
+.classeur-onglet.actif { background: var(--papier); color: var(--accent); font-weight: 600; margin-bottom: -1px; padding-bottom: 5px; }
+.classeur-nom { overflow: hidden; text-overflow: ellipsis; }
+.classeur-fermer { border: none; background: transparent; padding: 0 4px; min-width: 0; font-size: 11px; color: var(--sourd); }
+.classeur-fermer:hover { background: #fecaca; color: #991b1b; }
+#btn-nouveau-classeur { margin-bottom: 3px; padding: 1px 8px; }
 #barre-formule { display: flex; align-items: stretch; gap: 6px; padding: 4px 10px; background: var(--papier); border-bottom: 1px solid var(--bord); }
 #zone-nom { width: 110px; text-align: center; font-family: var(--mono); }
 .fx { color: var(--sourd); align-self: center; font-style: italic; }
