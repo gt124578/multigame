@@ -1987,7 +1987,11 @@ function rendreAide() {
 <tr><td>Ctrl+F / Ctrl+H · Maj+F4</td><td>Rechercher / remplacer · suivant</td></tr>
 <tr><td>Ctrl+G ou F5</td><td>Atteindre une cellule ou un nom</td></tr>
 <tr><td>Ctrl+K · Maj+F2</td><td>Lien hypertexte · note</td></tr>
-<tr><td>Ctrl+L (ou Ctrl+T)</td><td>Mettre sous forme de tableau</td></tr>
+<tr><td>Ctrl+L (ou Ctrl+T) · Ctrl+Maj+T</td><td>Mettre sous forme de tableau · ligne de total du tableau</td></tr>
+<tr><td>Ctrl+E</td><td>Remplissage instantané (d'après un ou deux exemples)</td></tr>
+<tr><td>Ctrl+[ · Ctrl+]</td><td>Sélectionner les antécédents · les dépendants de la formule</td></tr>
+<tr><td>Ctrl+Alt+F5</td><td>Actualiser tout (tableaux croisés, tables de données)</td></tr>
+<tr><td>Ctrl+molette · Ctrl+Alt+= / -</td><td>Zoom (au doigt : pincer)</td></tr>
 <tr><td>Ctrl+Maj+L</td><td>Filtre automatique</td></tr>
 <tr><td>Alt+↓</td><td>Ouvrir la liste déroulante d'une cellule</td></tr>
 <tr><td>Alt+F1 ou F11</td><td>Graphique de la sélection</td></tr>
@@ -1995,7 +1999,7 @@ function rendreAide() {
 <tr><td>Ctrl+PgSuiv / PgPréc · Maj+F11</td><td>Feuille suivante / précédente (aussi avec Alt) · nouvelle feuille</td></tr>
 <tr><td>Maj+F10</td><td>Menu de la cellule</td></tr>
 <tr><td>F9 · Ctrl+Alt+F9</td><td>Recalculer · tout recalculer</td></tr>
-<tr><td>Ctrl+S · F12 · Ctrl+O · Ctrl+P</td><td>Enregistrer · enregistrer · ouvrir · imprimer</td></tr>
+<tr><td>Ctrl+S · F12 · Ctrl+O · Ctrl+P</td><td>Enregistrer · enregistrer · ouvrir · imprimer (avec aperçu et mise en page)</td></tr>
 <tr><td>Alt+F11 · Alt+F8</td><td>Éditeur VBA · liste des macros</td></tr>
 </table>
 <h3>Souris et doigt</h3>
@@ -2027,6 +2031,14 @@ function rendreAide() {
 <li><b>📊 Croisé</b> : tableau croisé dynamique. Placez le curseur dans vos données (une ligne d'en-têtes), créez-le (nouvelle feuille ou cellule choisie), puis rangez chaque champ en Lignes, Colonnes, Valeurs (somme, nombre, moyenne, max, min, écart type… ou % du total) ou Filtres. Les dates se regroupent par années, trimestres ou mois, les nombres par tranches (âges de 10 en 10…). ↻ Actualiser après avoir changé les données.</li>
 <li><b>Validation des données</b> (menu ⇅ Trier ou ⋯) : liste déroulante (<code>Oui;Non</code> ou une plage <code>=$H$2:$H$9</code>), nombre entier ou décimal entre deux bornes, date, heure, longueur du texte, formule ; message de saisie et alerte (arrêt, avertissement, information). <code>Alt+↓</code> ouvre la liste. ⭕ entoure les cellules non valides.</li>
 <li><b>Saisie des formules</b> : après <code>=</code>, les fonctions qui commencent par ce que vous tapez sont proposées (<code>Tab</code> ou un appui pour choisir, <code>↑ ↓</code> pour parcourir) ; pendant les arguments, une bulle rappelle lesquels sont attendus.</li>
+<li><b>Tableaux</b> (<code>Ctrl+L</code>) : un style, un filtre, et des formules qui parlent : <code>=SOMME(Tableau1[Prime])</code>, <code>=[@Prix]*[@Qté]</code> (tapez <code>[</code> pour voir les colonnes). Le tableau grandit quand on écrit dessous ou à côté ; une formule dans une colonne se recopie sur toute la colonne. Clic droit › Tableau : total, style, nom, taille, convertir en plage.</li>
+<li><b>Formules qui débordent</b> : <code>=TRIER(A2:B9;2;-1)</code>, <code>=UNIQUE(…)</code>, <code>=FILTRE(…)</code>, <code>=SEQUENCE(10)</code> remplissent les cellules voisines (cadre pointillé) ; <code>A1#</code> désigne tout le résultat ; <code>#SPILL!</code> si la place est prise.</li>
+<li><b>Analyse</b> (menu ⋯) : <b>Valeur cible</b> ; <b>Solveur</b> (maximiser, minimiser ou atteindre une valeur en changeant des cellules, avec contraintes ≤ ≥ = entier binaire ; exact pour les modèles linéaires) ; <b>Table de données</b> à une ou deux entrées, recalculée quand le modèle change.</li>
+<li><b>Formules</b> (menu ⋯) : flèches des antécédents et des dépendants, évaluer la formule pas à pas, vérification des erreurs (d'où vient un #DIV/0!, formule différente de ses voisines, nombre stocké en texte), calcul manuel (F9).</li>
+<li><b>Imprimer</b> (<code>Ctrl+P</code>) : aperçu des pages à droite, réglages à gauche (orientation, papier, toutes les colonnes sur une page, marges, en-tête et pied « Page 1 sur 3 », zone d'impression, lignes à répéter, quadrillage). Sauts de page : menu ⋯ › Mise en page.</li>
+<li><b>Protéger la feuille</b> (⋯ › Révision) : avec ou sans mot de passe ; déverrouillez d'abord les cellules à laisser remplir (Format de cellule › Protection). 🔒 dans la barre d'état.</li>
+<li><b>Graphiques</b> : dans ⚙, chaque série peut recevoir une courbe de tendance (linéaire, exponentielle, polynomiale…) avec équation et R², ou passer sur l'axe secondaire. <b>Sparklines</b> : ⋯ › Insérer › Sparklines.</li>
+<li><b>Affichage</b> : zoom dans la barre d'état (ou Ctrl+molette, pincement), thème sombre dans ⋯ › Affichage.</li>
 <li><b>❄ Figer</b> : figer les lignes au-dessus et les colonnes à gauche de la cellule active, la première ligne ou la première colonne ; masquer et afficher des lignes ou des colonnes (aussi au clic droit).</li>
 <li><b>⋯</b> : <b>Valeur cible</b> (la valeur d'une cellule qui donne le résultat voulu dans une formule : taux, prime…), impression / PDF (<code>Ctrl+P</code>), recalcul.</li>
 </ul>

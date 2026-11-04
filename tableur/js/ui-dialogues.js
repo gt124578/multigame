@@ -68,6 +68,8 @@ export function installerDialogues(api) {
   let enCours = null;
   function fermer() { fond.hidden = true; fond.innerHTML = ''; enCours = null; api.focusGrille(); }
   fond.addEventListener('mousedown', (e) => { if (e.target === fond) fermer(); });
+  // Échap ferme la boîte même si le focus n'y est pas (téléphone, tablette avec clavier)
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !fond.hidden && !fond.contains(e.target)) { e.preventDefault(); e.stopPropagation(); fermer(); } }, true);
   fond.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fermer(); }
     else if (e.key === 'Enter' && !e.shiftKey && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON' && enCours && enCours.ok) { e.preventDefault(); e.stopPropagation(); enCours.ok(); }
