@@ -502,7 +502,7 @@ export function buildWorld() {
     const res = carveRoute(W, pts, { seed: routes.length * 97 + 13, ...o });
     const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]), m = (o.w || 9) / 2 + 2;
     routes.push({ id, name, pts, cells: res.info.keys() });
-    W.zone(Math.floor(Math.min(...xs) - m), Math.floor(Math.min(...ys) - m), Math.ceil(Math.max(...xs) + m), Math.ceil(Math.max(...ys) + m), { name, music, enc: ENC[enc], theme: o.theme, route: id, prio: 0 });
+    W.zone(Math.floor(Math.min(...xs) - m), Math.floor(Math.min(...ys) - m), Math.ceil(Math.max(...xs) + m), Math.ceil(Math.max(...ys) + m), { name, music, enc: ENC[enc], theme: o.theme, route: id, prio: 0, ombre: o.ombre });
     void res; return pts;
   };
   /** relief posé sur une route : les morceaux de couloir devenus inaccessibles redeviennent forêt */
@@ -523,7 +523,36 @@ export function buildWorld() {
   routeItem(W, r2, 0.33, 1, 4, 'antidote'); routeItem(W, r2, 0.6, -1, 4, 'potion', 2); routeItem(W, r2, 0.8, 1, 5, 'repel');
   W.zone(33, 133, 36, 136, { name: 'Route 2', music: 'route', trigger: 'rival2' });
 
-  const bois = R('bois', 'Bois Murmure', [[99.5, 92.5], [104.5, 82.5], [99.5, 70.5], [104.5, 60.5], [105.5, 52]], { w: 15, grass: 1.2, tall: T.DARKTALL, trees: 0.16, flowers: 0.01, taperStart: false, theme: 'forest' }, 'bois', 'forest');
+  // le Bois Murmure : une forêt dense et sombre (on marche à l'ombre des frondaisons), un sentier qui serpente, deux
+  // cabanes, une clairière cachée derrière un passage dans les arbres
+  const bois = R('bois', 'Bois Murmure', sinueuse([[99.5, 92.5], [105, 86], [99, 79], [93, 72.5], [98.5, 65], [106, 59], [105.5, 52]]), { w: 11, grass: 1.3, tall: T.DARKTALL, trees: 0.3, flowers: 0, taperStart: false, theme: 'forest', ombre: 0.5 }, 'bois', 'forest');
+  relief(bois);   // les arbres serrés ne doivent enfermer aucun recoin
+  {
+    /** cabane dans les bois : une petite clairière, une maison de bois et son intérieur, un sentier jusqu'à la route */
+    const cabane = (id, name, x, y, vers, o = {}) => {
+      W.rect(x - 2, y - 2, x + 5, y + 4, T.GRASS, [T.TREE, T.PINE, T.DARKTALL, T.TALL]);
+      const B = W.building('house', x, y, { roof: o.roof || 'brown', name, kit: 'chalet' });
+      const mid = 'bois:' + id, inside = houseInterior(mid, name, { w: 9, h: 8, bed: o.bed, kitchen: o.kitchen });
+      inside.outside = { map: 'monde', x: B.doorX, y: B.doorY + 1, dir: 'down' }; inside.warp(inside.exitX, inside.exitY, inside.outside);
+      W.warp(B.doorX, B.doorY, { map: mid, x: inside.exitX, y: inside.exitY, dir: 'up' });
+      W.lpath(B.doorX, B.doorY + 1, vers[0], vers[1], T.PATH, true);
+      maps[mid] = inside; return inside;
+    };
+    const buch = cabane('bucheron', 'Cabane du Bûcheron', 109, 75, [104, 78], { kitchen: true });
+    buch.npc({ id: 'bois:bucheron', x: 4, y: 4, sprite: 'montagnard', dir: 'down', text: ['Ce bois est si dense que le soleil n\'y touche presque jamais le sol.', 'Les anciens l\'appellent le Bois Murmure : quand le vent tombe, les arbres continuent de chuchoter.', 'Moi, je ne coupe que le bois mort. Les vieux arbres d\'ici ont vu passer plus de siècles que toi et moi.'] });
+    W.prop('tonneau', 108, 77); W.prop('caisses', 114, 76); W.sign(108, 79, 'CABANE DU BÛCHERON\nBois mort uniquement.');
+    const vieille = cabane('abandonnee', 'Cabane abandonnée', 81, 83, [93, 86]);
+    vieille.item(2, 3, 'dusk-stone'); vieille.item(7, 5, 'super-potion', 2);
+    vieille.prop('books', 6, 2); vieille.object(6, 2, { use: async (A) => A.say(['Un vieux carnet est resté ouvert sur l\'étagère. L\'écriture est pâle :', '« Le jour où j\'ai posé la capsule sur l\'autel, les feuilles se sont figées en l\'air. »', '« Puis tout est reparti, comme si de rien n\'était. J\'ai reperdu la capsule depuis. »', '... La suite est illisible.']) });
+    W.prop('rocher_grand', 79, 87); W.prop('tonneau', 86, 83);
+    // la clairière cachée : un passage d'une case entre les arbres, un cercle de pierres, une silhouette qui parle par énigmes
+    W.rect(115, 54, 120, 59, T.GRASS, [T.TREE, T.PINE, T.DARKTALL]);
+    for (let x = 114; x > 100 && !walkable(W.get(x, 57)); x--) W.set(x, 57, T.GRASS);
+    for (const [x, y] of [[115, 54], [120, 54], [115, 59], [120, 59], [117, 54]]) W.prop('rocher_grand', x, y);
+    W.prop('stele', 118, 56); W.object(118, 56, { use: async (A) => A.say('Une pierre couverte de mousse. On y devine des feuilles gravées en spirale,\net, au centre, une petite créature aux ailes rondes.') });
+    W.npc({ id: 'bois:silhouette', x: 117, y: 58, sprite: 'medium', dir: 'left', text: ['Tu as trouvé le passage. Peu de gens le voient.', 'Ce bois murmure parce qu\'il se souvient. Hier, demain... pour lui, c\'est la même chose.', 'Ceux qui portent ce qu\'il attend trouvent toujours l\'autel.'] });
+    W.item(119, 57, 'rare-candy');
+  }
   routeTrainer(W, bois, 0.2, 1, 4, 'Insectomane', 'Adam', [[1017, 9], [1020, 9], [165, 9]]);
   routeTrainer(W, bois, 0.42, -1, 4, 'Randonneuse', 'Clara', [[1015, 10], [69, 10]]);
   routeTrainer(W, bois, 0.65, 1, 3, 'Insectomane', 'Timothée', [[167, 11], [1019, 11]]);

@@ -377,6 +377,7 @@ export class Game {
     if ((m.outdoor || m.floor === 'cave') && name !== this.zoneName) { this.zoneName = name; this.ui.banner(name); }
     if (z?.town && !this.state.visited.includes(z.town)) this.state.visited.push(z.town);
     this.zone = z; this.explore();
+    this.view.ombreCible = (m.outdoor && z?.ombre) || 1;   // sous-bois : l'image s'assombrit doucement
     if (!this.musicLock) this.sound.play(p.surf && m.outdoor ? 'route2' : (z && z.music) || m.music);
     this.zone = z;
   }

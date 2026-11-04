@@ -411,6 +411,8 @@ export class WorldView {
     this.glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'); const g = x.createRadialGradient(16, 16, 1, 16, 16, 16); g.addColorStop(0, 'rgba(255,240,180,0.9)'); g.addColorStop(0.4, 'rgba(255,210,120,0.35)'); g.addColorStop(1, 'rgba(255,200,100,0)'); x.fillStyle = g; x.fillRect(0, 0, 32, 32); return tex(c); })();
     this.matGlow = new THREE.MeshBasicMaterial({ map: this.glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     this.tint = new THREE.Color(1, 1, 1); this.night = 0;
+    // ombre des sous-bois (zones avec `ombre`, comme le Bois Murmure) : 1 en plein jour, plus bas sous les frondaisons
+    this.ombre = 1; this.ombreCible = 1; this.tintBase = [1, 1, 1];
     this.animFrame = 0; this.animT = 0;
     this.sol = new Sol(this);   // sol en pixel art généré, posé sur chaque bloc (sol.js)
     this.focus = new THREE.Vector3(); this.shake = 0;
@@ -433,6 +435,7 @@ export class WorldView {
     for (const a of this.actors.values()) a.dispose?.();
     this.actors.clear();
     map = vueCarte(map);   // hors des bords : la région continue (rendu seulement)
+    this.ombre = this.ombreCible = 1;
     this.map = map; this.root = new THREE.Group(); this.scene.add(this.root);
     this.chunks = new Map(); this.glows = new THREE.Group(); this.root.add(this.glows);
     this.sol.setMap(map);
@@ -1087,11 +1090,14 @@ export class WorldView {
     let c = keys[0][1];
     for (let i = 1; i < keys.length; i++) if (h <= keys[i][0]) { const [a, ca] = keys[i - 1], [b, cb] = keys[i]; const u = (h - a) / (b - a); c = ca.map((v, k) => v + (cb[k] - v) * u); break; }
     this.night = h >= 20 || h < 5.5 ? 1 : h >= 18.5 ? (h - 18.5) / 1.5 : h < 6.5 ? 1 - (h - 5.5) : 0;
+    this.tintBase = c;
     this.applyTint(c);
   }
   applyTint(c) {
     const indoorOrCave = !this.map?.outdoor;
-    const k = indoorOrCave ? (this.map?.floor === 'cave' ? [0.82, 0.8, 0.86] : [1, 1, 1]) : this.eclipse ? [0.3, 0.17, 0.44] : c;
+    let k = indoorOrCave ? (this.map?.floor === 'cave' ? [0.82, 0.8, 0.86] : [1, 1, 1]) : this.eclipse ? [0.3, 0.17, 0.44] : c;
+    // sous les frondaisons : plus sombre, un peu plus vert
+    if (!indoorOrCave && this.ombre < 0.999) { const o = this.ombre; k = [k[0] * o * 0.94, k[1] * Math.min(1, o * 1.06), k[2] * o * 0.92]; }
     this.tint.setRGB(k[0], k[1], k[2]);
     for (const m of this.tinted) { const base = m.userData.base; if (base) m.color.copy(base).multiply(this.tint); else m.color.copy(this.tint); }
     if (this.nightGroup) this.nightGroup.visible = !indoorOrCave && this.night > 0.5;
@@ -1119,6 +1125,7 @@ export class WorldView {
   /* ---------------- image ---------------- */
   update(dt, fx, fy) {
     this.ensureChunks(fx, fy);
+    if (Math.abs(this.ombre - this.ombreCible) > 0.002) { this.ombre += (this.ombreCible - this.ombre) * Math.min(1, dt * 2.5); this.applyTint(this.tintBase); }
     this.sol.update(dt, Math.floor(fx / CH), Math.floor(fy / CH));
     this.animT += dt;
     if (this.animT > 0.2) {

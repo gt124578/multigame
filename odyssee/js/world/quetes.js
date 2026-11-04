@@ -57,7 +57,8 @@ export function buildQuests(ctx) {
     for (const t of ts) for (const side of sides) {
       const p = along(pts, t);
       let x = p.x + 0.5, y = p.y + 0.5, k = 0;
-      const nx = Math.round(p.nx * side) || 0, ny = Math.round(p.ny * side) || 0;
+      // direction perpendiculaire à la route, ramenée à l'axe dominant (routes sinueuses)
+      const ax = Math.abs(p.nx) >= Math.abs(p.ny), nx = ax ? Math.sign(p.nx * side) : 0, ny = ax ? 0 : Math.sign(p.ny * side);
       if (!nx === !ny) continue;
       // jusqu'à la lisière
       let cx = Math.floor(x), cy = Math.floor(y);
@@ -90,7 +91,8 @@ export function buildQuests(ctx) {
     const pts = routePts(routeId);
     for (const t of ts) for (const side of sides) {
       const p = along(pts, t);
-      const nx = Math.round(p.nx * side) || 0, ny = Math.round(p.ny * side) || 0;
+      // direction perpendiculaire à la route, ramenée à l'axe dominant (routes sinueuses)
+      const ax = Math.abs(p.nx) >= Math.abs(p.ny), nx = ax ? Math.sign(p.nx * side) : 0, ny = ax ? 0 : Math.sign(p.ny * side);
       if (!nx === !ny) continue;
       let cx = Math.floor(p.x + 0.5), cy = Math.floor(p.y + 0.5), k = 0;
       while (k++ < 14 && walkable(W.get(cx, cy))) { cx += nx; cy += ny; }
