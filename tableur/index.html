@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tableur — Arcadia</title>
+  <link rel="stylesheet" href="css/tableur.css">
+</head>
+<body>
+  <div id="app">
+    <header id="barre-outils">
+      <div class="groupe">
+        <span class="logo">▦ Tableur</span>
+        <button id="btn-nouveau" title="Nouveau classeur (Ctrl+Alt+N)">Nouveau</button>
+        <button id="btn-ouvrir" title="Ouvrir un fichier .xlsx / .xlsm / .csv (Ctrl+O)">Ouvrir…</button>
+        <input type="file" id="fichier" accept=".xlsx,.xlsm,.xls,.csv,.tsv,.ods" hidden>
+        <button id="btn-enregistrer" title="Télécharger le classeur (Ctrl+S)">Enregistrer</button>
+        <select id="format-export" title="Format d'enregistrement">
+          <option value="xlsx">.xlsx</option>
+          <option value="xlsm">.xlsm (avec macros)</option>
+          <option value="csv">.csv (feuille active)</option>
+        </select>
+      </div>
+      <div class="groupe">
+        <button id="btn-gras" title="Gras (Ctrl+B)"><b>G</b></button>
+        <button id="btn-italique" title="Italique (Ctrl+I)"><i>I</i></button>
+        <button id="btn-souligne" title="Souligné (Ctrl+U)"><u>S</u></button>
+        <input type="color" id="couleur-texte" title="Couleur du texte" value="#000000">
+        <input type="color" id="couleur-fond" title="Couleur de fond" value="#ffff99">
+        <button id="btn-fond" title="Appliquer la couleur de fond">Fond</button>
+        <button id="btn-sans-fond" title="Enlever la couleur de fond">⌫</button>
+        <span class="sep"></span>
+        <button data-align="left" title="Aligner à gauche">⇤</button>
+        <button data-align="center" title="Centrer">↔</button>
+        <button data-align="right" title="Aligner à droite">⇥</button>
+        <span class="sep"></span>
+        <select id="format-nombre" title="Format de nombre">
+          <option value="">Standard</option>
+          <option value="0">0</option>
+          <option value="0.00">0,00</option>
+          <option value="#,##0">1 000</option>
+          <option value="#,##0.00">1 000,00</option>
+          <option value="0%">0 %</option>
+          <option value="0.00%">0,00 %</option>
+          <option value="#,##0.00 €">Monétaire</option>
+          <option value="0.00E+00">Scientifique</option>
+          <option value="dd/mm/yyyy">Date jj/mm/aaaa</option>
+          <option value="dd/mm/yyyy hh:mm">Date et heure</option>
+          <option value="hh:mm">Heure</option>
+          <option value="@">Texte</option>
+        </select>
+        <button id="btn-decimales-moins" title="Moins de décimales">,0</button>
+        <button id="btn-decimales-plus" title="Plus de décimales">,00</button>
+      </div>
+      <div class="groupe">
+        <button id="btn-inserer-ligne" title="Insérer une ligne au-dessus">+ Ligne</button>
+        <button id="btn-supprimer-ligne" title="Supprimer la ou les lignes">− Ligne</button>
+        <button id="btn-inserer-colonne" title="Insérer une colonne à gauche">+ Col.</button>
+        <button id="btn-supprimer-colonne" title="Supprimer la ou les colonnes">− Col.</button>
+        <span class="sep"></span>
+        <button id="btn-noms" title="Noms définis">Noms</button>
+        <button id="btn-fonctions" title="Liste des fonctions">ƒx</button>
+        <button id="btn-macros" title="Éditeur de macros VBA (Alt+F11)">VBA</button>
+        <button id="btn-aide" title="Aide">?</button>
+      </div>
+    </header>
+    <div id="barre-formule">
+      <input id="zone-nom" title="Cellule active ou nom à définir" value="A1" spellcheck="false">
+      <span class="fx">ƒx</span>
+      <textarea id="saisie-formule" rows="1" spellcheck="false" placeholder="Saisie ou formule (=SOMME(A1:A5), =SI(…), =VPM(…))"></textarea>
+    </div>
+    <div id="corps">
+      <div id="grille-conteneur" tabindex="0">
+        <div id="grille-dimension"></div>
+        <div id="grille-coins">
+          <div id="coin"></div>
+          <div id="entetes-colonnes"></div>
+          <div id="entetes-lignes"></div>
+        </div>
+        <div id="cellules"></div>
+        <div id="selection"></div>
+        <div id="curseur"></div>
+        <div id="poignee" title="Recopier"></div>
+        <textarea id="editeur" rows="1" spellcheck="false" hidden></textarea>
+        <div id="plage-copie" hidden></div>
+      </div>
+      <aside id="panneau" hidden>
+        <div id="panneau-entete">
+          <span id="panneau-titre">Macros VBA</span>
+          <button id="panneau-fermer" title="Fermer">✕</button>
+        </div>
+        <div id="panneau-macros" class="panneau-contenu">
+          <div class="panneau-barre">
+            <select id="liste-procedures" title="Procédure à exécuter"></select>
+            <button id="btn-executer" title="Exécuter (F5)">▶ Exécuter</button>
+            <button id="btn-verifier" title="Vérifier la syntaxe">Vérifier</button>
+            <button id="btn-exemple" title="Insérer un exemple">Exemple</button>
+          </div>
+          <textarea id="code-vba" spellcheck="false" placeholder="Sub MaMacro()&#10;  Range(&quot;A1&quot;).Value = 42&#10;End Sub"></textarea>
+          <div id="sortie-vba"></div>
+        </div>
+        <div id="panneau-fonctions" class="panneau-contenu" hidden>
+          <input id="filtre-fonctions" placeholder="Filtrer (SOMME, VPM, LOI.NORMALE…)">
+          <div id="liste-fonctions"></div>
+        </div>
+        <div id="panneau-noms" class="panneau-contenu" hidden>
+          <div class="panneau-barre">
+            <input id="nom-nouveau" placeholder="Nom (ex. Taux)">
+            <input id="ref-nouveau" placeholder="Référence (ex. Feuil1!$B$2)">
+            <button id="btn-ajouter-nom">Ajouter</button>
+          </div>
+          <div id="liste-noms"></div>
+        </div>
+        <div id="panneau-aide" class="panneau-contenu" hidden></div>
+      </aside>
+    </div>
+    <footer id="onglets">
+      <button id="btn-ajouter-feuille" title="Nouvelle feuille">+</button>
+      <div id="liste-onglets"></div>
+      <div id="statut"></div>
+    </footer>
+  </div>
+  <div id="menu-contextuel" class="menu" hidden></div>
+  <div id="toast" hidden></div>
+  <script src="lib/xlsx.full.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
