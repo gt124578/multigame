@@ -245,8 +245,40 @@ export function remplacer(classeur, texte, par, options = {}, cibles = null) {
 export const TYPES_MFC = [
   ['valeur', 'Valeur de la cellule'], ['texte', 'Texte qui contient'], ['top', 'Premiers / derniers'], ['moyenne', 'Au-dessus / au-dessous de la moyenne'],
   ['doublons', 'Valeurs en double'], ['uniques', 'Valeurs uniques'], ['vides', 'Cellules vides'], ['formule', 'Formule personnalisée'],
-  ['echelle', 'Échelle de couleurs'], ['barres', 'Barres de données'],
+  ['echelle', 'Échelle de couleurs'], ['barres', 'Barres de données'], ['icones', 'Jeu d\'icônes'],
 ];
+
+// Jeux d'icônes (noms d'Excel), de la valeur la plus basse à la plus haute
+const R = '#e8463a', J = '#f5b800', V = '#2e9e4f', G = '#8c8c8c';
+export const JEUX_ICONES = {
+  '3Arrows': { nom: '3 flèches', icones: [['fleche', R, 180], ['fleche', J, 90], ['fleche', V, 0]] },
+  '3ArrowsGray': { nom: '3 flèches grises', icones: [['fleche', G, 180], ['fleche', G, 90], ['fleche', G, 0]] },
+  '3TrafficLights1': { nom: '3 feux', icones: [['rond', R], ['rond', J], ['rond', V]] },
+  '3Flags': { nom: '3 drapeaux', icones: [['drapeau', R], ['drapeau', J], ['drapeau', V]] },
+  '3Symbols': { nom: '3 symboles', icones: [['croix', R], ['exclam', J], ['coche', V]] },
+  '3Stars': { nom: '3 étoiles', icones: [['etoile', '#d9d9d9'], ['demi', J], ['etoile', J]] },
+  '4Arrows': { nom: '4 flèches', icones: [['fleche', R, 180], ['fleche', J, 135], ['fleche', J, 45], ['fleche', V, 0]] },
+  '5Arrows': { nom: '5 flèches', icones: [['fleche', R, 180], ['fleche', J, 135], ['fleche', J, 90], ['fleche', J, 45], ['fleche', V, 0]] },
+  '4Rating': { nom: '4 barres', icones: [['barres', '#1f6fb5', 1], ['barres', '#1f6fb5', 2], ['barres', '#1f6fb5', 3], ['barres', '#1f6fb5', 4]] },
+  '5Quarters': { nom: '5 quartiers', icones: [['quart', '#555', 0], ['quart', '#555', 1], ['quart', '#555', 2], ['quart', '#555', 3], ['quart', '#555', 4]] },
+};
+/** Petite icône SVG (14 px) d'un jeu. */
+export function iconeSVG(jeu, i) {
+  const d = (JEUX_ICONES[jeu] || JEUX_ICONES['3Arrows']).icones[i];
+  if (!d) return '';
+  const [forme, c, x] = d;
+  let corps = '';
+  if (forme === 'fleche') corps = `<g transform="rotate(${x} 7 7)"><path d="M7 1.5 L12 7 H8.8 V12.5 H5.2 V7 H2 Z" fill="${c}"/></g>`;
+  else if (forme === 'rond') corps = `<circle cx="7" cy="7" r="5.5" fill="${c}" stroke="#0003"/>`;
+  else if (forme === 'drapeau') corps = `<path d="M3 1.5 V13" stroke="#555" stroke-width="1.4"/><path d="M3.7 2 H12 L10 5 L12 8 H3.7 Z" fill="${c}"/>`;
+  else if (forme === 'croix') corps = `<circle cx="7" cy="7" r="6" fill="${c}"/><path d="M4.5 4.5 L9.5 9.5 M9.5 4.5 L4.5 9.5" stroke="#fff" stroke-width="1.8"/>`;
+  else if (forme === 'exclam') corps = `<path d="M7 1 L13 12.5 H1 Z" fill="${c}"/><path d="M7 5 V9" stroke="#fff" stroke-width="1.6"/><circle cx="7" cy="10.7" r=".9" fill="#fff"/>`;
+  else if (forme === 'coche') corps = `<circle cx="7" cy="7" r="6" fill="${c}"/><path d="M4 7.2 L6.2 9.4 L10.2 4.8" stroke="#fff" stroke-width="1.8" fill="none"/>`;
+  else if (forme === 'etoile' || forme === 'demi') { const p = 'M7 1 L8.8 5 L13 5.3 L9.8 8.1 L10.8 12.5 L7 10.2 L3.2 12.5 L4.2 8.1 L1 5.3 L5.2 5 Z'; corps = forme === 'demi' ? `<path d="${p}" fill="#d9d9d9"/><clipPath id="dm"><rect width="7" height="14"/></clipPath><path d="${p}" fill="${c}" clip-path="url(#dm)"/>` : `<path d="${p}" fill="${c}"/>`; }
+  else if (forme === 'barres') for (let k = 0; k < 4; k++) corps += `<rect x="${1 + k * 3.2}" y="${10 - k * 2.5}" width="2.4" height="${3 + k * 2.5}" fill="${k < x ? c : '#d9d9d9'}"/>`;
+  else if (forme === 'quart') corps = `<circle cx="7" cy="7" r="5.5" fill="#fff" stroke="${c}"/>` + (x === 4 ? `<circle cx="7" cy="7" r="5.5" fill="${c}"/>` : x ? `<path d="M7 7 V1.5 A5.5 5.5 0 ${x > 2 ? 1 : 0} 1 ${(7 + 5.5 * Math.sin(x * Math.PI / 2)).toFixed(2)} ${(7 - 5.5 * Math.cos(x * Math.PI / 2)).toFixed(2)} Z" fill="${c}"/>` : '');
+  return `<svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg">${corps}</svg>`;
+}
 
 export const STYLES_MFC = [
   ['Rouge clair, texte rouge foncé', { fond: '#ffc7ce', couleur: '#9c0006' }],
@@ -358,6 +390,18 @@ export function styleConditionnel(classeur, fi, r, c) {
         else if (cols.length > 2) fond = v <= s.milieu ? melanger(cols[0], cols[1], s.milieu === s.min ? 1 : (v - s.min) / (s.milieu - s.min)) : melanger(cols[1], cols[2], s.max === s.milieu ? 1 : (v - s.milieu) / (s.max - s.milieu));
         else fond = melanger(cols[0], cols[1], (v - s.min) / (s.max - s.min));
         poser({ fond });
+        continue;
+      }
+      case 'icones': {
+        if (typeof v !== 'number') break;
+        const s = st(), jeu = JEUX_ICONES[regle.jeu] ? regle.jeu : '3Arrows', n = JEUX_ICONES[jeu].icones.length;
+        // Seuils en % de l'étendue (comme Excel par défaut : 33 et 67 pour 3 icônes)
+        const seuils = regle.seuils && regle.seuils.length === n - 1 ? regle.seuils.map(Number) : Array.from({ length: n - 1 }, (_, k) => Math.round((100 * (k + 1)) / n));
+        const pct = s.max === s.min ? 100 : ((v - s.min) / (s.max - s.min)) * 100;
+        let i = seuils.filter((x) => pct >= x).length;
+        if (regle.inverse) i = n - 1 - i;
+        if (out && out.icone) continue;
+        poser({ icone: { jeu, i, seule: !!regle.iconeSeule } });
         continue;
       }
       case 'barres': {

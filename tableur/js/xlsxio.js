@@ -9,6 +9,7 @@ import { lireVuesXlsx, ecrireVuesXlsx } from './vues-xlsx.js';
 import { lireTableauxXlsx, ecrireTableauxXlsx } from './tableaux-xlsx.js';
 import { lirePageXlsx, ecrirePageXlsx } from './page-xlsx.js';
 import { ecrireOds, lireStylesOds } from './ods.js';
+import { ecrireCsv } from './csv.js';
 import { ecrireGraphiquesXlsx, specDepuisChartXml, positionAncre } from './graphiques-xlsx.js';
 
 const FEUILLE_MACROS = '_MacrosTableur';
@@ -329,8 +330,10 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
   let bookType = options.bookType || 'xlsx';
   if (classeur.vbaBrut && bookType === 'xlsm') wb.vbaraw = classeur.vbaBrut;
   if (bookType === 'csv') {
-    const texte = XLSX.utils.sheet_to_csv(wb.Sheets[classeur.feuilles[classeur.active].nom], { FS: ';' });
-    return new TextEncoder().encode('﻿' + texte);
+    // Comme Excel en français : valeurs affichées, « ; », virgule décimale, UTF-8 avec BOM
+    const fi = classeur.active, f = classeur.feuilles[fi], lignes = [];
+    for (let r = 0; r <= f.zone.r2; r++) { const l = []; for (let c = 0; c <= f.zone.c2; c++) l.push(classeur.texte(fi, r, c)); lignes.push(l); }
+    return new TextEncoder().encode('\uFEFF' + ecrireCsv(lignes, options.separateur || ';'));
   }
   let out = new Uint8Array(XLSX.write(wb, { bookType, type: 'array', compression: true }));
   try { out = ecrireStylesXlsx(XLSX, out, classeur.feuilles); } catch (e) { console.warn('Styles non écrits :', e); }

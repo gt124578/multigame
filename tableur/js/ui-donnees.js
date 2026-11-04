@@ -2,7 +2,7 @@
 // rechercher / remplacer, mise en forme conditionnelle, valeur cible, somme automatique, impression.
 
 import { trierPlage, zoneContigue, aUnEntete, valeursFiltre, appliquerFiltre, plageFiltre, rechercher, remplacer,
-  TYPES_MFC, STYLES_MFC, plagesMfc, valeurCible, formuleAutomatique,
+  TYPES_MFC, STYLES_MFC, plagesMfc, JEUX_ICONES, iconeSVG, valeurCible, formuleAutomatique,
   TYPES_VALIDATION, OPS_VALIDATION, validationDe, elementsListe, valeurValide, decrireValidation, cellulesInvalides } from './donnees.js';
 import { adresse, parsePlage, parseAdresse, colVersLettres, formater, ErreurFormule } from './formules.js';
 
@@ -272,6 +272,7 @@ export function installerDonnees(api) {
   function apercuStyle(r) {
     if (r.type === 'echelle') { const c = r.couleurs && r.couleurs.length ? r.couleurs : ['#f8696b', '#ffeb84', '#63be7b']; return `background:linear-gradient(90deg,${c.join(',')})`; }
     if (r.type === 'barres') return `background:linear-gradient(90deg,${r.couleur || '#638ec6'} 60%,transparent 60%)`;
+    if (r.type === 'icones') return '';
     const s = r.style || {};
     return (s.fond ? 'background:' + s.fond + ';' : '') + (s.couleur ? 'color:' + s.couleur + ';' : '') + (s.gras ? 'font-weight:700;' : '') + (s.italique ? 'font-style:italic;' : '');
   }
@@ -321,7 +322,15 @@ export function installerDonnees(api) {
     if (r.type === 'echelle') { const c = r.couleurs && r.couleurs.length ? r.couleurs : ['#f8696b', '#ffeb84', '#63be7b']; champs = `<label>Couleurs <select id="mf-nb">${opt([['2', '2 couleurs'], ['3', '3 couleurs']], String(c.length))}</select></label><div class="mf-couleurs">${c.map((x, i) => `<input type="color" data-k="${i}" value="${x}" title="${['Minimum', c.length > 2 ? 'Milieu' : 'Maximum', 'Maximum'][i]}">`).join('')}</div>
       <div class="mf-presets">${ECHELLES.map((p, i) => `<button class="petit" data-preset="${i}" style="background:linear-gradient(90deg,${p.join(',')})">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</button>`).join('')}</div>`; }
     if (r.type === 'barres') champs = `<label>Couleur <input type="color" id="mf-barre" value="${r.couleur || '#638ec6'}"></label>`;
-    const avecStyle = !['echelle', 'barres'].includes(r.type);
+    if (r.type === 'icones') {
+      const jeu = JEUX_ICONES[r.jeu] ? r.jeu : '3Arrows', n = JEUX_ICONES[jeu].icones.length;
+      const seuils = r.seuils && r.seuils.length === n - 1 ? r.seuils : Array.from({ length: n - 1 }, (_, k) => Math.round((100 * (k + 1)) / n));
+      champs = `<div class="mf-jeux">${Object.entries(JEUX_ICONES).map(([k, j]) => `<button class="petit${k === jeu ? ' choisi' : ''}" data-jeu="${k}" title="${ech(j.nom)}">${j.icones.map((_, i) => iconeSVG(k, i)).join('')}</button>`).join('')}</div>
+        <label>Seuils (% de l'étendue) <input id="mf-seuils" value="${seuils.join(' ; ')}" placeholder="33 ; 67"></label>
+        <label class="case"><input type="checkbox" id="mf-inverse"${r.inverse ? ' checked' : ''}> Ordre inverse</label>
+        <label class="case"><input type="checkbox" id="mf-seule"${r.iconeSeule ? ' checked' : ''}> Afficher l'icône seulement</label>`;
+    }
+    const avecStyle = !['echelle', 'barres', 'icones'].includes(r.type);
     const s = r.style || {};
     panneau.innerHTML = `
       <div class="outil">
@@ -353,6 +362,7 @@ export function installerDonnees(api) {
       if ($('mf-dessous')) r.dessous = g('mf-dessous') === '1';
       if ($('mf-barre')) r.couleur = g('mf-barre');
       if (r.type === 'echelle') r.couleurs = [...panneau.querySelectorAll('.mf-couleurs input')].map((x) => x.value);
+      if (r.type === 'icones') { const n = JEUX_ICONES[r.jeu || '3Arrows'].icones.length; const sv = String($('mf-seuils').value).split(/[;\s]+/).filter(Boolean).map((x) => +x.replace(',', '.')); r.seuils = sv.length === n - 1 && sv.every((x) => !isNaN(x)) ? sv : undefined; r.inverse = $('mf-inverse').checked || undefined; r.iconeSeule = $('mf-seule').checked || undefined; delete r.style; }
       if ($('mf-a-fond')) r.style = { fond: $('mf-a-fond').checked ? g('mf-fond') : undefined, couleur: $('mf-a-coul').checked ? g('mf-coul') : undefined, gras: $('mf-gras').checked || undefined, italique: $('mf-ital').checked || undefined };
       if (r.style) for (const k of Object.keys(r.style)) if (r.style[k] === undefined) delete r.style[k];
       r.arreter = $('mf-stop').checked || undefined;
@@ -360,7 +370,8 @@ export function installerDonnees(api) {
     };
     panneau.querySelectorAll('input, select').forEach((el) => el.addEventListener(el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'color' ? 'change' : 'input', () => lire()));
     $('mf-plage-sel').addEventListener('click', () => { $('mf-plage').value = plageTexte(bornee()); lire(); });
-    $('mf-type').addEventListener('change', (e) => { lire(); r.type = e.target.value; if (r.type === 'texte') r.op = 'contient'; if (r.type === 'valeur') r.op = '>'; if (!r.style && !['echelle', 'barres'].includes(r.type)) r.style = { ...STYLES_MFC[0][1] }; construireMfc(); });
+    $('mf-type').addEventListener('change', (e) => { lire(); r.type = e.target.value; if (r.type === 'texte') r.op = 'contient'; if (r.type === 'valeur') r.op = '>'; if (r.type === 'icones' && !r.jeu) r.jeu = '3Arrows'; if (!r.style && !['echelle', 'barres', 'icones'].includes(r.type)) r.style = { ...STYLES_MFC[0][1] }; construireMfc(); });
+    panneau.querySelectorAll('[data-jeu]').forEach((b) => b.addEventListener('click', () => { lire(); r.jeu = b.dataset.jeu; r.seuils = undefined; construireMfc(); }));
     if ($('mf-op')) $('mf-op').addEventListener('change', () => { lire(); if (r.type === 'valeur') construireMfc(); });
     if ($('mf-nb')) $('mf-nb').addEventListener('change', (e) => { lire(); const c = r.couleurs; r.couleurs = e.target.value === '3' ? [c[0], '#ffeb84', c[c.length - 1]] : [c[0], c[c.length - 1]]; construireMfc(); });
     panneau.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => { r.couleurs = ECHELLES[+b.dataset.preset].slice(); construireMfc(); }));
@@ -546,7 +557,8 @@ export function installerDonnees(api) {
       ['Valeurs en double', () => mfcRapide('doublons')], ['10 plus grandes valeurs', () => mfcRapide('top', { n: 10, style: { ...STYLES_MFC[2][1] } })],
       ['Au-dessus de la moyenne', () => mfcRapide('moyenne', { style: { ...STYLES_MFC[2][1] } })], ['Valeurs négatives en rouge', () => mfcRapide('valeur', { op: '<', v1: '0', style: { couleur: '#c00000' } })],
       ['Échelle vert – jaune – rouge', () => mfcRapide('echelle', { couleurs: ['#f8696b', '#ffeb84', '#63be7b'], style: undefined })],
-      ['Barres de données', () => mfcRapide('barres', { couleur: '#638ec6', style: undefined })], null,
+      ['Barres de données', () => mfcRapide('barres', { couleur: '#638ec6', style: undefined })],
+      ['Jeu d\'icônes', Object.entries(JEUX_ICONES).slice(0, 7).map(([k, j]) => [j.nom, () => mfcRapide('icones', { jeu: k, style: undefined })])], null,
       ['Effacer les règles de la sélection', () => { const f = api.feuille(), s = bornee(); api.memoriser(); f.mfc = f.mfc.filter((r) => !plagesMfc(r).some((p) => p.r2 >= s.r1 && p.r1 <= s.r2 && p.c2 >= s.c1 && p.c1 <= s.c2)); api.classeur().modifie(); finir(); }],
       ['Effacer les règles de la feuille', () => { api.memoriser(); api.feuille().mfc = []; api.classeur().modifie(); finir(); }],
     ]);

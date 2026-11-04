@@ -9,12 +9,13 @@ import { hacherMotDePasse, verifierShaMotDePasse, DROITS } from './page-xlsx.js'
 import { executerMacro, analyserVBA, ErreurVBA, InterpreteurVBA, creerUDF } from './vba.js';
 import { listerProcedures, procedureALaLigne, insererMacro, supprimerProcedure, ajouterAuProjet, nomVBAValide } from './projetvba.js';
 import { installerGraphiques } from './ui-graphiques.js';
-import { styleConditionnel, validationDe, valeurValide } from './donnees.js';
+import { styleConditionnel, validationDe, valeurValide, iconeSVG } from './donnees.js';
 import { installerDonnees } from './ui-donnees.js';
 import { installerTCD } from './ui-tcd.js';
 import { installerDialogues } from './ui-dialogues.js';
 import { installerAnalyse } from './ui-analyse.js';
 import { idbLire, idbEcrire, idbSupprimer, stockagePersistant } from './stockage.js';
+import { decoderTexte, analyserCsv, detecterSeparateur, detecterDecimale } from './csv.js';
 import { installerImpression } from './ui-impression.js';
 import { rendreGraphiqueSVG, normaliser as normaliserGraphique, sparklineSVG } from './graphiques.js';
 import { antecedents, dependants, actualiserTablesDonnees } from './analyse.js';
@@ -234,7 +235,10 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
       if (entourerInvalides && f.validations.length) { const dv = validationDe(f, r, c); if (dv && !valeurValide(classeur, F, dv, r, c)) cls += ' invalide'; }
       const bulle = cel.note || (cel.lien ? cel.lien + ' — Ctrl+clic pour suivre le lien' : '');
       const riche = cel.riche && cel.f == null && typeof v === 'string' && !afficherFormules && texteRuns(cel.riche) === v;
-      html += `<div class="${cls}" style="${style}"${bulle ? ` title="${echapper(bulle).replace(/"/g, '&quot;')}"` : ''}>${afficherFormules && cel.f != null ? echapper(classeur.saisie(F, r, c)) : riche ? htmlRuns(cel.riche) : echapper(txt)}</div>`;
+      // Jeu d'icônes (mise en forme conditionnelle) : l'icône à gauche, la valeur garde sa place
+      const icone = mfc && mfc.icone && !afficherFormules ? `<span class="icone-mfc">${iconeSVG(mfc.icone.jeu, mfc.icone.i)}</span>` : '';
+      if (icone) style += 'padding-left:20px;';
+      html += `<div class="${cls}" style="${style}"${bulle ? ` title="${echapper(bulle).replace(/"/g, '&quot;')}"` : ''}>${icone}${icone && mfc.icone.seule ? '' : afficherFormules && cel.f != null ? echapper(classeur.saisie(F, r, c)) : riche ? htmlRuns(cel.riche) : echapper(txt)}</div>`;
     }
   }
   // Graphiques sparkline : dessinés dans leur cellule
@@ -528,6 +532,7 @@ const uiB = installerDialogues({
   classeur: () => classeur, fi: () => fi(), feuille: () => feuille(), selection: () => selectionNormalisee(), selectionBornee: () => selectionBornee(), curseur: () => curseur,
   selectionner: (p, cur) => { selection = { ...p }; curseur = cur || { r: p.r1, c: p.c1 }; },
   memoriser: (perm) => memoriser(perm), rendre: () => rendre(), sauvegarder: () => sauvegarderLocal(), toast: (m, e) => toast(m, e),
+  csv: { decoder: decoderTexte, analyser: analyserCsv, detecter: detecterSeparateur, decimale: detecterDecimale },
   hacher: (m) => hacherMotDePasse(m), verifierSha: (m, x) => verifierShaMotDePasse(m, x, { 'SHA-512': sha512, 'SHA-384': sha384, 'SHA-256': sha256, 'SHA-1': sha1 }), droits: DROITS,
   pressePapier: () => pressePapier, allerA: (t) => allerA(t), focusGrille: () => conteneur.focus({ preventScroll: true }),
   surSelection: (cb) => { const s = selectionBornee(); for (let r = s.r1; r <= Math.max(s.r2, s.r1); r++) for (let c = s.c1; c <= Math.max(s.c2, s.c1); c++) cb(r, c); },
@@ -1387,6 +1392,25 @@ async function ouvrirFichier(file, poignee = null) {
       afficherModule(cles[0]); sauvegarderLocal();
       toast('Module « ' + (classeur.moduleVBA(cles[0]) || { libelle: file.name }).libelle + ' » ajouté au projet VBA');
       return;
+    }
+    if (ext === 'csv' || ext === 'tsv' || ext === 'txt') {
+      // Fichier texte : on montre l'aperçu (séparateur, encodage, décimales) avant de l'ouvrir
+      return uiB.importerTexte(file.name, buf, (lignes, etat) => {
+        const c = Classeur.nouveau();
+        c.nomFichier = nomLibreClasseur(file.name.replace(/\.(tsv|txt)$/i, '.csv'));
+        const nombre = (t) => { const x = t.trim(); if (etat.decimale === '.' && /^[-+]?\d{1,3}(,\d{3})*(\.\d+)?$|^[-+]?\d+\.\d+$/.test(x)) return x.replace(/,/g, ''); if (etat.decimale === ',' && /^[-+]?\d{1,3}(\.\d{3})+(,\d+)?$/.test(x)) return x.replace(/\./g, ''); return t; };
+        lignes.forEach((l, r) => l.forEach((v, k) => { if (v !== '') c.saisir(0, r, k, v.startsWith('=') ? "'" + v : nombre(v)); }));
+        const f = c.feuilles[0];
+        // Largeurs ajustées aux contenus (comme une ouverture dans Excel, en plus lisible)
+        for (let k = 0; k <= f.zone.c2 && k < 200; k++) { let w = 0; for (let r = 0; r <= Math.min(f.zone.r2, 300); r++) { const t = c.texte(0, r, k); if (t) w = Math.max(w, largeurTexte(t) / Z() + 14); } if (w > LARGEUR_DEFAUT) f.largeurs[k] = Math.min(320, Math.ceil(w)); }
+        f.recalculerZone();
+        if (poignee) lierFichier(c, poignee);
+        c.enregistre = c.version;
+        chargerClasseur(c);
+        c.enregistre = c.version; rendreClasseurs(true);
+        $('format-export').value = 'csv';
+        toast('« ' + file.name + ' » ouvert : ' + lignes.length + ' lignes');
+      });
     }
     if (ext === 'docx') {
       const nouveau = lireDocx(XLSX, buf, file.name);
