@@ -14,6 +14,7 @@
 // Désactiver pour comparer : ?sol=0 dans l'adresse, ou localStorage['odyssee-sol'] = '0'.
 import * as THREE from 'three';
 import { NFRAMES, LUT, CELL, MARGIN, zoneBloc } from './solgen.js';
+import { matSol } from './relief3d.js';
 
 const CH = 16;                 // taille d'un bloc de carte (comme world3d.js)
 const Y = 0.0044;              // hauteur du nouveau sol (au-dessus des décalques à 0,004, sous les plateaux de roche à 0,0049)
@@ -179,13 +180,20 @@ export class Sol {
     tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
     tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
     // dessiné juste après l'ancien sol (ordre -3) et avant tout le reste, sans écrire la profondeur : rien ne se bat avec lui
-    const mat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, depthTest: false, depthWrite: false });
+    // relief en 3D (?relief3d, relief3d.js) : le sol est un maillage posé sur les hauteurs, il écrit la profondeur
+    const r3d = this.view.r3d;
+    const mat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, depthTest: !!r3d, depthWrite: !!r3d });
+    if (r3d) matSol(mat, w, h);
     mat.userData.sol = true; mat.userData.own = true; mat.color.copy(this.view.tint); this.view.tinted.push(mat);
     const x0 = ci * CH, z0 = cj * CH, x1 = x0 + d.bw, z1 = z0 + d.bh;
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute([x0, Y, z0, x1, Y, z0, x1, Y, z1, x0, Y, z1], 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));   // ligne 0 de l'image = nord
-    geo.setIndex([0, 3, 2, 0, 2, 1]);
+    let geo;
+    if (r3d) geo = r3d.geoSol(ci, cj, d.bw, d.bh);
+    else {
+      geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute([x0, Y, z0, x1, Y, z0, x1, Y, z1, x0, Y, z1], 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));   // ligne 0 de l'image = nord
+      geo.setIndex([0, 3, 2, 0, 2, 1]);
+    }
     const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = -2;
     grp.add(mesh);
     grp.userData.sol = { mesh, tex, mat, data, frames: d.frames, f, d };

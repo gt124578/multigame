@@ -509,7 +509,7 @@ export class Game {
     if (bike) {
       const b = v.actor('velo', { kind: 'item' }), k = 'velo_' + { down: 's', up: 'n', left: 'w', right: 'e' }[p.dir], r = v.S.rects[k];
       if (r && b.veloKey !== k) { v.setSpriteRect(b, r, r.w, r.h); b.veloKey = k; b.shadow.visible = false; }
-      b.mesh.position.set(px + 0.5, hop - 6 * HPX, py + (p.dir === 'up' ? 0.62 : 0.6));
+      b.mesh.position.set(px + 0.5, hop - 6 * HPX + v.hAt(px + 0.5, py + 0.55), py + (p.dir === 'up' ? 0.62 : 0.6));
     } else if (v.actors.has('velo')) v.removeActor('velo');
     const t = this.mapObj.get(Math.round(px), Math.round(py));
     // sur l'eau : le joueur flotte sur le dos d'une créature, entouré d'un sillage
@@ -520,11 +520,11 @@ export class Game {
     this.drawPeers?.(); this.drawTags?.(true);
     if (p.surf) {
       const w = v.actor('wake', { kind: 'flat' }); if (!w.wakeSet) { const r = v.S.rects.wake; v.setSpriteRect(w, r, r.w, r.h); w.wakeSet = true; w.shadow.visible = false; }
-      w.mesh.position.set(px + 0.5, 0.01 + bob * 0.3, py + 0.62); w.mesh.rotation.x = -1.1;
+      w.mesh.position.set(px + 0.5, 0.01 + bob * 0.3 + v.hAt(px + 0.5, py + 0.62), py + 0.62); w.mesh.rotation.x = -1.1;
     } else if (v.actors.has('wake')) v.removeActor('wake');
     if (p.bang) {
       const b = v.actor('bang:player', { kind: 'bang' });
-      b.mesh.position.set(px + 0.5, 34 * HPX, py + 0.56);
+      b.mesh.position.set(px + 0.5, 34 * HPX + v.hAt(px + 0.5, py + 0.55), py + 0.56);
     } else if (v.actors.has('bang:player')) {
       v.removeActor('bang:player');
     }
@@ -534,7 +534,7 @@ export class Game {
       const na = v.actor('npc:' + n.id, {});
       v.setFrame(na, n.sprite, n.dir, sf); v.place(na, nx, ny, 0, isGrassEnc(this.mapObj.get(n.x, n.y)) && !n.move);
       { const gx = Math.round(nx), gy = Math.round(ny); v.cover(na, ...(isGrassEnc(this.mapObj.get(gx, gy)) ? [gx, gy] : [null])); }
-      if (n.bang) { const b = v.actor('bang:' + n.id, { kind: 'bang' }); b.mesh.position.set(nx + 0.5, 34 * HPX, ny + 0.56); }
+      if (n.bang) { const b = v.actor('bang:' + n.id, { kind: 'bang' }); b.mesh.position.set(nx + 0.5, 34 * HPX + v.hAt(nx + 0.5, ny + 0.55), ny + 0.56); }
       else if (v.actors.has('bang:' + n.id)) v.removeActor('bang:' + n.id);
     }
     v.update(dt, px, py);
