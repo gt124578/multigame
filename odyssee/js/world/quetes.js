@@ -6,6 +6,7 @@
 import { T, walkable } from './tiles.js';
 import { GameMap, carveRoute, along, nearestWalkable, rng } from './mapgen.js';
 import { room, caveMap } from './interiors.js';
+import { plateau, rectangle, sinueuse } from './relief.js';
 import { ITEMS } from '../core/items.js';
 import { enrichirTout } from './rencontres.js';
 
@@ -393,7 +394,7 @@ export function buildQuests(ctx) {
       'Trouver la créature de l\'îlot du Lac Miroir et rapporter une Plume Lune (Surf).',
       'Rapporter la Plume Lune à Hélène, à Floralia.',
       'Surveiller le Jardin des Songes la nuit (de 20 h à 5 h).',
-      'Ariane a emporté son projecteur au Temple Kagura, dans la Forêt des Torii (route 7).',
+      'Ariane a emporté son projecteur au Temple Kagura, dans la Forêt des Torii (à l\'ouest de la route 7).',
       'Darkrai rôde dans le sanctuaire du Temple Kagura...',
       'Retourner voir Hélène à Floralia.',
     ],
@@ -421,7 +422,7 @@ export function buildQuests(ctx) {
         await A.give('rare-candy', 3); await A.give('full-restore', 2); await A.give('dusk-stone');
         await A.set('songes', 'fin'); return;
       }
-      await A.say(['Malo dort toujours si mal...', ['', 'Le jardinier saura sûrement quoi faire.', 'Une Plume Lune... sur l\'îlot du Lac Miroir, c\'est ça ?', '', 'Le jardin, la nuit... sois prudent.', 'Le Temple Kagura... c\'est loin, au sud de Mirage.', 'Tu y es presque !'][s]].filter(Boolean), who);
+      await A.say(['Malo dort toujours si mal...', ['', 'Le jardinier saura sûrement quoi faire.', 'Une Plume Lune... sur l\'îlot du Lac Miroir, c\'est ça ?', '', 'Le jardin, la nuit... sois prudent.', 'Le Temple Kagura... c\'est loin, au sud-ouest de Mirage.', 'Tu y es presque !'][s]].filter(Boolean), who);
     } });
     const m = JAR;
     pnj(m, 'q:jardinier', 20, 12, { sprite: 'jardinier', talk: async (A) => {
@@ -476,48 +477,78 @@ export function buildQuests(ctx) {
   legend({ id: 'azelf', sp: 482, lvl: 50, map: 'jardin', x: 34, y: 14, cond: (f) => !!f['L:mesprit'] && !!f['L:uxie'], intro: ['Une silhouette bleue flotte au-dessus de l\'étang...', 'Créfadet, le troisième gardien, a senti ses deux frères.'] });
 
   /* ====================================================================================================
-     Forêt des Torii et Temple Kagura (à l'est de la route 7) · Quêtes : talismans, Darkrai, Créhelf
+     Forêt des Torii et Temple Kagura (au sud-ouest de Mirage, à l'ouest de la route 7, sur la carte du monde)
+     Quêtes : talismans, Darkrai, Créhelf. Un sentier sinueux sous les érables d'automne, une allée de torii
+     qui monte vers l'enceinte du temple, perchée sur une butte (escalier de pierre) : jardin japonais, étang
+     aux carpes et pont rouge, gravier ratissé, mousse, lanternes de pierre.
      ==================================================================================================== */
-  const TOR = outdoor('torii', 54, 70, { name: 'Forêt des Torii', music: 'forest' });
+  const TOR = W;
   const sanctuaire = room('kagura:sanctuaire', 11, 9, { floor: 'temple', music: 'mystic', name: 'Sanctuaire Kagura', wall: 'wall_league' });
   maps[sanctuaire.id] = sanctuaire;
+  const KX = 205, KY = 157;   // enceinte du temple (34 × 26) ; l'allée des torii descend de sa porte sud
+  const toriiXY = {};
   {
-    const m = TOR;
-    const path = [[26.5, 67], [26.5, 58], [18, 50], [26.5, 40], [35, 31], [26.5, 22], [26.5, 17]];
-    carveRoute(m, path, { seed: 4242, w: 10, grass: 1.3, tall: T.DARKTALL, trees: 0.08, flowers: 0.01, taperStart: false, theme: 'forest' });
-    // torii le long du sentier
-    for (const t of [0.08, 0.22, 0.38, 0.55, 0.72, 0.9]) {
-      const p = along(path, t), x = Math.round(p.x), y = Math.round(p.y);
-      m.prop('torii', x, y, false, { dz: 0.95 }); m.set(x - 1, y, T.BLOCK); m.set(x + 1, y, T.BLOCK); m.under.set(key(x - 1, y), T.GRASS); m.under.set(key(x + 1, y), T.GRASS);
-      for (const dx of [-2, 2]) if (m.get(x + dx, y + 1) === T.GRASS) m.prop('lanterne', x + dx, y + 1);
+    const m = W;
+    // la forêt : des érables partout (les arbres de la zone prennent leurs couleurs d'automne)
+    m.zone(204, 152, 281, 197, { name: 'Forêt des Torii', music: 'forest', enc: ENC.torii, theme: 'automne', route: 'torii', prio: 0 });
+    // le sentier, depuis la route 7 : il serpente vers le sud-ouest, longe la côte et rejoint l'allée des torii
+    const path = sinueuse([[284, 168.5], [276, 171], [268, 167], [259, 171], [252, 179], [244, 184], [236, 189.5], [229, 191.5], [222.5, 191.5]], 2.5);
+    carveRoute(m, path, { seed: 4242, w: 9, grass: 1.0, tall: T.TALL, trees: 0.06, flowers: 0.01, taperStart: true, taperEnd: false });
+    routes.push({ id: 'torii', name: 'Forêt des Torii', pts: path });
+    m.sign(282, 166, 'FORÊT DES TORII ←\nTemple Kagura.');
+    // l'allée des torii : du bout du sentier jusqu'au pied de l'escalier du temple, un portique toutes les deux rangées
+    m.rect(219, 183, 224, 193, T.GRASS, [T.TREE, T.TALL, T.FLOWER]); m.rect(221, 183, 222, 193, T.PATH);
+    for (const y of [184, 186, 188, 190, 192]) {
+      m.prop('torii', 221, y, false, { dz: 0.95, w: 2 });
+      for (const x of [220, 223]) { m.under.set(key(x, y), T.GRASS); m.set(x, y, T.BLOCK); }
     }
-    for (const [x, y] of [[12, 44], [38, 35], [14, 56], [36, 48]]) if (m.get(x, y) !== T.PATH) { m.set(x, y, T.GRASS); m.prop('erable', x, y); }
-    // le cours d'eau et la petite cascade de l'ouest (cul-de-sac, talisman caché)
-    m.rect(6, 28, 13, 33, T.GRASS); m.rect(13, 30, 30, 31, T.PATH, [T.TREE, T.GRASS, T.DARKTALL]); m.blob(8, 29, 2.5, 1.6, T.WATER, rng(5));
-    m.prop('stele', 11, 28);
-    // clairière du temple
-    const K = { id: 'kagura', name: 'Temple Kagura', x: 11, y: 0, w: 32, h: 20, exits: [['s', 15]], stock: 6, music: 'mystic', theme: 'kagura',
-      roads: [[15, 9, 16, 19, T.PAVE], [6, 12, 22, 13, T.PAVE]],
-      deco: [['lanterne', 13, 10], ['lanterne', 18, 10], ['lanterne', 13, 14], ['lanterne', 18, 14], ['water', 25, 6, 2.6, 1.8], ['erable', 4, 4], ['erable', 27, 15], ['erable', 4, 15], ['sign', 14, 16, 'TEMPLE KAGURA\nOn y prie pour les rêves paisibles.']],
+    for (const y of [185, 189, 193]) for (const x of [219, 224]) m.prop('lanterne', x, y);
+    toriiXY.allee = [221, 192];
+    // un ruisseau qui descend vers la mer et, à l'écart du sentier, une source et sa stèle (un talisman y est caché)
+    m.blob(264.5, 184, 3.2, 2, T.WATER, rng(5), [T.TREE, T.GRASS, T.TALL]);
+    m.rect(262, 186, 263, 188, T.WATER, [T.TREE, T.GRASS]);
+    m.rect(258, 179, 268, 182, T.GRASS, [T.TREE]); m.rect(259, 180, 266, 180, T.PATH, [T.GRASS]);
+    m.prop('stele', 267, 181);
+    for (const [x, y] of [[258, 182], [268, 183], [261, 178]]) if (m.get(x, y) === T.TREE) m.prop('rocher_grand', x, y);
+    // l'enceinte du temple, sur sa butte
+    const K = { id: 'kagura', name: 'Temple Kagura', x: KX, y: KY, w: 34, h: 26, exits: [['s', 16]], stock: 6, music: 'mystic', theme: 'automne',
+      roads: [[16, 6, 17, 25, T.PAVE], [18, 21, 26, 21, T.PAVE]],
+      deco: [
+        // lanternes de pierre le long de l'allée
+        ['lanterne', 14, 9], ['lanterne', 19, 9], ['lanterne', 14, 13], ['lanterne', 19, 13], ['lanterne', 14, 18], ['lanterne', 19, 18], ['lanterne', 14, 22], ['lanterne', 19, 22],
+        // jardin sec (gravier ratissé et rochers) devant le temple, à l'est de l'allée, bordé de mousse
+        ['sand', 20, 8, 26, 12], ['rocher_grand', 22, 9], ['rocher_grand', 25, 11], ['butte', 21, 11],
+        ['flowers', 20, 7, 26, 7], ['flowers', 27, 8, 27, 12],
+        // l'étang aux carpes, à l'ouest, et son pont rouge
+        ['water', 8, 10, 4.6, 2.6],
+        // érables et cerisiers du jardin
+        ['trees', 3, 3, 4, 5], ['trees', 28, 3, 30, 5], ['trees', 2, 21, 3, 23], ['trees', 29, 12, 30, 15],
+        ['erable', 11, 6], ['erable', 4, 15], ['arbre_automne', 12, 19], ['erable', 22, 18], ['arbre_automne', 7, 22], ['cerisier', 27, 23],
+        ['sign', 15, 23, 'TEMPLE KAGURA\nOn y prie pour les rêves paisibles.']],
       buildings: [
-        { kind: 'tower', x: 12, y: 2, w: 7, d: 4, h: 4, door: 3, roof: 'red', name: 'Temple Kagura', interior: (id) => templeInterior(id) },
-        { kind: 'center', x: 24, y: 11 },
+        { kind: 'tower', x: 13, y: 2, w: 7, d: 4, h: 4, door: 3, roof: 'red', name: 'Temple Kagura', interior: (id) => templeInterior(id) },
+        { kind: 'center', x: 24, y: 17 },
       ],
-      npcs: [{ id: 'moine', x: 9, y: 12, sprite: 'pretre', move: 'turn', text: ['Le temple garde la mémoire des rêves de la région.', 'Au fond, derrière l\'autel, se trouve le sanctuaire. Seul le Grand Prêtre peut l\'ouvrir.'] }],
+      npcs: [{ id: 'moine', x: 11, y: 16, sprite: 'pretre', move: 'turn', text: ['Le temple garde la mémoire des rêves de la région.', 'Au fond, derrière l\'autel, se trouve le sanctuaire. Seul le Grand Prêtre peut l\'ouvrir.'] }],
     };
     buildTown(m, maps, K);
-    // la cloche, à droite de l'allée
-    chose(m, 'cloche', 11 + 20, 9, { use: async (A) => cloche(A) });
-    const entree = passage('r7', [0.5, 0.35, 0.65, 0.25, 0.75], [1, -1], 6, { map: 'torii', x: 26, y: 68, dir: 'up' }, 'FORÊT DES TORII →\nTemple Kagura.');
-    m.rect(26, 64, 27, 69, T.PATH);
-    m.warp(26, 69, { ...entree.back, step: true }); m.warp(27, 69, { ...entree.back, step: true });
-    m.outside = { map: 'monde', x: entree.at[0], y: entree.at[1] };
-    m.zone(0, 18, 53, 69, { name: 'Forêt des Torii', music: 'forest', enc: ENC.torii, theme: 'forest', route: 'torii', prio: 0 });
-    m.zone(11, 0, 42, 19, { name: 'Temple Kagura', music: 'mystic', town: 'kagura' });
-    m.item(...spot(m, 7, 31), 'eclat-etoile', 1, 'etoile:torii1'); m.item(...spot(m, 44, 40), 'eclat-etoile', 1, 'etoile:torii2'); m.item(...spot(m, 40, 30), 'ultra-ball', 2); m.item(...spot(m, 15, 60), 'max-repel');
-    trainerNpc(m, ...spot(m, 22, 60), 'right', 'Médium', 'Ombeline', [[92, 35], [200, 36]], { sight: 4 });
-    trainerNpc(m, ...spot(m, 31, 44), 'left', 'Moine', 'Jōkan', [[163, 36], [177, 36], [302, 37]], { sight: 4, intro: 'La forêt éprouve ceux qui marchent vers le temple.' });
-    trainerNpc(m, ...spot(m, 20, 28), 'right', 'Dame Kimono', 'Sakura', [[196, 37], [197, 37]], { sight: 3, intro: 'Je danse pour les esprits de la forêt. Danse avec moi !' });
+    // pont rouge en travers de l'étang (d'une rive à l'autre)
+    for (let x = KX + 3; x <= KX + 13; x++) if (m.get(x, KY + 10) === T.WATER) m.set(x, KY + 10, T.BRIDGE);
+    for (const x of [KX + 3, KX + 13]) if (m.get(x, KY + 10) !== T.BRIDGE) m.set(x, KY + 10, T.PATH);
+    m.rect(KX + 13, KY + 10, KX + 15, KY + 10, T.PATH, [T.GRASS, T.FLOWER]);
+    // coussins de mousse sous les érables et au bord de l'étang
+    for (const [x, y, rx, ry] of [[6, 18.5, 3.4, 1.6], [21.5, 15.5, 2.2, 1.4], [5.5, 6, 2, 1.2], [11, 21, 2.4, 1.3], [27, 21, 1.8, 1.5]]) m.blob(KX + x, KY + y, rx, ry, T.FLOWER, rng(x * 13 + y), [T.GRASS]);
+    // des carpes koï dans l'étang
+    for (const [x, y] of [[KX + 6, KY + 9], [KX + 10, KY + 11], [KX + 8, KY + 11], [KX + 11, KY + 9]]) if (m.get(x, y) === T.WATER) m.deco.push({ k: 'koi', x, y });
+    // la butte : toute l'enceinte est un niveau plus haut, l'escalier de pierre descend vers l'allée des torii
+    plateau(m, rectangle(KX, KY, KX + 33, KY + 24), 1);   // la paroi prend la rangée du bas de l'enceinte
+    // la cloche, à l'est de la cour
+    chose(m, 'cloche', KX + 24, KY + 6, { use: async (A) => cloche(A) });
+    m.item(...spot(m, 274, 176), 'eclat-etoile', 1, 'etoile:torii1'); m.item(...spot(m, KX + 3, KY + 7), 'eclat-etoile', 1, 'etoile:torii2');
+    m.item(...spot(m, 247, 177), 'ultra-ball', 2); m.item(...spot(m, 233, 186), 'max-repel');
+    trainerNpc(m, ...spot(m, 270, 172), 'left', 'Médium', 'Ombeline', [[92, 35], [200, 36]], { sight: 4 });
+    trainerNpc(m, ...spot(m, 251, 183), 'right', 'Moine', 'Jōkan', [[163, 36], [177, 36], [302, 37]], { sight: 4, intro: 'La forêt éprouve ceux qui marchent vers le temple.' });
+    trainerNpc(m, ...spot(m, 224, 189), 'left', 'Dame Kimono', 'Sakura', [[196, 37], [197, 37]], { sight: 2, intro: 'Je danse pour les esprits de la forêt. Danse avec moi !' });
   }
   function templeInterior(id) {
     const m = room(id, 13, 10, { floor: 'temple', music: 'mystic', name: 'Temple Kagura', wall: 'wall_league' });
@@ -563,17 +594,17 @@ export function buildQuests(ctx) {
       const s = A.step('kagura'), who = 'Dame Kimono Hana';
       if (s === 'fin') { await A.say('La cloche du temple sonne chaque matin, maintenant. Merci, voyageur.', who); return; }
       if (!s) {
-        if (A.badges() < 5) { await A.say(['Je viens du Temple Kagura, dans la Forêt des Torii, au sud-est de Mirage.', 'Il s\'y passe des choses terribles... Mais il faudrait un dresseur plus aguerri.'], who); return; }
-        await A.say(['Voyageur... tu portes le badge de Sibylle. Écoute-moi.', 'Des gens en gris ont pillé le Temple Kagura, dans la Forêt des Torii, au sud-est.', 'Ils ont volé les trois talismans qui éveillent la cloche, et ils fouillent la forêt.', 'Sans la cloche, les esprits de la forêt s\'agitent. Peux-tu retrouver les talismans ?'], who);
+        if (A.badges() < 5) { await A.say(['Je viens du Temple Kagura, dans la Forêt des Torii, au sud-ouest de Mirage.', 'Il s\'y passe des choses terribles... Mais il faudrait un dresseur plus aguerri.'], who); return; }
+        await A.say(['Voyageur... tu portes le badge de Sibylle. Écoute-moi.', 'Des gens en gris ont pillé le Temple Kagura, dans la Forêt des Torii, au sud-ouest.', 'Ils ont volé les trois talismans qui éveillent la cloche, et ils fouillent la forêt.', 'Sans la cloche, les esprits de la forêt s\'agitent. Peux-tu retrouver les talismans ?'], who);
         await A.set('kagura', 1); return;
       }
-      await A.say('La Forêt des Torii est au bout de la route 7. Sois prudent.', who);
+      await A.say('La Forêt des Torii s\'ouvre à l\'ouest de la route 7. Sois prudent.', who);
     } });
-    const m = TOR;
+    const m = W;
     const tal = async (A) => { if ((A.st.bag.talisman || 0) < 3) { await A.give('talisman'); if ((A.st.bag.talisman || 0) >= 3) { await A.say('Les trois talismans sont réunis ! Il faut les rapporter au Grand Prêtre.'); await A.set('kagura', 2); } } };
-    sbire(m, 'q:tor1', 29, 52, 'left', 'Sbire de la Brume', 'Sbire', [[262, 36], [42, 37], [110, 37]], { sight: 4, when: (f) => st(f, 'kagura') >= 1, intro: 'Un talisman ? Il est à la Brume, maintenant !', lose: 'Rah... Prends-le, ton bout de papier !', onWin: tal });
-    sbire(m, 'q:tor2', 38, 30, 'down', 'Sbire', 'Sbire', [[198, 37], [435, 38]], { sight: 4, bs: 'brume_f', ow: 'brume_f', when: (f) => st(f, 'kagura') >= 1, intro: 'On cherche un orbe, pas des talismans. Mais je garde celui-là !', lose: 'Bon, bon...', onWin: tal });
-    chose(m, 'stele', 8, 31, { use: async (A) => {
+    sbire(m, 'q:tor1', 262, 170, 'left', 'Sbire de la Brume', 'Sbire', [[262, 36], [42, 37], [110, 37]], { sight: 4, when: (f) => st(f, 'kagura') >= 1, intro: 'Un talisman ? Il est à la Brume, maintenant !', lose: 'Rah... Prends-le, ton bout de papier !', onWin: tal });
+    sbire(m, 'q:tor2', 241, 188, 'down', 'Sbire', 'Sbire', [[198, 37], [435, 38]], { sight: 4, bs: 'brume_f', ow: 'brume_f', when: (f) => st(f, 'kagura') >= 1, intro: 'On cherche un orbe, pas des talismans. Mais je garde celui-là !', lose: 'Bon, bon...', onWin: tal });
+    m.object(267, 181, { use: async (A) => {
       if (A.step('kagura') !== 1 || A.f.talCascade) { await A.say('« Ici, l\'eau chante pour les esprits. »'); return; }
       A.f.talCascade = true; await A.say(['Une stèle couverte de mousse. Quelque chose est coincé derrière...', 'Un talisman ! Un sbire a dû le cacher là.']); await tal(A);
     } });
@@ -599,7 +630,7 @@ export function buildQuests(ctx) {
     await A.give('ultra-ball', 5);
     await A.set('kagura', 'fin');
   }
-  legend({ id: 'uxie', sp: 480, lvl: 45, map: 'torii', x: 11 + 22, y: 4, cond: (f) => done(f, 'kagura'), intro: ['Une créature jaune médite au bord de l\'étang, les yeux clos.', 'Créhelf, le gardien du savoir.'] });
+  legend({ id: 'uxie', sp: 480, lvl: 45, map: 'monde', x: KX + 9, y: KY + 7, cond: (f) => done(f, 'kagura'), intro: ['Une créature jaune médite au bord de l\'étang, les yeux clos.', 'Créhelf, le gardien du savoir.'] });
 
   /* ====================================================================================================
      Île du Magma (bateau de l'Embarcadère, pour le Maître) · Quête : Le cœur du volcan (Groudon, Heatran)

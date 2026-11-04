@@ -64,12 +64,15 @@ try {
   await talk('jardin', 'q:ariane1'); ok(S('songes') === 5, 'songes : Ariane fuit au temple');
   // Les talismans du Temple Kagura
   await talk('monde', 'q:sakura'); ok(S('kagura') === 1, 'kagura : lancée');
-  await beat('torii', 'q:tor1'); await beat('torii', 'q:tor2');
-  const [stele] = deco('torii', 'stele'); await use('torii', stele.x, stele.y);
+  // la Forêt des Torii est sur la carte du monde (à l'ouest de la route 7)
+  ok(!maps.torii, 'la Forêt des Torii n\'est plus une carte à part');
+  await beat('monde', 'q:tor1'); await beat('monde', 'q:tor2');
+  const torii = (d) => d.x >= 204 && d.x <= 281 && d.y >= 152 && d.y <= 197;
+  const [stele] = deco('monde', 'stele').filter(torii); await use('monde', stele.x, stele.y);
   ok(S('kagura') === 2 && bag.talisman === 3, 'kagura : trois talismans');
   const temple = Object.keys(maps).find((k) => k.startsWith('kagura:tower'));
   await talk(temple, 'pretre'); await talk(temple, 'pretre'); ok(S('kagura') === 3, 'kagura : talismans rendus');
-  const [cl] = deco('torii', 'cloche'); await use('torii', cl.x, cl.y); ok(S('kagura') === 'fin', 'kagura : terminée');
+  const [cl] = deco('monde', 'cloche').filter(torii); await use('monde', cl.x, cl.y); ok(S('kagura') === 'fin', 'kagura : terminée');
   await leg('uxie');
   await talk('kagura:sanctuaire', 'q:ariane2'); ok(S('songes') === 6, 'songes : sanctuaire');
   await leg('darkrai'); ok(S('songes') === 7, 'songes : Darkrai');

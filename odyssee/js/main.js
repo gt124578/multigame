@@ -14,6 +14,7 @@ import { Game } from './game.js';
 import { apparenceScreen } from './ui/apparence.js';
 import { createMon } from './core/mon.js';
 import { ASSETS, loadImg, loadAll } from './assets.js';
+import { DECOR_PLUS } from './data/decor-plus.js';
 import { SPRITES } from './data/sprites.js';
 import { SOL16_FICHIERS } from './data/sol16.js';
 import { R, ORIGINALES } from './data/remplacants.js';
@@ -46,6 +47,8 @@ async function loadArt() {
   for (const k of MOBILIER_PLUS) { sprites[k] = ASSETS.mobilier(k); dens[k] = 2; }
   // décor du tileset (fontaine, torii, lanternes, cloche…) : dessiné à la densité des tuiles du DS
   for (const k of Object.keys(SPRITES.deco || {})) if (!sprites[k]) { sprites[k] = ASSETS.deco(k); dens[k] = 1; }
+  // décor ajouté à la main (arbres d'automne, relief…) : data/decor-plus.js
+  for (const [k, [dir, d]] of Object.entries(DECOR_PLUS)) { sprites[k] = ASSETS[dir](k); dens[k] = d; }
   const kits = {}; for (const k of SPRITES.facades || []) kits[k] = ASSETS.facade(k);
   const sols = {}; for (const k of SOLS) sols[k] = ASSETS.sol(k);
   // tileset global (tools/odyssee-tileset.py) : sols à 32 px et pièces des hautes herbes

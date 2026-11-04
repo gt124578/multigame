@@ -914,7 +914,9 @@ export function buildWorld() {
   fenceRoutes(W, legends);
   // retouches faites dans l'éditeur de la version test et intégrées au jeu (world/retouches.js)
   applyRetouches(maps);
-  return { maps, towns, routes, legends, docks, quests, start: { map: 'aube:maison', x: 4, y: 6, dir: 'up' } };
+  // cartes disparues (lieux désormais posés sur la carte du monde) : une ancienne partie qui y était reprend ici
+  const moved = { torii: { map: 'monde', x: 222, y: 193, dir: 'up' } };
+  return { maps, towns, routes, legends, docks, quests, moved, start: { map: 'aube:maison', x: 4, y: 6, dir: 'up' } };
 }
 
 /** barrières de bois brunes le long des chemins des routes, par tronçons, comme sur DS. Une case ne reçoit une barrière
