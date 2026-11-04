@@ -532,3 +532,7 @@ body.pinceau #grille-conteneur { cursor: copy; }
 .graph-serie-opts input[type=number] { width: 48px; }
 .sparkline { position: absolute; pointer-events: none; z-index: 1; display: flex; align-items: center; justify-content: center; }
 .sparkline svg { display: block; }
+
+/* Saisie en texte riche (une partie du texte en gras, en couleur…) */
+#editeur-riche { position: absolute; z-index: 6; border: 2px solid var(--accent); outline: none; padding: 1px 3px; background: var(--papier); color: var(--texte); white-space: pre-wrap; word-break: break-word; line-height: 1.2; overflow: hidden; -webkit-user-select: text; user-select: text; cursor: text; }
+#police { max-width: 118px; }

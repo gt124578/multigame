@@ -3,7 +3,7 @@
 import { Classeur } from './classeur.js';
 import { ErreurFormule, parseAdresse, colVersLettres, ERR, convertirFormule, adresse } from './formules.js';
 import { extraireModulesVBA } from './vbaextract.js';
-import { lireStylesXlsx, ecrireStylesXlsx } from './styles-xlsx.js';
+import { lireStylesXlsx, ecrireStylesXlsx, lireRichesXlsx } from './styles-xlsx.js';
 import { lireObjetsXlsx } from './objets-xlsx.js';
 import { lireVuesXlsx, ecrireVuesXlsx } from './vues-xlsx.js';
 import { lireTableauxXlsx, ecrireTableauxXlsx } from './tableaux-xlsx.js';
@@ -104,6 +104,15 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
         }
       }
     } catch (e) { console.warn('Styles non lus :', e); }
+  }
+  // Texte riche (une partie du texte d'une cellule en gras, en couleur…)
+  if (donnees.length > 4 && donnees[0] === 0x50 && donnees[1] === 0x4b) {
+    try {
+      for (const [nom, m] of lireRichesXlsx(XLSX, donnees)) {
+        const f = classeur.feuille(nom); if (!f) continue;
+        for (const [adr, runs] of m) { const a = parseAdresse(adr), cel = a && f.get(a.r, a.c); if (cel && typeof cel.v === 'string' && runs.map((x) => x.t).join('') === cel.v) cel.riche = runs; }
+      }
+    } catch (e) { console.warn('Texte riche non lu :', e); }
   }
   // Volets figés, filtre automatique, mise en forme conditionnelle
   if (donnees.length > 4 && donnees[0] === 0x50 && donnees[1] === 0x4b) {

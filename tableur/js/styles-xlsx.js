@@ -76,14 +76,17 @@ export function lireStylesXlsx(XLSX, octets) {
   const theme = lireTheme(cfb);
   const bloc = (nom) => { const m = new RegExp('<' + nom + '[^>]*>(.*?)</' + nom + '>', 's').exec(styles.texte); return m ? m[1] : ''; };
   const elements = (xml, nom) => { const out = []; const re = new RegExp('<' + nom + '(?:\\s[^>]*?)?(?:/>|>.*?</' + nom + '>)', 'gs'); let m; while ((m = re.exec(xml))) out.push(m[0]); return out; };
+  const policeDefaut = (/<name val="([^"]+)"/.exec(elements(bloc('fonts'), 'font')[0] || '') || [])[1];
+  const tailleDefaut = +((/<sz val="([\d.]+)"/.exec(elements(bloc('fonts'), 'font')[0] || '') || [])[1] || 11);
   const fonts = elements(bloc('fonts'), 'font').map((f) => {
     const s = {};
     if (/<b\b(?![^>]*val="0")/.test(f)) s.gras = true;
     if (/<i\b(?![^>]*val="0")/.test(f)) s.italique = true;
     if (/<u\b(?![^>]*val="none")/.test(f)) s.souligne = true;
     if (/<strike\b(?![^>]*val="(0|false)")/.test(f)) s.barre = true;
-    const sz = /<sz val="([\d.]+)"/.exec(f); if (sz && Math.abs(+sz[1] - 11) > 0.5 && Math.abs(+sz[1] - 12) > 0.5) s.taille = Math.round(+sz[1] * 1.333);
+    const sz = /<sz val="([\d.]+)"/.exec(f); if (sz && Math.abs(+sz[1] - tailleDefaut) > 0.5) s.taille = Math.round(+sz[1] * 1.333);
     const col = /<color[^>]*\/>/.exec(f); const c = col ? lireCouleur(col[0], theme) : null; if (c && c !== '#000000') s.couleur = c;
+    const nom = /<name val="([^"]+)"/.exec(f); if (nom && !/^(Calibri|Aptos( Narrow)?)$/i.test(nom[1]) && nom[1] !== policeDefaut) s.police = nom[1].replace(/&amp;/g, '&');
     return s;
   });
   const fills = elements(bloc('fills'), 'fill').map((f) => {
@@ -97,14 +100,15 @@ export function lireStylesXlsx(XLSX, octets) {
       const m = new RegExp('<' + xmlNom + '[^>]*style="([^"]+)"').exec(b);
       if (!m) continue;
       const st = m[1];
-      out[cle] = st === 'thick' || st === 'double' ? 'thick' : st === 'medium' || st === 'mediumDashed' ? 'medium' : 'thin';
+      out[cle] = ['thin', 'medium', 'thick', 'double', 'dashed', 'mediumDashed', 'dotted', 'hair', 'dashDot', 'mediumDashDot', 'dashDotDot', 'slantDashDot'].includes(st) ? st : 'thin';
+      if (!out.couleur) { const cc = new RegExp('<' + xmlNom + '[^>]*>\\s*(<color[^>]*/>)').exec(b); const k = cc && lireCouleur(cc[1], theme); if (k && k !== '#000000') out.couleur = k; }
     }
     return Object.keys(out).length ? out : null;
   });
   const xfs = elements(bloc('cellXfs'), 'xf').map((x) => {
     const s = { ...(fonts[+(attr(x, 'fontId') || 0)] || {}) };
     const fond = fills[+(attr(x, 'fillId') || 0)]; if (fond) s.fond = fond;
-    const bord = borders[+(attr(x, 'borderId') || 0)]; if (bord) s.bordures = { ...bord };
+    const bord = borders[+(attr(x, 'borderId') || 0)]; if (bord) { const { couleur, ...cotes } = bord; if (Object.keys(cotes).length) s.bordures = cotes; if (couleur) s.bordCouleur = couleur; }
     const al = /<alignment[^>]*horizontal="(left|center|right)"/.exec(x); if (al) s.align = al[1];
     const va = /<alignment[^>]*vertical="(top|center)"/.exec(x); if (va) s.valign = va[1];
     if (/<alignment[^>]*wrapText="(1|true)"/.test(x)) s.renvoi = true;
@@ -141,7 +145,7 @@ export function lireStylesXlsx(XLSX, octets) {
 function cleStyle(s) {
   if (!s) return '';
   const b = s.bordures || (s.bordure ? { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } : null);
-  return [s.gras ? 'B' : '', s.italique ? 'I' : '', s.souligne ? 'U' : '', s.couleur || '', s.fond || '', s.taille || '', s.align || '', s.valign || '', s.renvoi ? 'W' : '', s.barre ? 'S' : '', s.retrait || '', s.deverrouille ? 'L' : '', s.masquee ? 'H' : '',
+  return [s.gras ? 'B' : '', s.italique ? 'I' : '', s.souligne ? 'U' : '', s.couleur || '', s.fond || '', s.taille || '', s.align || '', s.valign || '', s.renvoi ? 'W' : '', s.barre ? 'S' : '', s.retrait || '', s.deverrouille ? 'L' : '', s.masquee ? 'H' : '', s.police || '', s.bordCouleur || '',
     b ? ['h', 'b', 'g', 'd'].map((k) => b[k] || '-').join(',') : ''].join('|');
 }
 
@@ -161,7 +165,9 @@ export function ecrireStylesXlsx(XLSX, octets, feuilles) {
   const fills = [...fillsS.interieur.matchAll(/<fill>.*?<\/fill>|<fill\/>/gs)].map((m) => m[0]);
   const borders = [...bordersS.interieur.matchAll(/<border>.*?<\/border>|<border\/>/gs)].map((m) => m[0]);
   const xfs = [...xfsS.interieur.matchAll(/<xf\b[^>]*?(?:\/>|>.*?<\/xf>)/gs)].map((m) => m[0]);
-  const police = fonts[0] || '<font><sz val="11"/><name val="Calibri"/></font>';
+  // Police par défaut comme Excel (Calibri 11) : une taille choisie ici (12, 14…) reste ainsi distincte à la relecture
+  fonts[0] = '<font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font>';
+  const police = fonts[0];
   const indexDe = (liste, xmlEl) => { let i = liste.indexOf(xmlEl); if (i < 0) { i = liste.length; liste.push(xmlEl); } return i; };
   const cache = new Map(); // (xfOrigine|cléStyle) → nouvel index
   const xfPour = (origine, s) => {
@@ -170,18 +176,19 @@ export function ecrireStylesXlsx(XLSX, octets, feuilles) {
     const base = xfs[origine] || xfs[0];
     const numFmtId = attr(base, 'numFmtId') || '0';
     let fontXml = police;
-    if (s.gras || s.italique || s.souligne || s.barre || s.couleur || s.taille) {
+    if (s.gras || s.italique || s.souligne || s.barre || s.couleur || s.taille || s.police) {
       const sz = /<sz val="([\d.]+)"\/>/.exec(police);
       const taille = s.taille ? Math.round(s.taille * 0.75) : (sz ? sz[1] : 11);
       fontXml = '<font>' + (s.gras ? '<b/>' : '') + (s.italique ? '<i/>' : '') + (s.barre ? '<strike/>' : '') + (s.souligne ? '<u/>' : '') + '<sz val="' + taille + '"/>'
-        + (s.couleur ? '<color rgb="FF' + s.couleur.slice(1).toUpperCase() + '"/>' : '<color theme="1"/>') + '<name val="Calibri"/><family val="2"/><scheme val="minor"/></font>';
+        + (s.couleur ? '<color rgb="FF' + s.couleur.slice(1).toUpperCase() + '"/>' : '<color theme="1"/>') + (s.police ? '<name val="' + echXml(s.police) + '"/><family val="2"/></font>' : '<name val="Calibri"/><family val="2"/><scheme val="minor"/></font>');
     }
     const fontId = indexDe(fonts, fontXml);
     const fillId = s.fond ? indexDe(fills, '<fill><patternFill patternType="solid"><fgColor rgb="FF' + s.fond.slice(1).toUpperCase() + '"/><bgColor indexed="64"/></patternFill></fill>') : 0;
     const b = s.bordures || (s.bordure ? { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } : null);
     let borderId = 0;
     if (b) {
-      const cote = (nom, v) => (v ? '<' + nom + ' style="' + v + '"><color auto="1"/></' + nom + '>' : '<' + nom + '/>');
+      const coul = s.bordCouleur ? '<color rgb="FF' + s.bordCouleur.slice(1).toUpperCase() + '"/>' : '<color auto="1"/>';
+      const cote = (nom, v) => (v ? '<' + nom + ' style="' + v + '">' + coul + '</' + nom + '>' : '<' + nom + '/>');
       borderId = indexDe(borders, '<border>' + cote('left', b.g) + cote('right', b.d) + cote('top', b.h) + cote('bottom', b.b) + '<diagonal/></border>');
     }
     const aligne = s.align || s.valign || s.renvoi || s.retrait, protege = s.deverrouille || s.masquee;
@@ -201,7 +208,8 @@ export function ecrireStylesXlsx(XLSX, octets, feuilles) {
     if (!f) return;
     const styleDe = new Map();
     feuille.chaque((r, c, cel) => { if (cel.s && cleStyle(cel.s)) styleDe.set(colVersLettresLocal(c) + (r + 1), cel.s); });
-    if (!styleDe.size) return;
+    let riches = false; feuille.chaque((r, c, cel) => { if (cel.riche) riches = true; });
+    if (!styleDe.size && !riches) return;
     let texte = f.texte;
     texte = texte.replace(/<c r="([A-Z]+\d+)"([^>]*?)(\/?)>/g, (tout, adr, attrs, fin) => {
       const s = styleDe.get(adr);
@@ -233,6 +241,7 @@ export function ecrireStylesXlsx(XLSX, octets, feuilles) {
         }
       }
     }
+    texte = ecrireRiches(texte, feuille);
     cfb.FileIndex[f.index].content = enc(texte);
     modifie = true;
   });
@@ -243,6 +252,67 @@ export function ecrireStylesXlsx(XLSX, octets, feuilles) {
     .replace(xfsS.tout, '<cellXfs count="' + xfs.length + '">' + xfs.join('') + '</cellXfs>');
   cfb.FileIndex[styles.index].content = enc(xml);
   return new Uint8Array(XLSX.CFB.write(cfb, { fileType: 'zip', type: 'array' }));
+}
+
+// Texte riche : la cellule devient une chaîne en ligne faite de morceaux (<is><r><rPr>…</rPr><t>…</t></r></is>)
+function rPr(s) {
+  if (!s) return '';
+  const x = (s.police ? '<rFont val="' + echXml(s.police) + '"/>' : '') + (s.gras ? '<b/>' : '') + (s.italique ? '<i/>' : '') + (s.barre ? '<strike/>' : '')
+    + (s.couleur ? '<color rgb="FF' + s.couleur.slice(1).toUpperCase() + '"/>' : '') + (s.taille ? '<sz val="' + Math.round(s.taille * 0.75) + '"/>' : '') + (s.souligne ? '<u/>' : '');
+  return x ? '<rPr>' + x + '</rPr>' : '';
+}
+function ecrireRiches(texte, feuille) {
+  feuille.chaque((r, c, cel) => {
+    if (!cel.riche || cel.f != null || typeof cel.v !== 'string' || cel.riche.map((x) => x.t).join('') !== cel.v) return;
+    const adr = colVersLettresLocal(c) + (r + 1);
+    const corps = '<is>' + cel.riche.map((x) => '<r>' + rPr(x.s) + '<t xml:space="preserve">' + echXml(x.t) + '</t></r>').join('') + '</is>';
+    texte = texte.replace(new RegExp('<c r="' + adr + '"([^>]*?)(?:/>|>[\\s\\S]*?</c>)'), (t, at) => '<c r="' + adr + '"' + at.replace(/\st="[^"]*"/, '') + ' t="inlineStr">' + corps + '</c>');
+  });
+  return texte;
+}
+const entitesXml = (t) => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCodePoint(+n)).replace(/&amp;/g, '&');
+function lireRun(xml, theme) {
+  const p = /<rPr>([\s\S]*?)<\/rPr>/.exec(xml), s = {};
+  if (p) {
+    const x = p[1];
+    if (/<b\b(?![^>]*val="(0|false)")/.test(x)) s.gras = true;
+    if (/<i\b(?![^>]*val="(0|false)")/.test(x)) s.italique = true;
+    if (/<u\b(?![^>]*val="none")/.test(x)) s.souligne = true;
+    if (/<strike\b(?![^>]*val="(0|false)")/.test(x)) s.barre = true;
+    const c = /<color[^>]*\/>/.exec(x); const k = c ? lireCouleur(c[0], theme) : null; if (k && k !== '#000000') s.couleur = k;
+    const sz = /<sz val="([\d.]+)"/.exec(x); if (sz && Math.abs(+sz[1] - 11) > 0.5) s.taille = Math.round(+sz[1] * 1.333);
+    const f = /<rFont val="([^"]+)"/.exec(x); if (f && !/^(Calibri|Aptos)/i.test(f[1])) s.police = entitesXml(f[1]);
+  }
+  const t = [...xml.matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>|<t\b[^>]*\/>/g)].map((m) => entitesXml(m[1] || '')).join('');
+  return { t, s };
+}
+/** Textes riches des feuilles : Map nomFeuille → Map adresse → morceaux [{ t, s }] (seulement ceux qui ont une mise en forme). */
+export function lireRichesXlsx(XLSX, octets) {
+  const cfb = XLSX.CFB.read(octets, { type: 'array' });
+  const theme = lireTheme(cfb);
+  const sst = fichierZip(cfb, 'xl/sharedStrings.xml'), wb = fichierZip(cfb, 'xl/workbook.xml'), rels = fichierZip(cfb, 'xl/_rels/workbook.xml.rels');
+  const resultat = new Map();
+  if (!wb || !rels) return resultat;
+  const morceaux = (si) => { const rs = [...si.matchAll(/<r>([\s\S]*?)<\/r>/g)].map((m) => lireRun(m[1], theme)); return rs.length && rs.some((x) => Object.keys(x.s).length) ? rs : null; };
+  const partages = sst ? [...sst.texte.matchAll(/<si>([\s\S]*?)<\/si>|<si\/>/g)].map((m) => (m[1] && m[1].includes('<r>') ? morceaux(m[1]) : null)) : [];
+  if (!partages.some(Boolean) && !/<is>\s*<r>/.test(wb.texte) && !cfb.FullPaths.some((p) => /sheet\d+\.xml$/i.test(p) && dec(cfb.FileIndex[cfb.FullPaths.indexOf(p)].content).includes('t="inlineStr"'))) return resultat;
+  const cibles = {};
+  for (const r of rels.texte.matchAll(/<Relationship\b[^>]*>/g)) cibles[attr(r[0], 'Id')] = attr(r[0], 'Target');
+  for (const sh of wb.texte.matchAll(/<sheet\b[^>]*>/g)) {
+    const nom = entitesXml(attr(sh[0], 'name') || '');
+    let cible = cibles[attr(sh[0], 'r:id')]; if (!cible) continue;
+    cible = cible.replace(/^\/?xl\//, '').replace(/^\//, '');
+    const f = fichierZip(cfb, 'xl/' + cible) || fichierZip(cfb, cible);
+    if (!f) continue;
+    const m = new Map();
+    for (const c of f.texte.matchAll(/<c r="([A-Z]+\d+)"([^>]*?)>([\s\S]*?)<\/c>/g)) {
+      const t = attr(c[2], 't');
+      if (t === 's') { const v = /<v>(\d+)<\/v>/.exec(c[3]); const rs = v && partages[+v[1]]; if (rs) m.set(c[1], rs); }
+      else if (t === 'inlineStr' && c[3].includes('<r>')) { const rs = morceaux(c[3]); if (rs) m.set(c[1], rs); }
+    }
+    if (m.size) resultat.set(nom, m);
+  }
+  return resultat;
 }
 
 function trierCellules(interieur) {

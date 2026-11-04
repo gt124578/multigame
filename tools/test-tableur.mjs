@@ -1201,5 +1201,16 @@ test('graphiques : tendances, axe secondaire, sparklines (et fichier xlsx)', () 
   egal(e.feuilles[0].sparklines.map((x) => [x.type, x.r, x.c, x.donnees, x.haut]), [['ligne', 1, 5, 'B2:C2', true]]);
 });
 
+test('xlsx : polices, bordures colorées et pointillées, texte riche', () => {
+  const c = Classeur.nouveau();
+  c.saisir(0, 0, 0, 'Total : 120 €'); c.feuilles[0].get(0, 0).riche = [{ t: 'Total : ', s: {} }, { t: '120 €', s: { gras: true, couleur: '#c00000', police: 'Arial' } }];
+  c.saisir(0, 1, 0, 'x'); c.style(0, 1, 0, { police: 'Times New Roman', taille: 16, bordures: { b: 'dashed', h: 'double', g: 'dotted' }, bordCouleur: '#2563eb' });
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c), 'x.xlsx'), f = e.feuilles[0];
+  egal(f.get(0, 0).riche, [{ t: 'Total : ', s: {} }, { t: '120 €', s: { gras: true, couleur: '#c00000', police: 'Arial' } }]);
+  egal(f.get(1, 0).s, { taille: 16, police: 'Times New Roman', bordures: { h: 'double', b: 'dashed', g: 'dotted' }, bordCouleur: '#2563eb' });
+  // Une saisie remplace le texte riche
+  e.saisir(0, 0, 0, 'autre'); egal(f.get(0, 0).riche, undefined);
+});
+
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);
 process.exit(ko ? 1 : 0);
