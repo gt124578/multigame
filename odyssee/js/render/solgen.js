@@ -28,8 +28,19 @@ export const GRANDES_VILLES = new Set(['Métropole', 'Voltacité', 'Forge-Acier'
 /** sols « d'herbe » : on y marche, le décor (arbres, rochers…) s'y pose ; la zone choisit lequel */
 const SOLS = new Set([K.G, K.GF, K.SN, K.AS, K.SA, K.FA, K.GR, K.MO, K.RC]);
 
+/** PROTOTYPE (?relief3d, relief3d.js) : le relief est dessiné en 3D ; le sol généré n'a plus de talus, les marches
+ *  d'un talus d'herbe sont du chemin, la roche des montagnes du dehors a son sol de roche. Réglé par world3d.js. */
+let RELIEF3D = false;
+export function setRelief3dSol(v) { RELIEF3D = !!v; }
 /** sorte d'une case de la carte du jeu (K.X : le jeu garde son propre sol) */
 export function sorteCase(m, x, y) {
+  if (RELIEF3D && m.outdoor) {
+    const t = m.get(x, y), th = m.zoneAt?.(x, y)?.theme, dans = x >= 0 && y >= 0 && x < m.w && y < m.h;
+    const monts = dans && m.monts && m.monts[y * m.w + x];
+    if (t === T.STAIRS && !monts) return th === 'snow' ? K.SN : K.P;
+    if (t === T.BRIDGE && dans && m.ravins?.[y * m.w + x]) return th === 'snow' ? K.SN : K.MR;   // le fond du ravin, sous la passerelle
+    if (t === T.CAVEWALL && !monts && th !== 'snow') return th === 'canyon' || th === 'desert' ? K.RC : th === 'volcanic' ? K.AS : K.MR;
+  }
   let t = m.get(x, y);
   if (t === T.SIGN || t === T.BLOCK) t = m.underAt?.(x, y) ?? (m.outdoor ? T.GRASS : T.CAVE);
   if (!m.outdoor) {
@@ -86,7 +97,7 @@ export function zoneBloc(m, ci, cj, CH = 16) {
   const kinds = new Uint8Array(zw * zh);
   for (let y = 0; y < zh; y++) for (let x = 0; x < zw; x++) kinds[y * zw + x] = sorteCase(m, zx0 + x, zy0 + y);
   let rel = null;
-  if (m.outdoor && m.pentes) {
+  if (m.outdoor && m.pentes && !RELIEF3D) {
     rel = new Uint8Array(zw * zh); let any = false;
     for (let y = 0; y < zh; y++) for (let x = 0; x < zw; x++) { const v = reliefCase(m, zx0 + x, zy0 + y); rel[y * zw + x] = v; if (v & REL.HERBE) any = true; }
     if (!any) rel = null;
