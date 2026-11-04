@@ -10,6 +10,14 @@ const dec = (u8) => new TextDecoder('utf-8').decode(u8);
 const entites = (t) => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCodePoint(+n)).replace(/&amp;/g, '&');
 const attr = (xml, nom) => { const m = new RegExp('\\s' + nom + '="([^"]*)"').exec(xml); return m ? entites(m[1]) : null; };
 
+/** XML écrit avec un espace de noms par défaut (openpyxl…) : on ajoute le préfixe habituel d'Excel aux balises sans préfixe. */
+export function prefixer(xml, prefixe) {
+  if (!xml) return xml;
+  const racine = /<([A-Za-z][\w.:-]*)[\s>]/.exec(xml.replace(/^<\?[^>]*\?>\s*/, ''));
+  if (!racine || racine[1].includes(':')) return xml;
+  return xml.replace(/<(\/?)([A-Za-z][\w.-]*)(?=[\s/>])/g, '<$1' + prefixe + ':$2');
+}
+
 function zipIndex(cfb) {
   const map = new Map();
   cfb.FullPaths.forEach((p, i) => { const k = p.replace(/^Root Entry\//, '').replace(/^\//, ''); map.set(k.toLowerCase(), i); });
@@ -95,7 +103,7 @@ export function lireObjetsXlsx(XLSX, octets) {
     const xmlFeuille = z.texte(fichierFeuille);
     if (!xmlFeuille) continue;
     const rels = relations(z, fichierFeuille);
-    const boutons = [], images = [];
+    const boutons = [], images = [], graphiques = [];
     // 1. Boutons de formulaire (dessin VML hérité, présent dans tous les fichiers depuis Excel 97)
     for (const [, r] of rels) {
       if (!/vmlDrawing$/i.test(r.type)) continue;
@@ -126,7 +134,7 @@ export function lireObjetsXlsx(XLSX, octets) {
     // 3. Dessins : images (cliquables si une macro leur est affectée) et formes-boutons
     for (const [, r] of rels) {
       if (!/\/drawing$/i.test(r.type)) continue;
-      const xml = z.texte(r.cible);
+      const xml = prefixer(z.texte(r.cible), 'xdr');
       if (!xml) continue;
       const relsDessin = relations(z, r.cible);
       // On retire les variantes de secours (mc:Fallback) pour ne pas compter deux fois le même objet
@@ -136,6 +144,15 @@ export function lireObjetsXlsx(XLSX, octets) {
         const anc = ancreDrawing(corps);
         if (!anc) continue;
         if (/<xdr:cNvPr\b[^>]*\shidden="1"/.test(corps)) continue; // bouton de formulaire déjà lu dans le VML
+        // Graphique Excel : son XML est rendu tel quel, l'appelant le traduit (graphiques-xlsx.js)
+        const gf = /<xdr:graphicFrame\b[\s\S]*?<c:chart\b[^>]*\sr:id="([^"]+)"/.exec(corps);
+        if (gf) {
+          const rel = relsDessin.get(gf[1]);
+          const xml = rel && prefixer(z.texte(rel.cible), 'c');
+          const descr = attr(corps.match(/<xdr:cNvPr\b[^>]*>/)?.[0] || '', 'descr') || '';
+          if (xml) graphiques.push({ ...anc, xml, id: descr.startsWith('tableur:') ? descr.slice(8) : null });
+          continue;
+        }
         const pic = /<xdr:pic\b([^>]*)>/.exec(corps);
         if (pic) {
           const emb = /r:embed="([^"]+)"/.exec(corps);
@@ -158,7 +175,7 @@ export function lireObjetsXlsx(XLSX, octets) {
         }
       }
     }
-    if (boutons.length || images.length) resultat.set(nom, { boutons, images });
+    if (boutons.length || images.length || graphiques.length) resultat.set(nom, { boutons, images, graphiques });
   }
   return resultat;
 }

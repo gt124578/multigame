@@ -5,6 +5,7 @@
 //             z: format de nombre (ex. « 0.00% »), s: style { gras, italique, couleur, fond, align } }
 
 import { serialiserProjet, appliquerProjet, nomVBAValide } from './projetvba.js';
+import { decalerMfc } from './donnees.js';
 import { Evaluateur, ErreurFormule, versNombre, parsePlage, colVersLettres, adresse, decalerFormule, formater, dateVersSerie } from './formules.js';
 
 export class Feuille {
@@ -22,6 +23,12 @@ export class Feuille {
     this.cachee = false;
     this.codeNom = nom;        // nom de code VBA (Feuil1…), fixé par le classeur
     this.code = '';            // module de code VBA de la feuille
+    this.figer = null;         // volets figés { r, c } : lignes 0..r-1 et colonnes 0..c-1 restent à l'écran
+    this.mfc = [];             // mise en forme conditionnelle (règles, voir donnees.js)
+    this.filtre = null;        // filtre automatique { r1, c1, r2, c2, criteres: { colonne: { visibles: [...], condition } } }
+    this.filtrees = new Set(); // lignes masquées par le filtre (recalculées)
+    this.validations = [];     // validation des données (règles, voir donnees.js)
+    this.tcd = [];             // tableaux croisés dynamiques posés sur cette feuille (voir tcd.js)
   }
   static cle(r, c) { return r + ',' + c; }
   get(r, c) { return this.cellules.get(Feuille.cle(r, c)); }
@@ -359,6 +366,24 @@ export class Classeur {
     });
     feuille.cellules = nouvelles;
     feuille.recalculerZone();
+    // Largeurs / hauteurs (lignes et colonnes masquées comprises), filtre, mise en forme conditionnelle
+    const tailles = axe === 'r' ? feuille.hauteurs : feuille.largeurs, nt = {};
+    for (const [k, v] of Object.entries(tailles)) { const i = +k; if (n < 0 && i >= idx && i < idx - n) continue; nt[i >= idx ? i + n : i] = v; }
+    if (axe === 'r') feuille.hauteurs = nt; else feuille.largeurs = nt;
+    if (feuille.filtre) {
+      const [a, b] = axe === 'r' ? ['r1', 'r2'] : ['c1', 'c2'], flt = feuille.filtre;
+      if (n > 0) { if (flt[a] >= idx) flt[a] += n; if (flt[b] >= idx) flt[b] += n; }
+      else { const fin = idx - n; if (flt[a] >= idx && flt[b] < fin) feuille.filtre = null; else { if (flt[a] >= fin) flt[a] += n; else if (flt[a] >= idx) flt[a] = idx; if (flt[b] >= fin) flt[b] += n; else if (flt[b] >= idx) flt[b] = idx - 1; } }
+      if (feuille.filtre && axe === 'c') { const cr = {}; for (const [k, v] of Object.entries(feuille.filtre.criteres || {})) { const i = +k; if (n < 0 && i >= idx && i < idx - n) continue; cr[i >= idx ? i + n : i] = v; } feuille.filtre.criteres = cr; }
+    }
+    decalerMfc(feuille, axe, idx, n);
+    decalerMfc(feuille, axe, idx, n, 'validations');
+    // Tableaux croisés posés sur la feuille : leur coin et leur zone suivent
+    for (const t of feuille.tcd || []) {
+      const k = axe === 'r' ? 'r' : 'c';
+      if (t.dest && t.dest[k] >= idx) t.dest[k] = Math.max(idx, t.dest[k] + n);
+      if (t.zone) { const [a, b] = axe === 'r' ? ['r1', 'r2'] : ['c1', 'c2']; if (t.zone[a] >= idx) t.zone[a] = Math.max(idx, t.zone[a] + n); if (t.zone[b] >= idx) t.zone[b] = Math.max(t.zone[a], t.zone[b] + n); }
+    }
     // Références dans toutes les formules du classeur
     for (let i = 0; i < this.feuilles.length; i++) {
       this.feuilles[i].chaque((r, c, cel) => {

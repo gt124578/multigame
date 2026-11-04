@@ -4,6 +4,7 @@
 //
 // Modèle de style d'une cellule (cel.s) :
 //   { gras, italique, souligne, couleur: '#rrggbb', fond: '#rrggbb', taille, align: 'left'|'center'|'right',
+//     valign: 'top'|'center', renvoi (renvoyer à la ligne automatiquement),
 //     bordures: { h, b, g, d } avec 'thin' | 'medium' | 'thick' }
 
 const dec = (u8) => new TextDecoder('utf-8').decode(u8);
@@ -26,7 +27,7 @@ const PALETTE_INDEXEE = ['000000', 'FFFFFF', 'FF0000', '00FF00', '0000FF', 'FFFF
   '3366FF', '33CCCC', '99CC00', 'FFCC00', 'FF9900', 'FF6600', '666699', '969696', '003366', '339966', '003300', '333300', '993300', '993366', '333399', '333333'];
 const THEME_DEFAUT = ['FFFFFF', '000000', 'E7E6E6', '44546A', '4472C4', 'ED7D31', 'A5A5A5', 'FFC000', '5B9BD5', '70AD47'];
 
-function lireTheme(cfb) {
+export function lireTheme(cfb) {
   const f = fichierZip(cfb, 'xl/theme/theme1.xml');
   if (!f) return THEME_DEFAUT;
   const prendre = (nom) => {
@@ -48,7 +49,7 @@ function appliquerTeinte(hex, tint) {
 }
 
 /** <color rgb=|theme=|indexed= …/> → '#rrggbb' ou null. */
-function lireCouleur(xml, theme) {
+export function lireCouleur(xml, theme) {
   if (!xml) return null;
   const rgb = attr(xml, 'rgb');
   if (rgb) return '#' + rgb.slice(-6).toLowerCase();
@@ -104,6 +105,8 @@ export function lireStylesXlsx(XLSX, octets) {
     const fond = fills[+(attr(x, 'fillId') || 0)]; if (fond) s.fond = fond;
     const bord = borders[+(attr(x, 'borderId') || 0)]; if (bord) s.bordures = { ...bord };
     const al = /<alignment[^>]*horizontal="(left|center|right)"/.exec(x); if (al) s.align = al[1];
+    const va = /<alignment[^>]*vertical="(top|center)"/.exec(x); if (va) s.valign = va[1];
+    if (/<alignment[^>]*wrapText="(1|true)"/.test(x)) s.renvoi = true;
     return Object.keys(s).length ? s : null;
   });
   if (!xfs.some(Boolean)) return new Map();
@@ -134,7 +137,7 @@ export function lireStylesXlsx(XLSX, octets) {
 function cleStyle(s) {
   if (!s) return '';
   const b = s.bordures || (s.bordure ? { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } : null);
-  return [s.gras ? 'B' : '', s.italique ? 'I' : '', s.souligne ? 'U' : '', s.couleur || '', s.fond || '', s.taille || '', s.align || '',
+  return [s.gras ? 'B' : '', s.italique ? 'I' : '', s.souligne ? 'U' : '', s.couleur || '', s.fond || '', s.taille || '', s.align || '', s.valign || '', s.renvoi ? 'W' : '',
     b ? ['h', 'b', 'g', 'd'].map((k) => b[k] || '-').join(',') : ''].join('|');
 }
 
@@ -179,7 +182,7 @@ export function ecrireStylesXlsx(XLSX, octets, feuilles) {
     }
     const xf = '<xf numFmtId="' + numFmtId + '" fontId="' + fontId + '" fillId="' + fillId + '" borderId="' + borderId + '" xfId="0"'
       + (numFmtId !== '0' ? ' applyNumberFormat="1"' : '') + (fontId ? ' applyFont="1"' : '') + (fillId ? ' applyFill="1"' : '') + (borderId ? ' applyBorder="1"' : '')
-      + (s.align ? ' applyAlignment="1"><alignment horizontal="' + s.align + '"/></xf>' : '/>');
+      + (s.align || s.valign || s.renvoi ? ' applyAlignment="1"><alignment' + (s.align ? ' horizontal="' + s.align + '"' : '') + (s.valign ? ' vertical="' + s.valign + '"' : '') + (s.renvoi ? ' wrapText="1"' : '') + '/></xf>' : '/>');
     const i = indexDe(xfs, xf);
     cache.set(cle, i);
     return i;

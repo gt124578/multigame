@@ -9,11 +9,14 @@ import { Classeur } from '../tableur/js/classeur.js';
 import { Evaluateur, ErreurFormule, decalerFormule, formaterNombre, formaterDate, tokeniser } from '../tableur/js/formules.js';
 import { executerMacro, analyserVBA, InterpreteurVBA, creerUDF } from '../tableur/js/vba.js';
 import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from '../tableur/js/xlsxio.js';
-import { preparerDonnees, rendreGraphiqueSVG } from '../tableur/js/graphiques.js';
+import { preparerDonnees, rendreGraphiqueSVG, normaliser, CATEGORIES } from '../tableur/js/graphiques.js';
 import { decompresserOVBA } from '../tableur/js/vbaextract.js';
 import { listerProcedures, insererMacro, supprimerProcedure, ajouterAuProjet, decouperProjet } from '../tableur/js/projetvba.js';
 import { aesEcbDechiffrer, aesCbcDechiffrer, sha1, sha256, sha384, sha512, estChiffre, dechiffrerOffice, ErreurMotDePasse } from '../tableur/js/chiffrement.js';
 import { lireObjetsXlsx, nomMacro } from '../tableur/js/objets-xlsx.js';
+import * as graphiquesXlsx from '../tableur/js/graphiques-xlsx.js';
+import { trierPlage, comparerTri, zoneContigue, aUnEntete, appliquerFiltre, valeursFiltre, rechercher, remplacer, styleConditionnel, valeurCible, formuleAutomatique, validationDe, elementsListe, valeurValide, cellulesInvalides } from '../tableur/js/donnees.js';
+import { champsSource, calculerTCD, ecrireTCD, tcdA, actualiserTout, typeChamp } from '../tableur/js/tcd.js';
 import crypto from 'node:crypto';
 
 const require = createRequire(import.meta.url);
@@ -455,11 +458,26 @@ test('graphiques : préparation des données et rendu SVG', () => {
   egal(d.categories, ['2021', '2022', '2023']); egal(d.series.map((s) => s.nom), ['Primes', 'Sinistres']); egal(d.series[1].valeurs, [80, 95, 90]);
   const n = preparerDonnees([['x', 'y'], [1, 2], [2, 4]], 'nuage');
   egal(n.xs, [1, 2]); egal(n.series[0].valeurs, [2, 4]);
+  // Anciens types (fichiers enregistrés avant les catégories) : toujours lisibles
   for (const type of ['barres', 'barres-empilees', 'courbes', 'aires', 'secteurs', 'anneau', 'nuage']) {
     const svg = rendreGraphiqueSVG({ type, titre: 'T' }, m, 400, 250);
     egal(svg.startsWith('<svg') && svg.endsWith('</svg>'), true, type);
-    egal(svg.includes(type === 'secteurs' || type === 'anneau' ? '<path' : type === 'barres' || type === 'barres-empilees' ? '<rect x=' : '<circle'), true, type);
+    egal(svg.includes(type === 'secteurs' || type === 'anneau' || type === 'aires' ? '<path' : type === 'barres' || type === 'barres-empilees' ? '<rect x=' : '<circle'), true, type);
   }
+  egal(normaliser({ type: 'barres-empilees' }).type, 'colonnes'); egal(normaliser({ type: 'barres-empilees' }).variante, 'empile');
+  egal(normaliser({ type: 'courbes' }).marqueurs, true); egal(normaliser({ type: 'anneau' }).variante, 'anneau');
+  // Chaque catégorie et chaque variante se dessine, avec titres, légende et étiquettes
+  for (const { type, variantes } of CATEGORIES) for (const [variante] of variantes) {
+    const svg = rendreGraphiqueSVG({ type, variante, titre: 'T', titreX: 'X', titreY: 'Y', etiquettes: 'valeur', legende: 'bas' }, m, 400, 250);
+    egal(svg.startsWith('<svg') && svg.endsWith('</svg>') && !svg.includes('NaN') && !svg.includes('undefined'), true, type + '/' + variante);
+    egal(rendreGraphiqueSVG({ type, variante }, m, 120, 80, { mini: true }).includes('NaN'), false, 'miniature ' + type);
+  }
+  // Séries en lignes : les années de l'en-tête deviennent les catégories
+  const l = preparerDonnees([['', 2021, 2022], ['Primes', 120, 135], ['Sinistres', 80, 95]], 'colonnes', true);
+  egal(l.categories, ['2021', '2022']); egal(l.series.map((s) => s.nom), ['Primes', 'Sinistres']);
+  // Empilé à 100 % : les hauteurs se complètent
+  const e = rendreGraphiqueSVG({ type: 'colonnes', variante: 'empile100', etiquettes: 'valeur' }, m, 400, 250);
+  egal(e.includes('100'), true);
   egal(rendreGraphiqueSVG({ type: 'barres' }, [['a'], ['b']]).includes('Aucune donnée'), true);
 });
 
@@ -706,6 +724,273 @@ test('projet VBA : liste, création et suppression de macros nommées', () => {
   const c3 = supprimerProcedure(c2, 'lancer');
   egal(listerProcedures(c3).map((p) => p.nom), ['Taux', 'AvecArg', 'Nouvelle']);
   egal(analyserVBA(c3).procedures.size, 3);
+});
+
+function tableau() {
+  const c = Classeur.nouveau();
+  [['Nom', 'Âge', 'Prime', 'Ville'], ['Durand', 45, 1200, 'Lyon'], ['martin', 32, 800, 'Paris'], ['Bernard', 58, 2100, 'Lyon'], ['Petit', '', 650, 'Nice'], ['Robert', 39, 980, 'Paris']]
+    .forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  for (let r = 1; r <= 5; r++) c.saisir(0, r, 4, '=C' + (r + 1) + '*2');
+  return c;
+}
+
+test('données : tri (en-têtes, plusieurs clés, formules, vides à la fin)', () => {
+  egal([3, 'b', 1, null, 'A', true].sort((a, b) => comparerTri(a, b)), [1, 3, 'A', 'b', true, null]);
+  egal([3, null, 1].sort((a, b) => comparerTri(a, b, true)), [3, 1, null]);
+  const c = tableau();
+  const z = zoneContigue(c.feuilles[0], 2, 1);
+  egal(z, { r1: 0, c1: 0, r2: 5, c2: 4 });
+  egal(aUnEntete(c, 0, z), true);
+  trierPlage(c, 0, z, [{ c: 1, desc: false }], { entete: true });
+  egal([1, 2, 3, 4, 5].map((r) => c.valeur(0, r, 0)), ['martin', 'Robert', 'Durand', 'Bernard', 'Petit']);
+  // La formule a suivi sa ligne et désigne toujours la même ligne
+  egal(c.feuilles[0].get(1, 4).f, '=C2*2'); egal(c.valeur(0, 1, 4), 1600);
+  trierPlage(c, 0, z, [{ c: 3, desc: false }, { c: 2, desc: true }], { entete: true });
+  egal([1, 2, 3, 4, 5].map((r) => c.valeur(0, r, 0)), ['Bernard', 'Durand', 'Petit', 'Robert', 'martin']);
+  egal(c.valeur(0, 0, 0), 'Nom');
+});
+
+test('données : filtre automatique, rechercher et remplacer', () => {
+  const c = tableau(), f = c.feuilles[0];
+  f.filtre = { r1: 0, c1: 0, r2: 5, c2: 4, criteres: { 3: { visibles: ['Lyon', 'Nice'] } } };
+  egal([...appliquerFiltre(c, 0)].sort(), [2, 5]);
+  egal(valeursFiltre(c, 0, f.filtre, 3).map((v) => v.texte + v.n), ['Lyon2', 'Nice1', 'Paris2']);
+  f.filtre.criteres[2] = { condition: { op: '>', valeur: '900' } };
+  egal([...appliquerFiltre(c, 0)].sort(), [2, 4, 5]);
+  egal(valeursFiltre(c, 0, f.filtre, 3).map((v) => v.texte), ['Lyon', 'Paris']);
+  f.filtre.criteres = { 0: { condition: { op: 'commence', valeur: 'r' } } };
+  egal([...appliquerFiltre(c, 0)].sort(), [1, 2, 3, 4]);
+  // Insérer une ligne au-dessus décale le filtre
+  c.insererLignes(0, 0, 1); egal([f.filtre.r1, f.filtre.r2], [1, 6]);
+  const c2 = tableau();
+  egal(rechercher(c2, 'MARTIN').map((t) => t.r + ',' + t.c), ['2,0']);
+  egal(rechercher(c2, 'martin', { casse: true, entier: true }).length, 1);
+  egal(rechercher(c2, 'Martin', { casse: true }).length, 0);
+  egal(rechercher(c2, '*ar*', { entier: true }).map((t) => t.r + ',' + t.c), ['2,0', '2,3', '3,0', '5,3']);
+  egal(rechercher(c2, '1600').map((t) => t.r + ',' + t.c), ['2,4']);
+  egal(rechercher(c2, 'C3', { dans: 'formules' }).map((t) => t.r + ',' + t.c), ['2,4']);
+  egal(remplacer(c2, 'Lyon', 'Lille'), 2); egal(c2.valeur(0, 3, 3), 'Lille');
+  egal(remplacer(c2, '~*2', '*3'), 5); egal(c2.valeur(0, 1, 4), 3600);
+});
+
+test('données : mise en forme conditionnelle', () => {
+  const c = tableau(), f = c.feuilles[0];
+  f.mfc = [
+    { id: 'a', plage: 'C2:C6', type: 'valeur', op: '>', v1: '1000', style: { fond: '#ffc7ce' } },
+    { id: 'b', plage: 'C2:C6', type: 'top', n: 2, style: { gras: true, fond: '#00ff00' } },
+    { id: 'c', plage: 'D2:D6', type: 'doublons', style: { couleur: '#ff0000' } },
+    { id: 'd', plage: 'A2:A6', type: 'formule', formule: '=$B2>40', style: { italique: true } },
+    { id: 'e', plage: 'B2:B6', type: 'echelle', couleurs: ['#000000', '#ffffff'] },
+    { id: 'f', plage: 'E2:E6', type: 'barres', couleur: '#638ec6' },
+    { id: 'g', plage: 'A2:A6', type: 'texte', op: 'contient', texte: 'RT', style: { fond: '#ffff00' } },
+  ];
+  egal(styleConditionnel(c, 0, 3, 2), { fond: '#ffc7ce', gras: true }); // 2100 : la première règle garde son fond
+  egal(styleConditionnel(c, 0, 2, 2), null);                           // 800
+  egal(styleConditionnel(c, 0, 1, 3), { couleur: '#ff0000' });         // Lyon en double
+  egal(styleConditionnel(c, 0, 4, 3), null);                           // Nice unique
+  egal(styleConditionnel(c, 0, 3, 0), { italique: true }); egal(styleConditionnel(c, 0, 5, 0), { fond: '#ffff00' }); // Bernard : 58 > 40 ; Robert contient « rt »
+  egal(styleConditionnel(c, 0, 2, 1).fond, '#000000'); egal(styleConditionnel(c, 0, 3, 1).fond, '#ffffff');
+  const barre = styleConditionnel(c, 0, 3, 4).barre; egal([barre.debut, barre.fin], [0, 100]);
+  // Les plages suivent les insertions de lignes
+  c.insererLignes(0, 0, 2); egal(f.mfc[0].plage, 'C4:C8');
+});
+
+test('données : valeur cible, somme automatique', () => {
+  const c = Classeur.nouveau();
+  // Taux actuariel d'une annuité : VA(taux; 10; -100) = 800 → taux ≈ 4,28 %
+  c.saisir(0, 0, 0, '0,01'); c.saisir(0, 1, 0, '=VA(A1;10;-100)');
+  const r = valeurCible(c, 0, { r: 1, c: 0 }, 800, { r: 0, c: 0 });
+  egal(r.ok, true); egal(Math.abs(c.valeur(0, 1, 0) - 800) < 1e-4, true); egal(Math.abs(r.x - 0.04277) < 1e-4, true);
+  // Fonction non monotone : x² = 2 depuis 0
+  c.saisir(0, 0, 1, '0'); c.saisir(0, 1, 1, '=B1^2');
+  egal(Math.abs(valeurCible(c, 0, { r: 1, c: 1 }, 2, { r: 0, c: 1 }).x ** 2 - 2) < 1e-5, true);
+  let erreur = ''; try { valeurCible(c, 0, { r: 0, c: 1 }, 1, { r: 1, c: 1 }); } catch (e) { erreur = e.message; }
+  egal(/formule/.test(erreur), true);
+  const t = tableau();
+  egal(formuleAutomatique(t, 0, 6, 2), '=SOMME(C2:C6)');
+  egal(formuleAutomatique(t, 0, 1, 5), '=SOMME(E2:E2)'); t.saisir(0, 1, 3, '7'); egal(formuleAutomatique(t, 0, 1, 5), '=SOMME(B2:E2)');
+  egal(formuleAutomatique(t, 0, 10, 10, 'MOYENNE'), '=MOYENNE()');
+});
+
+test('xlsx : volets figés, filtre, mise en forme conditionnelle, lignes masquées, renvoi à la ligne', () => {
+  const c = tableau(), f = c.feuilles[0];
+  f.figer = { r: 1, c: 1 };
+  f.filtre = { r1: 0, c1: 0, r2: 5, c2: 4, criteres: { 3: { visibles: ['Lyon'] }, 2: { condition: { op: '>=', valeur: '900' } } } };
+  appliquerFiltre(c, 0);
+  f.hauteurs[8] = 0; f.largeurs[6] = 0;
+  c.style(0, 0, 0, { renvoi: true, valign: 'top', taille: 19 });
+  f.mfc = [
+    { id: 'a', plage: 'C2:C6', type: 'valeur', op: 'entre', v1: '700', v2: '1000', style: { fond: '#ffc7ce', couleur: '#9c0006', gras: true } },
+    { id: 'b', plage: 'A2:A6 D2:D6', type: 'texte', op: 'commence', texte: 'Pa', style: { fond: '#c6efce' } },
+    { id: 'c', plage: 'E2:E6', type: 'formule', formule: '=SI($B2>40;VRAI;FAUX)', style: { italique: true } },
+    { id: 'd', plage: 'B2:B6', type: 'echelle', couleurs: ['#f8696b', '#ffeb84', '#63be7b'] },
+    { id: 'e', plage: 'C2:C6', type: 'top', n: 20, pct: true, bas: true, style: { couleur: '#0000ff' } },
+    { id: 'f', plage: 'E2:E6', type: 'barres', couleur: '#ff8800' },
+  ];
+  const octets = ecrireClasseur(XLSX, c);
+  const cfb = XLSX.CFB.read(octets, { type: 'array' });
+  const xml = new TextDecoder().decode(cfb.FileIndex[cfb.FullPaths.findIndex((p) => p.endsWith('sheet1.xml'))].content);
+  egal(/<pane xSplit="1" ySplit="1" topLeftCell="B2" activePane="bottomRight" state="frozen"\/>/.test(xml), true);
+  egal(/<filterColumn colId="3"><filters><filter val="Lyon"\/><\/filters><\/filterColumn>/.test(xml), true);
+  egal(xml.includes('IF($B2&gt;40,TRUE,FALSE)'), true);
+  // Ordre exigé par Excel : autoFilter, puis conditionalFormatting, puis ignoredErrors
+  egal(xml.indexOf('</autoFilter>') < xml.indexOf('<conditionalFormatting') && (!xml.includes('<ignoredErrors') || xml.lastIndexOf('</conditionalFormatting>') < xml.indexOf('<ignoredErrors')), true);
+  const e = lireClasseur(XLSX, octets, 'x.xlsx'), g = e.feuilles[0];
+  egal(g.figer, { r: 1, c: 1 });
+  egal([g.filtre.r1, g.filtre.c1, g.filtre.r2, g.filtre.c2], [0, 0, 5, 4]);
+  egal(g.filtre.criteres[3], { visibles: ['Lyon'] }); egal(g.filtre.criteres[2], { condition: { op: '>=', valeur: '900' } });
+  egal([...g.filtrees].sort(), [...f.filtrees].sort());
+  egal([g.hauteurs[8], g.largeurs[6]], [0, 0]);
+  egal(g.get(0, 0).s, { taille: 19, valign: 'top', renvoi: true });
+  egal(g.mfc.map((r) => r.type), ['valeur', 'texte', 'formule', 'echelle', 'top', 'barres']);
+  egal(g.mfc[0].style, { gras: true, couleur: '#9c0006', fond: '#ffc7ce' }); egal([g.mfc[0].op, g.mfc[0].v1, g.mfc[0].v2], ['entre', '700', '1000']);
+  egal(g.mfc[1].plage, 'A2:A6 D2:D6'); egal(g.mfc[2].formule, '=SI($B2>40;VRAI;FAUX)');
+  egal(g.mfc[3].couleurs, ['#f8696b', '#ffeb84', '#63be7b']); egal([g.mfc[4].n, g.mfc[4].pct, g.mfc[4].bas], [20, true, true]);
+  egal(g.mfc[5].couleur, '#ff8800');
+  egal(styleConditionnel(e, 0, 2, 2), { gras: true, couleur: '#9c0006', fond: '#ffc7ce' });
+});
+
+test('données : validation (liste, bornes, dates, longueur, formule)', () => {
+  const c = tableau(), f = c.feuilles[0];
+  c.saisir(0, 0, 7, 'Lyon'); c.saisir(0, 1, 7, 'Paris'); c.saisir(0, 2, 7, 'Nice');
+  f.validations = [
+    { id: 'a', plage: 'D2:D9', type: 'liste', liste: '=$H$1:$H$3' },
+    { id: 'b', plage: 'B2:B9', type: 'entier', op: 'entre', v1: '18', v2: '65' },
+    { id: 'c', plage: 'C2:C9', type: 'decimal', op: '>=', v1: '=B2*10' },
+    { id: 'd', plage: 'F2', type: 'date', op: '>', v1: '01/01/2024' },
+    { id: 'e', plage: 'A2:A9', type: 'longueur', op: '<=', v1: '6', vides: false },
+    { id: 'g', plage: 'G2', type: 'liste', liste: 'Oui;Non' },
+    { id: 'h', plage: 'G3', type: 'formule', v1: '=ESTNUM(G3)' },
+  ];
+  egal(elementsListe(c, 0, f.validations[0], 1, 3), ['Lyon', 'Paris', 'Nice']);
+  egal(validationDe(f, 4, 3).id, 'a'); egal(validationDe(f, 0, 3), null);
+  egal(valeurValide(c, 0, f.validations[0], 1, 3), true);
+  c.saisir(0, 1, 3, 'lille'); egal(valeurValide(c, 0, f.validations[0], 1, 3), false);
+  c.saisir(0, 1, 3, 'paris'); egal(valeurValide(c, 0, f.validations[0], 1, 3), true); // sans la casse
+  egal(valeurValide(c, 0, f.validations[1], 1, 1), true);
+  c.saisir(0, 1, 1, '70'); egal(valeurValide(c, 0, f.validations[1], 1, 1), false);
+  c.saisir(0, 1, 1, '30,5'); egal(valeurValide(c, 0, f.validations[1], 1, 1), false); // pas entier
+  c.saisir(0, 2, 1, '32'); egal(valeurValide(c, 0, f.validations[2], 2, 2), true);  // 800 ≥ 320
+  c.saisir(0, 2, 2, '100'); egal(valeurValide(c, 0, f.validations[2], 2, 2), false);
+  c.saisir(0, 1, 5, '15/03/2024'); egal(valeurValide(c, 0, f.validations[3], 1, 5), true);
+  c.saisir(0, 1, 5, '15/03/2023'); egal(valeurValide(c, 0, f.validations[3], 1, 5), false);
+  egal(valeurValide(c, 0, f.validations[4], 3, 0), false); // « Bernard » : 7 caractères
+  c.saisir(0, 6, 0, ''); egal(valeurValide(c, 0, f.validations[4], 6, 0), false); // vide refusé
+  c.saisir(0, 1, 6, 'Non'); egal(valeurValide(c, 0, f.validations[5], 1, 6), true);
+  c.saisir(0, 2, 6, 'x'); egal(valeurValide(c, 0, f.validations[6], 2, 6), false);
+  egal(cellulesInvalides(c, 0).length > 0, true);
+  // Les plages suivent les insertions de colonnes
+  c.insererColonnes(0, 0, 1); egal(f.validations[0].plage, 'E2:E9');
+});
+
+test('xlsx : validation des données lue et écrite au format d\'Excel', () => {
+  const c = tableau(), f = c.feuilles[0];
+  f.validations = [
+    { id: 'a', plage: 'D2:D9', type: 'liste', liste: 'Lyon;Paris;Nice', message: { titre: 'Ville', texte: 'Choisissez' }, erreur: { style: 'avertissement', titre: 'Oups', texte: 'Pas dans la liste' } },
+    { id: 'b', plage: 'B2:B9 F2:F3', type: 'entier', op: 'entre', v1: '18', v2: '65' },
+    { id: 'c', plage: 'C2:C9', type: 'decimal', op: '>=', v1: '=B2*10', vides: false },
+    { id: 'd', plage: 'G2', type: 'date', op: '<', v1: '31/12/2025', erreur: { style: 'stop' } },
+    { id: 'e', plage: 'H2', type: 'liste', liste: '=$J$1:$J$3', fleche: false },
+    { id: 'f', plage: 'I2', type: 'formule', v1: '=ET(I2>0;I2<10)', erreur: { style: 'aucune' } },
+  ];
+  const octets = ecrireClasseur(XLSX, c);
+  const cfb = XLSX.CFB.read(octets, { type: 'array' });
+  const xml = new TextDecoder().decode(cfb.FileIndex[cfb.FullPaths.findIndex((p) => p.endsWith('sheet1.xml'))].content);
+  egal(xml.includes('<formula1>&quot;Lyon,Paris,Nice&quot;</formula1>'), true);
+  egal(xml.includes('<formula1>AND(I2&gt;0,I2&lt;10)</formula1>'), true);
+  egal(xml.includes('<formula1>46022</formula1>'), true); // 31/12/2025
+  const g = lireClasseur(XLSX, octets, 'x.xlsx').feuilles[0];
+  const v = (id) => g.validations[f.validations.findIndex((x) => x.id === id)];
+  egal(g.validations.length, 6);
+  egal([v('a').type, v('a').liste, v('a').message, v('a').erreur], ['liste', 'Lyon;Paris;Nice', { titre: 'Ville', texte: 'Choisissez' }, { style: 'avertissement', titre: 'Oups', texte: 'Pas dans la liste' }]);
+  egal([v('b').plage, v('b').op, v('b').v1, v('b').v2], ['B2:B9 F2:F3', 'entre', '18', '65']);
+  egal([v('c').op, v('c').v1, v('c').vides], ['>=', '=B2*10', false]);
+  egal([v('d').type, v('d').op, v('d').v1], ['date', '<', '31/12/2025']);
+  egal([v('e').liste, v('e').fleche], ['=$J$1:$J$3', false]);
+  egal([v('f').v1, v('f').erreur.style], ['=ET(I2>0;I2<10)', 'aucune']);
+});
+
+test('tableau croisé dynamique : lignes, colonnes, sous-totaux, filtres, pourcentages', () => {
+  const c = Classeur.nouveau();
+  [['Région', 'Produit', 'Année', 'Prime', 'Sexe'], ['Nord', 'Vie', 2023, 100, 'F'], ['Nord', 'IARD', 2023, 50, 'H'], ['Sud', 'Vie', 2024, 200, 'F'],
+    ['Nord', 'Vie', 2024, 120, 'H'], ['Sud', 'IARD', 2023, 80, 'F'], ['Sud', 'Vie', 2023, 60, 'H']].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  const grille = (res) => res.cellules.map((l) => Array.from({ length: res.largeur }, (_, j) => (l[j] && l[j].v !== null && l[j].v !== undefined ? l[j].v : '')));
+  egal(champsSource(c, 'Feuil1!A1:E7'), ['Région', 'Produit', 'Année', 'Prime', 'Sexe']);
+  egal(grille(calculerTCD(c, { source: 'Feuil1!A1:E7', lignes: ['Région'], valeurs: [{ champ: 'Prime', fn: 'somme' }] })),
+    [['Région', 'Somme de Prime'], ['Nord', 270], ['Sud', 340], ['Total général', 610]]);
+  const g = grille(calculerTCD(c, { source: 'Feuil1!A1:E7', lignes: ['Région', 'Produit'], colonnes: ['Année'], valeurs: [{ champ: 'Prime', fn: 'somme' }] }));
+  egal(g[0], ['Somme de Prime', '', '2023', '2024', 'Total général']);
+  egal(g.slice(2), [['Nord', 'IARD', 50, '', 50], ['', 'Vie', 100, 120, 220], ['Total Nord', '', 150, 120, 270], ['Sud', 'IARD', 80, '', 80], ['', 'Vie', 60, 200, 260], ['Total Sud', '', 140, 200, 340], ['Total général', '', 290, 320, 610]]);
+  const p = grille(calculerTCD(c, { source: 'Feuil1!A1:E7', lignes: ['Région'], valeurs: [{ champ: 'Prime', fn: 'somme', affichage: 'pctTotal' }, { champ: 'Prime', fn: 'moyenne' }], filtres: [{ champ: 'Sexe', visibles: ['F'] }] }));
+  egal(p[0], ['Sexe', 'F', '']); egal(p[2], ['Région', 'Somme de Prime', 'Moyenne de Prime']);
+  egal(p[3][0], 'Nord'); egal(Math.abs(p[3][1] - 100 / 380) < 1e-12, true); egal(p[4][2], 140); egal(p[5][1], 1);
+  // Écrit dans la feuille, puis actualisé après un changement de la source
+  const spec = { id: 't', source: 'Feuil1!A1:E7', dest: { r: 0, c: 7 }, lignes: ['Produit'], colonnes: [], valeurs: [{ champ: 'Prime', fn: 'nbval' }], filtres: [] };
+  c.feuilles[0].tcd.push(spec);
+  ecrireTCD(c, 0, spec);
+  egal(spec.zone, { r1: 0, c1: 7, r2: 3, c2: 8 }); egal(c.valeur(0, 2, 8), 4); egal(tcdA(c.feuilles[0], 2, 8), spec);
+  c.saisir(0, 7 - 1 + 1, 1, 'Santé'); c.saisir(0, 7, 3, '10'); spec.source = 'Feuil1!A1:E8';
+  actualiserTout(c);
+  egal(c.valeur(0, 2, 7), 'Santé'); egal(spec.zone.r2, 4);
+  // Une source recouverte est refusée
+  let erreur = ''; try { ecrireTCD(c, 0, { ...spec, dest: { r: 2, c: 2 }, zone: null }); } catch (e) { erreur = e.message; }
+  egal(/recouvrirait/.test(erreur), true);
+  // Gardé dans le .xlsx (feuille masquée) avec ses valeurs
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c), 'x.xlsx');
+  egal(e.feuilles[0].tcd[0].lignes, ['Produit']); egal(e.valeur(0, 2, 7), 'Santé');
+});
+
+test('tableau croisé : regroupement des dates et des nombres', () => {
+  const c = Classeur.nouveau();
+  [['Date', 'Âge', 'Montant'], ['15/01/2024', 23, 10], ['20/02/2024', 37, 20], ['03/04/2024', 41, 30], ['28/02/2025', 35, 40], ['10/12/2023', 52, 50]].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  const grille = (res) => res.cellules.map((l) => Array.from({ length: res.largeur }, (_, j) => (l[j] && l[j].v !== null && l[j].v !== undefined ? l[j].v : '')));
+  const spec = { source: 'A1:C6', lignes: ['Date'], valeurs: [{ champ: 'Montant', fn: 'somme' }] };
+  egal(typeChamp(c, spec, 'Date'), 'date'); egal(typeChamp(c, spec, 'Âge'), 'nombre');
+  egal(grille(calculerTCD(c, { ...spec, groupes: { Date: 'annee' } })).slice(1), [['2023', 50], ['2024', 60], ['2025', 40], ['Total général', 150]]);
+  egal(grille(calculerTCD(c, { ...spec, groupes: { Date: 'anneemois' } })).slice(1, 4).map((l) => l[0]), ['déc. 2023', 'janv. 2024', 'févr. 2024']);
+  egal(grille(calculerTCD(c, { ...spec, groupes: { Date: 'mois' } })).slice(1, 3), [['janv.', 10], ['févr.', 60]]);
+  egal(grille(calculerTCD(c, { ...spec, groupes: { Date: 'trimestre' } })).slice(1, 4), [['T1', 70], ['T2', 30], ['T4', 50]]);
+  egal(grille(calculerTCD(c, { source: 'A1:C6', lignes: ['Âge'], valeurs: [{ champ: 'Montant', fn: 'nbval' }], groupes: { 'Âge': { pas: 10 } } })).slice(1, 4), [['20 – 30', 1], ['30 – 40', 2], ['40 – 50', 1]]);
+});
+
+test('xlsx : graphiques écrits au format d\'Excel et relus', () => {
+  const c = Classeur.nouveau();
+  [['Année', 'Primes', 'Sinistres'], [2021, 120, 80], [2022, 135, 95], [2023, 150, 90]].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  c.ajouterFeuille('Graphes');
+  const f = c.feuilles[0];
+  const types = [['colonnes', 'empile'], ['barres', 'empile100'], ['lignes', 'groupe'], ['aires', 'groupe'], ['secteurs', 'anneau'], ['secteurs', 'eclate'], ['nuage', 'points'], ['radar', 'rempli'], ['combine', 'groupe']];
+  types.forEach(([type, variante], i) => f.graphiques.push({ id: 'g' + i, v: 2, type, variante, plage: 'A1:C4', titre: 'T' + i, titreY: 'k€', legende: 'bas', x: 300, y: i * 250, w: 400, h: 240 }));
+  c.feuilles[1].graphiques.push({ id: 'ailleurs', v: 2, type: 'colonnes', variante: 'groupe', plage: 'Feuil1!A1:B4', x: 0, y: 0, w: 300, h: 200 });
+  const octets = ecrireClasseur(XLSX, c);
+  const cfb = XLSX.CFB.read(octets, { type: 'array' });
+  const fichier = (fin) => { const i = cfb.FullPaths.findIndex((p) => p.endsWith(fin)); return i < 0 ? null : new TextDecoder().decode(cfb.FileIndex[i].content); };
+  egal(cfb.FullPaths.filter((p) => /charts\/chart\d+\.xml$/.test(p)).length, 10);
+  egal(/<drawing r:id="[^"]+"\/>/.test(fichier('worksheets/sheet1.xml')), true);
+  egal(fichier('[Content_Types].xml').includes('/xl/charts/chart10.xml'), true);
+  const c1 = fichier('charts/chart1.xml');
+  egal(c1.includes('<c:grouping val="stacked"/>') && c1.includes('<c:f>Feuil1!$B$2:$B$4</c:f>') && c1.includes('<c:f>Feuil1!$A$2:$A$4</c:f>') && c1.includes('<c:f>Feuil1!$B$1</c:f>'), true);
+  egal(fichier('charts/chart10.xml').includes('<c:f>Feuil1!$B$2:$B$4</c:f>'), true);
+  // Relu sans la feuille masquée du Tableur : la traduction depuis le format d'Excel suffit
+  const wb = XLSX.read(octets, { type: 'array', bookSheets: true });
+  egal(wb.SheetNames.includes('_ObjetsTableur'), true);
+  const { specDepuisChartXml } = graphiquesXlsx;
+  const lus = cfb.FullPaths.filter((p) => /charts\/chart\d+\.xml$/.test(p)).sort((a, b) => +a.match(/(\d+)\.xml/)[1] - +b.match(/(\d+)\.xml/)[1]).map((p) => specDepuisChartXml(new TextDecoder().decode(cfb.FileIndex[cfb.FullPaths.indexOf(p)].content), 'Feuil1'));
+  egal(lus.map((g) => g.type + '/' + g.variante), [...types.map(([t, v]) => t + '/' + v), 'colonnes/groupe']);
+  egal([lus[0].plage, lus[0].titre, lus[0].titreY, lus[0].legende], ['A1:C4', 'T0', 'k€', 'bas']);
+  egal(lus[9].plage, 'A1:B4');
+  // Et relu complètement : les descriptions du Tableur gardent la main, un seul exemplaire de chaque graphique
+  const e = lireClasseur(XLSX, octets, 'x.xlsx');
+  egal(e.feuilles[0].graphiques.map((g) => g.id), types.map((_, i) => 'g' + i));
+  egal(e.feuilles[1].graphiques.length, 1);
+});
+
+test('xlsx : graphiques d\'un fichier écrit par un autre logiciel (espaces de noms par défaut)', () => {
+  const e = lireClasseur(XLSX, new Uint8Array(fs.readFileSync(new URL('./donnees-tableur/graphiques-openpyxl.xlsx', import.meta.url))), 'o.xlsx');
+  const g = e.feuilles[0].graphiques;
+  egal(g.map((x) => x.type + '/' + x.variante), ['colonnes/empile', 'lignes/groupe', 'nuage/lignes']);
+  egal([g[0].plage, g[0].titre, g[0].titreX, g[0].titreY], ['A1:C5', 'Ventes empilées', 'Mois', '€']);
+  egal(e.feuilles[1].graphiques[0].plage, "'Données'!A1:B5");
+  egal(g[0].x > 0 && g[0].w > 300, true);
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);

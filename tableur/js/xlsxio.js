@@ -1,15 +1,17 @@
 // Lecture et écriture de fichiers .xlsx / .xlsm / .csv avec SheetJS (passé en paramètre : window.XLSX ou require('xlsx')).
 
 import { Classeur } from './classeur.js';
-import { ErreurFormule, parseAdresse, colVersLettres, ERR, convertirFormule } from './formules.js';
+import { ErreurFormule, parseAdresse, colVersLettres, ERR, convertirFormule, adresse } from './formules.js';
 import { extraireModulesVBA } from './vbaextract.js';
 import { lireStylesXlsx, ecrireStylesXlsx } from './styles-xlsx.js';
 import { lireObjetsXlsx } from './objets-xlsx.js';
+import { lireVuesXlsx, ecrireVuesXlsx } from './vues-xlsx.js';
+import { ecrireGraphiquesXlsx, specDepuisChartXml, positionAncre } from './graphiques-xlsx.js';
 
 const FEUILLE_MACROS = '_MacrosTableur';
 const FEUILLE_GRAPHIQUES = '_GraphiquesTableur';   // ancien format : graphiques seuls
 const FEUILLE_OBJETS = '_ObjetsTableur';           // graphiques, boutons, images (une ligne par objet)
-const TYPES_OBJETS = { graphique: 'graphiques', bouton: 'boutons', image: 'images' };
+const TYPES_OBJETS = { graphique: 'graphiques', bouton: 'boutons', image: 'images', tcd: 'tcd' };
 
 /** Lit un fichier (ArrayBuffer / Uint8Array) et renvoie un Classeur. */
 export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
@@ -77,7 +79,7 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
       f.set(a.r, a.c, cel);
     }
     if (ws['!cols']) ws['!cols'].forEach((col, ci) => { if (!col) return; const px = col.wpx || (col.wch ? Math.round(col.wch * 7 + 5) : (col.width ? Math.round(col.width * 7 + 5) : null)); if (px) f.largeurs[ci] = px; if (col.hidden) f.largeurs[ci] = 0; });
-    if (ws['!rows']) ws['!rows'].forEach((row, ri) => { if (!row) return; const px = row.hpx || (row.hpt ? Math.round(row.hpt / 0.75) : null); if (px) f.hauteurs[ri] = px; });
+    if (ws['!rows']) ws['!rows'].forEach((row, ri) => { if (!row) return; const px = row.hpx || (row.hpt ? Math.round(row.hpt / 0.75) : null); if (px) f.hauteurs[ri] = px; if (row.hidden) f.hauteurs[ri] = 0; });
     if (ws['!merges']) f.fusions = ws['!merges'].map((m) => ({ r1: m.s.r, c1: m.s.c, r2: m.e.r, c2: m.e.c }));
   });
   if (!classeur.feuilles.length) classeur.ajouterFeuille('Feuil1');
@@ -98,6 +100,23 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
       }
     } catch (e) { console.warn('Styles non lus :', e); }
   }
+  // Volets figés, filtre automatique, mise en forme conditionnelle
+  if (donnees.length > 4 && donnees[0] === 0x50 && donnees[1] === 0x4b) {
+    try {
+      for (const [nom, v] of lireVuesXlsx(XLSX, donnees)) {
+        const f = classeur.feuille(nom);
+        if (!f) continue;
+        if (v.figer) f.figer = v.figer;
+        if (v.mfc) f.mfc = v.mfc;
+        if (v.validations) f.validations = v.validations;
+        if (v.filtre) {
+          f.filtre = v.filtre;
+          // Les lignes masquées dans la plage du filtre sont celles que le filtre cache (Excel les enregistre ainsi)
+          if (Object.keys(v.filtre.criteres).length) for (let r = v.filtre.r1 + 1; r <= v.filtre.r2; r++) if (f.hauteurs[r] === 0) { delete f.hauteurs[r]; f.filtrees.add(r); }
+        }
+      }
+    } catch (e) { console.warn('Volets, filtre ou mise en forme conditionnelle non lus :', e); }
+  }
   // Noms définis
   if (wb.Workbook && wb.Workbook.Names) {
     for (const n of wb.Workbook.Names) {
@@ -114,13 +133,20 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
         const f = classeur.feuille(nomF);
         if (!f) continue;
         f.boutons.push(...o.boutons); f.images.push(...o.images);
+        // Graphiques d'Excel : traduits dans le format du Tableur (ceux qu'il a écrits gardent leur identifiant)
+        for (const gx of o.graphiques || []) {
+          try { const g = specDepuisChartXml(gx.xml, nomF); if (!g) continue; if (gx.id) g.id = gx.id; Object.assign(g, positionAncre(f, gx)); f.graphiques.push(g); } catch (e) { console.warn('Graphique non lu :', e); }
+        }
       }
     } catch (e) { console.warn('Objets non lus :', e); }
   }
   for (const [nomF, type, o] of objets) {
     const f = classeur.feuille(nomF);
     const cle = TYPES_OBJETS[type];
-    if (f && cle && !f[cle].some((x) => x.id === o.id)) f[cle].push(o);
+    if (!f || !cle) continue;
+    // La description complète gardée par le Tableur remplace celle relue dans le graphique Excel
+    const i = f[cle].findIndex((x) => x.id === o.id);
+    if (i < 0) f[cle].push(o); else if (cle === 'graphiques') f[cle][i] = o;
   }
   // Macros
   if (macrosLignes.length) classeur.macros = macrosLignes.join('\n');
@@ -178,8 +204,10 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
     for (const [c, px] of Object.entries(f.largeurs)) cols[c] = px === 0 ? { hidden: true } : { wpx: px };
     if (cols.length) ws['!cols'] = cols;
     const rows = [];
-    for (const [r, px] of Object.entries(f.hauteurs)) rows[r] = { hpx: px };
+    for (const [r, px] of Object.entries(f.hauteurs)) rows[r] = px === 0 ? { hidden: true } : { hpx: px };
+    for (const r of f.filtrees || []) rows[r] = { ...(rows[r] || {}), hidden: true };
     if (rows.length) ws['!rows'] = rows;
+    if (f.filtre) ws['!autofilter'] = { ref: adresse(f.filtre.r1, f.filtre.c1) + ':' + adresse(f.filtre.r2, f.filtre.c2) };
     if (f.fusions.length) ws['!merges'] = f.fusions.map((m) => ({ s: { r: m.r1, c: m.c1 }, e: { r: m.r2, c: m.c2 } }));
     XLSX.utils.book_append_sheet(wb, ws, f.nom);
     wb.Workbook.Sheets.push({ name: f.nom, Hidden: f.cachee ? 1 : 0 });
@@ -218,6 +246,8 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
   }
   let out = new Uint8Array(XLSX.write(wb, { bookType, type: 'array', compression: true }));
   try { out = ecrireStylesXlsx(XLSX, out, classeur.feuilles); } catch (e) { console.warn('Styles non écrits :', e); }
+  try { out = ecrireVuesXlsx(XLSX, out, classeur.feuilles); } catch (e) { console.warn('Volets, filtre ou mise en forme conditionnelle non écrits :', e); }
+  if (bookType !== 'csv') try { out = ecrireGraphiquesXlsx(XLSX, out, classeur); } catch (e) { console.warn('Graphiques Excel non écrits :', e); }
   return out;
 }
 

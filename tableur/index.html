@@ -31,6 +31,10 @@
         <button id="btn-gras" title="Gras (Ctrl+B)"><b>G</b></button>
         <button id="btn-italique" title="Italique (Ctrl+I)"><i>I</i></button>
         <button id="btn-souligne" title="Souligné (Ctrl+U)"><u>S</u></button>
+        <select id="taille-police" title="Taille de police">
+          <option value="11">8</option><option value="12">9</option><option value="13">10</option><option value="15">11</option><option value="16">12</option>
+          <option value="19">14</option><option value="21">16</option><option value="24">18</option><option value="27">20</option><option value="32">24</option><option value="37">28</option><option value="48">36</option>
+        </select>
         <input type="color" id="couleur-texte" title="Couleur du texte" value="#000000">
         <input type="color" id="couleur-fond" title="Couleur de fond" value="#ffff99">
         <button id="btn-fond" title="Appliquer la couleur de fond">Fond</button>
@@ -39,6 +43,7 @@
         <button data-align="left" title="Aligner à gauche">⇤</button>
         <button data-align="center" title="Centrer">↔</button>
         <button data-align="right" title="Aligner à droite">⇥</button>
+        <button id="btn-renvoi" title="Renvoyer à la ligne automatiquement">↵ Renvoi</button>
         <select id="bordures" title="Bordures">
           <option value="">▦ Bordures</option>
           <option value="toutes">Toutes les bordures</option>
@@ -71,21 +76,22 @@
         <button id="btn-decimales-plus" title="Plus de décimales">,00</button>
       </div>
       <div class="groupe">
+        <button id="btn-somme" title="Somme automatique (Alt+=)">Σ</button><button id="btn-somme-menu" class="fleche" title="Moyenne, Nb, Max, Min">▾</button>
+        <button id="btn-trier" title="Trier et filtrer">⇅ Trier</button>
+        <button id="btn-filtrer" title="Filtre automatique : ▾ dans les en-têtes (Ctrl+Maj+L)">⧩ Filtrer</button>
+        <button id="btn-rechercher" title="Rechercher et remplacer (Ctrl+F, Ctrl+H)">🔍</button>
+        <button id="btn-tcd" title="Tableau croisé dynamique">📊 Croisé</button>
+        <button id="btn-mfc" title="Mise en forme conditionnelle">🎨 Conditionnelle</button>
+        <button id="btn-figer" title="Figer les volets, masquer des lignes ou des colonnes">❄ Figer</button>
+        <button id="btn-plus" title="Valeur cible, impression, recalcul">⋯</button>
+      </div>
+      <div class="groupe">
         <button id="btn-inserer-ligne" title="Insérer une ligne au-dessus">+ Ligne</button>
         <button id="btn-supprimer-ligne" title="Supprimer la ou les lignes">− Ligne</button>
         <button id="btn-inserer-colonne" title="Insérer une colonne à gauche">+ Col.</button>
         <button id="btn-supprimer-colonne" title="Supprimer la ou les colonnes">− Col.</button>
         <span class="sep"></span>
-        <select id="graphique-type" title="Insérer un graphique à partir de la sélection">
-          <option value="">📈 Graphique</option>
-          <option value="barres">Barres</option>
-          <option value="barres-empilees">Barres empilées</option>
-          <option value="courbes">Courbes</option>
-          <option value="aires">Aires</option>
-          <option value="secteurs">Secteurs</option>
-          <option value="anneau">Anneau</option>
-          <option value="nuage">Nuage de points (X, Y)</option>
-        </select>
+        <button id="btn-graphique" title="Insérer un graphique à partir de la sélection (galerie avec aperçus)">📈 Graphique</button>
         <button id="btn-bouton" title="Insérer un bouton qui lance une macro VBA (sur la sélection)">🔘 Bouton</button>
         <span class="sep"></span>
         <button id="btn-noms" title="Noms définis">Noms</button>
@@ -112,11 +118,14 @@
           <div id="coin"></div>
           <div id="entetes-colonnes"></div>
           <div id="entetes-lignes"></div>
+          <div id="volets"></div>
         </div>
         <div id="cellules"></div>
         <div id="selection"></div>
         <div id="curseur"></div>
         <div id="poignee" title="Recopier"></div>
+        <button id="fleche-liste" title="Choisir dans la liste (Alt+↓)" hidden>▾</button>
+        <div id="message-validation" hidden></div>
         <textarea id="editeur" rows="1" spellcheck="false" hidden></textarea>
         <div id="plage-copie" hidden></div>
       </div>
@@ -158,6 +167,13 @@
           <div id="liste-noms"></div>
         </div>
         <div id="panneau-aide" class="panneau-contenu" hidden></div>
+        <div id="panneau-graphique" class="panneau-contenu" hidden></div>
+        <div id="panneau-rechercher" class="panneau-contenu" hidden></div>
+        <div id="panneau-tri" class="panneau-contenu" hidden></div>
+        <div id="panneau-mfc" class="panneau-contenu" hidden></div>
+        <div id="panneau-cible" class="panneau-contenu" hidden></div>
+        <div id="panneau-validation" class="panneau-contenu" hidden></div>
+        <div id="panneau-tcd" class="panneau-contenu" hidden></div>
       </aside>
     </div>
     <footer id="onglets">
