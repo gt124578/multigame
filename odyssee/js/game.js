@@ -21,6 +21,7 @@ import { storyTalk, storyTrigger, storyWin, lugiaBattle, placeLugia, purify, ove
 import { syncJournal } from './core/questsData.js';
 import { QUIZ } from './world/arenes.js';
 import { casinoScreen, bourseScreen, entretienPierre } from './ui/metropole.js';
+import { arcadeScreen } from './ui/arcade.js';
 import { apparenceScreen } from './ui/apparence.js';
 import { preparerDomaine, frigo, architecte, recolter, allerDomaine, resident, arrivees } from './ui/domaine.js';
 import { composer } from './render/tenue.js';
@@ -651,6 +652,8 @@ export class Game {
   }
   /** tables du Casino et terminaux de la Bourse (objets des intérieurs de Métropole) */
   casino(quoi) { return casinoScreen(this, quoi); }
+  /** bornes de la salle d'arcade du Casino */
+  arcade(jeu) { return arcadeScreen(this, jeu); }
   bourse() { return bourseScreen(this); }
   /** accueil d'une arène : le guide présente le Champion et demande si l'on est prêt ; oui = enfermé jusqu'à la victoire ou
    *  la défaite, non = on ressort pour se préparer */

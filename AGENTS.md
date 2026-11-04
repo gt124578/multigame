@@ -128,8 +128,12 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   Arènes à énigmes (`odyssee/js/world/arenes.js`) : chaque énigme est tirée d'une graine et vérifiée par un solveur
   (aller jusqu'au Champion et revenir) ; `node tools/test-odyssee-arenes.mjs [type]` les résout toutes (le type affiché en caractères).
   Quêtes du vélo et du permis bateau (`odyssee/js/world/vehicules.js`) : `node tools/test-odyssee-vehicules.mjs`.
-  Métropole : Bourse (`odyssee/js/core/bourse.js`, pricers et entretien de Pierre) et Casino (`odyssee/js/core/casino.js`),
-  écrans dans `odyssee/js/ui/metropole.js` : `node tools/test-odyssee-casino.mjs`.
+  Métropole : Bourse (`odyssee/js/core/bourse.js`, pricers et entretien de Pierre) et Casino (`odyssee/js/core/casino.js` ;
+  Texas Hold'em, abattage sur 7 cartes, pots annexes et ordinateurs dans `odyssee/js/core/holdem.js`), comptoir dans `odyssee/js/ui/metropole.js`,
+  une table dessinée par jeu dans `odyssee/js/ui/casino/` (scène en pixel art 400 × 240 et police 5 × 7 : `odyssee/js/ui/pixel.js`) :
+  `node tools/test-odyssee-casino.mjs`. Salle d'arcade du Casino : quatre bornes (Tétra-Chute, Invasion, Casse-Briques, Abo le Serpent),
+  moteurs sans DOM dans `odyssee/js/core/arcade.js`, meuble et écran dans `odyssee/js/ui/arcade.js`, meilleurs scores dans `state.arcade` :
+  `node tools/test-odyssee-arcade.mjs`. Sprites des bornes et des machines à sous : `odyssee/img/mobilier/borne_*.png`, `machine_sous.png`.
   Rendu : les sprites sont dessinés à l'écran pixel pour pixel, ancrés à leurs pieds
   (shader `screenSprite` de `odyssee/js/render/world3d.js`), les bâtiments prennent la profondeur de leur façade.
 - Island Rush (battle royale, `royale/`) : l'île vient d'une graine (`royale/engine/map.js`, île officielle `ILE`), `royale/carte.html`
