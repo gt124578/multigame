@@ -23,8 +23,8 @@ export function montLunaire({ W, trainerNpc }) {
     ' +++++++=+++gggg+++++vvvv+++++++++++++ ',   // y 23
     ' ++++++gggggggggggggg####gggggggggggg+ ',   // y 24 : la passerelle du haut, la corniche au-dessus du ravin
     '+++++++gggggggggg++++vvvv++++++++gggg+ ',   // y 25
-    '++++++++++++++++++++vvvvv++++++++++=++ ',   // y 26
-    ' ++++++++++++eeeee++vvvvvvee+++++++=+  ',   // y 27
+    '+++++++++++++++++++++vvvv++++++++++=++ ',   // y 26
+    ' ++++++++++++eeeee+++vvvv+ee+++++++=+  ',   // y 27
     ' ++++++++++eeeeeeeeee####eeeeeeeeeee+  ',   // y 28 : la passerelle du bas
     ' ++++++++eeeeeeeee++evvvveeeeeeeeeee+  ',   // y 29
     '  ++++++++++++=+++++++vvv++++eeee++++  ',   // y 30
@@ -65,18 +65,18 @@ export function montLunaire({ W, trainerNpc }) {
  */
 export function montGivre({ W, trainerNpc, ENC }) {
   const plan = [
-    '            ++++++++++++++++++++++++++++++++++++jjjjjjj++',   // y 22 : le belvédère du sommet (à l'est), la mer derrière
-    '      ++++++++++++hhhhhhhhhhhhhhhhhhhhhhhhhhhhh=jjjjjjj++',   // y 23 : le plateau du sommet
-    '  ++++++++++++hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh=jjjjjjj++',   // y 24
-    ' ++++++++++++++++++++vvvvvvvvvvv#vvvvvvvvvvv++++jjjjjjj++',   // y 25 : le ravin tourne vers l'est ; passerelle nord-sud
-    '++++++++++++++++++++vvvvvvvvvvvv#vvvvvvvvvvvv++++++++++++',   // y 26
+    '            ++++++++++++++++++++++++++++++++++++jjjjjjjHH',   // y 22 : le belvédère du sommet (à l'est), la mer derrière
+    '      ++++++++++++hhhhhhhhhhhhhhhhhhhhhhhhhhhhh=jjjjjjjHH',   // y 23 : le plateau du sommet
+    '  ++++++++++++hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh=jjjjjjjHH',   // y 24
+    ' ++++++++++++++++++++vvvvvvvvvvv#vvvvvvvvvvv++++jjjjjjjHH',   // y 25 : le ravin tourne vers l'est ; passerelle nord-sud
+    '+++++++++++++++++++++vvvvvvvvvvv#vvvvvvvvvvv+++++++++++HH',   // y 26
     '+++++++++++++++++++++vvvvvvvvvvv#vvvvvvvvvv++++++++++++++',   // y 27
     '+++++++++++++++++++++vvvvhhhhhhhhhhhhhhhhhhhhhhhh++++++++',   // y 28 : palier 4, corniche au bord du ravin
     '+++++++++++++++++++++vvvv++++++++++++++++hhhhhhhh++++++++',   // y 29
-    '++++++++++++++++++++++vvv++++++++++++++++++++++==++++++++',   // y 30 : marches
+    '+++++++++++++++++++++vvvv++++++++++++++++++++++==++++++++',   // y 30 : marches
     '++++++++ffff+++++++++vvvv+++++++++fffff++++++++==++++++++',   // y 31
     '++++++fffffffffffffff####ffffffffffffffffffffffff++++++++',   // y 32 : palier 3 et la passerelle sur la fente
-    '++++++fffffffffffffffvvvvvfffffffffffffffffffffff++++++++',   // y 33
+    '++++++fffffffffffffffvvvvffffffffffffffffffffffff++++++++',   // y 33
     '+++++++=++++++++++++++vvv++++++++++++++++++++++++++++++++',   // y 34 : marches
     '++++++d=d+++++++++ddddd+++++++++++++++++++++++++++++++++ ',   // y 35
     '++++++ddddddddddddddddddddddddd++++++++++++++++++++++++  ',   // y 36 : palier 2 (herbes enneigées)

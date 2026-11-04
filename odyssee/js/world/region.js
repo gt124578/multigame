@@ -704,7 +704,7 @@ export function buildWorld() {
   routeTrainer(W, r4, 0.4, 1, 4, 'Marin', 'Loïc', [[66, 16], [1033, 16]]);
   routeTrainer(W, r4, 0.62, -1, 4, 'Fillette', 'Romane', [[1037, 16], [179, 17]]);
   routeTrainer(W, r4, 0.85, 1, 3, 'Topdresseur', 'Kylian', [[1011, 18], [84, 17], [1026, 18]]);
-  routeItem(W, r4, 0.3, 1, 5, 'great-ball', 2); routeItem(W, r4, 0.72, -1, 5, 'water-stone');
+  routeItem(W, r4, 0.3, 1, 5, 'great-ball', 2); routeItem(W, r4, 0.72, -1, 5, 'water-stone', 1, 'monde:265,47');   // identifiant d'avant les talus (anciennes sauvegardes)
 
   const r5 = R('r5', 'Route 5', sinueuse([[283.5, 94], [281, 100], [266, 101], [248, 97], [230, 100.5], [212, 97.5], [196, 101], [182.5, 104], [182.5, 112]]), { w: 12, grass: 0.75, trees: 0.05, rocks: 0.01 }, 'r5');
   ledges(W, r5, [0.08], { reach: 6 });

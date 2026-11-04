@@ -134,7 +134,14 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   des chemins qui le franchissent et de l'eau), cases marquées dans `m.pentes`, talus de pelouse et marches de rondins dessinés
   au pixel par le sol généré (`talus` de `solgen.js`) ; `{ roche: true }` garde la falaise de roche au bord droit (canyon) ;
   `massif()` fait une montagne en gradins (roche), `tourbillons()` une ceinture de tourbillons (`T.WHIRL`, infranchissable à la nage),
-  `boucher()` referme les recoins isolés, `sinueuse()` lisse le tracé d'une route. Rendu à plat façon HeartGold :
+  `boucher()` referme les recoins isolés, `sinueuse()` lisse le tracé d'une route.
+  Montagnes à gravir (`odyssee/js/world/montagnes.js` : Mont Lunaire au-dessus de la Grotte Lunaire, Mont Givré au nord du
+  Rivage Gelé) : plan dessiné case par case, lu par `montagne()` de `relief.js` (minuscules = sentier et sa hauteur, `+` = roche
+  à hauteur calculée, `=` marches, `v` ravin, `#` passerelle de bois) ; cases marquées dans `m.monts` et `m.ravins`. Rendu :
+  gradins comme les bords des grottes (`paroiCell`, pente continue `rv_` quand la falaise couvre plusieurs gradins), sol de roche
+  (`K.MT`, `K.MR`, `K.MP` de `solgen.js`), vide et passerelles dessinés par `relief-tex.js` ; zone `roche` : roche d'un autre biome.
+  `W.montagnes` (pied, sommet, passerelles) est vérifié par `test-odyssee.mjs` (sommet atteignable, passerelles franchissables,
+  cul-de-sac sans raccourci). Rendu à plat façon HeartGold :
   `reliefDehors` de `world3d.js`, pièces dessinées par `odyssee/js/render/relief-tex.js` ; sols générés : feuilles mortes (zone
   `theme: 'automne'`), gravier ratissé, mousse, désert, sol ocre des canyons ; zone `ombre` : sous-bois plus sombre.
   L'archipel et les îles de l'Est ne s'atteignent qu'en bateau (passeur du Cap Mirage, quais `docks`) ; les tests suivent le bateau.

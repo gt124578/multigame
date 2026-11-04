@@ -115,6 +115,50 @@ for (let y = 1; y < W.h - 1; y++) for (let x = 1; x < W.w - 1; x++) {
   const k = new GameMap('essai3', 60, 40, { fill: T.GRASS }); plateau(k, rectangle(5, 8, 54, 28), 1, { roche: true });
   ok([...Array(50).keys()].every((i) => k.get(5 + i, 29) === T.CLIFF) && !pente(k, 20, 18), 'falaise de roche : bord droit');
 }
+// montagnes à gravir (world/montagnes.js) : le sommet s'atteint depuis le pied, chaque passerelle se franchit et elle seule
+// passe le ravin ; tout le sentier est atteignable (aucun recoin isolé) ; la montagne ne s'ouvre qu'au pied (pas de
+// raccourci) ; au moins quatre niveaux de sentier (le pied et trois paliers ou plus)
+{ const { mont, ravin } = await import('../odyssee/js/world/relief.js');
+  const M = W.montagnes || [];
+  ok(M.length >= 2 && M.some((q) => q.nom === 'Mont Lunaire') && M.some((q) => q.nom === 'Mont Givré'), 'deux montagnes à gravir : Mont Lunaire et Mont Givré');
+  const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  // exploration à pied, sans PNJ ni objets, en ne passant pas par la case `sauf` (une passerelle qu'on retire)
+  const marche = (x0, y0, sauf = null) => {
+    const vu = new Set([x0 + ',' + y0]), q = [[x0, y0]];
+    while (q.length) { const [x, y] = q.pop(); for (const [dx, dy] of N4) { const a = x + dx, b = y + dy, k = a + ',' + b; if (vu.has(k) || (sauf && sauf.has(k)) || !W.in(a, b) || !walkable(W.get(a, b)) || !W.canStep(x, y, a, b)) continue; vu.add(k); q.push([a, b]); } }
+    return vu;
+  };
+  for (const mo of M) {
+    const [px, py] = mo.pied, [sx, sy] = mo.sommet, r = marche(px, py);
+    ok(walkable(W.get(sx, sy)) && r.has(sx + ',' + sy), `${mo.nom} : le sommet (${sx},${sy}) s'atteint depuis le pied`);
+    ok(seenW[at(W, px, py)] && seenW[at(W, sx, sy)], `${mo.nom} : pied et sommet atteignables depuis Bourg-Aube (PNJ compris)`);
+    for (const [x0, y0, x1, y1] of mo.passerelles) {
+      const cases = []; for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) cases.push([x, y]);
+      ok(cases.every(([x, y]) => W.get(x, y) === T.BRIDGE && ravin(W, x, y) && r.has(x + ',' + y)), `${mo.nom} : passerelle ${x0},${y0} praticable, au-dessus du ravin`);
+      // les deux bouts : un sentier de la même hauteur ; de part et d'autre, dans la longueur, le vide du ravin
+      const ew = y0 === y1 && x1 > x0, a = ew ? [x0 - 1, y0] : [x0, y0 - 1], b = ew ? [x1 + 1, y1] : [x1, y1 + 1];
+      ok([a, b].every(([x, y]) => walkable(W.get(x, y)) && W.height(x, y) === W.height(x0, y0) && r.has(x + ',' + y)), `${mo.nom} : passerelle ${x0},${y0} : on la franchit d'un bout à l'autre`);
+      ok(cases.every(([x, y]) => (ew ? [[x, y - 1], [x, y + 1]] : [[x - 1, y], [x + 1, y]]).every(([c, d]) => ravin(W, c, d) && !walkable(W.get(c, d)))), `${mo.nom} : passerelle ${x0},${y0} : le vide de chaque côté`);
+      const sans = marche(a[0], a[1], new Set(cases.map(([x, y]) => x + ',' + y)));
+      ok(!sans.has(b[0] + ',' + b[1]), `${mo.nom} : passerelle ${x0},${y0} : sans elle, on ne passe pas le ravin`);
+    }
+    // le sentier de la montagne : tout atteignable depuis le pied ; une seule ouverture vers le dehors, au pied
+    const sentier = [], sorties = new Set(), niveaux = new Set();
+    for (let y = 0; y < W.h; y++) for (let x = 0; x < W.w; x++) {
+      if (!mont(W, x, y) || !walkable(W.get(x, y)) || !r.has(x + ',' + y) && Math.hypot(x - sx, y - sy) > 60) continue;
+      sentier.push([x, y]); if (W.get(x, y) !== T.STAIRS && W.get(x, y) !== T.BRIDGE) niveaux.add(W.height(x, y));
+      for (const [dx, dy] of N4) { const a = x + dx, b = y + dy; if (!mont(W, a, b) && walkable(W.get(a, b)) && W.canStep(x, y, a, b)) sorties.add(a + ',' + b); }
+    }
+    const loin = sentier.filter(([x, y]) => !r.has(x + ',' + y));
+    ok(!loin.length, `${mo.nom} : sentier sans recoin isolé (${loin.slice(0, 4).map((c) => c.join(',')).join(' ; ')})`);
+    ok([...sorties].every((k) => { const [x, y] = k.split(',').map(Number); return Math.abs(x - px) + Math.abs(y - py) <= 3; }), `${mo.nom} : cul-de-sac, la montagne ne s'ouvre qu'au pied : aucun raccourci (${[...sorties].join(' ; ')})`);
+    ok(niveaux.size >= 4, `${mo.nom} : ${niveaux.size} niveaux de sentier (pied et paliers)`);
+    // dresseurs et objets posés sur le sentier, pas sur la roche
+    const ici = (q) => mont(W, q.x, q.y) && Math.hypot(q.x - sx, q.y - sy) < 60;
+    for (const n of W.npcs.filter(ici)) ok(walkable(W.get(n.x, n.y)) && r.has(n.x + ',' + n.y) || W.get(n.x, n.y) === T.BLOCK, `${mo.nom} : ${n.id} sur le sentier`);
+    for (const it of W.items.filter(ici)) ok(walkable(W.get(it.x, it.y)) && r.has(it.x + ',' + it.y), `${mo.nom} : objet ${it.item} sur le sentier`);
+  }
+}
 // PNJ, dresseurs et objets du monde : on peut se placer à côté
 for (const n of W.npcs) ok(reachable(W, seenW, n.x, n.y), `PNJ ${n.id} atteignable (${n.x},${n.y})`);
 for (const it of W.items) ok(reachable(W, seenW, it.x, it.y), `objet ${it.item} atteignable (${it.x},${it.y})`);

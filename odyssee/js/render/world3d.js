@@ -606,15 +606,22 @@ export class WorldView {
     };
     if (m.outdoor) {
       // sous les coins arrondis : le gradin du dessous (ou le vide d'un ravin), pas l'herbe
-      let bas = false, vide = false;
+      let bas = false;
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
         const a = x + dx, c = y + dy; if (!m.in(a, c) || m.get(a, c) !== T.CAVEWALL) continue;
-        if (ravin(m, a, c)) vide = true; else if (m.height(a, c) < h0) bas = true;
+        if (!ravin(m, a, c) && m.height(a, c) < h0) bas = true;
       }
       // à côté d'un sentier (case praticable), le pied de la paroi laisse voir le sentier : pas de roche dessous
       const sol = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => m.in(x + dx, y + dy) && m.get(x + dx, y + dy) !== T.CAVEWALL);
-      const sous = vide ? A.ravin_0 : bas && !sol ? A[`rp_${b}_11`] : null;
-      if (sous) flat(G, x, y, x + 1, y + 1, yh - 0.0002, sous, vide ? 1 : 0.9);
+      if (bas && !sol) flat(G, x, y, x + 1, y + 1, yh - 0.0002, A[`rp_${b}_11`], 0.9);
+      // le vide d'un ravin, seulement sous les quarts de case tournés vers lui (pas de noir qui déborde sur la roche)
+      const vide = (a, c) => ravin(m, a, c) && m.get(a, c) === T.CAVEWALL;   // le gouffre (pas une passerelle)
+      for (let qy = 0; qy < 2; qy++) for (let qx = 0; qx < 2; qx++) {
+        const dx = qx ? 1 : -1, dy = qy ? 1 : -1;
+        if (!(vide(x, y + dy) || vide(x + dx, y) && vide(x + dx, y + dy))) continue;
+        const u = A.ravin_0, hu = (u[2] - u[0]) / 2, hv = (u[3] - u[1]) / 2;
+        flat(G, x + qx / 2, y + qy / 2, x + (qx + 1) / 2, y + (qy + 1) / 2, yh - 0.0001, [u[0] + qx * hu, u[1] + qy * hv, u[0] + (qx + 1) * hu, u[1] + (qy + 1) * hv]);
+      }
     }
     const W = !rock(-1, 0), E = !rock(1, 0), N = !rock(0, -1), S = !rock(0, 1);
     const cols = W && E ? [0, 5] : W ? [0, 1] : E ? [4, 5] : [2, 3];
