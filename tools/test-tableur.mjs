@@ -22,6 +22,7 @@ import { solveur, lireContrainte, calculerTableDonnees, remplissageInstantane, a
 import { paginer, htmlPages, zonesImpression, mp, versExcel, depuisExcel } from '../tableur/js/impression.js';
 import { hacherMotDePasse, verifierShaMotDePasse } from '../tableur/js/page-xlsx.js';
 import { versOpenFormula, depuisOpenFormula } from '../tableur/js/ods.js';
+import { decoderTexte, analyserCsv, detecterSeparateur, detecterDecimale, ecrireCsv } from '../tableur/js/csv.js';
 import crypto from 'node:crypto';
 
 const require = createRequire(import.meta.url);
@@ -422,7 +423,7 @@ test('xlsx : aller-retour (feuilles, formules, formats, noms, macros, largeurs)'
   egal(wbBrut.Sheets.Feuil1.A8.f, 'SUM(A1:A2,1.5)+IFS(A1>1,ROUND(2.5,0))');
   // CSV
   const csv = new TextDecoder().decode(ecrireClasseur(XLSX, d, { bookType: 'csv' }));
-  egal(csv.split('\n')[0].replace('﻿', ''), '1000');
+  egal(csv.split(/\r?\n/)[0].replace('﻿', ''), '1000');
   const f = lireClasseur(XLSX, new TextEncoder().encode('a;b\n1;2\n'), 'x.csv');
   egal(f.texte(0, 1, 1), '2');
 });
@@ -1225,6 +1226,31 @@ test('ods : écriture et relecture (valeurs, formules, formats, styles, fusions)
   egal([1, 2, 3, 4, 5, 6, 7].map((r) => e.texte(0, r, 1)), ['120,50 €', '340', '460,5', '14', '12/03/2024', '15%', 'oui']);
   egal([f.get(3, 1).f, f.get(4, 1).f], ['=SOMME(B2:B3)', "='Données'!A1*2"]);
   egal([f.get(0, 0).s, f.largeurs[0], f.fusions], [{ fond: '#fff2cc', bordures: { b: 'thin' }, gras: true }, 150, [{ r1: 9, c1: 0, r2: 9, c2: 2 }]]);
+});
+
+test('mise en forme conditionnelle : jeux d\'icônes (et xlsx)', () => {
+  const c = Classeur.nouveau();
+  [10, 20, 30, 40, 50, 60, 70, 80, 90, 100].forEach((v, r) => c.saisir(0, r, 0, String(v)));
+  c.feuilles[0].mfc = [{ id: 'i1', type: 'icones', plage: 'A1:A10', jeu: '3Arrows' }];
+  egal([0, 4, 9].map((r) => styleConditionnel(c, 0, r, 0).icone.i), [0, 1, 2]);
+  c.feuilles[0].mfc[0].inverse = true; c.modifie(); egal(styleConditionnel(c, 0, 0, 0).icone.i, 2);
+  c.feuilles[0].mfc[0] = { id: 'i1', type: 'icones', plage: 'A1:A10', jeu: '5Arrows', seuils: [10, 20, 50, 90], iconeSeule: true }; c.modifie();
+  egal([0, 1, 9].map((r) => styleConditionnel(c, 0, r, 0).icone.i), [0, 1, 4]);
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c), 'x.xlsx'), r = e.feuilles[0].mfc[0];
+  egal([r.type, r.jeu, r.seuils, r.iconeSeule], ['icones', '5Arrows', [10, 20, 50, 90], true]);
+});
+
+test('csv : encodage, séparateur, guillemets, écriture à la française', () => {
+  const brut = Uint8Array.from([...'Nom;Ville\r\n"Martin; Jr";'].map((c) => c.charCodeAt(0)).concat([0xc9, 0x76, 0x72, 0x79])); // « Évry » en Windows-1252
+  const d = decoderTexte(brut);
+  egal([d.encodage, detecterSeparateur(d.texte), analyserCsv(d.texte, ';')], ['windows-1252', ';', [['Nom', 'Ville'], ['Martin; Jr', 'Évry']]]);
+  egal(detecterSeparateur('a,b,c\n1,2,3\n4,5,6'), ',');
+  egal(detecterSeparateur('a\tb\n1\t2'), '\t');
+  egal(analyserCsv('a;"x\ny";"il dit ""oui"""\n', ';'), [['a', 'x\ny', 'il dit "oui"']]);
+  egal([detecterDecimale([['12,5', '3,2']]), detecterDecimale([['12.5', '7.25']])], [',', '.']);
+  egal(ecrireCsv([['a;b', '1,5'], ['c"d', '']]), '"a;b";1,5\r\n"c""d";\r\n');
+  const c = Classeur.nouveau(); c.saisir(0, 0, 0, '12,5'); c.saisir(0, 0, 1, '01/02/2024'); c.saisir(0, 1, 0, 'é;x');
+  egal(new TextDecoder('utf-8', { ignoreBOM: true }).decode(ecrireClasseur(XLSX, c, { bookType: 'csv' })), '\uFEFF12,5;01/02/2024\r\n"é;x";\r\n');
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);

@@ -460,6 +460,44 @@ export function installerDialogues(api) {
     fond.querySelectorAll('[data-sptype]').forEach((b) => b.addEventListener('click', () => { modele.type = b.dataset.sptype; fond.querySelectorAll('[data-sptype]').forEach((x) => x.classList.toggle('choisi', x === b)); }));
   }
 
-  return { ouvrir, protegerFeuille, sparklines, creerTableau, styleTableau: styleTableauDlg, renommerTableau: renommerTableauDlg, redimensionnerTableau, formatCellule, collageSpecial, cellules, atteindre, lien, note, doublons, colonnes, ouvert: () => !fond.hidden };
+  // ---------------------------------------------------------------------------
+  // Ouvrir un fichier texte (.csv, .tsv, .txt) : séparateur, encodage, décimales, avec un aperçu
+  // ---------------------------------------------------------------------------
+  function importerTexte(nom, octets, fini) {
+    const etat = { encodage: 'auto', sep: null, decimale: null, ligne1: 1 };
+    let lignes = [], texte = '';
+    const lire = () => {
+      const d = api.csv.decoder(octets, etat.encodage); texte = d.texte;
+      if (etat.encodage === 'auto') etat.encodageVu = d.encodage;
+      if (!etat.sep) etat.sep = /\.tsv$/i.test(nom) ? '\t' : api.csv.detecter(texte);
+      lignes = api.csv.analyser(texte, etat.sep, 12);
+      if (!etat.decimale) etat.decimale = api.csv.decimale(api.csv.analyser(texte.slice(0, 50000), etat.sep, 200));
+    };
+    lire();
+    const apercu = () => {
+      const l = lignes.slice(etat.ligne1 - 1, etat.ligne1 + 9), nc = Math.min(12, Math.max(1, ...l.map((x) => x.length)));
+      return `<div class="csv-apercu"><table>${l.map((x) => `<tr>${Array.from({ length: nc }, (_, k) => `<td>${ech((x[k] ?? '').slice(0, 30))}</td>`).join('')}</tr>`).join('')}</table></div>`;
+    };
+    const SEPS = [[';', 'Point-virgule ;'], [',', 'Virgule ,'], ['\t', 'Tabulation'], ['|', 'Barre |'], [' ', 'Espace']];
+    const html = () => `<p class="aide-petite">« ${ech(nom)} » — vérifiez l'aperçu : une colonne par donnée, accents corrects.</p>
+      <div class="fc-grille deux"><label>Séparateur <select id="csv-sep">${SEPS.map(([v, t]) => `<option value="${v === '\t' ? 'tab' : v}"${etat.sep === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+      <label>Encodage <select id="csv-enc">${[['auto', 'Automatique (' + (etat.encodageVu || '') + ')'], ['utf-8', 'UTF-8'], ['windows-1252', 'Windows (ANSI)'], ['iso-8859-15', 'ISO-8859-15'], ['utf-16le', 'UTF-16']].map(([v, t]) => `<option value="${v}"${etat.encodage === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+      <label>Décimales <select id="csv-dec"><option value=","${etat.decimale === ',' ? ' selected' : ''}>Virgule (12,5)</option><option value="."${etat.decimale === '.' ? ' selected' : ''}>Point (12.5)</option></select></label>
+      <label>Commencer à la ligne <input type="number" id="csv-l1" min="1" value="${etat.ligne1}"></label></div>
+      <div id="csv-zone">${apercu()}</div>`;
+    const boite = ouvrir('Ouvrir un fichier texte', html(), () => {
+      const toutes = api.csv.analyser(texte, etat.sep).slice(etat.ligne1 - 1);
+      fini(toutes, etat);
+    }, { large: true, texteOk: 'Ouvrir' });
+    boite.addEventListener('change', (e) => {
+      if (e.target.id === 'csv-sep') etat.sep = e.target.value === 'tab' ? '\t' : e.target.value;
+      if (e.target.id === 'csv-enc') etat.encodage = e.target.value;
+      if (e.target.id === 'csv-dec') etat.decimale = e.target.value;
+      if (e.target.id === 'csv-l1') etat.ligne1 = Math.max(1, +e.target.value || 1);
+      lire(); $('csv-zone').innerHTML = apercu();
+    });
+  }
+
+  return { ouvrir, protegerFeuille, sparklines, importerTexte, creerTableau, styleTableau: styleTableauDlg, renommerTableau: renommerTableauDlg, redimensionnerTableau, formatCellule, collageSpecial, cellules, atteindre, lien, note, doublons, colonnes, ouvert: () => !fond.hidden };
 }
 

@@ -166,6 +166,14 @@ export function lireVuesXlsx(XLSX, octets) {
         else if (type === 'containsBlanks') r.type = 'vides';
         else if (type === 'notContainsBlanks') r.type = 'nonvides';
         else if (type === 'colorScale') { r.type = 'echelle'; r.couleurs = [...corps.matchAll(/<color[^>]*\/>/g)].map((m) => lireCouleur(m[0], theme)).filter(Boolean); delete r.style; }
+        else if (type === 'iconSet') {
+          const is = /<iconSet\b[^>]*>/.exec(corps);
+          r.type = 'icones'; r.jeu = (is && attr(is[0], 'iconSet')) || '3TrafficLights1'; delete r.style;
+          if (is && attr(is[0], 'reverse') === '1') r.inverse = true;
+          if (is && attr(is[0], 'showValue') === '0') r.iconeSeule = true;
+          const cfvos = [...corps.matchAll(/<cfvo\b[^>]*>/g)].slice(1).map((m) => (attr(m[0], 'type') === 'percent' ? +attr(m[0], 'val') : NaN));
+          if (cfvos.length && cfvos.every((x) => !isNaN(x))) r.seuils = cfvos;
+        }
         else if (type === 'dataBar') { r.type = 'barres'; const c = /<color[^>]*\/>/.exec(corps); r.couleur = c ? lireCouleur(c[0], theme) : '#638ec6'; delete r.style; }
         else continue;
         regles.push(r);
@@ -226,6 +234,11 @@ function regleXml(r, prio, dxfId) {
       const c = r.couleurs && r.couleurs.length >= 2 ? r.couleurs : ['#f8696b', '#ffeb84', '#63be7b'];
       const cfvo = c.length > 2 ? '<cfvo type="min"/><cfvo type="percentile" val="50"/><cfvo type="max"/>' : '<cfvo type="min"/><cfvo type="max"/>';
       return '<cfRule type="colorScale" priority="' + prio + '"><colorScale>' + cfvo + c.map((x) => '<color rgb="' + hexArgb(x) + '"/>').join('') + '</colorScale></cfRule>';
+    }
+    case 'icones': {
+      const jeu = r.jeu || '3Arrows', n = +jeu[0] || 3;
+      const seuils = r.seuils && r.seuils.length === n - 1 ? r.seuils : Array.from({ length: n - 1 }, (_, k) => Math.round((100 * (k + 1)) / n));
+      return '<cfRule type="iconSet" priority="' + prio + '"><iconSet iconSet="' + jeu + '"' + (r.inverse ? ' reverse="1"' : '') + (r.iconeSeule ? ' showValue="0"' : '') + '><cfvo type="percent" val="0"/>' + seuils.map((x) => '<cfvo type="percent" val="' + x + '"/>').join('') + '</iconSet></cfRule>';
     }
     case 'barres': return '<cfRule type="dataBar" priority="' + prio + '"><dataBar><cfvo type="min"/><cfvo type="max"/><color rgb="' + hexArgb(r.couleur || '#638ec6') + '"/></dataBar></cfRule>';
   }
@@ -323,7 +336,7 @@ export function ecrireVuesXlsx(XLSX, octets, feuilles) {
       let cf = '';
       f.mfc.forEach((r, i) => {
         let dxfId = null;
-        if (!['echelle', 'barres'].includes(r.type)) { dxfId = dxfs.length; dxfs.push(dxfXml(r.style)); }
+        if (!['echelle', 'barres', 'icones'].includes(r.type)) { dxfId = dxfs.length; dxfs.push(dxfXml(r.style)); }
         const sq = plagesMfc(r).map((p) => adresse(p.r1, p.c1) + (p.r1 === p.r2 && p.c1 === p.c2 ? '' : ':' + adresse(p.r2, p.c2))).join(' ');
         const corps = regleXml(r, i + 1, dxfId);
         if (sq && corps) cf += '<conditionalFormatting sqref="' + sq + '">' + corps + '</conditionalFormatting>';
