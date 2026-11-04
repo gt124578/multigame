@@ -97,13 +97,13 @@ export function preparerDonnees(m, type, enLignes = false) {
   let series = noms.map((nom, k) => ({ nom, valeurs: corps.map((l) => nb(l[debut + k])) }));
   if (type === 'nuage') {
     // Première colonne = X ; sans en-tête de colonne, la première série numérique sert de X
-    let xs;
-    if (enteteCol) { xs = corps.map((l) => nb(l[0])); if (xs.every((x) => x === null)) xs = corps.map((_, i) => i + 1); }
-    else if (series.length >= 2) { xs = series[0].valeurs; series = series.slice(1); }
+    let xs, xDepuis = 'index';
+    if (enteteCol) { xs = corps.map((l) => nb(l[0])); xDepuis = 'categories'; if (xs.every((x) => x === null)) { xs = corps.map((_, i) => i + 1); xDepuis = 'index'; } }
+    else if (series.length >= 2) { xs = series[0].valeurs; series = series.slice(1); xDepuis = 'serie'; }
     else xs = corps.map((_, i) => i + 1);
-    return { series, categories, xs, nuage: true };
+    return { series, categories, xs, nuage: true, enteteLigne, enteteCol, xDepuis };
   }
-  return { series, categories };
+  return { series, categories, enteteLigne, enteteCol };
 }
 
 /** Graduations « rondes » entre min et max. */

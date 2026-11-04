@@ -371,3 +371,5 @@ button.fleche { padding-left: 3px; padding-right: 3px; min-width: 0; margin-left
   .tcd-apercu td { border: 1px solid #e5e7eb; padding: 1px 4px; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
   .tcd-apercu td.e { background: #dbe5f1; font-weight: 600; } .tcd-apercu td.n { text-align: right; }
 }
+.tcd-tranche { display: flex !important; align-items: center; gap: 3px; font-size: 11px !important; color: var(--sourd); }
+.tcd-tranche input { width: 56px; }

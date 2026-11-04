@@ -26,7 +26,9 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
   lignes, aires, secteurs, nuage, radar, combiné — et leurs variantes (groupé, empilé, 100 %, marqueurs, lissé, anneau,
   éclaté…). Panneau de réglages : type, plage, séries en lignes ou en colonnes, titres du graphique et des axes, légende,
   étiquettes de données, bornes et format de l'axe, quadrillage, palette, police, fond, couleur et nom de chaque série ;
-  export PNG / SVG. Déplaçables et redimensionnables, recalculés avec les données ; gardés dans une feuille masquée du `.xlsx`.
+  export PNG / SVG. Déplaçables et redimensionnables, recalculés avec les données. Écrits dans le `.xlsx` comme de vrais
+  graphiques Excel (`js/graphiques-xlsx.js` : histogrammes, barres, courbes, aires, secteurs, anneaux, nuages, radars,
+  combinés, avec titres, axes, légende, étiquettes et couleurs) ; les graphiques d'un fichier Excel s'affichent ici.
 - **Données** : tri rapide (A→Z, Z→A, en-têtes détectés, la zone autour de la cellule) et tri personnalisé sur plusieurs
   colonnes (les formules suivent leur ligne) ; filtre automatique (▾ dans les en-têtes : cases à cocher, recherche,
   condition « supérieur à », « contient »…, tri) ; rechercher / remplacer (`Ctrl+F`, `Ctrl+H`, jokers `*` `?`, dans les
@@ -34,7 +36,7 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
   valeur cible (trouver le taux qui donne une valeur actuelle, par exemple).
 - **Tableaux croisés dynamiques** : champs en lignes, colonnes, valeurs (somme, nombre, moyenne, max, min, produit,
   écart type, variance ; affichage en % du total général, de la ligne ou de la colonne) et filtres du rapport ; sous-totaux
-  et totaux généraux ; sur une nouvelle feuille ou à une cellule choisie ; actualisation d'un tableau ou de tous. Le
+  et totaux généraux ; regroupement des dates (années, trimestres, mois, jours) et des nombres par tranches (âges par 10 ans…) ; sur une nouvelle feuille ou à une cellule choisie ; actualisation d'un tableau ou de tous. Le
   résultat est écrit en valeurs (Excel le voit comme un tableau ordinaire) et sa définition est gardée dans le `.xlsx`.
 - **Validation des données** : listes déroulantes (éléments ou plage), nombres entiers ou décimaux, dates, heures, longueur
   du texte, formule personnalisée ; message de saisie, alertes arrêt / avertissement / information, cellules non valides
@@ -71,10 +73,11 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 
 - Les macros écrites ici sont enregistrées dans une feuille masquée `_MacrosTableur`, un en-tête par module (et relues par ce tableur) : Excel ne peut pas
   les exécuter, car le tableur ne compile pas de projet VBA. Le projet VBA d'origine d'un `.xlsm` est réécrit tel quel.
-- Les graphiques ne sont pas écrits au format graphique d'Excel (seulement dans la feuille masquée). Couleurs de bordure :
-  noir seulement. Mise en forme conditionnelle : pas de jeux d'icônes.
+- Graphiques : la description complète (palette, police…) n'est relue que par ce tableur ; un graphique d'Excel dont les
+  séries viennent de plusieurs feuilles, ou de type non géré (boursier, bulles, surface, 3D), n'est pas affiché.
+  Couleurs de bordure : noir seulement. Mise en forme conditionnelle : pas de jeux d'icônes.
 - Tableaux croisés : écrits en valeurs (pas de cache de tableau croisé d'Excel) ; ceux d'un fichier Excel s'ouvrent comme
-  de simples cellules ; pas de regroupement des dates par mois ou par année ni de champs calculés.
+  de simples cellules ; pas de champs calculés.
 - Les formules matricielles dynamiques ne « débordent » pas : une formule qui renvoie un tableau affiche sa première valeur
   (sauf dans une fonction qui attend un tableau).
 - Boutons, graphiques et images sont réécrits dans une feuille masquée que seul ce tableur relit : Excel ne les affiche pas.
@@ -93,6 +96,7 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 | `js/xlsxio.js` | Lecture / écriture `.xlsx` / `.xlsm` / `.csv` avec SheetJS, import `.docx` et `.bas` |
 | `js/styles-xlsx.js` | Styles de cellules dans le zip `.xlsx` (styles.xml, sheetN.xml) |
 | `js/graphiques.js` | Rendu SVG des graphiques (catégories, variantes, réglages) |
+| `js/graphiques-xlsx.js` | Graphiques au format d'Excel (DrawingML) : écriture et lecture |
 | `js/ui-graphiques.js` | Galerie d'insertion avec aperçus, panneau de réglages, export PNG / SVG |
 | `js/donnees.js` | Tri, filtre, rechercher / remplacer, mise en forme conditionnelle, valeur cible, somme automatique (sans DOM) |
 | `js/ui-donnees.js` | Leur interface : menus, menu ▾ du filtre, panneaux, impression |

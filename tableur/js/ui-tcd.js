@@ -2,7 +2,7 @@
 // en Lignes / Colonnes / Valeurs / Filtres (des listes, pas du glisser-déposer : ça marche aussi au doigt),
 // fonctions et affichage des valeurs, filtres du rapport, totaux, actualisation.
 
-import { champsSource, ecrireTCD, calculerTCD, tcdA, actualiserTout, valeursChamp, FONCTIONS_TCD, AFFICHAGES_TCD, libelleValeur, resoudreSource } from './tcd.js';
+import { champsSource, ecrireTCD, calculerTCD, tcdA, actualiserTout, valeursChamp, FONCTIONS_TCD, AFFICHAGES_TCD, libelleValeur, resoudreSource, typeChamp, GROUPES_DATE } from './tcd.js';
 import { zoneContigue } from './donnees.js';
 import { adresse, parseAdresse, formater } from './formules.js';
 
@@ -52,7 +52,11 @@ export function installerTCD(api) {
       if (z === 'valeurs') return `<div class="tcd-el"><span class="tcd-nom">${ech(nom)}</span><select data-z="valeurs" data-i="${i}" data-prop="fn">${opt(FONCTIONS_TCD, x.fn || 'somme')}</select><select data-z="valeurs" data-i="${i}" data-prop="affichage">${opt(AFFICHAGES_TCD, x.affichage || 'normal')}</select>${fleches}</div>`;
       if (z === 'filtres') return `<div class="tcd-el"><span class="tcd-nom">${ech(nom)}</span><button class="petit" data-filtre="${i}">${x.visibles ? (x.visibles.length === 1 ? ech(x.visibles[0]) : x.visibles.length + ' choisis') : '(Tous)'} ▾</button>${fleches}</div>
         ${filtreOuvert === i ? `<div class="tcd-filtre">${valeursChamp(C, spec, nom, courant.fi).map((v) => `<label class="case"><input type="checkbox" data-fv="${ech(v.texte)}"${!x.visibles || x.visibles.includes(v.texte) ? ' checked' : ''}> ${ech(v.texte)}</label>`).join('')}<div class="outil-actions"><button class="petit" id="tcd-fv-tous">Tous</button><button class="petit principal" id="tcd-fv-ok">OK</button></div></div>` : ''}`;
-      return `<div class="tcd-el"><span class="tcd-nom">${ech(nom)}</span>${fleches}</div>`;
+      // Lignes et colonnes : regroupement des dates (années, mois…) ou des nombres (tranches)
+      const nature = typeChamp(C, spec, nom, courant.fi), g = (spec.groupes || {})[nom];
+      const grp = nature === 'date' ? `<select data-grouper="${ech(nom)}" title="Regrouper">${opt(GROUPES_DATE, typeof g === 'string' ? g : '')}</select>`
+        : nature === 'nombre' ? `<label class="tcd-tranche" title="Regrouper par tranches (vide : pas de regroupement)">tranches de <input type="number" min="0" step="any" data-tranche="${ech(nom)}" value="${g && g.pas ? g.pas : ''}"></label>` : '';
+      return `<div class="tcd-el"><span class="tcd-nom">${ech(nom)}</span>${grp}${fleches}</div>`;
     };
     const zoneF = C.feuilles[courant.fi];
     // Aperçu du résultat (affiché sur téléphone, où le panneau couvre la feuille)
@@ -87,6 +91,8 @@ export function installerTCD(api) {
       else if (z === 'filtres') spec.filtres.push({ champ: ch, visibles: null });
       else if (z) spec[z].push(ch);
     })));
+    panneau.querySelectorAll('select[data-grouper]').forEach((sel) => sel.addEventListener('change', () => changer(() => { spec.groupes = spec.groupes || {}; if (sel.value) spec.groupes[sel.dataset.grouper] = sel.value; else delete spec.groupes[sel.dataset.grouper]; })));
+    panneau.querySelectorAll('input[data-tranche]').forEach((inp) => inp.addEventListener('change', () => changer(() => { spec.groupes = spec.groupes || {}; const pas = +inp.value; if (pas > 0) spec.groupes[inp.dataset.tranche] = { pas, debut: 0 }; else delete spec.groupes[inp.dataset.tranche]; })));
     panneau.querySelectorAll('select[data-prop]').forEach((sel) => sel.addEventListener('change', () => changer(() => { spec.valeurs[+sel.dataset.i][sel.dataset.prop] = sel.value; })));
     panneau.querySelectorAll('button[data-act]').forEach((b) => b.addEventListener('click', () => changer(() => {
       const t = spec[b.dataset.z], i = +b.dataset.i;

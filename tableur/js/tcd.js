@@ -10,7 +10,7 @@
 // Les champs sont désignés par le texte de leur en-tête : le tableau suit la source si ses colonnes bougent.
 // Le résultat est écrit en valeurs dans la feuille (comme le tableau d'Excel, qu'on « actualise »).
 
-import { ErreurFormule, formater, parsePlage } from './formules.js';
+import { ErreurFormule, formater, parsePlage, serieVersDate } from './formules.js';
 import { comparerTri } from './donnees.js';
 
 export const FONCTIONS_TCD = [['somme', 'Somme'], ['nbval', 'Nombre'], ['moyenne', 'Moyenne'], ['max', 'Max'], ['min', 'Min'], ['produit', 'Produit'], ['nb', 'Nb (nombres)'], ['ecartype', 'Écart type'], ['var', 'Variance']];
@@ -54,8 +54,47 @@ export function champsSource(classeur, source, fi = 0) {
   return out;
 }
 
-const cleDe = (v) => (v === null || v === undefined || v === '' ? '\u0000' : v instanceof ErreurFormule ? 'e' + v.code : typeof v === 'string' ? 's' + v.toLowerCase() : typeof v + ':' + v);
-const libelleDe = (v, z) => (v === null || v === undefined || v === '' ? VIDE : v instanceof ErreurFormule ? v.code : typeof v === 'number' ? formater(v, z) : typeof v === 'boolean' ? (v ? 'VRAI' : 'FAUX') : String(v));
+// Valeur regroupée (mois, trimestre, tranche…) : triée par « tri », affichée par « texte »
+export class Groupe { constructor(tri, texte) { this.tri = tri; this.texte = texte; } }
+const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+export const GROUPES_DATE = [['', 'Pas de regroupement'], ['annee', 'Années'], ['anneetrim', 'Années et trimestres'], ['anneemois', 'Années et mois'], ['trimestre', 'Trimestres'], ['mois', 'Mois'], ['jour', 'Jours']];
+/** Regroupe une valeur : dates par année, trimestre, mois ou jour ; nombres par tranches ({ pas, debut }). */
+export function grouper(v, g) {
+  if (typeof v !== 'number' || !g) return v;
+  if (typeof g === 'object') {
+    const pas = +g.pas; if (!(pas > 0)) return v;
+    const d = +g.debut || 0, a = d + Math.floor((v - d) / pas + 1e-12) * pas;
+    return new Groupe(a, formater(a) + ' – ' + formater(a + pas));
+  }
+  const date = serieVersDate(Math.floor(v)), y = date.getUTCFullYear(), m = date.getUTCMonth(), q = Math.floor(m / 3);
+  switch (g) {
+    case 'annee': return new Groupe(y, String(y));
+    case 'trimestre': return new Groupe(q, 'T' + (q + 1));
+    case 'anneetrim': return new Groupe(y * 4 + q, 'T' + (q + 1) + ' ' + y);
+    case 'mois': return new Groupe(m, MOIS[m]);
+    case 'anneemois': return new Groupe(y * 12 + m, MOIS[m] + ' ' + y);
+    case 'jour': return new Groupe(Math.floor(v), formater(Math.floor(v), 'dd/mm/yyyy'));
+    default: return v;
+  }
+}
+const triable = (v) => (v instanceof Groupe ? v.tri : v);
+
+const cleDe = (v) => (v instanceof Groupe ? 'g' + v.tri : v === null || v === undefined || v === '' ? '\u0000' : v instanceof ErreurFormule ? 'e' + v.code : typeof v === 'string' ? 's' + v.toLowerCase() : typeof v + ':' + v);
+const libelleDe = (v, z) => (v instanceof Groupe ? v.texte : v === null || v === undefined || v === '' ? VIDE : v instanceof ErreurFormule ? v.code : typeof v === 'number' ? formater(v, z) : typeof v === 'boolean' ? (v ? 'VRAI' : 'FAUX') : String(v));
+
+/** Nature d'un champ d'après ses premières valeurs : 'date', 'nombre' ou 'texte'. */
+export function typeChamp(classeur, spec, champ, fi = 0) {
+  const { fi: F, p } = resoudreSource(classeur, spec.source, fi);
+  const k = champsSource(classeur, spec.source, fi).indexOf(champ);
+  if (k < 0) return 'texte';
+  let n = 0, t = 0, d = 0;
+  for (let r = p.r1 + 1; r <= Math.min(p.r2, p.r1 + 60); r++) {
+    const v = classeur.valeur(F, r, p.c1 + k);
+    if (typeof v === 'number') { n++; const z = (classeur.feuilles[F].get(r, p.c1 + k) || {}).z || ''; if (/[dmyj]/i.test(z.replace(/"[^"]*"/g, '')) && !/^[#0.,%\s]*$/.test(z)) d++; }
+    else if (v !== null && v !== undefined && v !== '') t++;
+  }
+  return d && d >= n / 2 && n >= t ? 'date' : n > t ? 'nombre' : 'texte';
+}
 
 /** Valeurs distinctes d'un champ (pour la liste des filtres). */
 export function valeursChamp(classeur, spec, champ, fi = 0) {
@@ -113,13 +152,15 @@ export function calculerTCD(classeur, spec, fiDefaut = 0) {
     for (let k = 0; k < champs.length; k++) { const v = classeur.valeur(F, r, p.c1 + k); ligne.push(v); if (v !== null && v !== undefined && v !== '') vide = false; }
     if (vide) continue;
     if (filtres.some((x) => x.visibles && !x.visibles.includes(libelleDe(ligne[x.k], (fSrc.get(r, p.c1 + x.k) || {}).z)))) continue;
+    // Regroupements des champs de ligne et de colonne (dates par mois, nombres par tranches…)
+    for (const k of [...lignes, ...colonnes]) { const g = spec.groupes && spec.groupes[champs[k]]; if (g) ligne[k] = grouper(ligne[k], g); }
     enregistrements.push(ligne);
   }
   // 2. Clés des lignes et des colonnes (combinaisons de valeurs), triées
   const combinaisons = (ks) => {
     const m = new Map();
     for (const e of enregistrements) { const cle = ks.map((k) => cleDe(e[k])).join('\u0001'); if (!m.has(cle)) m.set(cle, ks.map((k) => e[k])); }
-    return [...m.entries()].map(([cle, vals]) => ({ cle, vals })).sort((a, b) => { for (let i = 0; i < a.vals.length; i++) { const d = comparerTri(a.vals[i], b.vals[i]); if (d) return d; } return 0; });
+    return [...m.entries()].map(([cle, vals]) => ({ cle, vals })).sort((a, b) => { for (let i = 0; i < a.vals.length; i++) { const d = comparerTri(triable(a.vals[i]), triable(b.vals[i])); if (d) return d; } return 0; });
   };
   const clesL = lignes.length ? combinaisons(lignes) : [{ cle: '', vals: [] }];
   const clesC = colonnes.length ? combinaisons(colonnes) : [{ cle: '', vals: [] }];

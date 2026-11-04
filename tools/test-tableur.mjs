@@ -14,8 +14,9 @@ import { decompresserOVBA } from '../tableur/js/vbaextract.js';
 import { listerProcedures, insererMacro, supprimerProcedure, ajouterAuProjet, decouperProjet } from '../tableur/js/projetvba.js';
 import { aesEcbDechiffrer, aesCbcDechiffrer, sha1, sha256, sha384, sha512, estChiffre, dechiffrerOffice, ErreurMotDePasse } from '../tableur/js/chiffrement.js';
 import { lireObjetsXlsx, nomMacro } from '../tableur/js/objets-xlsx.js';
+import * as graphiquesXlsx from '../tableur/js/graphiques-xlsx.js';
 import { trierPlage, comparerTri, zoneContigue, aUnEntete, appliquerFiltre, valeursFiltre, rechercher, remplacer, styleConditionnel, valeurCible, formuleAutomatique, validationDe, elementsListe, valeurValide, cellulesInvalides } from '../tableur/js/donnees.js';
-import { champsSource, calculerTCD, ecrireTCD, tcdA, actualiserTout } from '../tableur/js/tcd.js';
+import { champsSource, calculerTCD, ecrireTCD, tcdA, actualiserTout, typeChamp } from '../tableur/js/tcd.js';
 import crypto from 'node:crypto';
 
 const require = createRequire(import.meta.url);
@@ -937,6 +938,59 @@ test('tableau croisé dynamique : lignes, colonnes, sous-totaux, filtres, pource
   // Gardé dans le .xlsx (feuille masquée) avec ses valeurs
   const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c), 'x.xlsx');
   egal(e.feuilles[0].tcd[0].lignes, ['Produit']); egal(e.valeur(0, 2, 7), 'Santé');
+});
+
+test('tableau croisé : regroupement des dates et des nombres', () => {
+  const c = Classeur.nouveau();
+  [['Date', 'Âge', 'Montant'], ['15/01/2024', 23, 10], ['20/02/2024', 37, 20], ['03/04/2024', 41, 30], ['28/02/2025', 35, 40], ['10/12/2023', 52, 50]].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  const grille = (res) => res.cellules.map((l) => Array.from({ length: res.largeur }, (_, j) => (l[j] && l[j].v !== null && l[j].v !== undefined ? l[j].v : '')));
+  const spec = { source: 'A1:C6', lignes: ['Date'], valeurs: [{ champ: 'Montant', fn: 'somme' }] };
+  egal(typeChamp(c, spec, 'Date'), 'date'); egal(typeChamp(c, spec, 'Âge'), 'nombre');
+  egal(grille(calculerTCD(c, { ...spec, groupes: { Date: 'annee' } })).slice(1), [['2023', 50], ['2024', 60], ['2025', 40], ['Total général', 150]]);
+  egal(grille(calculerTCD(c, { ...spec, groupes: { Date: 'anneemois' } })).slice(1, 4).map((l) => l[0]), ['déc. 2023', 'janv. 2024', 'févr. 2024']);
+  egal(grille(calculerTCD(c, { ...spec, groupes: { Date: 'mois' } })).slice(1, 3), [['janv.', 10], ['févr.', 60]]);
+  egal(grille(calculerTCD(c, { ...spec, groupes: { Date: 'trimestre' } })).slice(1, 4), [['T1', 70], ['T2', 30], ['T4', 50]]);
+  egal(grille(calculerTCD(c, { source: 'A1:C6', lignes: ['Âge'], valeurs: [{ champ: 'Montant', fn: 'nbval' }], groupes: { 'Âge': { pas: 10 } } })).slice(1, 4), [['20 – 30', 1], ['30 – 40', 2], ['40 – 50', 1]]);
+});
+
+test('xlsx : graphiques écrits au format d\'Excel et relus', () => {
+  const c = Classeur.nouveau();
+  [['Année', 'Primes', 'Sinistres'], [2021, 120, 80], [2022, 135, 95], [2023, 150, 90]].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  c.ajouterFeuille('Graphes');
+  const f = c.feuilles[0];
+  const types = [['colonnes', 'empile'], ['barres', 'empile100'], ['lignes', 'groupe'], ['aires', 'groupe'], ['secteurs', 'anneau'], ['secteurs', 'eclate'], ['nuage', 'points'], ['radar', 'rempli'], ['combine', 'groupe']];
+  types.forEach(([type, variante], i) => f.graphiques.push({ id: 'g' + i, v: 2, type, variante, plage: 'A1:C4', titre: 'T' + i, titreY: 'k€', legende: 'bas', x: 300, y: i * 250, w: 400, h: 240 }));
+  c.feuilles[1].graphiques.push({ id: 'ailleurs', v: 2, type: 'colonnes', variante: 'groupe', plage: 'Feuil1!A1:B4', x: 0, y: 0, w: 300, h: 200 });
+  const octets = ecrireClasseur(XLSX, c);
+  const cfb = XLSX.CFB.read(octets, { type: 'array' });
+  const fichier = (fin) => { const i = cfb.FullPaths.findIndex((p) => p.endsWith(fin)); return i < 0 ? null : new TextDecoder().decode(cfb.FileIndex[i].content); };
+  egal(cfb.FullPaths.filter((p) => /charts\/chart\d+\.xml$/.test(p)).length, 10);
+  egal(/<drawing r:id="[^"]+"\/>/.test(fichier('worksheets/sheet1.xml')), true);
+  egal(fichier('[Content_Types].xml').includes('/xl/charts/chart10.xml'), true);
+  const c1 = fichier('charts/chart1.xml');
+  egal(c1.includes('<c:grouping val="stacked"/>') && c1.includes('<c:f>Feuil1!$B$2:$B$4</c:f>') && c1.includes('<c:f>Feuil1!$A$2:$A$4</c:f>') && c1.includes('<c:f>Feuil1!$B$1</c:f>'), true);
+  egal(fichier('charts/chart10.xml').includes('<c:f>Feuil1!$B$2:$B$4</c:f>'), true);
+  // Relu sans la feuille masquée du Tableur : la traduction depuis le format d'Excel suffit
+  const wb = XLSX.read(octets, { type: 'array', bookSheets: true });
+  egal(wb.SheetNames.includes('_ObjetsTableur'), true);
+  const { specDepuisChartXml } = graphiquesXlsx;
+  const lus = cfb.FullPaths.filter((p) => /charts\/chart\d+\.xml$/.test(p)).sort((a, b) => +a.match(/(\d+)\.xml/)[1] - +b.match(/(\d+)\.xml/)[1]).map((p) => specDepuisChartXml(new TextDecoder().decode(cfb.FileIndex[cfb.FullPaths.indexOf(p)].content), 'Feuil1'));
+  egal(lus.map((g) => g.type + '/' + g.variante), [...types.map(([t, v]) => t + '/' + v), 'colonnes/groupe']);
+  egal([lus[0].plage, lus[0].titre, lus[0].titreY, lus[0].legende], ['A1:C4', 'T0', 'k€', 'bas']);
+  egal(lus[9].plage, 'A1:B4');
+  // Et relu complètement : les descriptions du Tableur gardent la main, un seul exemplaire de chaque graphique
+  const e = lireClasseur(XLSX, octets, 'x.xlsx');
+  egal(e.feuilles[0].graphiques.map((g) => g.id), types.map((_, i) => 'g' + i));
+  egal(e.feuilles[1].graphiques.length, 1);
+});
+
+test('xlsx : graphiques d\'un fichier écrit par un autre logiciel (espaces de noms par défaut)', () => {
+  const e = lireClasseur(XLSX, new Uint8Array(fs.readFileSync(new URL('./donnees-tableur/graphiques-openpyxl.xlsx', import.meta.url))), 'o.xlsx');
+  const g = e.feuilles[0].graphiques;
+  egal(g.map((x) => x.type + '/' + x.variante), ['colonnes/empile', 'lignes/groupe', 'nuage/lignes']);
+  egal([g[0].plage, g[0].titre, g[0].titreX, g[0].titreY], ['A1:C5', 'Ventes empilées', 'Mois', '€']);
+  egal(e.feuilles[1].graphiques[0].plage, "'Données'!A1:B5");
+  egal(g[0].x > 0 && g[0].w > 300, true);
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);

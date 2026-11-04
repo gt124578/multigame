@@ -11,6 +11,7 @@ import { styleConditionnel, validationDe, valeurValide } from './donnees.js';
 import { installerDonnees } from './ui-donnees.js';
 import { installerTCD } from './ui-tcd.js';
 import { AIDE } from './aide-fonctions.js';
+import { matriceGraphique } from './graphiques-xlsx.js';
 
 const XLSX = window.XLSX;
 const $ = (id) => document.getElementById(id);
@@ -303,15 +304,10 @@ function insererBouton() {
 }
 
 // ----- Graphiques -----
-function donneesGraphique(f, plage) {
-  const p = plageDepuisTexte(plage.replace(/^.*!/, ''));
-  if (!p) return [];
-  const F = classeur.feuilles.indexOf(f);
-  const r2 = Math.min(p.r2, f.zone.r2, p.r1 + 2000), c2 = Math.min(p.c2, f.zone.c2, p.c1 + 50);
-  const m = [];
-  for (let r = p.r1; r <= r2; r++) { const l = []; for (let c = p.c1; c <= c2; c++) { const v = classeur.valeur(F, r, c); l.push(v instanceof ErreurFormule ? null : v); } m.push(l); }
-  return m;
-}
+// Données d'un graphique : sa plage peut désigner une autre feuille (« Données!A1:C9 », graphiques venus d'Excel)
+// Un module vide (Module1 créé à l'ouverture de l'éditeur) ne fait pas un classeur à macros
+function aDesMacros(c) { return !!c.vbaBrut || c.modulesVBA().some((m) => (m.code || '').trim()); }
+function donneesGraphique(f, plage) { return matriceGraphique(classeur, f, plage); }
 function rendreGraphiques(f) { const z = zoneFigee(); return uiG.rendreSurFeuille(f, z.r || z.c ? (g) => zoneGraphique(g, z) === '' : null); }
 function creerGraphique() { uiG.ouvrirGalerie(); }
 const uiG = installerGraphiques({
@@ -912,7 +908,7 @@ async function ouvrirFichier(file) {
     const nouveau = lireClasseur(XLSX, buf, file.name);
     nouveau.nomFichier = nomLibreClasseur(nouveau.nomFichier);
     chargerClasseur(nouveau);
-    toast('« ' + file.name + ' » ouvert : ' + nouveau.feuilles.length + ' feuille' + (nouveau.feuilles.length > 1 ? 's' : '') + (nouveau.macros ? ', macros lues' : ''));
+    toast('« ' + file.name + ' » ouvert : ' + nouveau.feuilles.length + ' feuille' + (nouveau.feuilles.length > 1 ? 's' : '') + (nouveau.modulesVBA().some((m) => (m.code || '').trim()) ? ', macros lues' : '') + (nouveau.feuilles.some((f) => f.graphiques.length) ? ', graphiques affichés' : ''));
     if (nouveau.vbaBrut) $('format-export').value = 'xlsm';
   } catch (e) { console.error(e); toast('Impossible de lire ce fichier : ' + e.message, true); }
 }
@@ -940,7 +936,7 @@ function basculerClasseur(c) {
   graphiqueActif = null;
   $('sortie-vba').innerHTML = '';
   afficherModule();
-  $('format-export').value = classeur.vbaBrut || (classeur.macros || '').trim() ? 'xlsm' : 'xlsx';
+  $('format-export').value = aDesMacros(classeur) ? 'xlsm' : 'xlsx';
   activerFeuille(Math.min(classeur.active, classeur.feuilles.length - 1));
   ({ historique, futur } = classeur._hist || { historique: [], futur: [] });
   document.title = (classeur.nomFichier || 'Classeur') + ' — Tableur';
@@ -1006,7 +1002,7 @@ function basculerVers(c) { // premier affichage d'un classeur qui remplace le pr
   graphiqueActif = null;
   $('sortie-vba').innerHTML = '';
   afficherModule();
-  $('format-export').value = c.vbaBrut || (c.macros || '').trim() ? 'xlsm' : 'xlsx';
+  $('format-export').value = aDesMacros(c) ? 'xlsm' : 'xlsx';
   activerFeuille(Math.min(c.active, c.feuilles.length - 1));
   document.title = (c.nomFichier || 'Classeur') + ' — Tableur';
   if (panneauCourant === 'noms') rendreNoms();
@@ -1066,7 +1062,7 @@ function rendreClasseurs(forcer = false) {
 function enregistrer() {
   if (edition) validerEdition();
   let type = $('format-export').value;
-  if (type === 'xlsx' && (classeur.macros.trim() || classeur.vbaBrut)) { type = 'xlsm'; $('format-export').value = 'xlsm'; }
+  if (type === 'xlsx' && aDesMacros(classeur)) { type = 'xlsm'; $('format-export').value = 'xlsm'; }
   try {
     const octets = ecrireClasseur(XLSX, classeur, { bookType: type });
     const nom = (classeur.nomFichier || 'Classeur1').replace(/\.(xlsx|xlsm|xls|csv|ods)$/i, '') + '.' + type;
@@ -1611,13 +1607,13 @@ function rendreAide() {
 <li><b>Au doigt</b> (téléphone, tablette) : un appui sélectionne une cellule, un second appui la modifie (le clavier s'ouvre) ; glisser depuis la sélection l'étend, glisser ailleurs fait défiler ; un appui long ouvre le menu (copier, coller, insérer…) sur les cellules, les onglets, les boutons et les graphiques. Le bouton ☰ à gauche de la barre de formule masque les outils (masqués d'office en paysage). ↶ ↷ : annuler, rétablir.</li>
 <li><code>Ctrl+Z</code> / <code>Ctrl+Y</code> annuler / rétablir. <code>Ctrl+flèches</code> saute au bord d'un bloc. Clic droit : menu.</li>
 <li>Formats : <code>Ctrl+B/I/U</code>, couleurs, alignement, menu <b>Bordures</b>, formats de nombre, boutons de décimales : tout est lu et écrit dans le <code>.xlsx</code>.</li>
-<li>Graphiques : sélectionnez la plage (en-têtes compris) puis <b>📈 Graphique</b> : la galerie montre chaque catégorie avec vos données. Déplacez-le par sa barre, redimensionnez par le coin ; ⚙ ou double-clic ouvre ses réglages (type, titres, axes, légende, étiquettes, couleurs, export PNG / SVG) ; <code>Suppr</code> ou ✕ pour l'enlever.</li>
+<li>Graphiques : sélectionnez la plage (en-têtes compris) puis <b>📈 Graphique</b> : la galerie montre chaque catégorie avec vos données. Déplacez-le par sa barre, redimensionnez par le coin ; ⚙ ou double-clic ouvre ses réglages (type, titres, axes, légende, étiquettes, couleurs, export PNG / SVG) ; <code>Suppr</code> ou ✕ pour l'enlever. Ils sont enregistrés comme de vrais graphiques Excel, et ceux d'un fichier Excel s'affichent ici.</li>
 <li><b>Σ</b> (<code>Alt+=</code>) : somme de la colonne au-dessus ou de la ligne à gauche ; ▾ pour moyenne, nb, max, min. Sur une plage : un total sous chaque colonne.</li>
 <li><b>⇅ Trier</b> : de A à Z / de Z à A sur la colonne de la cellule active (le tableau autour est trié avec, la ligne d'en-têtes reste en place) ou tri personnalisé sur plusieurs colonnes.</li>
 <li><b>⧩ Filtrer</b> (<code>Ctrl+Maj+L</code>) : un ▾ dans chaque en-tête pour trier, cocher les valeurs à garder, chercher, ou poser une condition (supérieur à, contient…). Les numéros des lignes filtrées passent en bleu.</li>
 <li><b>🔍</b> (<code>Ctrl+F</code>, <code>Ctrl+H</code>) : rechercher et remplacer, avec les jokers <code>*</code> et <code>?</code>, dans les valeurs ou les formules, sur la feuille ou tout le classeur. <code>F3</code> : suivant.</li>
 <li><b>🎨 Conditionnelle</b> : règles rapides (doublons, 10 plus grandes, échelle de couleurs, barres de données…) ou règles sur mesure (valeur, texte, formule comme <code>=$C2&gt;100</code>…), dans l'ordre de priorité.</li>
-<li><b>📊 Croisé</b> : tableau croisé dynamique. Placez le curseur dans vos données (une ligne d'en-têtes), créez-le (nouvelle feuille ou cellule choisie), puis rangez chaque champ en Lignes, Colonnes, Valeurs (somme, nombre, moyenne, max, min, écart type… ou % du total) ou Filtres. ↻ Actualiser après avoir changé les données.</li>
+<li><b>📊 Croisé</b> : tableau croisé dynamique. Placez le curseur dans vos données (une ligne d'en-têtes), créez-le (nouvelle feuille ou cellule choisie), puis rangez chaque champ en Lignes, Colonnes, Valeurs (somme, nombre, moyenne, max, min, écart type… ou % du total) ou Filtres. Les dates se regroupent par années, trimestres ou mois, les nombres par tranches (âges de 10 en 10…). ↻ Actualiser après avoir changé les données.</li>
 <li><b>Validation des données</b> (menu ⇅ Trier ou ⋯) : liste déroulante (<code>Oui;Non</code> ou une plage <code>=$H$2:$H$9</code>), nombre entier ou décimal entre deux bornes, date, heure, longueur du texte, formule ; message de saisie et alerte (arrêt, avertissement, information). <code>Alt+↓</code> ouvre la liste. ⭕ entoure les cellules non valides.</li>
 <li><b>Saisie des formules</b> : après <code>=</code>, les fonctions qui commencent par ce que vous tapez sont proposées (<code>Tab</code> ou un appui pour choisir, <code>↑ ↓</code> pour parcourir) ; pendant les arguments, une bulle rappelle lesquels sont attendus.</li>
 <li><b>❄ Figer</b> : figer les lignes au-dessus et les colonnes à gauche de la cellule active, la première ligne ou la première colonne ; masquer et afficher des lignes ou des colonnes (aussi au clic droit).</li>

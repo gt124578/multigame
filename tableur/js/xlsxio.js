@@ -6,6 +6,7 @@ import { extraireModulesVBA } from './vbaextract.js';
 import { lireStylesXlsx, ecrireStylesXlsx } from './styles-xlsx.js';
 import { lireObjetsXlsx } from './objets-xlsx.js';
 import { lireVuesXlsx, ecrireVuesXlsx } from './vues-xlsx.js';
+import { ecrireGraphiquesXlsx, specDepuisChartXml, positionAncre } from './graphiques-xlsx.js';
 
 const FEUILLE_MACROS = '_MacrosTableur';
 const FEUILLE_GRAPHIQUES = '_GraphiquesTableur';   // ancien format : graphiques seuls
@@ -132,13 +133,20 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
         const f = classeur.feuille(nomF);
         if (!f) continue;
         f.boutons.push(...o.boutons); f.images.push(...o.images);
+        // Graphiques d'Excel : traduits dans le format du Tableur (ceux qu'il a écrits gardent leur identifiant)
+        for (const gx of o.graphiques || []) {
+          try { const g = specDepuisChartXml(gx.xml, nomF); if (!g) continue; if (gx.id) g.id = gx.id; Object.assign(g, positionAncre(f, gx)); f.graphiques.push(g); } catch (e) { console.warn('Graphique non lu :', e); }
+        }
       }
     } catch (e) { console.warn('Objets non lus :', e); }
   }
   for (const [nomF, type, o] of objets) {
     const f = classeur.feuille(nomF);
     const cle = TYPES_OBJETS[type];
-    if (f && cle && !f[cle].some((x) => x.id === o.id)) f[cle].push(o);
+    if (!f || !cle) continue;
+    // La description complète gardée par le Tableur remplace celle relue dans le graphique Excel
+    const i = f[cle].findIndex((x) => x.id === o.id);
+    if (i < 0) f[cle].push(o); else if (cle === 'graphiques') f[cle][i] = o;
   }
   // Macros
   if (macrosLignes.length) classeur.macros = macrosLignes.join('\n');
@@ -239,6 +247,7 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
   let out = new Uint8Array(XLSX.write(wb, { bookType, type: 'array', compression: true }));
   try { out = ecrireStylesXlsx(XLSX, out, classeur.feuilles); } catch (e) { console.warn('Styles non écrits :', e); }
   try { out = ecrireVuesXlsx(XLSX, out, classeur.feuilles); } catch (e) { console.warn('Volets, filtre ou mise en forme conditionnelle non écrits :', e); }
+  if (bookType !== 'csv') try { out = ecrireGraphiquesXlsx(XLSX, out, classeur); } catch (e) { console.warn('Graphiques Excel non écrits :', e); }
   return out;
 }
 
