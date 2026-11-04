@@ -2057,15 +2057,15 @@ export function atelier(D) {
    *  portes ; deux ailes de production à toits en sheds rouges, cheminées rayées, cuves sphériques peintes en Poké Ball,
    *  passerelles et conduites, enseigne, drapeaux */
   B.usinePokeball = ({ rouge = '#d83a32' } = {}) => {
-    const G = new THREE.Group(), cx = 8, cz = 5, BL = M({ map: TX.panneaux('#f2f2f4') }), R = COL(rouge), N = COL('#1e1e24'), AC = COL('#9aa0aa');
-    G.add(at(boite(16.4, 0.4, 10.4, M({ map: TX.beton('#b8b8b4') })), cx, 0.2, cz));
+    const G = new THREE.Group(), W = 32, cx = 16, cz = 5, BL = M({ map: TX.panneaux('#f2f2f4') }), R = COL(rouge), N = COL('#1e1e24'), AC = COL('#9aa0aa');
+    G.add(at(boite(W + 0.4, 0.4, 10.4, M({ map: TX.beton('#b8b8b4') })), cx, 0.2, cz));
     // ailes de production
-    for (const [x0, x1] of [[0, 4.6], [11.4, 16]]) {
+    for (const [x0, x1] of [[0, cx - 3.4], [cx + 3.4, W]]) {
       const xc = (x0 + x1) / 2, w = x1 - x0;
       G.add(at(boite(w, 4.2, 8.6, BL), xc, 2.5, 4.5));
       G.add(at(boite(w + 0.04, 0.5, 8.64, R), xc, 3.0, 4.5)); G.add(at(boite(w + 0.04, 0.12, 8.64, N), xc, 2.7, 4.5));
       for (let i = 0; i < 4; i++) { const sh = extr([[0, 0], [0, 1.1], [2.15, 0]], w, M({ map: TX.tole(rouge) })); sh.rotation.y = Math.PI / 2; sh.position.set(x0, 4.6, 0.3 + (i + 1) * 2.15); G.add(sh); G.add(at(boite(w - 0.2, 0.9, 0.04, LUM('#cfe8ff', '#203040')), xc, 5.1, 0.32 + i * 2.15)); }
-      for (let k = 0; k < 3; k++) G.add(at(boite(0.9, 1.1, 0.04, M({ map: TX.verre() })), x0 + 0.8 + k * (w - 1.6) / 2, 1.5, 8.82));
+      const nf = Math.max(3, Math.round(w / 1.6)); for (let k = 0; k < nf; k++) G.add(at(boite(0.9, 1.1, 0.04, M({ map: TX.verre() })), x0 + 0.8 + k * (w - 1.6) / (nf - 1), 1.5, 8.82));
       G.add(at(boite(w - 0.6, 0.3, 0.06, N), xc, 4.0, 8.84));
     }
     // rotonde : tambour blanc, bande noire, demi-sphère rouge, lanternon-bouton
@@ -2077,32 +2077,28 @@ export function atelier(D) {
     for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, nv = new THREE.Mesh(new THREE.TorusGeometry(rr, 0.05, 4, 16, Math.PI / 2), COL('#b02a24')); nv.scale.set(1, 0.85, 1); nv.rotation.y = -a; G.add(at(nv, cx, 5.35, cz)); }
     G.add(at(cyl(0.9, 0.9, 0.5, N, 20), cx, 9.3, cz)); G.add(at(cyl(0.6, 0.6, 0.55, COL('#f4f4f6'), 20), cx, 9.4, cz));
     G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 8), LUM('#fff8e0', '#a0a080')), cx, 9.8, cz));
-    // entrée-bouton : grand disque blanc cerclé de noir sur la façade de la rotonde, portes au centre
+    // entrée : avant-corps blanc à bandeau rouge et noir, grandes portes vitrées
     const zf = cz + rr;
     G.add(at(boite(5.2, 5.0, 0.8, BL), cx, 2.7, zf - 0.2));
-    const disque = cyl(2.3, 2.3, 0.25, COL('#f4f4f6'), 40); disque.rotation.x = Math.PI / 2; G.add(at(disque, cx, 2.6, zf + 0.3));
-    const anneau = new THREE.Mesh(new THREE.TorusGeometry(2.3, 0.28, 8, 40), N); G.add(at(anneau, cx, 2.6, zf + 0.42));
-    const anneau2 = new THREE.Mesh(new THREE.TorusGeometry(1.55, 0.12, 6, 32), N); G.add(at(anneau2, cx, 2.6, zf + 0.45));
-    G.add(at(boite(5.2, 0.5, 0.82, N), cx, 2.6, zf - 0.2));
-    portesVitrees(G, cx, zf + 0.42, 1.8, 2.0, N);
-    G.add(at(boite(1.9, 0.2, 0.1, R), cx, 2.15, zf + 0.5));
+    G.add(at(boite(5.24, 0.8, 0.84, R), cx, 4.4, zf - 0.2)); G.add(at(boite(5.24, 0.16, 0.86, N), cx, 3.95, zf - 0.2));
+    portesVitrees(G, cx, zf + 0.2, 1.8, 2.4, N);
+    G.add(at(boite(2.4, 0.16, 0.9, R), cx, 2.55, zf + 0.6));
     // cuves Poké Ball, cheminées rayées, conduites
     for (const s of [-1, 1]) {
-      const x = cx + s * 6.3;
+      for (const x of [cx + s * 7.5, cx + s * 12.5]) {
       G.add(at(cyl(0.12, 0.12, 1.6, AC, 6), x - 0.5, 5.4, 1.6)); G.add(at(cyl(0.12, 0.12, 1.6, AC, 6), x + 0.5, 5.4, 1.6));
-      pokeBall(G, x, 7.3, 1.6, 1.15, rouge);
-      const ch = cyl(0.45, 0.55, 5.5, BL, 14); G.add(at(ch, cx + s * 3.6, 7.6, 1.0));
-      for (const y of [6.0, 7.4, 8.8, 10.2]) G.add(at(cyl(0.48, 0.48, 0.45, R, 14), cx + s * 3.6, y, 1.0));
-      G.add(at(cyl(0.5, 0.5, 0.2, N, 14), cx + s * 3.6, 10.4, 1.0));
-      for (let i = 0; i < 3; i++) G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.4 + i * 0.12, 8, 6), M({ color: new THREE.Color('#e8e8ec'), transparent: true, opacity: 0.6 })), cx + s * (3.6 + i * 0.3), 10.9 + i * 0.5, 1.0 - i * 0.2));
-      const p = cyl(0.18, 0.18, 2.4, AC, 8); p.rotation.z = Math.PI / 2; G.add(at(p, cx + s * 5.0, 4.6, 3.0));
+      pokeBall(G, x, 7.3, 1.6, 1.15, rouge); }
+      const xc = cx + s * 10; const ch = cyl(0.45, 0.55, 5.5, BL, 14); G.add(at(ch, xc, 7.6, 1.0));
+      for (const y of [6.0, 7.4, 8.8, 10.2]) G.add(at(cyl(0.48, 0.48, 0.45, R, 14), xc, y, 1.0));
+      G.add(at(cyl(0.5, 0.5, 0.2, N, 14), xc, 10.4, 1.0));
+      for (let i = 0; i < 3; i++) G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.4 + i * 0.12, 8, 6), M({ color: new THREE.Color('#e8e8ec'), transparent: true, opacity: 0.6 })), xc + s * i * 0.3, 10.9 + i * 0.5, 1.0 - i * 0.2));
+      const p = cyl(0.18, 0.18, 2.4, AC, 8); p.rotation.z = Math.PI / 2; G.add(at(p, cx + s * 5.0, 4.6, 3.0)); const p2 = cyl(0.18, 0.18, 6, AC, 8); p2.rotation.z = Math.PI / 2; G.add(at(p2, cx + s * 10, 5.2, 7.0));
       // enseignes Poké Ball sur les ailes
-      const e = cyl(0.8, 0.8, 0.1, COL('#f4f4f6'), 24); e.rotation.x = Math.PI / 2; G.add(at(e, cx + s * 5.7, 3.7, 8.86));
-      const eh = new THREE.Mesh(new THREE.CircleGeometry(0.8, 24, 0, Math.PI), R); G.add(at(eh, cx + s * 5.7, 3.7, 8.92));
-      G.add(at(boite(1.6, 0.14, 0.02, N), cx + s * 5.7, 3.7, 8.93)); G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.22, 16), N), cx + s * 5.7, 3.7, 8.94)); G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.13, 16), COL('#f4f4f6')), cx + s * 5.7, 3.7, 8.95));
+      const e = cyl(0.8, 0.8, 0.1, COL('#f4f4f6'), 24); e.rotation.x = Math.PI / 2; G.add(at(e, (cx + s * 9.5), 3.7, 8.86));
+      const eh = new THREE.Mesh(new THREE.CircleGeometry(0.8, 24, 0, Math.PI), R); G.add(at(eh, (cx + s * 9.5), 3.7, 8.92));
+      G.add(at(boite(1.6, 0.14, 0.02, N), (cx + s * 9.5), 3.7, 8.93)); G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.22, 16), N), (cx + s * 9.5), 3.7, 8.94)); G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.13, 16), COL('#f4f4f6')), (cx + s * 9.5), 3.7, 8.95));
       // drapeaux
-      G.add(at(cyl(0.04, 0.05, 3.2, AC, 6), cx + s * 3.0, 1.6, 9.6)); G.add(at(boite(0.9, 0.55, 0.02, R), cx + s * 3.0 + s * 0.46, 2.9, 9.6));
-      G.add(at(boite(0.9, 0.12, 0.03, N), cx + s * 3.0 + s * 0.46, 2.62, 9.6));
+      for (const dx of [3.0, 6.0, 13.0]) { G.add(at(cyl(0.04, 0.05, 3.2, AC, 6), cx + s * dx, 1.6, 9.6)); G.add(at(boite(0.9, 0.55, 0.02, R), cx + s * dx + s * 0.46, 2.9, 9.6)); G.add(at(boite(0.9, 0.12, 0.03, N), cx + s * dx + s * 0.46, 2.62, 9.6)); }
     }
     return G;
   };
@@ -2386,6 +2382,6 @@ export const EMPRISES = {
   cabaneChasseur: [4, 3], cabanePecheur: [5, 4], grange: [6, 5], moulin: [4, 4], phare: [3, 3], auberge: [6, 5], chapelle: [4, 7],
   boulangerie: [4, 4], maisonThe: [5, 5], gare: [8, 4], kiosque: [4, 5], puits: [2, 2], etal: [2, 2],
   mairie: [9, 5], fontaine: [3, 3], centre: [7, 5], boutique: [5, 4], arene: [12, 11], areneFeu: [12, 11], pavillonFeu: [12, 11], areneCour: [18, 14], labo: [10, 7],
-  pagode: [11, 11], pavillon: [8, 7], tour: [8, 5], tourVerre: [10, 7], tourDeco: [8, 8], bourse: [12, 8], casino: [14, 8], ligue: [30, 14], usinePokeball: [16, 10],
+  pagode: [11, 11], pavillon: [8, 7], tour: [8, 5], tourVerre: [10, 7], tourDeco: [8, 8], bourse: [12, 8], casino: [14, 8], ligue: [30, 14], usinePokeball: [32, 10],
   escalierMontant: [1, 2], escalierDescendant: [1, 2],
 };

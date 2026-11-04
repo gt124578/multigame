@@ -26,7 +26,7 @@ export const GRAND = {
   casino: { w: 14, d: 8, h: 6, door: 6, door2: 7, blocs: [[2, 8], [5, 8], [8, 8], [11, 8], [0, 8], [13, 8]], modele: 'casino' },
   bourse: { w: 12, d: 8, h: 7, door: 5, door2: 6, blocs: [[0, 8], [11, 8]], modele: 'bourse' },
   mairie: { w: 9, d: 5, h: 5, door: 4, modele: 'mairie' },
-  usine: { w: 16, d: 10, h: 8, door: 7, door2: 8, modele: 'usinePokeball' },
+  usine: { w: 32, d: 10, h: 8, door: 15, door2: 16, modele: 'usinePokeball' },
   maisonL: { w: 5, d: 5, h: 3, door: 2, porteY: 2, libres: [[2, 3], [3, 3], [4, 3], [2, 4], [3, 4], [4, 4]], modele: 'maisonL' },
 };
 
