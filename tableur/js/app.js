@@ -101,11 +101,14 @@ function rendre() { if (rendRequis) return; rendRequis = true; requestAnimationF
 function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
   let html = '';
   const entourerInvalides = uiD.validation.entourer();
+  const zonesDebord = classeur.evaluateur.zonesDebord(F) || [];
   const fusionDe = (r, c) => f.fusions.find((m) => r >= m.r1 && r <= m.r2 && c >= m.c1 && c <= m.c2);
   for (let r = r1; r <= r2; r++) {
     if (!hauteurLig(r)) continue;
     for (let c = Math.max(0, c1 - 8); c <= c2; c++) {
-      const cel = f.get(r, c);
+      let cel = f.get(r, c);
+      // Cellule vide dans le débordement d'une formule (tableau dynamique) : elle affiche sa part du résultat
+      if (!cel && zonesDebord.length && zonesDebord.some((z) => r >= z.r && r < z.r + z.h && c >= z.c && c < z.c + z.w && (z.r !== r || z.c !== c))) cel = { debordee: true };
       const fus = f.fusions.length ? fusionDe(r, c) : null;
       if (fus && (fus.r1 !== r || fus.c1 !== c)) continue;
       let w = largeurCol(c), h = hauteurLig(r);
@@ -569,7 +572,13 @@ function positionnerSelection() {
   poignee.style.left = (bas.left + bas.width - 4) + 'px'; poignee.style.top = (bas.top + bas.height - 4) + 'px'; poignee.style.visibility = bas.width > 0 && bas.height > 0 ? '' : 'hidden';
   if (pressePapier && pressePapier.feuille === feuille() && !pressePapier.colle) { $('plage-copie').hidden = false; poser($('plage-copie'), rectPlage(pressePapier.r1, pressePapier.c1, pressePapier.r2, pressePapier.c2)); }
   else $('plage-copie').hidden = true;
-  if (!edition) { zoneNom.value = multi ? adresse(Math.min(selection.r1, selection.r2), Math.min(selection.c1, selection.c2)) + ':' + adresse(Math.max(selection.r1, selection.r2), Math.max(selection.c1, selection.c2)) : adresse(curseur.r, curseur.c); barre.value = saisieAffichee(curseur.r, curseur.c); }
+  // Débordement d'une formule (tableau dynamique) : cadre bleu, et la formule d'origine grisée dans la barre
+  const zd = classeur.evaluateur.zoneDe(fi(), curseur.r, curseur.c), cadre = $('zone-debord');
+  cadre.hidden = !zd || !!edition;
+  if (zd && !edition) poser(cadre, rectPlage(zd.r, zd.c, zd.r + zd.h - 1, zd.c + zd.w - 1));
+  const fantome = !!zd && (zd.r !== curseur.r || zd.c !== curseur.c) && !feuille().get(curseur.r, curseur.c)?.v;
+  barre.classList.toggle('fantome', fantome && !edition);
+  if (!edition) { zoneNom.value = multi ? adresse(Math.min(selection.r1, selection.r2), Math.min(selection.c1, selection.c2)) + ':' + adresse(Math.max(selection.r1, selection.r2), Math.max(selection.c1, selection.c2)) : adresse(curseur.r, curseur.c); barre.value = fantome ? classeur.saisie(fi(), zd.r, zd.c) : saisieAffichee(curseur.r, curseur.c); }
   for (const el of refsColorees) el.remove(); refsColorees = [];
   if (edition) colorerReferences();
   // Validation : flèche de la liste déroulante et message de saisie de la cellule active
@@ -2333,7 +2342,7 @@ editeur.addEventListener('input', (e) => {
   if (prop) { editeur.value = prop; editeur.setSelectionRange(t.length, prop.length); barre.value = prop; }
 });
 editeur.addEventListener('keydown', (e) => toucheEdition(e, 'cellule'));
-barre.addEventListener('focus', () => { if (!edition) { edition = { r: curseur.r, c: curseur.c, origine: 'barre' }; positionnerSelection(); } });
+barre.addEventListener('focus', () => { if (barre.classList.contains('fantome')) { barre.value = ''; barre.classList.remove('fantome'); } if (!edition) { edition = { r: curseur.r, c: curseur.c, origine: 'barre' }; positionnerSelection(); } });
 barre.addEventListener('input', () => { if (edition) { editeur.value = barre.value; edition.refEnCours = null; positionnerSelection(); } });
 barre.addEventListener('keydown', (e) => toucheEdition(e, 'barre'));
 barre.addEventListener('blur', () => { if (edition && edition.origine === 'barre' && !glisse) setTimeout(() => { if (edition && edition.origine === 'barre' && document.activeElement !== barre) validerEdition(); }, 150); });

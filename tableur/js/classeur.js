@@ -238,7 +238,12 @@ export class Classeur {
   /** Texte affiché d'une cellule (valeur formatée). */
   texte(f, r, c) {
     const cel = this.cellule(f, r, c);
-    if (!cel) return '';
+    if (!cel || (cel.v == null && cel.f == null)) {
+      // cellule vide, mais peut-être couverte par le débordement d'une formule
+      const i = typeof f === 'number' ? f : this.feuilles.indexOf(f);
+      if (!this.evaluateur.zoneDe?.(i, r, c)) return '';
+      return formater(this.valeur(f, r, c), cel?.z);
+    }
     return formater(this.valeur(f, r, c), cel.z);
   }
 
@@ -265,6 +270,8 @@ export class Classeur {
     const ancien = feuille.get(r, c) || {};
     const cel = { s: ancien.s, z: ancien.z };
     const t = texte == null ? '' : String(texte);
+    // Une ancienne formule matricielle remplacée : les valeurs gardées dans sa plage disparaissent avec elle
+    if (ancien.f != null) { const zone = this.evaluateur.debords.get((typeof f === 'number' ? f : this.feuilles.indexOf(f)) + ',' + r + ',' + c); if (zone) for (let i = 0; i < zone.h; i++) for (let j = 0; j < zone.w; j++) { const x = feuille.get(r + i, c + j); if ((i || j) && x && x.couverte) feuille.set(r + i, c + j, null); } }
     if (t === '') {
       if (!cel.s && !cel.z) feuille.set(r, c, null); else feuille.set(r, c, { s: cel.s, z: cel.z });
       this.modifie();

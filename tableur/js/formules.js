@@ -26,6 +26,7 @@ export const ERR = {
   NUM: '#NUM!',
   NUL: '#NULL!',
   CYCLE: '#CYCLE!',
+  DEBORD: '#SPILL!',   // #PROPAGATION! dans Excel en français : le résultat ne peut pas déborder
 };
 
 const err = (code, d) => new ErreurFormule(code, d);
@@ -148,13 +149,14 @@ const T = {
 const RE_REF = /^(?:(?:'((?:[^']|'')+)'|([A-Za-z_\u00C0-\u017F][\w.\u00C0-\u017F]*))!)?(\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?|\$?[A-Za-z]{1,3}:\$?[A-Za-z]{1,3}|\$?\d+:\$?\d+)(?![\w(])/;
 const RE_ERREUR = /^#(?:DIV\/0!|VALUE!|REF!|NAME\?|N\/A|NUM!|NULL!|CYCLE!)/i;
 
-export function tokeniser(src) {
+export function tokeniser(src, langue) {
   const toks = [];
   let i = 0;
   // En notation française, « ; » sépare les arguments et « , » peut être la virgule décimale.
   // Sans « ; », une virgule qui n'apparaît qu'entre deux chiffres est aussi lue comme décimale (=A1*1,5).
   const sansChaines = src.replace(/"(?:[^"]|"")*"/g, '""');
-  const francais = sansChaines.includes(';') || (sansChaines.includes(',') && !/[^\d],|,[^\d]/.test(sansChaines.replace(/\{[^}]*\}/g, '')));
+  // langue : 'en' (formule d'un fichier Excel : « , » sépare toujours) ou 'fr' ; sinon on devine
+  const francais = langue === 'en' ? false : langue === 'fr' ? true : sansChaines.includes(';') || (sansChaines.includes(',') && !/[^\d],|,[^\d]/.test(sansChaines.replace(/\{[^}]*\}/g, '')));
   let accolades = 0;
   while (i < src.length) {
     const ch = src[i];
@@ -178,7 +180,9 @@ export function tokeniser(src) {
     }
     if ((m = RE_REF.exec(reste))) {
       const feuille = m[1] != null ? m[1].replace(/''/g, "'") : (m[2] ?? null);
-      toks.push({ t: T.REF, feuille, v: m[3], pos: i, fin: i + m[0].length }); i += m[0].length; continue;
+      // « A1# » : toute la plage où déborde le résultat de A1
+      const debord = src[i + m[0].length] === '#' && /^\$?[A-Za-z]{1,3}\$?\d+$/.test(m[3]);
+      toks.push({ t: T.REF, feuille, v: m[3], debord, pos: i, fin: i + m[0].length + (debord ? 1 : 0) }); i += m[0].length + (debord ? 1 : 0); continue;
     }
     if ((m = (francais && !accolades ? /^\d+(?:[.,]\d+)?(?:[eE][+-]?\d+)?|^[.,]\d+(?:[eE][+-]?\d+)?/ : /^\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|^\.\d+(?:[eE][+-]?\d+)?/).exec(reste))) {
       toks.push({ t: T.NOMBRE, v: parseFloat(m[0].replace(',', '.')), pos: i, fin: i + m[0].length }); i += m[0].length; continue;
@@ -196,7 +200,7 @@ export function tokeniser(src) {
       else toks.push({ t: T.NOM, v: nom, pos: i, fin: i + nom.length });
       i += nom.length; continue;
     }
-    if ((m = /^(<=|>=|<>|[-+*/^&=<>%:])/.exec(reste))) {
+    if ((m = /^(<=|>=|<>|[-+*/^&=<>%:@])/.exec(reste))) {
       toks.push({ t: T.OP, v: m[0], pos: i, fin: i + m[0].length }); i += m[0].length; continue;
     }
     if (ch === '(') { toks.push({ t: T.PARO, pos: i, fin: i + 1 }); i++; continue; }
@@ -256,6 +260,7 @@ class Parseur {
   unaire() {
     if (this.estOp('-')) { this.next(); return { k: 'un', op: '-', a: this.unaire() }; }
     if (this.estOp('+')) { this.next(); return this.unaire(); }
+    if (this.estOp('@')) { this.next(); return { k: 'inter', a: this.unaire() }; } // intersection implicite (=@A1:A9)
     return this.pourcent();
   }
   pourcent() {
@@ -277,7 +282,7 @@ class Parseur {
       case T.CHAINE: return { k: 'str', v: k.v };
       case T.BOOL: return { k: 'bool', v: k.v };
       case T.ERREUR: return { k: 'err', v: k.v };
-      case T.REF: return { k: 'ref', feuille: k.feuille, plage: k.v };
+      case T.REF: return { k: 'ref', feuille: k.feuille, plage: k.v, debord: k.debord };
       case T.NOM: return { k: 'nom', v: k.v };
       case T.FONCTION: {
         const args = [];
@@ -1422,23 +1427,88 @@ export const NOMS_FONCTIONS_FR = Object.keys(ALIAS).sort();
  *   cellule(f, r, c) → { v, f } ou undefined, zoneUtilisee(f) → { r2, c2 },
  *   nom(nomDefini) → chaîne de référence (« Feuil1!$A$1:$B$3 ») ou undefined.
  */
+// Formules qui peuvent renvoyer plusieurs valeurs (plages, matrices, fonctions de tableaux dynamiques)
+const PEUT_DEBORDER = /[:#{]|\b(FILTER|FILTRE|SORT|TRIER|SORTBY|TRIERPAR|UNIQUE|SEQUENCE|S[EÉ]QUENCE|RANDARRAY|TABLEAU\.ALEA|TRANSPOSE|MMULT|PRODUITMAT|MINVERSE|INVERSEMAT|FREQUENCY|FREQUENCE|LINEST|DROITEREG|CHOOSECOLS|CHOOSEROWS|CHOISIRCOLS|CHOISIRLIGNES|TAKE|PRENDRE|DROP|EXCLURE|HSTACK|ASSEMB\.H|VSTACK|ASSEMB\.V|TEXTSPLIT|FRACTIONNER\.TEXTE|TOCOL|TOROW|ANSICOL|ANSILIGNE|WRAPROWS|WRAPCOLS|EXPAND|DEVELOPPER|INDIRECT|OFFSET|DECALER|INDEX|IF|SI|CHOOSE|CHOISIR|LET|LAMBDA|MAP|BYROW|BYCOL|MAKEARRAY|SCAN|REDUCE)\s*\(/i;
+
 export class Evaluateur {
   constructor(classeur) {
     this.classeur = classeur;
     this.cache = new Map();     // "f,r,c" → valeur calculée
     this.enCours = new Set();   // détection des cycles
     this.courant = { feuille: 0, r: 0, c: 0 };
+    this.debords = new Map();   // "f,r,c" → { h, w, m, bloque } : formules dont le résultat déborde (tableaux dynamiques)
+    this.index = new Map();     // feuille → [{ r, c, h, w }] : zones de débordement connues
+    this.indexPret = false;
+    this.enConstruction = new Set();
   }
 
-  invalider() { this.cache.clear(); }
+  invalider() { if (this.classeur.calculManuel && !this.forcer) return; this.cache.clear(); this.debords.clear(); this.index.clear(); this.indexPret = false; }
+  recalculerTout() { this.forcer = true; try { this.invalider(); } finally { this.forcer = false; } }
+
+  /**
+   * Repère les formules qui débordent (tableaux dynamiques) dans tout le classeur, une fois par version.
+   * Une zone peut dépendre d'une autre (=TRIER(A1#)) : quelques passes, jusqu'à ce que les zones ne bougent plus.
+   */
+  construireIndex() {
+    if (this.indexPret || this.enConstruction.size) return;
+    this.enConstruction.add('*');
+    try {
+      let avant = '';
+      for (let passe = 0; passe < 4; passe++) {
+        const nouvel = new Map();
+        this.classeur.feuilles.forEach((feuille, f) => {
+          const liste = [];
+          feuille.chaque((r, c, cel) => {
+            if (cel.f == null || !PEUT_DEBORDER.test(cel.f)) return;
+            this.valeur(f, r, c);
+            const d = this.debords.get(f + ',' + r + ',' + c);
+            if (d && !d.bloque) liste.push({ r, c, h: d.h, w: d.w });
+          });
+          if (liste.length) nouvel.set(f, liste);
+        });
+        this.index = nouvel;
+        const sig = JSON.stringify([...nouvel]);
+        if (!nouvel.size || sig === avant) break;
+        avant = sig; this.cache.clear(); this.debords.clear();
+      }
+      this.indexPret = true;
+    } finally { this.enConstruction.delete('*'); }
+  }
+  /** Zones de débordement d'une feuille. */
+  zonesDebord(f) {
+    if (!this.indexPret && !this.enCours.size) this.construireIndex();
+    return this.index.get(f) || [];
+  }
+  /** Zone de débordement qui couvre une cellule (ou null). */
+  zoneDe(f, r, c) {
+    const zs = this.zonesDebord(f);
+    if (!zs) return null;
+    return zs.find((z) => r >= z.r && r < z.r + z.h && c >= z.c && c < z.c + z.w) || null;
+  }
 
   nbFeuilles() { return this.classeur.nbFeuilles(); }
 
-  zoneUtilisee(f) { return this.classeur.zoneUtilisee(f); }
+  zoneUtilisee(f) {
+    const z = this.classeur.zoneUtilisee(f), zs = this.index.get(f);
+    if (!zs || !zs.length) return z;
+    let r2 = z.r2, c2 = z.c2;
+    for (const q of zs) { r2 = Math.max(r2, q.r + q.h - 1); c2 = Math.max(c2, q.c + q.w - 1); }
+    return { r2, c2 };
+  }
 
   /** Valeur d'une cellule (formule évaluée si besoin). */
   valeur(f, r, c) {
+    if (!this.indexPret && !this.enCours.size && !this.enConstruction.size) this.construireIndex();
     const cel = this.classeur.cellule(f, r, c);
+    // Cellule vide (ou valeur gardée d'une ancienne formule matricielle) : peut-être dans le débordement d'une formule
+    if (!cel || (cel.f == null && (cel.v === null || cel.v === undefined || cel.v === '' || cel.couverte))) {
+      const z = this.zoneDe(f, r, c);
+      if (z && (z.r !== r || z.c !== c)) {
+        if (!this.debords.has(f + ',' + z.r + ',' + z.c)) this.valeur(f, z.r, z.c);
+        const d = this.debords.get(f + ',' + z.r + ',' + z.c);
+        if (d && !d.bloque && d.m[r - z.r]) { const v = d.m[r - z.r][c - z.c]; return v === undefined ? null : v; }
+      }
+    }
     if (!cel) return null;
     if (cel.f == null) return cel.v === undefined ? null : cel.v;
     const cle = f + ',' + r + ',' + c;
@@ -1450,8 +1520,27 @@ export class Evaluateur {
     try {
       this.courant = { feuille: f, r, c };
       v = this.evaluer(analyser(cel.f));
+      // Résultat de plusieurs cellules : il déborde vers la droite et le bas (tableaux dynamiques d'Excel)
+      let m = null;
+      if (v instanceof Plage && v.taille > 1) m = v.matrice();
+      else if (Array.isArray(v) && (v.length > 1 || (v[0] && v[0].length > 1))) m = v;
+      if (m && m.length && m[0].length) {
+        const h = m.length, w = Math.max(...m.map((l) => l.length));
+        let bloque = false;
+        for (let i = 0; i < h && !bloque; i++) for (let j = 0; j < w; j++) {
+          if (!i && !j) continue;
+          const x = this.classeur.cellule(f, r + i, c + j);
+          if (x && !(x.f == null && (x.v === null || x.v === undefined || x.v === '' || x.couverte))) { bloque = true; break; }
+        }
+        this.debords.set(cle, { h, w, m, bloque });
+        if (bloque && cel.cache === undefined) v = err(ERR.DEBORD);
+        else if (bloque) v = v instanceof Plage ? v.scalaire() : m[0][0]; // ancienne formule d'un fichier Excel : intersection implicite
+        else v = m[0][0];
+      } else {
+        if (v instanceof Plage) v = v.scalaire();
+        if (Array.isArray(v)) v = v[0] && v[0][0] !== undefined ? v[0][0] : null;
+      }
       if (v instanceof Plage) v = v.scalaire();
-      if (Array.isArray(v)) v = v[0] && v[0][0] !== undefined ? v[0][0] : null;
       if (v === undefined) v = null;
     } catch (e) {
       if (e instanceof ErreurFormule) v = e;
@@ -1488,6 +1577,15 @@ export class Evaluateur {
       f = this.classeur.indexFeuille(tok.feuille);
       if (f < 0) throw err(ERR.REF, 'feuille ' + tok.feuille);
     }
+    if (tok.debord) {
+      const a = parseAdresse(tok.v.replace(/\$/g, ''));
+      if (!a) throw err(ERR.REF);
+      this.valeur(f, a.r, a.c);
+      const d = this.debords.get(f + ',' + a.r + ',' + a.c);
+      if (!d) { const cel = this.classeur.cellule(f, a.r, a.c); if (!cel || cel.f == null) throw err(ERR.REF); return new Plage(this, f, a.r, a.c, a.r, a.c); }
+      if (d.bloque) throw err(ERR.DEBORD);
+      return new Plage(this, f, a.r, a.c, a.r + d.h - 1, a.c + d.w - 1);
+    }
     return this.plageDepuisTexte(tok.v, f);
   }
 
@@ -1508,7 +1606,7 @@ export class Evaluateur {
       case 'bool': return n.v;
       case 'vide': return null;
       case 'err': throw err(n.v);
-      case 'ref': return this.plageDepuisToken({ feuille: n.feuille, v: n.plage });
+      case 'ref': return this.plageDepuisToken({ feuille: n.feuille, v: n.plage, debord: n.debord });
       case 'nom': {
         const def = this.classeur.nom(n.v, this.courant.feuille);
         if (def === undefined) throw err(ERR.NOM, n.v);
@@ -1518,6 +1616,7 @@ export class Evaluateur {
       case 'tab': return n.lignes.map((l) => l.map((x) => scal(this.evaluer(x))));
       case 'pct': return N(this.evaluer(n.a)) / 100;
       case 'un': return -N(this.evaluer(n.a));
+      case 'inter': { const v = this.evaluer(n.a); if (v instanceof Plage) return v.scalaire(); if (Array.isArray(v)) return v[0] && v[0][0] !== undefined ? v[0][0] : null; return v; }
       case 'bin': return this.binaire(n);
       case 'fn': {
         let def = fonction(n.nom);
@@ -1604,7 +1703,7 @@ export function decalerFormule(formule, dr, dc) {
     out += src.slice(pos, t.pos);
     if (t.t === T.REF) {
       const prefixe = src.slice(t.pos, t.fin).split('!').length > 1 ? src.slice(t.pos, t.fin).slice(0, src.slice(t.pos, t.fin).lastIndexOf('!') + 1) : '';
-      out += prefixe + decalerRef(t.v, dr, dc);
+      out += prefixe + decalerRef(t.v, dr, dc) + (t.debord ? '#' : '');
     } else out += src.slice(t.pos, t.fin);
     pos = t.fin;
   }
@@ -1655,12 +1754,14 @@ export function convertirFormule(formule, sens) {
   if (!formule || !formule.startsWith('=')) return formule;
   const src = formule.slice(1);
   let toks;
-  try { toks = tokeniser(src); } catch { return formule; }
-  let out = '', pos = 0;
+  try { toks = tokeniser(src, sens === 'fr' ? 'en' : undefined); } catch { return formule; }
+  let out = '', pos = 0, accolades = 0;
   for (const t of toks) {
     out += src.slice(pos, t.pos);
     const brut = src.slice(t.pos, t.fin);
-    if (t.t === T.SEP) out += sens === 'fr' ? ';' : ',';
+    if (t.t === T.ACCO) accolades++; else if (t.t === T.ACCF) accolades--;
+    if (t.t === T.SEP && accolades > 0) out += brut; // constante {1,2;3,4} : même écriture dans les deux langues
+    else if (t.t === T.SEP) out += sens === 'fr' ? ';' : ',';
     else if (t.t === T.NOMBRE) out += sens === 'fr' ? brut : brut.replace(',', '.');
     else if (t.t === T.BOOL) out += sens === 'fr' ? (t.v ? 'VRAI' : 'FAUX') : (t.v ? 'TRUE' : 'FALSE');
     else if (t.t === T.FONCTION) {

@@ -55,7 +55,7 @@ test('références, plages et autres feuilles', () => {
   pose(0, 0, 0, '10'); pose(0, 1, 0, '20'); pose(0, 2, 0, '30'); pose(0, 0, 1, 'texte'); pose(1, 0, 0, '5');
   egal(F('=A1+A2'), 30); egal(F('=SOMME(A1:A3)'), 60); egal(F('=SUM(A:A)'), 60); egal(F('=SOMME(1:1)'), 10);
   egal(F('=Données!A1*2'), 10); egal(F("='Données'!A1"), 5); egal(F('=Inconnue!A1'), new ErreurFormule('#REF!'));
-  pose(0, 1, 5, '=A1:A3'); egal(c.valeur(0, 1, 5), 20, 'intersection implicite'); egal(F('=NB(A1:B3)'), 3); egal(F('=NBVAL(A1:B3)'), 4);
+  pose(0, 1, 5, '=@A1:A3'); egal(c.valeur(0, 1, 5), 20, 'intersection implicite'); pose(0, 1, 5, null); egal(F('=NB(A1:B3)'), 3); egal(F('=NBVAL(A1:B3)'), 4);
 });
 
 test('noms définis et cycles', () => {
@@ -1054,6 +1054,31 @@ test('xlsx : barré, retrait, liens, couleur d\'onglet', () => {
   const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c), 'x.xlsx'), g = e.feuilles[0];
   egal([g.get(0, 0).lien, g.get(1, 0).lien, g.couleur], ['https://exemple.fr', '#Feuil1!C50', '#4472c4']);
   egal([g.get(2, 0).s.barre, g.get(2, 0).s.retrait], [true, 2]);
+});
+
+test('formules qui débordent : SEQUENCE, TRIER, UNIQUE, FILTRE, A1#, #SPILL!', () => {
+  const c = Classeur.nouveau();
+  [['Nom', 'Âge'], ['b', 30], ['a', 20], ['c', 40], ['a', 20]].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  c.saisir(0, 0, 3, '=SEQUENCE(3)'); c.saisir(0, 0, 4, '=SOMME(D1#)'); c.saisir(0, 0, 5, '=TRIER(A2:B5;2;-1)');
+  c.saisir(0, 0, 8, '=UNIQUE(A2:A5)'); c.saisir(0, 0, 9, '=FILTRE(A2:A5;B2:B5>25)');
+  const t = (r, k) => { const v = c.valeur(0, r, k); return v instanceof ErreurFormule ? v.code : v; };
+  egal([0, 1, 2, 3].map((r) => t(r, 3)), [1, 2, 3, null]); egal(t(0, 4), 6);
+  egal([0, 1, 2, 3].map((r) => t(r, 5) + '/' + t(r, 6)), ['c/40', 'b/30', 'a/20', 'a/20']);
+  egal([0, 1, 2].map((r) => t(r, 8)), ['b', 'a', 'c']); egal([0, 1].map((r) => t(r, 9)), ['b', 'c']);
+  egal(c.texte(0, 2, 6), '20', 'texte d\'une cellule débordée');
+  c.saisir(0, 10, 0, '=SEQUENCE(2)'); c.saisir(0, 11, 0, 'x'); egal(t(10, 0), '#SPILL!');
+  c.saisir(0, 11, 0, null); egal(t(11, 0), 2, 'la place se libère');
+  c.saisir(0, 0, 3, '=SEQUENCE(2)'); egal([t(2, 3), t(0, 4)], [null, 3], 'débordement réduit');
+  c.saisir(0, 20, 0, '=@A2:A5'); egal(t(20, 0), '#VALUE!', 'intersection hors des lignes');
+});
+
+test('xlsx : formules matricielles dynamiques et virgules anglaises', () => {
+  const c = Classeur.nouveau(); c.saisir(0, 0, 0, '=SEQUENCE(3;2)'); c.saisir(0, 0, 3, '=SOMME(A1#)'); c.saisir(0, 0, 4, '=SI(A1>0;1,5;0)');
+  const o = ecrireClasseur(XLSX, c), e = lireClasseur(XLSX, o, 'x.xlsx');
+  egal([e.valeur(0, 2, 1), e.valeur(0, 0, 3), e.valeur(0, 0, 4)], [6, 21, 1.5]);
+  egal(e.feuilles[0].get(0, 0).f, '=SEQUENCE(3;2)');
+  e.saisir(0, 0, 0, '=SEQUENCE(2)'); egal([e.valeur(0, 2, 1), e.valeur(0, 1, 0)], [null, 2]);
+  egal(tokeniser('IF(A1>0,1.5,{1,2;3,4})', 'en').filter((t) => t.t === 'nombre').map((t) => t.v), [0, 1.5, 1, 2, 3, 4]);
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);

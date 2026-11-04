@@ -54,6 +54,8 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
       const c = ws[k];
       const cel = {};
       if (c.f != null) cel.f = convertirFormule('=' + c.f, 'fr');
+      // Formule matricielle (ou tableau dynamique) : les autres cellules de sa plage gardent juste la valeur calculée par Excel
+      if (c.F && c.f == null) cel.couverte = true;
       if (c.z && c.z !== 'General') cel.z = c.z;
       switch (c.t) {
         case 'n': cel.v = c.v; break;
@@ -202,6 +204,18 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
       if (r > r2) r2 = r;
       if (c > c2) c2 = c;
     });
+    // Formules qui débordent : écrites comme formules matricielles sur leur plage, avec les valeurs (Excel les affiche telles quelles)
+    for (const z of classeur.evaluateur.zonesDebord(fi) || []) {
+      const ref = colVersLettres(z.c) + (z.r + 1) + ':' + colVersLettres(z.c + z.w - 1) + (z.r + z.h);
+      for (let i = 0; i < z.h; i++) for (let j = 0; j < z.w; j++) {
+        const k = colVersLettres(z.c + j) + (z.r + i + 1);
+        if (!i && !j) { if (ws[k]) ws[k].F = ref; continue; }
+        if (ws[k] && ws[k].f) continue;
+        const v = classeur.valeur(fi, z.r + i, z.c + j);
+        ws[k] = { ...(ws[k] || {}), F: ref, ...(typeof v === 'number' ? { t: 'n', v } : typeof v === 'boolean' ? { t: 'b', v } : v == null || v instanceof ErreurFormule ? { t: 'n', v: 0 } : { t: 's', v: String(v) }) };
+        if (z.r + i > r2) r2 = z.r + i; if (z.c + j > c2) c2 = z.c + j;
+      }
+    }
     ws['!ref'] = 'A1:' + colVersLettres(Math.max(c2, 0)) + (Math.max(r2, 0) + 1);
     const cols = [];
     for (const [c, px] of Object.entries(f.largeurs)) cols[c] = px === 0 ? { hidden: true } : { wpx: px };
