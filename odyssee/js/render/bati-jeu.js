@@ -33,7 +33,8 @@ export function choisirModele(b, ctx = {}) {
   else if (b.kind === 'center') r = { nom: 'centre', o: {} };
   else if (b.kind === 'mart') r = { nom: 'boutique', o: {} };
   else if (b.kind === 'lab') r = { nom: 'labo', o: {} };
-  else if (b.kind === 'gym') r = { nom: 'areneCour', o: { type: TYPE_ARENE[ctx.typeArene] || 'feu' } };
+  else if (b.kind === 'gym') r = b.w === 8 ? { nom: 'areneVoute', o: { style: 'portique', type: TYPE_ARENE[ctx.typeArene] || 'feu', statue: 'bronze', champion: b.champion } }
+    : { nom: 'areneCour', o: { type: TYPE_ARENE[ctx.typeArene] || 'feu' } };
   else if (b.kind === 'league') r = { nom: 'ligue', o: {} };
   else if (b.kind === 'tower') {
     if (/Grue|Dorée/.test(n)) r = { nom: 'pagode', o: {} };

@@ -169,7 +169,7 @@ export function buildTown(W, maps, def) {
     else W.prop(k, ox + a[0], oy + a[1]);
   }
   const poser = (b) => {
-    const B = W.building(b.kind, ox + b.x, oy + b.y, { roof: b.roof, style: b.style, label: b.label, name: b.name, w: b.w, d: b.d, h: b.h, door: b.door, kit: b.kit, flat: b.flat, door2: b.door2, blocs: b.blocs, libres: b.libres, porteY: b.porteY, modele: b.modele, opts: b.opts });
+    const B = W.building(b.kind, ox + b.x + (b.dx || 0), oy + b.y + (b.dy || 0), { roof: b.roof, style: b.style, label: b.label, name: b.name, w: b.w, d: b.d, h: b.h, door: b.door, kit: b.kit, flat: b.flat, door2: b.door2, blocs: b.blocs, libres: b.libres, porteY: b.porteY, modele: b.modele, opts: b.opts });
     // mapId : identifiant imposé (bâtiment déménagé : les parties arrêtées à l'intérieur reprennent au même endroit)
     let id = b.mapId || `${def.id}:${b.id || b.kind + b.x}`;
     if (maps[id] && !b.mapId) id += 'y' + b.y;   // deux bâtiments dans la même colonne : chacun garde son intérieur
@@ -195,7 +195,7 @@ export function buildTown(W, maps, def) {
     for (const more of b.more ? b.more(inside, id) : []) maps[more.id] = more;   // étages supplémentaires
     if (b.kind === 'center') { def.centerId = id; def.centerDoor = [B.doorX, B.doorY + 1]; }
     if (b.id === 'maison') def.homeDoor = [B.doorX, B.doorY + 1];   // Vol ramène devant la maison à Bourg-Aube (pas de Centre)
-    if (b.kind === 'gym') { def.gymMap = inside; def.gymDoor = [B.doorX, B.doorY]; B.typeArene = LEADERS[def.gym]?.type; }
+    if (b.kind === 'gym') { def.gymMap = inside; def.gymDoor = [B.doorX, B.doorY]; B.typeArene = LEADERS[def.gym]?.type; B.champion = LEADERS[def.gym]?.ow; }
   };
   for (const b of def.buildings) poser(b);
   // nouveaux quartiers : des maisons posées d'elles-mêmes dans l'herbe libre de la ville (villes agrandies)
