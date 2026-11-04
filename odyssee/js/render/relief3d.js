@@ -21,6 +21,9 @@ import { ROCHES } from './relief-tex.js';
 const EL = 55 * Math.PI / 180, TAN = Math.tan(EL);
 const params = () => { try { return new URLSearchParams(location.search); } catch (e) { return new URLSearchParams(''); } };
 /** le prototype est-il demandé ? (?relief3d dans l'adresse) */
+export const facettesActives = () => !params().has('r3plat');
+let MAT_FAC = null;
+export function matFacettes() { return MAT_FAC || (MAT_FAC = new THREE.MeshBasicMaterial({ vertexColors: true })); }
 export function relief3dActif() { return params().has('relief3d'); }
 const num = (k, d) => { const v = params().get(k); return v == null || v === '' || isNaN(+v) ? d : +v; };
 
@@ -559,4 +562,59 @@ export class Relief3D {
     g.setIndex(idx); g.computeBoundingSphere();
     return g;
   }
+  /** facettes de roche en vrai volume par-dessus les parois (?relief3d&r3f) : chaque intervalle entre deux colonnes de
+   *  sommets d'une paroi devient un prisme en dents de scie (arête saillante vers la caméra, à une position et une
+   *  profondeur tirées au hasard), bombé à mi-hauteur : la moitié haute regarde le ciel (claire), la moitié basse le
+   *  sol (sombre), chaque pan prend sa propre lumière en paliers nets. Couleurs tirées de la palette du biome. */
+  geoFacettes(ci, cj, bw, bh) {
+    const b = this.bloc(ci, cj), D = this.details(ci, cj), N = b.N;
+    const runs = [];   // par colonne de sommets : [{ t: k haut, b: k bas }]
+    for (let i = 0; i <= bw * RN; i++) {
+      const L = []; let j = 0;
+      while (j <= bh * RN) {
+        const k = (j + P) * N + i + P;
+        if (!D.raide[k]) { j++; continue; }
+        let j1 = j; while (j1 + 1 <= bh * RN && D.raide[(j1 + 1 + P) * N + i + P]) j1++;
+        L.push({ t: (j - 1 + P) * N + i + P, b: (Math.min(j1 + 1, bh * RN + P - 1) + P) * N + i + P, j0: j - 1, j1: j1 + 1 });
+        j = j1 + 1;
+      }
+      runs.push(L);
+    }
+    const pos = [], col = [], Lgt = new THREE.Vector3(-0.55, 0.75, 0.45).normalize();
+    const P3 = (k, i, j) => new THREE.Vector3(b.x0 + i / RN, b.h[k], b.z0 + j / RN);
+    const tri = (a, c, d, pal, haut) => {
+      const n = new THREE.Vector3().subVectors(c, a).cross(new THREE.Vector3().subVectors(d, a)).normalize();
+      if (n.z < 0) { n.negate(); [c, d] = [d, c]; }
+      const f = n.dot(Lgt), lv = f > 0.62 ? 5 : f > 0.42 ? 4 : f > 0.2 ? 3 : f > 0.0 ? 2 : 1;
+      const lvl = Math.max(0, Math.min(4, lv - (haut ? 0 : 2)));
+      const cc = rgb(pal[lvl]).map((v) => (v / 255) ** 2.2);
+      for (const v of [a, c, d]) { pos.push(v.x, v.y, v.z); col.push(...cc); }
+    };
+    for (let i = 0; i < bw * RN; i++) for (const r0 of runs[i]) {
+      const r1 = runs[i + 1].find((r) => Math.abs(r.j0 - r0.j0) <= 2 && Math.abs(r.j1 - r0.j1) <= 3);
+      if (!r1) continue;
+      const cx = b.x0 + Math.floor(i / RN), cz = b.z0 + Math.floor(Math.max(r0.j0, 0) / RN);
+      const pz = this.paroiDe(cx, cz + 1);
+      if (pz.t >= MURS.length) continue;   // les marches gardent leur dessin
+      const pal = PALS[MURS[pz.t]] || PALS.montagne;
+      const T0 = P3(r0.t, i, r0.j0), B0 = P3(r0.b, i, r0.j1), T1 = P3(r1.t, i + 1, r1.j0), B1 = P3(r1.b, i + 1, r1.j1);
+      // la lèvre (herbe, neige) reste visible : les facettes commencent un peu sous le haut de la paroi
+      T0.lerp(B0, 0.14); T1.lerp(B1, 0.14);
+      const hx = (b.x0 * RN + i) | 0, rnd = (s) => hash(hx, Math.round(cz), s);
+      const tr = 0.3 + rnd(1) * 0.4, dep = 0.05 + rnd(2) * 0.12;
+      const Tm = T0.clone().lerp(T1, tr), Bm = B0.clone().lerp(B1, tr);
+      Tm.z += dep * 0.4; Bm.z += dep * 0.5;
+      const mid = (a, c, e) => { const m = a.clone().lerp(c, 0.45); m.z += e; return m; };
+      const M0 = mid(T0, B0, dep * 0.6), M1 = mid(T1, B1, dep * 0.6), Mm = mid(Tm, Bm, dep * 1.3);
+      // quatre pans (gauche/droite × haut/bas), deux triangles chacun
+      for (const [a, c, d, e, haut] of [[T0, Tm, Mm, M0, 1], [Tm, T1, M1, Mm, 1], [M0, Mm, Bm, B0, 0], [Mm, M1, B1, Bm, 0]]) { tri(a, c, d, pal, haut); tri(a, d, e, pal, haut); }
+    }
+    if (!pos.length) return null;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.computeBoundingSphere();
+    return g;
+  }
+
 }
