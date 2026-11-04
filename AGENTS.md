@@ -128,6 +128,17 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   Arènes à énigmes (`odyssee/js/world/arenes.js`) : chaque énigme est tirée d'une graine et vérifiée par un solveur
   (aller jusqu'au Champion et revenir) ; `node tools/test-odyssee-arenes.mjs [type]` les résout toutes (le type affiché en caractères).
   Quêtes du vélo et du permis bateau (`odyssee/js/world/vehicules.js`) : `node tools/test-odyssee-vehicules.mjs`.
+  Relief du dehors (`odyssee/js/world/relief.js`) : chaque case a une hauteur (`GameMap.hg`) ; `plateau()` élève une zone,
+  pose une paroi (`T.CLIFF`) sous son bord sud et des marches (`T.STAIRS`, un niveau d'écart) là où un chemin franchit un bord ;
+  `massif()` fait une montagne en gradins (roche), `tourbillons()` une ceinture de tourbillons (`T.WHIRL`, infranchissable à la nage),
+  `boucher()` referme les recoins isolés, `sinueuse()` lisse le tracé d'une route. Rendu à plat façon HeartGold :
+  `reliefDehors` de `world3d.js`, pièces dessinées par `odyssee/js/render/relief-tex.js` ; sols générés : feuilles mortes (zone
+  `theme: 'automne'`), gravier ratissé, mousse, désert, sol ocre des canyons ; zone `ombre` : sous-bois plus sombre.
+  L'archipel et les îles de l'Est ne s'atteignent qu'en bateau (passeur du Cap Mirage, quais `docks`) ; les tests suivent le bateau.
+  Mine de Pierrefort (trois niveaux, échelles, rails) : `odyssee/js/world/mine.js`. Villes agrandies : `fermer`, emprises `GRAND`,
+  `lotir: { n }` pose des maisons habitées dans l'herbe libre sans couper de passage ; un garde se tient dans le couloir de sortie.
+  Décor ajouté hors planches (`odyssee/js/data/decor-plus.js`) : `python3 tools/odyssee-automne.py` (arbres d'automne),
+  `tools/odyssee-mine.py` (étais, wagonnets…), `tools/odyssee-desert.py` (cactus).
   Métropole : Bourse (`odyssee/js/core/bourse.js`, pricers et entretien de Pierre) et Casino (`odyssee/js/core/casino.js` ;
   Texas Hold'em, abattage sur 7 cartes, pots annexes et ordinateurs dans `odyssee/js/core/holdem.js`), comptoir dans `odyssee/js/ui/metropole.js`,
   une table dessinée par jeu dans `odyssee/js/ui/casino/` (scène en pixel art 400 × 240 et police 5 × 7 : `odyssee/js/ui/pixel.js`) :
