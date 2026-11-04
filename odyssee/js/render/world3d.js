@@ -7,6 +7,7 @@ import { SPRITES } from '../data/sprites.js';
 import { Sol } from './sol.js';
 import { archeGrotte, jourGrotte } from './grottes.js';
 import { sorteCase, K as SORTE } from './solgen.js';
+import { dessinHerbe, imageHerbe, NIMAGES, MARGE as HERBE_M, HAUTEUR as HERBE_H } from './herbes.js';
 
 export const EL = 55 * Math.PI / 180, FOV = 13;
 
@@ -70,6 +71,25 @@ function screenSprite(mat) {
         gl_Position = vec4( ( sPx / uRes * 2.0 - 1.0 ) * sPC.w, sPC.z + sBias * sPC.w, sPC.w );`);
   };
   mat.customProgramCacheKey = () => 'screenSprite';
+  return mat;
+}
+/**
+ * Herbe de devant (herbes.js) : couchée sur le sol et projetée comme lui, mais sa profondeur est celle du panneau
+ * vertical dressé au bord sud de sa case (z de sa position), là où le rayon de la caméra le traverse : elle passe
+ * devant qui se tient dans la case, derrière ce qui est plus au sud.
+ */
+function herbeDebout(mat) {
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <project_vertex>', `
+        vec4 hW = modelMatrix * vec4( transformed, 1.0 );
+        vec4 mvPosition = viewMatrix * hW;
+        gl_Position = projectionMatrix * mvPosition;
+        float hZ = modelMatrix[3][2];
+        vec3 hQ = cameraPosition + ( hW.xyz - cameraPosition ) * ( ( hZ - cameraPosition.z ) / ( hW.z - cameraPosition.z ) );
+        vec4 hQC = projectionMatrix * viewMatrix * vec4( hQ, 1.0 );
+        gl_Position.z = hQC.z / hQC.w * gl_Position.w;`);
+  };
+  mat.customProgramCacheKey = () => 'herbeDebout';
   return mat;
 }
 const CH = 16;
@@ -430,6 +450,7 @@ export class WorldView {
     this.map = map; this.root = new THREE.Group(); this.scene.add(this.root);
     this.chunks = new Map(); this.glows = new THREE.Group(); this.root.add(this.glows);
     this.sol.setMap(map);
+    for (const e of this.herbes?.values() || []) e.tex?.dispose(); this.herbes = new Map();   // herbes de devant (herbes.js)
     this.decoAt = new Map(); for (const d of map.deco) this.decoAt.set(d.x + ',' + d.y, d);
     this.tiers = map.outdoor ? null : caveTiers(map); this.biome = caveBiome(map);
     this.rh = this.tiers && !this.A?.cells?.[`rp_${this.biome}_00`] ? caveHeights(map, this.tiers) : null;
@@ -951,7 +972,10 @@ export class WorldView {
   /** hautes herbes devant un personnage : la rangée du bas du tapis, redessinée devant lui, cache ses jambes ;
    *  gx, gy : la case d'herbe où il se tient (null : il n'est pas dans l'herbe) */
   cover(a, gx, gy) {
-    if (gx == null) { if (a.cover) a.cover.visible = false; return; }
+    if (gx == null) { if (a.cover) a.cover.visible = false; if (a.herbe) a.herbe.visible = false; a.herbeCase = null; return; }
+    // sol généré : l'herbe de devant est découpée dans le sol de la case, et s'écarte quand on y entre (herbes.js)
+    if (this.herbeDevant(a, gx, gy)) { if (a.cover) a.cover.visible = false; return; }
+    if (a.herbe) a.herbe.visible = false;
     const t = this.map.get(gx, gy), theme = this.map.outdoor ? this.map.zoneAt(gx, gy)?.theme : null;
     const base = t === T.DARKTALL ? 'darkfront' : theme === 'snow' ? 'snowfront' : 'grassfront';
     const rs = this.rustleAt, shake = rs && rs.k === gx + ',' + gy && performance.now() - rs.t0 < 360;
@@ -964,6 +988,53 @@ export class WorldView {
     }
     if (a.coverKey !== key) { this.setSpriteRect({ mesh: a.cover }, r, r.w, r.h); a.coverKey = key; }
     a.cover.visible = true; a.cover.position.set(gx + 0.5, 0, gy + 0.99);
+  }
+  /** herbe de devant découpée dans le sol généré (texture des images de herbes.js, gardée par case) ; null si pas prête */
+  herbeTex(gx, gy) {
+    const c = this.sol.solCase(gx, gy); if (!c) return undefined;
+    const C = this.herbes, k = gx + ',' + gy;
+    let e = C.get(k);
+    if (e && e.d !== c.d) { e.tex?.dispose(); C.delete(k); e = null; }
+    if (!e) {
+      const r = dessinHerbe(this.sol.pixelsCase(gx, gy).px);
+      let tex = null;
+      if (r) {
+        tex = new THREE.DataTexture(r.data, r.w, r.h, THREE.RGBAFormat);
+        tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
+        tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
+      }
+      e = { d: c.d, tex }; C.set(k, e);
+      if (C.size > 64) { const [k0, e0] = C.entries().next().value; e0.tex?.dispose(); C.delete(k0); }
+    }
+    return e.tex;
+  }
+  herbeDevant(a, gx, gy) {
+    const tex = this.herbeTex(gx, gy);
+    if (tex === undefined) return false;                                   // sol généré pas encore là : l'ancienne herbe
+    if (!tex) { if (a.herbe) a.herbe.visible = false; return true; }       // pas d'herbe haute dessinée dans cette case
+    if (!a.herbe) {
+      // couchée sur le sol, projetée exactement comme lui (chaque pixel retombe sur le pixel qu'il recopie, partout à
+      // l'écran), mais à la profondeur d'un panneau dressé au bord sud de la case : devant les jambes de qui s'y tient
+      const x0 = -0.5 - HERBE_M / 32, x1 = 0.5 + HERBE_M / 32, z0 = -HERBE_H / 32;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute([x0, 0, z0, x1, 0, z0, x0, 0, 0, x1, 0, 0], 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 1, 1], 2));
+      geo.setIndex([0, 2, 1, 1, 2, 3]);
+      const mat = herbeDebout(new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide }));
+      mat.color.copy(this.tint); this.tinted.push(mat);
+      const me = a.herbe = new THREE.Mesh(geo, mat); me.frustumCulled = false; a.herbeF = -1; this.root.add(me);
+      const d = a.dispose; a.dispose = () => { d(); this.root?.remove(me); geo.dispose(); mat.dispose(); this.tinted = this.tinted.filter((m) => m !== mat); };
+    }
+    const me = a.herbe, now = performance.now(), k = gx + ',' + gy;
+    if (me.material.map !== tex) me.material.map = tex;
+    if (a.herbeCase !== k) { a.herbeCase = k; a.herbeT0 = now; }   // on vient d'entrer dans la case : les brins s'écartent
+    const f = imageHerbe(now - a.herbeT0);
+    if (a.herbeF !== f) {
+      const uv = me.geometry.attributes.uv, u0 = f / NIMAGES, u1 = (f + 1) / NIMAGES;
+      uv.setXY(0, u0, 0); uv.setXY(1, u1, 0); uv.setXY(2, u0, 1); uv.setXY(3, u1, 1); uv.needsUpdate = true; a.herbeF = f;
+    }
+    me.visible = true; me.position.set(gx + 0.5, 0, gy + 1);
+    return true;
   }
   /** grande créature posée sur la carte (légendaire) : son image de face, debout sur la case */
   imageActor(id, img, scale = 1) {

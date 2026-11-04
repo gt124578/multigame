@@ -138,6 +138,7 @@ export class Sol {
       if (w.libre || !w.cle) continue;
       if (!w.cle.startsWith(this.map.id + '|') || this.priorite(w.cle) > -1e4) {
         w.terminate(); this.enCours.delete(w.cle);
+        if (w.cle.startsWith(this.map.id + '|') && !this.queue.includes(w.cle)) this.queue.push(w.cle);   // repris plus tard
         const nw = this.nouveau(); if (nw) this.workers[n] = nw;
       }
     }
@@ -190,13 +191,18 @@ export class Sol {
     if (this.attentes.length) this.verifier();
   }
 
+  /** image générée affichée en ce moment sous une case : { d, lx, ly } (d change quand le bloc est recalculé) ; null si pas prête */
+  solCase(x, y) {
+    if (!this.couvre()) return null;
+    const ci = Math.floor(x / CH), cj = Math.floor(y / CH), g = this.groups.get(this.cle(ci, cj)), s = g?.parent && g.userData.sol;
+    if (!s) return null;
+    const d = s.d, lx = x - ci * CH, ly = y - cj * CH; if (lx < 0 || ly < 0 || lx >= d.bw || ly >= d.bh) return null;
+    return { d, lx, ly };
+  }
   /** indices de palette (CELL × CELL) d'une case, tels qu'affichés en ce moment (image 0 de l'eau) ; null si pas prêts */
   pixelsCase(x, y) {
-    if (!this.couvre()) return null;
-    const ci = Math.floor(x / CH), cj = Math.floor(y / CH), g = this.groups.get(this.cle(ci, cj)), s = g?.userData.sol;
-    if (!s) return null;
-    const d = s.d, lx = x - ci * CH, ly = y - cj * CH; if (lx >= d.bw || ly >= d.bh) return null;
-    const W = d.bw * CELL, src = d.frames[0], out = new Uint8Array(CELL * CELL);
+    const c = this.solCase(x, y); if (!c) return null;
+    const { d, lx, ly } = c, W = d.bw * CELL, src = d.frames[0], out = new Uint8Array(CELL * CELL);
     for (let r = 0; r < CELL; r++) out.set(src.subarray((ly * CELL + r) * W + lx * CELL, (ly * CELL + r) * W + lx * CELL + CELL), r * CELL);
     return { px: out, d };
   }

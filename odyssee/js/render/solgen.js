@@ -127,6 +127,9 @@ const G = ramp('g', 7), H = ramp('h', 5), HK = ramp('k', 5), D = ramp('d', 6), P
 const W = ramp('w', 7), B = ramp('b', 4), V = ramp('v', 5), L = ramp('l', 6);
 const AS_ = ramp('a', 5), TR = ramp('t', 5), HS = ramp('j', 5), N = ramp('n', 6), E = ramp('e', 6), Zs = ramp('z', 4), U = ramp('u', 5), Q = ramp('q', 5);
 const caveRamp = (b) => ramp(`c_${CAVES[b] ? b : 'terre'}`, 6);
+/** indices des teintes des hautes herbes (prairie, sous-bois, neige), du pied à la pointe : l'herbe qui passe devant
+ *  les personnages (herbes.js) est découpée dans le sol généré avec */
+export const HAUTES = [H, HK, HS];
 const isIn = (arr) => { const s = new Uint8Array(256); for (const v of arr) s[v] = 1; return s; };
 const IS_G = isIn(G.slice(2)), IS_S = isIn(S), IS_D = isIn(D);
 
