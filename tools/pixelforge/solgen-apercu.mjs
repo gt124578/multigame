@@ -17,6 +17,7 @@ const caveBiome = (m) => {   // même règle que world3d.js (qui charge three, a
   if (/victoire|mont/.test(s)) return 'montagne';
   return 'terre';
 };
+globalThis.TALUS_STYLE = process.env.TALUS || 'actuel';
 const w = buildWorld(), m = (w.maps || w)[id];
 if (!m) { console.error('carte inconnue :', id); process.exit(1); }
 const CH = 16, W = +ni * CH * CELL, H = +nj * CH * CELL, rgba = new Uint32Array(W * H).fill(0xffff00ff);

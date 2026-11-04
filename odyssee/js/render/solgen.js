@@ -924,6 +924,58 @@ const R_FA = RAMPES.length - 1, R_AG = RAMPES.indexOf(AG);
 function abs(v, p) { let r = RAMPE[v]; if (r < 0) return v; if (r === R_FA) r = R_AG; const R = RAMPES[r]; return R[Math.max(0, Math.min(R.length - 1, Math.round(p * (R.length - 1) / 6)))]; }
 const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
+/** couleur d'un pixel du versant d'un talus d'herbe, selon le style proposé.
+ *  t : 0 en haut du versant, 1 au pied ; dT : distance (px) au dessus du plateau ; dO : au pied ; side : versant de côté
+ *  (+1 tourné vers l'est, à l'ombre ; -1 vers l'ouest, au soleil ; 0 versant sud, de face) */
+function versant(st, X, Y, b, o, t, dT, dO, side, s) {
+  const col = hash2(X, 31, s), col2 = hash2(X >> 1, 32, s), lig = hash2(Y, 33, s);
+  if (st === 'hgss') {
+    // façon HeartGold : sous la lèvre un trait sombre, puis un rideau d'herbe en bandes verticales, cerné de noir au pied
+    if (dT <= 1.5) return side ? I.g2 : I.g1;
+    if (dO <= 1.5) return I.g0;
+    if (side) { const base = side > 0 ? 1 : 3; const v = base + (lig < 0.25 ? -1 : 0) + (b < 0.25 ? 1 : 0); return [I.g0, I.g1, I.g2, I.g3, I.g4][Math.max(0, Math.min(4, v))]; }
+    const raie = col < 0.32, long = 0.35 + col2 * 0.6;               // raies sombres qui descendent plus ou moins bas
+    if (raie && t < long) return t < 0.12 ? I.g2 : I.g1;
+    if (col > 0.86 && t < 0.25) return I.g4;                          // un brin clair accroché en haut
+    if (dO <= 3) return b < 0.5 ? I.g1 : I.g2;
+    return t < 0.4 ? I.g3 : (b < 0.55 ? I.g2 : I.g3);
+  }
+  if (st === 'terre') {
+    // la pelouse déborde en franges, puis une coupe de terre en strates avec racines et cailloux
+    const frange = 2 + Math.floor(hash2(X, 34, s) * 5);
+    if (dT <= frange && !side) return dT >= frange - 0.5 ? I.g1 : (dT <= 1.5 ? I.g4 : I.g3);
+    if (dT <= 2.5 && side) return I.g2;
+    if (dO <= 1.5) return I.l0;
+    if (dO <= 3) return b < 0.6 ? I.l1 : I.l2;
+    const onde = Math.floor((Y + 2.5 * Math.sin(X / 7 + s) + 1.5 * Math.sin(X / 3.1)) / 4);
+    let v = [2, 3, 2, 3, 4, 2][((onde % 6) + 6) % 6];
+    if (side > 0) v -= 1; else if (side < 0) v += 1;
+    if (t < 0.25) v -= 1;                                            // ombre sous le débord
+    if (hash2(X, Y >> 2, s + 35) < 0.05) v = 0;                      // une racine
+    if (hash2(X >> 1, Y >> 1, s + 36) < 0.02) return I.p2;           // un caillou
+    if (b < 0.12) v += 1;
+    return [I.l0, I.l1, I.l2, I.l3, I.l4, I.l5][Math.max(0, Math.min(5, v))];
+  }
+  if (st === 'roche') {
+    // paroi de roche en assises, la mousse coule de la lèvre
+    const coule = hash2(X, 37, s) < 0.45 ? 2 + Math.floor(hash2(X, 38, s) * 9) : 1.5;
+    if (dT <= coule) return dT <= 1.5 ? I.o4 : (hash2(X, Y, s + 39) < 0.5 ? I.o3 : I.o2);
+    if (dO <= 1.5) return I.y0;
+    const rang = Math.floor(dT / 6), lx = (X + rang * 5 + Math.floor(hash2(rang, 40, s) * 9)) % 11, ly = dT % 6;
+    if (ly < 1) return I.y0;                                         // joint horizontal
+    if (lx < 1) return I.y1;                                         // joint vertical
+    let v = side > 0 ? 1 : side < 0 ? 3 : 2;
+    if (ly < 2 || lx < 2) v += 1;                                    // arête éclairée (lumière en haut à gauche)
+    if (ly >= 5 || lx >= 10) v -= 1;
+    if (b < 0.1) v -= 1;
+    return [I.y0, I.y1, I.y2, I.y3, I.y4][Math.max(0, Math.min(4, v))];
+  }
+  // douce : pelouse en pente, dégradé tramé du clair au sombre, sans trait
+  const sh = side > 0 ? -0.8 : side < 0 ? 0.6 : 0;
+  const v = 4.2 - 3.4 * t + sh + (lig < 0.06 ? 0.8 : 0);
+  return abs(o, Math.max(0, Math.min(5, Math.floor(v + b - 0.5))));
+}
+
 function talus(Z, img, rel, water) {
   const { cw, ch, c, W: Wd, H: Hh, N: NP } = Z, s = Z.s + 900;
   const R = (cx, cy) => (cx < 0 || cy < 0 || cx >= cw || cy >= ch ? 0 : rel[cy * cw + cx]);
@@ -971,6 +1023,7 @@ function talus(Z, img, rel, water) {
       if (!slope[i]) continue;
       const X = Z.X(i), Y = Z.Y(i), b = BAY[(Y & 3) * 4 + (X & 3)] / 16, o = base[i];
       const t = dT[i] / (dT[i] + dO[i] + 0.5);
+      if (STYLE_TALUS !== 'actuel') { img[i] = versant(STYLE_TALUS, X, Y, b, o, t, dT[i], dO[i], side[i], s); continue; }
       // sous la lèvre, des brins de l'herbe du dessus pendent par-dessus le versant, colonne par colonne
       const brin = hash2(X, 7, s + 3), pend = 1 + Math.floor(hash2(X, 8, s + 3) * 4);
       if (dT[i] <= pend && brin < 0.45 && !side[i]) { img[i] = abs(o, dT[i] <= 1.5 ? 5 : 4); continue; }
@@ -985,7 +1038,7 @@ function talus(Z, img, rel, water) {
       img[i] = abs(o, Math.max(0, Math.min(4, Math.floor(v + b - 0.5))));
     }
     // touffes et cailloux sur le versant
-    for (let cy = 0; cy < ch; cy++) for (let cx = 0; cx < cw; cx++) {
+    if (STYLE_TALUS === 'actuel' || STYLE_TALUS === 'douce') for (let cy = 0; cy < ch; cy++) for (let cx = 0; cx < cw; cx++) {
       const r = cellRng(cx + Z.rx0, cy + Z.ry0, s + 20 + L);
       for (let k = 0; k < 3; k++) {
         const x = cx * c + ri(r, 2, c - 2), y = cy * c + ri(r, 2, c - 2), i = y * Wd + x, roll = r();
@@ -1008,6 +1061,10 @@ function talus(Z, img, rel, water) {
       if (!topM[i] || (dS[i] > 3.5 && dO[i] > 4)) continue;
       const X = Z.X(i), Y = Z.Y(i), b = BAY[(Y & 3) * 4 + (X & 3)] / 16, o = base[i];
       const po = RAMPE[o] >= 0 ? RPOS[o] * 6 / (RAMPES[RAMPE[o]].length - 1) : 0;
+      if (STYLE_TALUS === 'hgss' || STYLE_TALUS === 'terre' || STYLE_TALUS === 'roche') {
+        if (dS[i] <= 1.5 && !(dO[i] <= 4 && dW[i] <= 5)) { img[i] = STYLE_TALUS === 'hgss' ? I.g6 : I.g5; continue; }
+        if (dS[i] <= 3 && !(dO[i] <= 4 && dW[i] <= 5)) { img[i] = b < 0.7 ? I.g5 : I.g4; continue; }
+      }
       if (dS[i] <= 1.5) img[i] = abs(o, Math.max(po + 2, 5));
       else if (dS[i] <= 3.5 && b < 0.6) img[i] = abs(o, Math.max(po + 1, 4));
       else if (dO[i] <= 4 && dW[i] <= 5) img[i] = dO[i] <= 1 ? P[0] : dO[i] <= 2.5 ? P[1] : (b < 0.5 ? P[2] : P[3]);
@@ -1028,8 +1085,9 @@ function talus(Z, img, rel, water) {
       let dessous = false; for (let d = 1; d <= 5 && !dessous; d++) if (i - d * Wd >= 0 && slope[i - d * Wd]) dessous = true;
       let droite = false; for (let d = 1; d <= 3 && !droite; d++) if (slope[i - d] && side[i - d] > 0) droite = true;
       if (!dessous && !droite) continue;
-      if (dS[i] <= 1.5) img[i] = ton(base[i], -2);
-      else if (1 - dS[i] / 5.5 > b) img[i] = ton(base[i], -1);
+      const fort = STYLE_TALUS === 'hgss' || STYLE_TALUS === 'terre' || STYLE_TALUS === 'roche';
+      if (dS[i] <= (fort ? 2.5 : 1.5)) img[i] = ton(base[i], -2);
+      else if ((fort ? 1.25 : 1) - dS[i] / 5.5 > b) img[i] = ton(base[i], -1);
     }
   }
   marchesTalus(Z, img, rel);
@@ -1076,7 +1134,10 @@ function marchesTalus(Z, img, rel) {
  * Rend le bloc central (bw × bh cases, à MARGIN cases du bord de la zone) : tableau d'images (Uint8Array d'indices de
  * palette, TRANSPARENT là où le jeu garde son propre sol), une seule s'il n'y a pas d'eau, NFRAMES sinon.
  */
-export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = null, rel = null }) {
+/** style des talus d'herbe (propositions) : actuel, hgss, terre, roche, douce */
+let STYLE_TALUS = 'actuel';
+export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = null, rel = null, talus: styleTalus = null }) {
+  STYLE_TALUS = styleTalus || globalThis.TALUS_STYLE || 'actuel';
   const Z = new Zone(kinds, zw, zh, zx0, zy0, seed), c = CELL;
   const img = new Uint8Array(Z.N).fill(TRANSPARENT);
   const has = (k) => kinds.includes(k);
