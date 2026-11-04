@@ -11,14 +11,122 @@ const PROTEGE = new Set([T.BUILD, T.DOOR, T.BRIDGE, T.CAVEDOOR, T.SIGN, T.MAT]);
 /** sols où une marche peut être taillée (un chemin qui franchit un bord) */
 const CHEMIN = new Set([T.PATH, T.PAVE, T.STAIRS]);
 
+/** sols que le contour naturel d'un plateau peut prendre ou laisser (herbe, fleurs, arbres, petit décor) */
+const MOU = new Set([T.GRASS, T.TALL, T.DARKTALL, T.FLOWER, T.TREE, T.PINE, T.BUSH, T.ROCK]);
+
+/** bruit lisse (valeurs tirées sur une grille de `s` cases, interpolées), dans [0, 1] */
+function hash(x, y, s) { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s | 0, 1442695041)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
+function bruit(x, y, s, g) {
+  const fx = x / s, fy = y / s, ix = Math.floor(fx), iy = Math.floor(fy); let tx = fx - ix, ty = fy - iy;
+  tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
+  const a = hash(ix, iy, g), b = hash(ix + 1, iy, g), c = hash(ix, iy + 1, g), d = hash(ix + 1, iy + 1, g);
+  return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+}
+
 /**
- * élève les cases `cells` ([x, y]) au niveau `niv`. Sous chaque bord sud, une paroi d'une case par niveau d'écart ;
- * là où un chemin franchit un bord, des marches (o.marches === false : aucune). Renvoie l'ensemble des cases élevées.
+ * contour naturel d'un plateau d'herbe : le bord ondule (avancées et retraits de 1 à 3 cases, bruit à graine fixe),
+ * les coins s'arrondissent. Ne bougent jamais : les chemins, l'eau, les bâtiments, les cases d'un autre niveau, les PNJ
+ * et les objets ; près d'un chemin qui franchit le bord (ou de l'eau), le bord reste droit pour que les marches tombent
+ * juste. L'amplitude suit l'épaisseur du plateau (une bande de deux cases ne bouge presque pas).
+ */
+function contourNaturel(W, cells, niv) {
+  const S = new Set(); let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const [x, y] of cells) if (W.in(x, y)) { S.add(key(x, y)); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  if (!S.size) return S;
+  const M = 6; x0 -= M; y0 -= M; x1 += M; y1 += M;
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1, at = (x, y) => (y - y0) * bw + (x - x0);
+  const dans = new Uint8Array(bw * bh);
+  for (const k of S) { const [x, y] = k.split(',').map(Number); dans[at(x, y)] = 1; }
+  const de = (x, y) => x >= x0 && y >= y0 && x <= x1 && y <= y1 && dans[at(x, y)] === 1;
+  // distance (en cases, 8 voisins) au bord, dedans et dehors : épaisseur du plateau, bande où le bord peut bouger
+  const dist = (val) => {
+    const d = new Int16Array(bw * bh).fill(99), q = [];
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (dans[at(x, y)] !== val) { d[at(x, y)] = 0; q.push([x, y]); }
+    for (let i = 0; i < q.length; i++) {
+      const [x, y] = q[i], v = d[at(x, y)];
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const a = x + dx, b = y + dy; if (a < x0 || b < y0 || a > x1 || b > y1) continue;
+        if (d[at(a, b)] > v + 1) { d[at(a, b)] = v + 1; q.push([a, b]); }
+      }
+    }
+    return d;
+  };
+  const din = dist(1), dout = dist(0);
+  let epais = 0; for (let i = 0; i < din.length; i++) if (dans[i]) epais = Math.max(epais, din[i]);
+  const A = Math.min(2.6, epais / 2.4);
+  if (A < 0.6) return S;
+  const prises = new Set([...W.npcs.map((n) => key(n.x, n.y)), ...W.items.map((i) => key(i.x, i.y))]);
+  // une case « fixe » garde son appartenance ; près des cases fixes posées sur le bord, le bord ne bouge pas
+  const fixe = (x, y) => {
+    const t = W.get(x, y), k = key(x, y);
+    if (prises.has(k) || !MOU.has(t)) return true;
+    // dehors : seulement les cases du niveau juste en dessous ; dedans : rien qui soit déjà plus haut que le plateau
+    const h = W.height(x, y);
+    return de(x, y) ? h !== niv - 1 && h !== niv : h !== niv - 1;
+  };
+  const ancre = []; // cases fixes près du bord : chemins qui le franchissent, eau, maisons…
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const i = at(x, y), pres = dans[i] ? din[i] <= 3 : dout[i] <= 3;
+    if (pres && fixe(x, y) && W.in(x, y)) ancre.push([x, y]);
+  }
+  const loin = new Float32Array(bw * bh).fill(99);
+  for (const [ax, ay] of ancre) for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) {
+    const a = ax + dx, b = ay + dy; if (a < x0 || b < y0 || a > x1 || b > y1) continue;
+    const d = Math.hypot(dx, dy), i = at(a, b); if (d < loin[i]) loin[i] = d;
+  }
+  // indicatrice adoucie (moyenne sur 7 × 7 cases : coins arrondis) + bruit lisse décalé : le nouveau contour
+  const g = (x0 * 7 + y0 * 13 + niv * 101) | 0, R = 3, out = new Uint8Array(bw * bh);
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const i = at(x, y);
+    if (!W.in(x, y) || fixe(x, y)) { out[i] = dans[i]; continue; }
+    if ((dans[i] && din[i] > 4) || (!dans[i] && dout[i] > 4)) { out[i] = dans[i]; continue; }
+    let s = 0; for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) s += de(x + dx, y + dy) ? 1 : 0;
+    const b = s / ((2 * R + 1) ** 2);
+    const n = 0.65 * bruit(x, y, 5.5, g) + 0.35 * bruit(x, y, 2.6, g + 1);
+    const att = Math.max(0, Math.min(1, (loin[i] - 1) / 2));
+    const decal = A * att * (2 * n - 1);   // en cases : > 0 le plateau avance, < 0 il recule
+    out[i] = b + decal / (2 * R + 1) > 0.5 ? 1 : 0;
+  }
+  // nettoyage : pas de dent ni de trou d'une case (deux passes), on garde la grande pièce
+  for (let pass = 0; pass < 2; pass++) for (let y = y0 + 1; y < y1; y++) for (let x = x0 + 1; x < x1; x++) {
+    const i = at(x, y); if (!W.in(x, y) || fixe(x, y)) continue;
+    const n4 = out[at(x + 1, y)] + out[at(x - 1, y)] + out[at(x, y + 1)] + out[at(x, y - 1)];
+    if (out[i] && n4 <= 1) out[i] = 0; else if (!out[i] && n4 >= 3) out[i] = 1;
+    // bande d'une case entre deux morceaux : comblée (pas de couloir bas d'une case de large)
+    if (!out[i] && ((out[at(x + 1, y)] && out[at(x - 1, y)]) || (out[at(x, y + 1)] && out[at(x, y - 1)]))) out[i] = 1;
+  }
+  const res = new Set(), vu = new Uint8Array(bw * bh); let best = null;
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const i = at(x, y); if (!out[i] || vu[i]) continue;
+    const comp = [], q = [[x, y]]; vu[i] = 1;
+    while (q.length) { const [a, b] = q.pop(); comp.push([a, b]); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const c = a + dx, d = b + dy; if (c < x0 || d < y0 || c > x1 || d > y1) continue; const j = at(c, d); if (out[j] && !vu[j]) { vu[j] = 1; q.push([c, d]); } } }
+    // une pièce qui garde une case fixe du plateau d'origine reste (chemin, maison…) ; les miettes s'en vont
+    if (comp.length >= 6 || comp.some(([a, b]) => fixe(a, b) && de(a, b))) for (const [a, b] of comp) res.add(key(a, b));
+    if (!best || comp.length > best.length) best = comp;
+  }
+  if (best) for (const [a, b] of best) res.add(key(a, b));
+  return res;
+}
+
+/** marque les cases d'un plateau d'herbe (dessus, talus, marches) : le rendu y dessine une pente de pelouse */
+function marquer(W, k, v) {
+  if (!W.pentes) { if (!v) return; W.pentes = new Uint8Array(W.w * W.h); }
+  const [x, y] = k.split(',').map(Number); if (W.in(x, y)) W.pentes[y * W.w + x] = v;
+}
+/** la case est-elle (dessus, talus ou marche) d'un plateau d'herbe ? */
+export const pente = (W, x, y) => !!W.pentes && x >= 0 && y >= 0 && x < W.w && y < W.h && W.pentes[y * W.w + x] === 1;
+
+/**
+ * élève les cases `cells` ([x, y]) au niveau `niv`. Sous chaque bord sud, une paroi (le talus) d'une case par niveau
+ * d'écart ; là où un chemin franchit un bord, des marches (o.marches === false : aucune). Renvoie l'ensemble des cases
+ * élevées. Par défaut, un plateau d'herbe : contour naturel (contourNaturel) et talus de pelouse au rendu ;
+ * o.roche : falaise de roche au bord droit (canyons, déserts).
  */
 export function plateau(W, cells, niv, o = {}) {
-  const R = new Set();
+  const R = o.roche ? new Set() : contourNaturel(W, cells, niv);
+  if (o.roche) for (const [x, y] of cells) if (W.in(x, y)) R.add(key(x, y));
   // tout ce qui est sur le plateau monte avec lui (bâtiments et portes compris) ; seules les parois épargnent le décor protégé
-  for (const [x, y] of cells) if (W.in(x, y)) { R.add(key(x, y)); W.setHeight(x, y, niv); }
+  for (const k of R) { const [x, y] = k.split(',').map(Number); W.setHeight(x, y, niv); marquer(W, k, o.roche ? 0 : 1); }
   const avant = new Map();   // sol d'origine des cases devenues paroi
   for (const k of R) {
     const [x, y] = k.split(',').map(Number);
@@ -27,8 +135,8 @@ export function plateau(W, cells, niv, o = {}) {
     for (let i = 1; i <= d; i++) {
       const yy = y + i, q = W.get(x, yy);
       if (!W.in(x, yy) || R.has(key(x, yy)) || PROTEGE.has(q) || W.height(x, yy) >= niv) break;
-      if (q === T.CLIFF && W.height(x, yy) <= niv - i) { W.setHeight(x, yy, niv - i); continue; }
-      avant.set(key(x, yy), q); W.set(x, yy, T.CLIFF); W.setHeight(x, yy, niv - i);
+      if (q === T.CLIFF && W.height(x, yy) <= niv - i) { W.setHeight(x, yy, niv - i); marquer(W, key(x, yy), o.roche ? 0 : 1); continue; }
+      avant.set(key(x, yy), q); W.set(x, yy, T.CLIFF); W.setHeight(x, yy, niv - i); marquer(W, key(x, yy), o.roche ? 0 : 1);
     }
   }
   if (o.marches !== false) {

@@ -2,6 +2,7 @@
 // arbres / herbes / personnages en sprites verticaux, caméra inclinée en perspective étroite, rendu basse résolution.
 import * as THREE from 'three';
 import { T } from '../world/tiles.js';
+import { pente } from '../world/relief.js';
 import { buildAtlas, buildAnimAtlas, buildSprites, applySpriteImages, facade, sideWall, roofTex, roofColors, kitColor, PAL, SOL16 } from './textures.js';
 import { SPRITES } from '../data/sprites.js';
 import { Sol } from './sol.js';
@@ -674,6 +675,20 @@ export class WorldView {
   reliefDehors(G, x, y, t, zone) {
     const m = this.map, A = this.A.cells, h = m.height(x, y), th = zone?.theme, bio = bioFalaise(zone);
     const Y = 0.0049, v = hash(x * 3 + 1, y * 7 + 5);
+    // plateaux d'herbe (world/relief.js, pente) : talus de pelouse, dessiné au pixel par le sol généré (solgen.js, talus) ;
+    // sans lui (?sol=0), des pièces de pelouse toutes faites (relief-tex.js)
+    const gen = this.sol.couvre(), herbe = (a, b) => pente(m, a, b), lv = levreFalaise(th);
+    if ((t === T.CLIFF || t === T.STAIRS) && herbe(x, y)) {
+      if (gen) return;
+      if (t === T.CLIFF) {
+        let r = 0; while (r < 6 && m.get(x, y - r - 1) === T.CLIFF) r++;
+        const k = A[`pente_${lv}_${r === 0 ? 's' : 'm'}_${v < 0.5 ? 0 : 1}`]; if (k) flat(G, x, y, x + 1, y + 1, Y, k);
+        return;
+      }
+      const d = m.height(x, y - 1) > h ? 's' : m.height(x, y - 1) < h ? 'n' : m.height(x + 1, y) < h ? 'e' : m.height(x - 1, y) < h ? 'w' : 's';
+      if (A[`rondins_${d}`]) flat(G, x, y, x + 1, y + 1, Y + 0.0001, A[`rondins_${d}`]);
+      return;
+    }
     if (t === T.CLIFF) {
       let r = 0; while (r < 6 && m.get(x, y - r - 1) === T.CLIFF) r++;
       const rw = A[`rw_${bio}_${Math.floor(v * 3)}`] || A.rw_montagne_0;
@@ -701,16 +716,18 @@ export class WorldView {
       const k = d && (A[`marches_${d}_${bio}`] || A[`marches_${d}_montagne`]);
       if (k) { flat(G, x, y, x + 1, y + 1, Y + 0.0001, k); return; }
     }
-    if (m.get(x, y - 1) === T.CLIFF && A.fal_pied) flat(G, x, y, x + 1, y + 1, Y, A.fal_pied);
+    if (m.get(x, y - 1) === T.CLIFF && !(gen && herbe(x, y - 1)) && A.fal_pied) flat(G, x, y, x + 1, y + 1, Y, herbe(x, y - 1) ? A.pente_pied || A.fal_pied : A.fal_pied);
     // flancs d'un plateau voisin plus haut, à l'ouest ou à l'est (sauf contre une marche ou une montagne)
-    const flanc = (dx) => { const q = m.get(x + dx, y); return m.height(x + dx, y) > h && q !== T.CLIFF && q !== T.STAIRS && q !== T.CAVEWALL && t !== T.STAIRS; };
-    if (flanc(-1) && A[`fal_flanc_w_${bio}`]) flat(G, x, y, x + 1, y + 1, Y + 0.0001, A[`fal_flanc_w_${bio}`]);
-    if (flanc(1) && A[`fal_flanc_e_${bio}`]) flat(G, x, y, x + 1, y + 1, Y + 0.0001, A[`fal_flanc_e_${bio}`]);
-    if (h > 0) {
+    const flanc = (dx) => { const q = m.get(x + dx, y); return m.height(x + dx, y) > h && q !== T.CLIFF && q !== T.STAIRS && q !== T.CAVEWALL && t !== T.STAIRS && !(gen && herbe(x + dx, y)); };
+    const fl = (c, dx) => (herbe(x + dx, y) ? A[`pente_flanc_${c}_${lv}`] : A[`fal_flanc_${c}_${bio}`]);
+    if (flanc(-1) && fl('w', -1)) flat(G, x, y, x + 1, y + 1, Y + 0.0001, fl('w', -1));
+    if (flanc(1) && fl('e', 1)) flat(G, x, y, x + 1, y + 1, Y + 0.0001, fl('e', 1));
+    if (h > 0 && !(gen && herbe(x, y))) {
       const bas = (dx, dy) => { const q = m.get(x + dx, y + dy); return m.height(x + dx, y + dy) < h && q !== T.CLIFF && q !== T.STAIRS && q !== T.CAVEWALL; };
-      if (bas(1, 0)) flat(G, x, y, x + 1, y + 1, Y + 0.0002, A[`fal_bord_e_${bio}`]);
-      if (bas(-1, 0)) flat(G, x, y, x + 1, y + 1, Y + 0.0002, A[`fal_bord_w_${bio}`]);
-      if (bas(0, -1)) flat(G, x, y, x + 1, y + 1, Y + 0.0003, A[`fal_bord_n_${bio}`]);
+      const bd = (c) => (herbe(x, y) ? A[`pente_bord_${c}_${lv}`] : A[`fal_bord_${c}_${bio}`]);
+      if (bas(1, 0) && bd('e')) flat(G, x, y, x + 1, y + 1, Y + 0.0002, bd('e'));
+      if (bas(-1, 0) && bd('w')) flat(G, x, y, x + 1, y + 1, Y + 0.0002, bd('w'));
+      if (bas(0, -1) && bd('n')) flat(G, x, y, x + 1, y + 1, Y + 0.0003, bd('n'));
     }
   }
   tierAt(x, y) { const m = this.map; if (x < 0 || y < 0 || x >= m.w || y >= m.h) return 3; return this.tiers[y * m.w + x] || 0; }

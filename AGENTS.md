@@ -130,6 +130,9 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   Quêtes du vélo et du permis bateau (`odyssee/js/world/vehicules.js`) : `node tools/test-odyssee-vehicules.mjs`.
   Relief du dehors (`odyssee/js/world/relief.js`) : chaque case a une hauteur (`GameMap.hg`) ; `plateau()` élève une zone,
   pose une paroi (`T.CLIFF`) sous son bord sud et des marches (`T.STAIRS`, un niveau d'écart) là où un chemin franchit un bord ;
+  par défaut c'est un plateau d'herbe : contour naturel (`contourNaturel`, bruit à graine fixe, bords droits seulement près
+  des chemins qui le franchissent et de l'eau), cases marquées dans `m.pentes`, talus de pelouse et marches de rondins dessinés
+  au pixel par le sol généré (`talus` de `solgen.js`) ; `{ roche: true }` garde la falaise de roche au bord droit (canyon) ;
   `massif()` fait une montagne en gradins (roche), `tourbillons()` une ceinture de tourbillons (`T.WHIRL`, infranchissable à la nage),
   `boucher()` referme les recoins isolés, `sinueuse()` lisse le tracé d'une route. Rendu à plat façon HeartGold :
   `reliefDehors` de `world3d.js`, pièces dessinées par `odyssee/js/render/relief-tex.js` ; sols générés : feuilles mortes (zone

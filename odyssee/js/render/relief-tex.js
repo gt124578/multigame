@@ -113,6 +113,66 @@ function marches(dir, R) {
     }
   });
 }
+/* pièces de pelouse des plateaux d'herbe (rendu sans sol généré, ?sol=0 ; sinon solgen.js dessine le talus au pixel) */
+/** talus d'herbe (case sous le bord sud) : lèvre claire et brins qui pendent en haut (sauf `milieu`), versant qui fonce
+ *  vers le pied, quelques touffes */
+function penteHerbe(pal, seed, milieu) {
+  return toile((p) => {
+    for (let i = 0; i < C; i++) {
+      const pend = milieu ? -1 : 2 + Math.floor(hash(i, 0, seed) * 4), levre = milieu ? -1 : 1 + (hash(i >> 2, 1, seed) < 0.5 ? 1 : 0);
+      for (let j = 0; j < C; j++) {
+        const t = j / C, b = ((i * 7 + j * 5) & 3) / 4;
+        let k;
+        if (j <= levre) k = 5;
+        else if (j <= pend && hash(i, 2, seed) < 0.45) k = 4;
+        else if (j <= levre + 2) k = 1;
+        else k = Math.max(1, Math.min(3, Math.floor(3.4 - 2 * t + b - 0.5 + (hash(i >> 1, j >> 3, seed + 1) < 0.08 ? 1 : 0))));
+        p(i, j, pal[k]);
+      }
+    }
+    for (let n = 0; n < 4; n++) {   // touffes
+      const x = 3 + Math.floor(hash(n, 3, seed) * 26), y = 10 + Math.floor(hash(n, 4, seed) * 18);
+      p(x, y, pal[4]); p(x - 1, y + 1, pal[3]); p(x + 1, y + 1, pal[3]); p(x, y + 2, pal[0]);
+    }
+  });
+}
+/** côté est / ouest d'un plateau d'herbe : lèvre claire sur la case haute (bord) ; versant sur la case basse (flanc) */
+function penteBord(cote, pal) {
+  return toile((p) => {
+    for (let a = 0; a < C; a++) for (let b = 0; b < 3; b++) {
+      const col = b === 0 ? pal[1] : pal[5];
+      if (cote === 'e') p(C - 1 - b, a, col); else if (cote === 'w') p(b, a, col); else p(a, b, b === 0 ? pal[1] : b === 1 ? pal[4] : null);
+    }
+  });
+}
+function penteFlanc(cote, pal, seed) {
+  return toile((p) => {
+    for (let j = 0; j < C; j++) {
+      const w = 8 + Math.floor(hash(0, j >> 3, seed) * 5);
+      for (let b = 0; b < w; b++) {
+        const x = cote === 'w' ? b : C - 1 - b, t = b / w;
+        p(x, j, b === w - 1 ? pal[0] : pal[cote === 'w' ? (t < 0.5 ? 2 : 1) : (t < 0.5 ? 1 : 0)]);
+      }
+    }
+  });
+}
+/** pied d'un talus d'herbe : ombre douce, tramée */
+function penteOmbre() {
+  return toile((p) => { for (let i = 0; i < C; i++) for (let j = 0; j < 5; j++) if (j < 1 || ((i + j) & 1) === 0 && hash(i, j, 3) > j / 6) p(i, j, '#1f4a26'); });
+}
+/** marches de terre tenues par des rondins ('s' : on descend vers le bas de l'écran, 'n', 'e', 'w') */
+function rondins(dir) {
+  const TERRE = ['#6e4f33', '#8c6a44', '#a88655', '#c2a06a'], BOIS = ['#4a3020', '#6e4a2c', '#946840', '#b88a58'];
+  return toile((p) => {
+    for (let i = 0; i < C; i++) for (let j = 0; j < C; j++) {
+      const [u, v] = dir === 's' || dir === 'n' ? [i, j] : [j, i], vv = dir === 'n' || dir === 'w' ? C - 1 - v : v;
+      if (u < 4 || u > C - 5) continue;
+      const lv = vv % 8;
+      p(i, j, lv <= 4 ? TERRE[lv === 0 ? 0 : hash(i, j, 7) < 0.15 ? 1 : 2] : lv === 5 ? BOIS[3] : lv === 6 ? BOIS[2] : BOIS[0]);
+    }
+  });
+}
+
 /** une image d'un grand tourbillon (f sur 8, sens et phase selon v) : 64 × 64 pixels, spirale d'écume et œil sombre,
  *  rendu en quatre quarts de case (fond transparent) */
 export function tourbillon(f, v = 0) {
@@ -257,4 +317,12 @@ export function texturesRelief(putImg, img) {
     for (const d of ['s', 'n', 'e', 'w']) putImg(`marches_${d}_${bio}`, marches(d, R));
   }
   putImg('trou', trouPlancher());
+  // plateaux d'herbe, sans sol généré
+  Object.entries(LEVRES).forEach(([k, pal], n) => {
+    for (let v = 0; v < 2; v++) { putImg(`pente_${k}_s_${v}`, penteHerbe(pal, 61 + n * 7 + v * 101, false)); putImg(`pente_${k}_m_${v}`, penteHerbe(pal, 62 + n * 7 + v * 101, true)); }
+    for (const c of ['e', 'w', 'n']) putImg(`pente_bord_${c}_${k}`, penteBord(c, pal));
+    for (const c of ['e', 'w']) putImg(`pente_flanc_${c}_${k}`, penteFlanc(c, pal, c === 'e' ? 3 : 5));
+  });
+  putImg('pente_pied', penteOmbre());
+  for (const d of ['s', 'n', 'e', 'w']) putImg(`rondins_${d}`, rondins(d));
 }

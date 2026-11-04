@@ -102,6 +102,19 @@ for (let y = 1; y < W.h - 1; y++) for (let x = 1; x < W.w - 1; x++) {
   ok(!m.canStep(3, 4, 3, 5) && m.canStep(5, 4, 5, 5) && m.canStep(5, 5, 5, 6), 'on ne descend une falaise que par les marches');
   const r = m.reach(5, 10); ok(r[2 * 12 + 2] && r[10 * 12 + 2], 'les deux niveaux sont reliés par l\'escalier');
 }
+{ // plateau d'herbe : contour naturel (bord ondulé), talus de pelouse, marches au bout du chemin ; falaise de roche : bord droit
+  const { GameMap } = await import('../odyssee/js/world/mapgen.js'), { plateau, rectangle, pente } = await import('../odyssee/js/world/relief.js');
+  const m = new GameMap('essai2', 60, 40, { fill: T.GRASS }); m.rect(29, 0, 30, 39, T.PATH);
+  plateau(m, rectangle(5, 8, 54, 28), 1);
+  const bords = new Set(), cotes = new Set();
+  for (let x = 5; x <= 54; x++) { let y = 39; while (y > 0 && m.height(x, y) === 0 && m.get(x, y) !== T.CLIFF) y--; bords.add(y); }
+  for (let y = 10; y <= 26; y++) { let x = 0; while (x < 59 && m.height(x, y) === 0) x++; cotes.add(x); }
+  ok(bords.size > 1 && cotes.size > 1, 'plateau d\'herbe : bords sud et ouest ondulés');
+  ok(pente(m, 20, 18) && [...Array(60).keys()].some((x) => m.get(x, 30) === T.CLIFF || m.get(x, 29) === T.CLIFF) && !pente(m, 2, 2), 'plateau d\'herbe : dessus et talus marqués');
+  const r = m.reach(29, 39); ok(r[2 * 60 + 29] && r[18 * 60 + 20], 'plateau d\'herbe : on y monte par les marches du chemin');
+  const k = new GameMap('essai3', 60, 40, { fill: T.GRASS }); plateau(k, rectangle(5, 8, 54, 28), 1, { roche: true });
+  ok([...Array(50).keys()].every((i) => k.get(5 + i, 29) === T.CLIFF) && !pente(k, 20, 18), 'falaise de roche : bord droit');
+}
 // PNJ, dresseurs et objets du monde : on peut se placer à côté
 for (const n of W.npcs) ok(reachable(W, seenW, n.x, n.y), `PNJ ${n.id} atteignable (${n.x},${n.y})`);
 for (const it of W.items) ok(reachable(W, seenW, it.x, it.y), `objet ${it.item} atteignable (${it.x},${it.y})`);
