@@ -2430,6 +2430,82 @@ export function atelier(D) {
     return G;
   };
 
+
+  /** Poké Ball dessinée (rouge, blanc, bande noire), l'emblème du type au centre à la place du bouton */
+  const pokeEmbleme = (type, acc) => { const k = 'pbe' + type; NETTES.add(k); const em = emblemeTex(type, acc); return tex(k, 4 * D, 4 * D, (g, px, w, h) => {
+    const r = w / 2 - 2, c = w / 2;
+    g.fillStyle = '#16141a'; g.beginPath(); g.arc(c, c, r + 2, 0, 7); g.fill();
+    g.fillStyle = '#e03a30'; g.beginPath(); g.arc(c, c, r, Math.PI, 0); g.fill();
+    g.fillStyle = '#f6f4ee'; g.beginPath(); g.arc(c, c, r, 0, Math.PI); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.35)'; g.beginPath(); g.ellipse(c - r * 0.42, c - r * 0.5, r * 0.22, r * 0.12, -0.6, 0, 7); g.fill();
+    g.fillStyle = '#16141a'; g.fillRect(c - r, c - r * 0.09, 2 * r, r * 0.18);
+    g.beginPath(); g.arc(c, c, r * 0.4, 0, 7); g.fill();
+    g.fillStyle = '#f6f4ee'; g.beginPath(); g.arc(c, c, r * 0.33, 0, 7); g.fill();
+    g.drawImage(em.image, c - r * 0.3, c - r * 0.3, r * 0.6, r * 0.6);
+  }, false); };
+  /** voûte en berceau dont la courbe porte sur la largeur (axe le long de z) : demi-ellipse de demi-largeur a, hauteur hr */
+  function berceau(G, cx, z0, z1, y, a, hr, mat, bout) {
+    const sh = new THREE.Shape(), n = 24; sh.moveTo(-a, 0);
+    for (let i = 1; i <= n; i++) { const th = Math.PI * i / n; sh.lineTo(-a * Math.cos(th), hr * Math.sin(th)); }
+    sh.lineTo(-a, 0);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: z1 - z0, bevelEnabled: false, curveSegments: n });
+    const m = new THREE.Mesh(g, [bout, mat]); m.castShadow = m.receiveShadow = true; m.position.set(cx, y, z0); G.add(m); return m;
+  }
+  /** arène rectangulaire, plus longue que large (8 × 11), toit en berceau courbé sur sa largeur, avancée à colonnes et
+   *  grande porte ; au-dessus de la porte, une Poké Ball dessinée avec l'emblème du type au centre.
+   *  `style` : voute (le berceau couvre aussi l'avancée, colonnes en façade), portique (avancée basse à entablement
+   *  devant la salle voûtée), arcades (avancée à arcs, côtes dorées sur la voûte), verriere (voûte vitrée au faîte) */
+  B.areneVoute = ({ style = 'voute', type = 'feu', pierre = null } = {}) => {
+    const T = ARENES[type] || ARENES.feu, acc = T.acc, A = COL(acc);
+    const G = new THREE.Group(), W = 8, ZF = 11, cx = W / 2, ZS = 9.9;   // salle voûtée de z 0 à 9,4 ; avancée à colonnes devant
+    const pc = pierre || '#d6cfbf';
+    const PM = M({ map: TX.pierre(pc) }), PC = M({ map: TX.pierre(mix(pc, 0.25)) }), PS = M({ map: TX.pierre(mix(pc, -0.25)) }), MA = M({ map: TX.marbre() });
+    const TT = M({ map: TX.canalPetit(T.toit) }), y0 = 0.45, H = 3.0, a = W / 2 + 0.25, hr = 1.55;
+    // socle et salle
+    G.add(at(boite(W + 0.4, y0, ZF + 0.2, PS), cx, y0 / 2, ZF / 2 + 0.1));
+    G.add(at(boite(W, H, ZS, PM), cx, y0 + H / 2, ZS / 2));
+    G.add(at(boite(W + 0.06, 0.3, ZS + 0.06, PS), cx, y0 + 0.15, ZS / 2));
+    G.add(at(boite(W + 0.1, 0.22, ZS + 0.1, A), cx, y0 + H - 0.2, ZS / 2));
+    G.add(at(boite(W + 0.3, 0.16, ZS + 0.3, PC), cx, y0 + H + 0.02, ZS / 2));
+    for (const sx of [-0.01, W + 0.01]) for (let i = 0; i < 4; i++) { const z = 1.3 + i * 2.3, f = new THREE.Group(); fenArc(f, 0, 0, 0, 0.5, 1.2, PC, M({ map: TX.vitrail(acc) })); f.position.set(sx, y0 + 1.9, z); f.rotation.y = sx < 1 ? -Math.PI / 2 : Math.PI / 2; G.add(f);
+      G.add(at(boite(0.2, H - 0.4, 0.3, PC), sx, y0 + (H - 0.4) / 2 + 0.1, z + 1.1)); }
+    // voûte en berceau courbée sur la largeur
+    const yV = y0 + H + 0.1;
+    berceau(G, cx, -0.2, ZS + 0.2, yV, a, hr, TT, PC);
+    const arc = (z, mat, ep = 0.07) => { const t = new THREE.Mesh(new THREE.TorusGeometry(1, ep, 4, 28, Math.PI), mat); t.scale.set(a + 0.03, hr + 0.03, 1); G.add(at(t, cx, yV, z)); };
+    arc(ZS + 0.21, PC, 0.12); arc(-0.21, PC, 0.12);
+    if (style === 'portique' || style === 'verriere') for (let i = 1; i < 5; i++) arc(-0.2 + i * (ZS + 0.4) / 5, PC, 0.08);
+    { const f = boite(0.14, 0.1, ZS + 0.4, COL(mix(T.toit, 0.35))); G.add(at(f, cx, yV + hr + 0.02, ZS / 2)); }
+    if (style === 'arcades') for (let i = 1; i < 6; i++) arc(-0.2 + i * (ZS + 0.4) / 6, OR);
+    if (style === 'verriere') {
+      // bande vitrée au faîte, posée sur la courbe
+      const sh = new THREE.Shape(), n = 12, t1 = Math.PI * 0.32, t2 = Math.PI * 0.68, e = 0.06;
+      sh.moveTo((a + e) * Math.cos(t1), (hr + e) * Math.sin(t1)); for (let i = 1; i <= n; i++) { const th = t1 + (t2 - t1) * i / n; sh.lineTo((a + e) * Math.cos(th), (hr + e) * Math.sin(th)); }
+      for (let i = n; i >= 0; i--) { const th = t1 + (t2 - t1) * i / n; sh.lineTo((a - 0.02) * Math.cos(th), (hr - 0.02) * Math.sin(th)); }
+      const g = new THREE.ExtrudeGeometry(sh, { depth: ZS - 0.6, bevelEnabled: false }); const v = new THREE.Mesh(g, M({ map: TX.verre() })); v.position.set(cx, yV, 0.3); G.add(v);
+      for (let i = 0; i <= 8; i++) arc(0.3 + i * (ZS - 0.6) / 8, PC, 0.05);
+    }
+    // tympan : la Poké Ball dessinée, l'emblème du type au centre
+    const rb = 0.72, yb = yV + 0.72;
+    G.add(at(new THREE.Mesh(new THREE.CircleGeometry(rb, 32), M({ map: pokeEmbleme(type, acc), transparent: true })), cx, yb, ZS + 0.23));
+    G.add(at(new THREE.Mesh(new THREE.TorusGeometry(rb + 0.04, 0.07, 6, 32), OR), cx, yb, ZS + 0.25));
+    // avancée à colonnes (peu profonde, basse, pour que la grande porte se voie)
+    const zf = ZF - 0.3, hp = 2.75;
+    const plafond = () => { G.add(at(boite(W + 0.3, 0.32, zf - ZS + 0.5, PC), cx, y0 + hp + 0.16, (ZS + zf) / 2 + 0.05)); G.add(at(boite(W + 0.32, 0.15, 0.06, A), cx, y0 + hp + 0.16, zf + 0.31)); };
+    if (style === 'portique') { for (let i = 0; i < 6; i++) colonne(G, 0.4 + i * (W - 0.8) / 5, zf, y0, hp, 0.17, MA, PC); plafond(); balustrade(G, 0.1, zf + 0.25, W - 0.1, zf + 0.25, y0 + hp + 0.32, PC, 0.35, 0.3); }
+    else if (style === 'arcades') {
+      for (const x of [0.3, 2.75, W - 2.75, W - 0.3]) G.add(at(boite(0.5, hp, 0.5, PC), x, y0 + hp / 2, zf));
+      for (const [x1, x2] of [[0.3, 2.75], [2.75, W - 2.75], [W - 2.75, W - 0.3]]) { const r = (x2 - x1) / 2 - 0.25, ar = new THREE.Mesh(new THREE.TorusGeometry(r, 0.13, 6, 16, Math.PI), PC); G.add(at(ar, (x1 + x2) / 2, y0 + hp - r - 0.05, zf)); }
+      plafond();
+    } else { for (const x of [0.35, 2.35, W - 2.35, W - 0.35]) colonne(G, x, zf, y0, hp, 0.21, MA, PC); plafond(); }
+    // grande porte cintrée, torches, marches, braseros
+    porte2(G, cx, ZS + 0.01, y0, 1.75, 1.8, '#4a2a16', OR, true);
+    for (const s of [-1, 1]) torche(G, cx + s * 1.45, ZS + 0.15, y0 + 1.25, 0.25);
+    marches(G, cx, ZF - 0.05, 3.2, 3, y0 / 3, 0.22, PS);
+    for (const s of [-1, 1]) { G.add(at(boite(0.6, 0.9, 0.6, PC), cx + s * 3.2, 0.45, ZF + 0.55)); brasero(G, cx + s * 3.2, 0.9, ZF + 0.55, 0.5); }
+    return G;
+  };
+
   /* -------------------------------------------------------------- usine à Poké Balls ----------------------------- */
   /** une Poké Ball : moitié haute rouge, basse blanche, bande noire, bouton tourné vers le sud */
   function pokeBall(G, x, y, z, r, rouge = '#d83a32') {
@@ -2769,7 +2845,7 @@ export const EMPRISES = {
   maison: [4, 3], maisonL: [5, 5], maisonLongue: [5, 3], maisonHaute: [4, 4], maisonExt: [7, 4], chalet: [5, 5], residence: [6, 4],
   cabaneChasseur: [4, 3], cabanePecheur: [5, 4], grange: [6, 5], moulin: [4, 4], phare: [3, 3], auberge: [6, 5], chapelle: [4, 7],
   boulangerie: [4, 4], maisonThe: [5, 5], gare: [8, 4], kiosque: [4, 5], puits: [2, 2], etal: [2, 2],
-  mairie: [9, 5], fontaine: [3, 3], centre: [7, 5], boutique: [5, 4], arene: [12, 11], areneFeu: [12, 11], pavillonFeu: [12, 11], areneCour: [18, 14], areneBloc: [9, 6], areneRonde: [9, 9], labo: [10, 7],
+  mairie: [9, 5], fontaine: [3, 3], centre: [7, 5], boutique: [5, 4], arene: [12, 11], areneFeu: [12, 11], pavillonFeu: [12, 11], areneCour: [18, 14], areneBloc: [9, 6], areneRonde: [9, 9], areneVoute: [8, 11], labo: [10, 7],
   pagode: [11, 11], tourCendree: [11, 11], pavillon: [8, 7], tour: [8, 5], tourVerre: [10, 7], tourDeco: [8, 8], bourse: [12, 8], casino: [14, 8], ligue: [30, 14], usinePokeball: [32, 10],
   escalierMontant: [1, 2], escalierDescendant: [1, 2],
 };
