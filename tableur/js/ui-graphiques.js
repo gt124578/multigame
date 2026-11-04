@@ -1,7 +1,7 @@
 // Interface des graphiques : galerie d'insertion (aperçus de chaque catégorie avec les vraies données),
 // panneau « Graphique » (type, données, titres, légende, axes, style, séries) et export en image.
 
-import { rendreGraphiqueSVG, CATEGORIES, PALETTES, NOMS_PALETTES, normaliser, nomType, preparerDonnees } from './graphiques.js';
+import { rendreGraphiqueSVG, CATEGORIES, PALETTES, NOMS_PALETTES, normaliser, nomType, preparerDonnees, TYPES_TENDANCE } from './graphiques.js';
 
 const ech = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const FORMATS = [['', 'Automatique'], ['0', '0'], ['0.0', '0,0'], ['0.00', '0,00'], ['#,##0', '1 000'], ['#,##0.00', '1 000,00'], ['0%', '0 %'], ['0.0%', '0,0 %'], ['0.00%', '0,00 %'], ['#,##0 €', '1 000 €'], ['0.00E+00', 'Scientifique']];
@@ -164,12 +164,26 @@ export function installerGraphiques(api) {
       <details open><summary>${circulaire ? 'Parts' : 'Séries'}</summary>
         ${nomsSeries.map((nom, i) => `<div class="graph-serie"><input type="color" data-couleur="${i}" value="${g.couleurs[i] || palette[i % palette.length]}">
           ${circulaire ? `<span>${ech(nom)}</span>` : `<input data-nom="${i}" value="${ech(g.noms[i] || nom)}" title="Nom de la série">`}
-          ${g.couleurs[i] ? `<button class="petit" data-raz="${i}" title="Couleur de la palette">↺</button>` : ''}</div>`).join('')}
+          ${g.couleurs[i] ? `<button class="petit" data-raz="${i}" title="Couleur de la palette">↺</button>` : ''}</div>
+          ${axes && g.type !== 'barres' ? optionsSerie(g, i, nomsSeries.length) : ''}`).join('')}
       </details>
       <div class="graph-actions">
         <button id="gp-png">Image PNG</button><button id="gp-svg">SVG</button><button id="gp-dupliquer">Dupliquer</button><button id="gp-suppr" class="danger">Supprimer</button>
       </div>`;
     majApercu();
+  }
+
+  // Tendance et axe secondaire d'une série
+  function optionsSerie(g, i, nb) {
+    const t = g.tendances[i] || {};
+    const opt = (liste, val) => liste.map(([v, x]) => `<option value="${v}"${String(val ?? '') === String(v) ? ' selected' : ''}>${x}</option>`).join('');
+    return `<div class="graph-serie-opts">
+      <label>Tendance <select data-tendance="${i}">${opt([['', 'Aucune'], ...TYPES_TENDANCE], t.type || '')}</select></label>
+      ${t.type === 'polynomiale' ? `<label>Ordre <input type="number" min="2" max="6" data-ordre="${i}" value="${t.ordre || 2}"></label>` : ''}
+      ${t.type === 'moyenne' ? `<label>Période <input type="number" min="2" max="50" data-periode="${i}" value="${t.periode || 2}"></label>` : ''}
+      ${t.type && t.type !== 'moyenne' ? `<label class="case"><input type="checkbox" data-eq="${i}"${t.equation ? ' checked' : ''}> Équation</label><label class="case"><input type="checkbox" data-r2="${i}"${t.r2 ? ' checked' : ''}> R²</label>` : ''}
+      ${nb > 1 && g.type !== 'nuage' ? `<label class="case" title="Échelle à droite ; la série est dessinée en courbe"><input type="checkbox" data-secondaire="${i}"${g.secondaire[i] ? ' checked' : ''}> Axe secondaire</label>` : ''}
+    </div>`;
   }
 
   function majApercu() {
@@ -215,6 +229,8 @@ export function installerGraphiques(api) {
       case 'gp-fond': return changer((g) => { g.fond = val; });
     }
     if (t.dataset.couleur !== undefined) changer((g) => { g.couleurs[t.dataset.couleur] = val; });
+    if (t.dataset.ordre !== undefined) changer((g) => { g.tendances[t.dataset.ordre] = { ...g.tendances[t.dataset.ordre], ordre: Math.max(2, Math.min(6, +val || 2)) }; });
+    if (t.dataset.periode !== undefined) changer((g) => { g.tendances[t.dataset.periode] = { ...g.tendances[t.dataset.periode], periode: Math.max(2, Math.min(50, +val || 2)) }; });
     if (t.dataset.nom !== undefined) changer((g) => { g.noms[t.dataset.nom] = val; });
   });
   panneau.addEventListener('change', (e) => {
@@ -230,6 +246,10 @@ export function installerGraphiques(api) {
       case 'gp-marqueurs': return changer((g) => { g.marqueurs = t.checked; }, true);
       case 'gp-lisse': return changer((g) => { g.lisse = t.checked; }, true);
     }
+    if (t.dataset.tendance !== undefined) return changer((g) => { const i = t.dataset.tendance; if (t.value) g.tendances[i] = { ...(g.tendances[i] || {}), type: t.value }; else delete g.tendances[i]; }, true);
+    if (t.dataset.eq !== undefined) return changer((g) => { g.tendances[t.dataset.eq].equation = t.checked; });
+    if (t.dataset.r2 !== undefined) return changer((g) => { g.tendances[t.dataset.r2].r2 = t.checked; });
+    if (t.dataset.secondaire !== undefined) return changer((g) => { if (t.checked) g.secondaire[t.dataset.secondaire] = true; else delete g.secondaire[t.dataset.secondaire]; });
   });
 
   function supprimer(g) {

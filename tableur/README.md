@@ -72,9 +72,27 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
   chaque module ; boîte **Macros** (`Alt+F8`) pour exécuter, modifier, créer (en la nommant) ou supprimer une macro ; exécution
   (`F5`, la macro sous le curseur), journal `Debug.Print`, `MsgBox` / `InputBox`. Dans un module de feuille, `Range`, `Cells` et `Me`
   désignent la feuille ; `Feuil1.Range("A1")` (nom de code) et `Module1.MaMacro` (appel qualifié) sont compris.
+- **Tableaux structurés** (`Ctrl+L`) : `Tableau1[Prime]`, `[@Prix]`, `[#Tout]`, `[#En-têtes]`, `[#Totaux]` dans les formules
+  (colonnes proposées en tapant `[`) ; agrandissement automatique, colonnes calculées, ligne de total (`Ctrl+Maj+T`), 21 styles
+  d'Excel, renommer, redimensionner, convertir en plage ; lus et écrits dans le `.xlsx` (`js/tableaux-xlsx.js`).
+- **Formules qui débordent** : `TRIER`, `UNIQUE`, `FILTRE`, `SEQUENCE`… remplissent les cellules voisines (cadre pointillé,
+  formule grisée dans la barre), référence `A1#`, `#SPILL!`, intersection `@` ; enregistrées en formules matricielles.
+- **Analyse** (`js/analyse.js`) : Solveur (simplexe exact pour les modèles linéaires, entiers et binaires par séparation et
+  évaluation ; méthode non linéaire sinon ; modèle gardé dans le fichier en noms `solver_*` comme Excel), table de données à
+  une ou deux entrées (formule `TABLE` dans le `.xlsx`), remplissage instantané (`Ctrl+E`).
+- **Audit des formules** : flèches des antécédents et des dépendants, `Ctrl+[` / `Ctrl+]`, évaluer la formule pas à pas,
+  vérification des erreurs, calcul manuel (`F9`).
+- **Imprimer** (`Ctrl+P`, `js/impression.js`) : aperçu et réglages ensemble — orientation, papier, ajuster à N pages, marges,
+  en-têtes et pieds de page, zone d'impression, titres répétés, quadrillage, en-têtes de ligne et de colonne, sauts de page,
+  graphiques, images et sparklines compris ; tout est lu et écrit dans le `.xlsx` (`js/page-xlsx.js`).
+- **Protection de feuille** : mot de passe (hachage d'Excel, SHA-512 relu), droits laissés (format, insertion, tri, filtre…),
+  cellules déverrouillées et formules masquées ; lue et écrite comme Excel.
+- **Graphiques, suite** : courbes de tendance (linéaire, exponentielle, logarithmique, polynomiale, puissance, moyenne
+  mobile) avec équation et R², axe secondaire ; sparklines (courbe, histogramme, gain/perte) dans les cellules.
+- **Affichage, suite** : zoom par feuille (barre d'état, `Ctrl`+molette, pincement au doigt), thème sombre.
 - **Fichiers protégés** : les classeurs chiffrés par mot de passe (méthode « Agile » d'Excel 2010+ et « Standard »
   d'Excel 2007 / LibreOffice, AES) s'ouvrent après saisie du mot de passe ; déchiffrement en JavaScript dans le navigateur
-  (`js/chiffrement.js` : AES, SHA-1/256/384/512). Protections de feuille et projets VBA verrouillés : ouverts sans mot de passe.
+  (`js/chiffrement.js` : AES, SHA-1/256/384/512). Projets VBA verrouillés : ouverts sans mot de passe.
 - **Boutons et images** : les boutons de formulaire (et formes) reliés à une macro, les images et les commentaires d'un `.xlsx`
   sont affichés (`js/objets-xlsx.js`) ; un clic sur un bouton lance sa macro. Bouton « 🔘 Bouton » pour en créer.
   Le code VBA d'un `.xlsm` est extrait du `vbaProject.bin` (décompression MS-OVBA) et affiché.
@@ -93,8 +111,6 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
   Couleurs de bordure : noir seulement. Mise en forme conditionnelle : pas de jeux d'icônes.
 - Tableaux croisés : écrits en valeurs (pas de cache de tableau croisé d'Excel) ; ceux d'un fichier Excel s'ouvrent comme
   de simples cellules ; pas de champs calculés.
-- Les formules matricielles dynamiques ne « débordent » pas : une formule qui renvoie un tableau affiche sa première valeur
-  (sauf dans une fonction qui attend un tableau).
 - Boutons, graphiques et images sont réécrits dans une feuille masquée que seul ce tableur relit : Excel ne les affiche pas.
 - Pas de références externes entre classeurs (`=[Autre.xlsx]Feuil1!A1`) ; une macro VBA ne voit que son propre classeur.
 - VBA : pas de formulaires, d'événements, de classes, de `Property`, de fichiers ni d'API Windows.
@@ -122,6 +138,10 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 | `js/vues-xlsx.js` | Volets figés, filtre automatique, mise en forme conditionnelle et validation des données dans le zip `.xlsx` |
 | `js/chiffrement.js` | Ouverture des fichiers protégés par mot de passe (MS-OFFCRYPTO) |
 | `js/objets-xlsx.js` | Boutons de macro, formes et images d'un `.xlsx` |
+| `js/tableaux.js`, `js/tableaux-xlsx.js` | Styles des tableaux structurés ; tableaux et tables de données dans le `.xlsx` |
+| `js/analyse.js`, `js/ui-analyse.js` | Solveur, table de données, remplissage instantané, audit des formules (sans DOM) et leurs panneaux |
+| `js/impression.js`, `js/ui-impression.js` | Découpage en pages et HTML des pages (sans DOM) ; boîte Imprimer avec aperçu |
+| `js/page-xlsx.js` | Mise en page, protection de feuille et sparklines dans le `.xlsx` |
 | `js/app.js` | Interface : grille virtualisée, barre de formule, onglets, presse-papiers, panneaux |
 | `lib/xlsx.full.min.js` | SheetJS 0.18.5 (Apache-2.0, `lib/LICENSE-sheetjs.txt`) |
 

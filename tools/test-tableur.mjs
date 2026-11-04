@@ -10,7 +10,7 @@ import { Evaluateur, ErreurFormule, convertirFormule, decalerFormule, formaterNo
 import { codeFormat, lireCode } from '../tableur/js/ui-dialogues.js';
 import { executerMacro, analyserVBA, InterpreteurVBA, creerUDF } from '../tableur/js/vba.js';
 import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from '../tableur/js/xlsxio.js';
-import { preparerDonnees, rendreGraphiqueSVG, normaliser, CATEGORIES } from '../tableur/js/graphiques.js';
+import { preparerDonnees, rendreGraphiqueSVG, normaliser, CATEGORIES, calculerTendance, sparklineSVG } from '../tableur/js/graphiques.js';
 import { decompresserOVBA } from '../tableur/js/vbaextract.js';
 import { listerProcedures, insererMacro, supprimerProcedure, ajouterAuProjet, decouperProjet } from '../tableur/js/projetvba.js';
 import { aesEcbDechiffrer, aesCbcDechiffrer, sha1, sha256, sha384, sha512, estChiffre, dechiffrerOffice, ErreurMotDePasse } from '../tableur/js/chiffrement.js';
@@ -1178,6 +1178,27 @@ test('mise en page : découpage en pages, titres, en-têtes, fichier xlsx', () =
   for (let i = 0; i < 1000; i++) { const it = Buffer.alloc(4); it.writeUInt32LE(i); h = crypto.createHash('sha512').update(Buffer.concat([h, it])).digest(); }
   const sha = { algo: 'SHA-512', hash: h.toString('base64'), sel: sel.toString('base64'), tours: 1000 };
   egal([verifierShaMotDePasse(mdp, sha, { 'SHA-512': sha512 }), verifierShaMotDePasse('autre', sha, { 'SHA-512': sha512 })], [true, false]);
+});
+
+test('graphiques : tendances, axe secondaire, sparklines (et fichier xlsx)', () => {
+  const xs = [1, 2, 3, 4, 5], ys = [2.1, 3.9, 6.2, 7.8, 10.1];
+  const lin = calculerTendance(xs, ys, { type: 'lineaire' });
+  egal(lin.equation, 'y = 1,99x + 0,05'); proche(lin.r2, 0.99729, 1e-4);
+  proche(calculerTendance(xs, ys, { type: 'exponentielle' }).f(0), 1.6628, 1e-3);
+  egal(calculerTendance(xs, ys, { type: 'polynomiale', ordre: 2 }).equation, 'y = 0,02143x² + 1,861x + 0,2');
+  egal(calculerTendance([1, 2, 3, 4], [2, 4, 6, 8], { type: 'moyenne', periode: 2 }).points, [[2, 3], [3, 5], [4, 7]]);
+  const svg = rendreGraphiqueSVG({ type: 'combine', tendances: { 0: { type: 'lineaire', equation: true, r2: true } }, secondaire: { 1: true } }, [['M', 'V', 'T'], ['a', 10, 0.1], ['b', 12, 0.15], ['c', 15, 0.12]], 500, 300);
+  egal([/R² = /.test(svg), /stroke-dasharray="5 4"/.test(svg), /Linéaire \(V\)/.test(svg)], [true, true, true]);
+  egal((sparklineSVG([1, -2, 3], 80, 20, { type: 'colonne', negatifs: true }).match(/<rect/g) || []).length, 3);
+  const c = Classeur.nouveau();
+  [['Mois', 'Ventes', 'Taux'], ['jan', '10', '0,1'], ['fév', '12', '0,15'], ['mar', '15', '0,12']].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, v)));
+  c.feuilles[0].graphiques.push({ id: 'g1', type: 'colonnes', plage: 'A1:C4', x: 200, y: 0, w: 400, h: 260, tendances: { 0: { type: 'polynomiale', ordre: 3, r2: true } }, secondaire: { 1: true } });
+  c.feuilles[0].sparklines = [{ type: 'ligne', groupe: 'a', r: 1, c: 4, donnees: 'B2:C2', haut: true }];
+  c.insererColonnes(0, 3, 1);
+  egal([c.feuilles[0].sparklines[0].c, c.feuilles[0].sparklines[0].donnees], [5, 'B2:C2']);
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c), 'x.xlsx'), g = e.feuilles[0].graphiques[0];
+  egal([g.type, g.tendances[0].type, g.tendances[0].ordre, g.tendances[0].r2, g.secondaire], ['colonnes', 'polynomiale', 3, true, { 1: true }]);
+  egal(e.feuilles[0].sparklines.map((x) => [x.type, x.r, x.c, x.donnees, x.haut]), [['ligne', 1, 5, 'B2:C2', true]]);
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);

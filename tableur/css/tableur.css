@@ -527,3 +527,8 @@ body.pinceau #grille-conteneur { cursor: copy; }
 .indicateur { border: 1px solid var(--bord); background: var(--papier); font-size: 11px; padding: 0 6px; margin-left: 6px; min-width: 0; flex-shrink: 0; }
 #ind-calcul { color: #b45309; border-color: #f59e0b; }
 #grille-conteneur { touch-action: pan-x pan-y; }
+.graph-serie-opts { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin: -2px 0 8px 34px; font-size: 11px; }
+.graph-serie-opts label { gap: 4px; }
+.graph-serie-opts input[type=number] { width: 48px; }
+.sparkline { position: absolute; pointer-events: none; z-index: 1; display: flex; align-items: center; justify-content: center; }
+.sparkline svg { display: block; }

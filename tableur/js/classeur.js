@@ -604,6 +604,18 @@ export class Classeur {
     }
     feuille.tableaux = (feuille.tableaux || []).filter((t) => t.r2 > t.r1 && t.c2 >= t.c1);
     for (const t of feuille.tableaux) if (!t.colonnes) t.colonnes = this.nomsColonnes(fi, t);
+    // Graphiques sparkline : leur cellule et leurs données suivent
+    if (feuille.sparklines) {
+      feuille.sparklines = feuille.sparklines.filter((sp) => {
+        const k = axe === 'r' ? 'r' : 'c';
+        if (n < 0 && sp[k] >= idx && sp[k] < idx - n) return false;
+        if (sp[k] >= idx) sp[k] += n;
+        const d = ajusterReferences('=' + sp.donnees, !String(sp.donnees).includes('!'), feuille.nom, this, axe, idx, n).slice(1);
+        if (d.includes('#REF!')) return false;
+        sp.donnees = d;
+        return true;
+      });
+    }
     // Tableaux croisés posés sur la feuille : leur coin et leur zone suivent
     for (const t of feuille.tcd || []) {
       const k = axe === 'r' ? 'r' : 'c';

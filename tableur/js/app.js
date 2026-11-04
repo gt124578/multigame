@@ -15,7 +15,7 @@ import { installerTCD } from './ui-tcd.js';
 import { installerDialogues } from './ui-dialogues.js';
 import { installerAnalyse } from './ui-analyse.js';
 import { installerImpression } from './ui-impression.js';
-import { rendreGraphiqueSVG, normaliser as normaliserGraphique } from './graphiques.js';
+import { rendreGraphiqueSVG, normaliser as normaliserGraphique, sparklineSVG } from './graphiques.js';
 import { antecedents, dependants, actualiserTablesDonnees } from './analyse.js';
 import { AIDE } from './aide-fonctions.js';
 import { matriceGraphique } from './graphiques-xlsx.js';
@@ -226,6 +226,12 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
       const bulle = cel.note || (cel.lien ? cel.lien + ' — Ctrl+clic pour suivre le lien' : '');
       html += `<div class="${cls}" style="${style}"${bulle ? ` title="${echapper(bulle).replace(/"/g, '&quot;')}"` : ''}>${afficherFormules && cel.f != null ? echapper(classeur.saisie(F, r, c)) : echapper(txt)}</div>`;
     }
+  }
+  // Graphiques sparkline : dessinés dans leur cellule
+  for (const sp of f.sparklines || []) {
+    if (sp.r < r1 || sp.r > r2 || sp.c < c1 || sp.c > c2 || !hauteurLig(sp.r) || !largeurCol(sp.c)) continue;
+    const vals = matriceGraphique(classeur, f, sp.donnees).flat();
+    html += `<div class="sparkline" style="left:${xCols[sp.c] + dx}px;top:${yLigs[sp.r] + dy}px;width:${largeurCol(sp.c)}px;height:${hauteurLig(sp.r)}px">${sparklineSVG(vals, largeurCol(sp.c) - 1, hauteurLig(sp.r) - 1, sp)}</div>`;
   }
   return html;
 }
@@ -1981,7 +1987,11 @@ function rendreAide() {
 <tr><td>Ctrl+F / Ctrl+H · Maj+F4</td><td>Rechercher / remplacer · suivant</td></tr>
 <tr><td>Ctrl+G ou F5</td><td>Atteindre une cellule ou un nom</td></tr>
 <tr><td>Ctrl+K · Maj+F2</td><td>Lien hypertexte · note</td></tr>
-<tr><td>Ctrl+L (ou Ctrl+T)</td><td>Mettre sous forme de tableau</td></tr>
+<tr><td>Ctrl+L (ou Ctrl+T) · Ctrl+Maj+T</td><td>Mettre sous forme de tableau · ligne de total du tableau</td></tr>
+<tr><td>Ctrl+E</td><td>Remplissage instantané (d'après un ou deux exemples)</td></tr>
+<tr><td>Ctrl+[ · Ctrl+]</td><td>Sélectionner les antécédents · les dépendants de la formule</td></tr>
+<tr><td>Ctrl+Alt+F5</td><td>Actualiser tout (tableaux croisés, tables de données)</td></tr>
+<tr><td>Ctrl+molette · Ctrl+Alt+= / -</td><td>Zoom (au doigt : pincer)</td></tr>
 <tr><td>Ctrl+Maj+L</td><td>Filtre automatique</td></tr>
 <tr><td>Alt+↓</td><td>Ouvrir la liste déroulante d'une cellule</td></tr>
 <tr><td>Alt+F1 ou F11</td><td>Graphique de la sélection</td></tr>
@@ -1989,7 +1999,7 @@ function rendreAide() {
 <tr><td>Ctrl+PgSuiv / PgPréc · Maj+F11</td><td>Feuille suivante / précédente (aussi avec Alt) · nouvelle feuille</td></tr>
 <tr><td>Maj+F10</td><td>Menu de la cellule</td></tr>
 <tr><td>F9 · Ctrl+Alt+F9</td><td>Recalculer · tout recalculer</td></tr>
-<tr><td>Ctrl+S · F12 · Ctrl+O · Ctrl+P</td><td>Enregistrer · enregistrer · ouvrir · imprimer</td></tr>
+<tr><td>Ctrl+S · F12 · Ctrl+O · Ctrl+P</td><td>Enregistrer · enregistrer · ouvrir · imprimer (avec aperçu et mise en page)</td></tr>
 <tr><td>Alt+F11 · Alt+F8</td><td>Éditeur VBA · liste des macros</td></tr>
 </table>
 <h3>Souris et doigt</h3>
@@ -2021,6 +2031,14 @@ function rendreAide() {
 <li><b>📊 Croisé</b> : tableau croisé dynamique. Placez le curseur dans vos données (une ligne d'en-têtes), créez-le (nouvelle feuille ou cellule choisie), puis rangez chaque champ en Lignes, Colonnes, Valeurs (somme, nombre, moyenne, max, min, écart type… ou % du total) ou Filtres. Les dates se regroupent par années, trimestres ou mois, les nombres par tranches (âges de 10 en 10…). ↻ Actualiser après avoir changé les données.</li>
 <li><b>Validation des données</b> (menu ⇅ Trier ou ⋯) : liste déroulante (<code>Oui;Non</code> ou une plage <code>=$H$2:$H$9</code>), nombre entier ou décimal entre deux bornes, date, heure, longueur du texte, formule ; message de saisie et alerte (arrêt, avertissement, information). <code>Alt+↓</code> ouvre la liste. ⭕ entoure les cellules non valides.</li>
 <li><b>Saisie des formules</b> : après <code>=</code>, les fonctions qui commencent par ce que vous tapez sont proposées (<code>Tab</code> ou un appui pour choisir, <code>↑ ↓</code> pour parcourir) ; pendant les arguments, une bulle rappelle lesquels sont attendus.</li>
+<li><b>Tableaux</b> (<code>Ctrl+L</code>) : un style, un filtre, et des formules qui parlent : <code>=SOMME(Tableau1[Prime])</code>, <code>=[@Prix]*[@Qté]</code> (tapez <code>[</code> pour voir les colonnes). Le tableau grandit quand on écrit dessous ou à côté ; une formule dans une colonne se recopie sur toute la colonne. Clic droit › Tableau : total, style, nom, taille, convertir en plage.</li>
+<li><b>Formules qui débordent</b> : <code>=TRIER(A2:B9;2;-1)</code>, <code>=UNIQUE(…)</code>, <code>=FILTRE(…)</code>, <code>=SEQUENCE(10)</code> remplissent les cellules voisines (cadre pointillé) ; <code>A1#</code> désigne tout le résultat ; <code>#SPILL!</code> si la place est prise.</li>
+<li><b>Analyse</b> (menu ⋯) : <b>Valeur cible</b> ; <b>Solveur</b> (maximiser, minimiser ou atteindre une valeur en changeant des cellules, avec contraintes ≤ ≥ = entier binaire ; exact pour les modèles linéaires) ; <b>Table de données</b> à une ou deux entrées, recalculée quand le modèle change.</li>
+<li><b>Formules</b> (menu ⋯) : flèches des antécédents et des dépendants, évaluer la formule pas à pas, vérification des erreurs (d'où vient un #DIV/0!, formule différente de ses voisines, nombre stocké en texte), calcul manuel (F9).</li>
+<li><b>Imprimer</b> (<code>Ctrl+P</code>) : aperçu des pages à droite, réglages à gauche (orientation, papier, toutes les colonnes sur une page, marges, en-tête et pied « Page 1 sur 3 », zone d'impression, lignes à répéter, quadrillage). Sauts de page : menu ⋯ › Mise en page.</li>
+<li><b>Protéger la feuille</b> (⋯ › Révision) : avec ou sans mot de passe ; déverrouillez d'abord les cellules à laisser remplir (Format de cellule › Protection). 🔒 dans la barre d'état.</li>
+<li><b>Graphiques</b> : dans ⚙, chaque série peut recevoir une courbe de tendance (linéaire, exponentielle, polynomiale…) avec équation et R², ou passer sur l'axe secondaire. <b>Sparklines</b> : ⋯ › Insérer › Sparklines.</li>
+<li><b>Affichage</b> : zoom dans la barre d'état (ou Ctrl+molette, pincement), thème sombre dans ⋯ › Affichage.</li>
 <li><b>❄ Figer</b> : figer les lignes au-dessus et les colonnes à gauche de la cellule active, la première ligne ou la première colonne ; masquer et afficher des lignes ou des colonnes (aussi au clic droit).</li>
 <li><b>⋯</b> : <b>Valeur cible</b> (la valeur d'une cellule qui donne le résultat voulu dans une formule : taux, prime…), impression / PDF (<code>Ctrl+P</code>), recalcul.</li>
 </ul>
@@ -2348,6 +2366,9 @@ function menuCellules(s) {
       ['Supprimer les doublons…', () => uiB.doublons()], ['Convertir en colonnes…', () => uiB.colonnes()], ['Validation des données…', () => uiD.validation.ouvrir()], ['Mettre sous forme de tableau', () => mettreEnTableau(), 'Ctrl+L']]],
     ['Mise en forme conditionnelle…', () => uiD.ouvrirMfc()],
     ...menuTableau(),
+    ...((feuille().sparklines || []).some((x) => x.r === curseur.r && x.c === curseur.c) ? [['Sparkline', [['Modifier le groupe…', () => uiB.sparklines(null, (feuille().sparklines.find((x) => x.r === curseur.r && x.c === curseur.c) || {}).groupe)],
+      ['Supprimer', () => { memoriser('formatCellules'); feuille().sparklines = feuille().sparklines.filter((x) => !(x.r === curseur.r && x.c === curseur.c)); classeur.version++; sauvegarderLocal(); rendre(); }],
+      ['Supprimer le groupe', () => { const gr = feuille().sparklines.find((x) => x.r === curseur.r && x.c === curseur.c).groupe; memoriser('formatCellules'); feuille().sparklines = feuille().sparklines.filter((x) => x.groupe !== gr); classeur.version++; sauvegarderLocal(); rendre(); }]]]] : []),
     ...(uiT.sousCurseur() ? [['Tableau croisé', [['Modifier les champs…', () => uiT.ouvrir()], ['Actualiser', () => { uiT.ouvrir(); uiT.toutActualiser(); }]]]] : [['Tableau croisé dynamique…', () => uiT.ouvrir()]]),
     ['Masquer / afficher', [
       ...(s.r2 >= 1048575 ? [] : [['Masquer les lignes', () => uiD.masquer('r', false), 'Ctrl+9'], ['Afficher les lignes masquées', () => uiD.masquer('r', true), 'Ctrl+Maj+9']]),
@@ -2784,7 +2805,8 @@ conteneur.addEventListener('wheel', (e) => {
 function menuPlus() {
   return [
     ['Format de cellule…', () => uiB.formatCellule(), 'Ctrl+1'], ['Collage spécial…', () => uiB.collageSpecial(), 'Ctrl+Alt+V'], ['Atteindre…', () => uiB.atteindre(), 'Ctrl+G'], null,
-    ['Insérer', [['Tableau…', () => mettreEnTableau(), 'Ctrl+L'], ['Graphique', () => uiG.insererDirect(), 'Alt+F1'], ['Image…', () => $('fichier-image').click()], ['Lien hypertexte…', () => uiB.lien(), 'Ctrl+K'], ['Note…', () => uiB.note(), 'Maj+F2']]],
+    ['Insérer', [['Tableau…', () => mettreEnTableau(), 'Ctrl+L'], ['Graphique', () => uiG.insererDirect(), 'Alt+F1'],
+      ['Sparklines', [['Courbe…', () => uiB.sparklines('ligne')], ['Histogramme…', () => uiB.sparklines('colonne')], ['Gain / perte…', () => uiB.sparklines('gainperte')]]], ['Image…', () => $('fichier-image').click()], ['Lien hypertexte…', () => uiB.lien(), 'Ctrl+K'], ['Note…', () => uiB.note(), 'Maj+F2']]],
     ['Données', [['Remplissage instantané', () => uiA.remplissage(), 'Ctrl+E'], ['Supprimer les doublons…', () => uiB.doublons()], ['Convertir en colonnes…', () => uiB.colonnes()], ['Validation des données…', () => uiD.validation.ouvrir()], null,
       ['Actualiser tout', () => { uiT.toutActualiser(); actualiserTablesDonnees(classeur); rendre(); sauvegarderLocal(); }, 'Ctrl+Alt+F5']]],
     ['Analyse', [['Valeur cible…', () => uiD.ouvrirCible()], ['Solveur…', () => uiA.ouvrirSolveur()], ['Table de données…', () => uiA.ouvrirTableDonnees()]]],
