@@ -84,7 +84,7 @@ if (vue === 'seul') {
   poser('maisonThe', 1, 14); poser('kiosque', 8, 14); poser('maisonExt', 14, 14); poser('gare', 23, 14); poser('puits', 32, 15); poser('etal', 32, 18);
   cx = +(Q.get('cx') || 25); cz = +(Q.get('cz') || 13);
 } else if (vue === 'ligue') {
-  const SW = 40, SH = 44, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
+  const SW = 40, SH = 54, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
   sol(kinds, SW, SH, MG, 21); ombres(0, 0, SW, SH);
   poser('ligue', 5, 2);
   cx = +(Q.get('cx') || 20); cz = +(Q.get('cz') || 20);

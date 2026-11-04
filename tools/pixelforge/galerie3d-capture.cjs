@@ -34,8 +34,8 @@ const SPRITES = [
   };
   for (const [name, b3, o] of SPRITES) {
     const tall = { pagode: '&w=22&h=44&dz=-9', pagode_cendree: '&w=22&h=44&dz=-9', tour: '&h=20&dz=-4', tour_verre: '&w=16&h=60&dz=-16', tour_deco: '&w=14&h=85&dz=-24',
-      ligue: '&w=36&h=64&dz=-4', casino: '&w=20&h=22&dz=-3', bourse: '&w=18&h=24&dz=-4', phare: '&h=20&dz=-4', maison_haute: '&h=20&dz=-3', kiosque: '&h=16&dz=-2' }[name]
-      || (/mairie|labo|arene|pavillon|chapelle|moulin|chalet|grange|gare|auberge/.test(name) ? '&w=18&h=22&dz=-3' : '');
+      ligue: '&w=36&h=76&dz=-8', casino: '&w=20&h=22&dz=-3', bourse: '&w=18&h=24&dz=-4', phare: '&h=20&dz=-4', maison_haute: '&h=20&dz=-3', kiosque: '&h=16&dz=-2' }[name]
+      || (/arene/.test(name) ? '&w=18&h=27&dz=-4.5' : /mairie|labo|pavillon|chapelle|moulin|chalet|grange|gare|auberge/.test(name) ? '&w=18&h=22&dz=-3' : '');
     await shot(`vue=seul&b=${b3}&o=${encodeURIComponent(JSON.stringify(o))}${tall}`, `${OUT}/sprites/${name}.png`, true);
     console.log('sprite', name);
   }
@@ -49,8 +49,8 @@ const SPRITES = [
   await shot('vue=monument', `${OUT}/pagode_jeu.png`);
   await shot('vue=monument&cx=22&cz=20&w=44&h=44', `${OUT}/pagode_vue_large.png`);
   await shot('vue=ligue&cx=20&cz=15', `${OUT}/ligue_jeu_portail.png`);                   // devant la porte : le bâtiment dépasse l'écran
-  await shot('vue=ligue&cx=20&cz=33', `${OUT}/ligue_jeu_colonnade.png`);
-  await shot('vue=ligue&cx=20&cz=22&w=40&h=60', `${OUT}/ligue_vue_large.png`);
+  await shot('vue=ligue&cx=20&cz=36', `${OUT}/ligue_jeu_colonnade.png`);
+  await shot('vue=ligue&cx=20&cz=26&w=40&h=72', `${OUT}/ligue_vue_large.png`);
   console.log(logs.slice(0, 5).join('\n'));
   await b.close();
 })();

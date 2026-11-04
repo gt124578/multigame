@@ -973,7 +973,7 @@ export function atelier(D) {
     for (const [dx, dz] of [[0, 0.76], [0.81, 0]]) G.add(at(boite(dx ? 0.03 : 0.5, 0.8, dx ? 0.5 : 0.03, COL('#1a1614')), cx + dx, 4.0, zc + dz));
     G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.35, 14, 0, Math.PI), COL('#1a1614')), cx, 4.4, zc + 0.76));
     G.add(toit4(G, cx, zc, 4.9, 0.95, 0.9, 2.6, M({ map: TX.ardoise(toit) }), 0));
-    G.add(at(boite(0.06, 0.7, 0.06, OR), cx, 7.85, zc)); G.add(at(boite(0.36, 0.06, 0.06, OR), cx, 7.95, zc));
+    G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), OR), cx, 7.6, zc));
     const ro = new THREE.Mesh(new THREE.CircleGeometry(0.34, 16), M({ map: TX.vitrail('#c83a5a') })); G.add(at(ro, cx, 2.6, zc + 0.76));
     G.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.06, 6, 16), PM), cx, 2.6, zc + 0.78));
     G.add(at(boite(0.8, 1.2, 0.04, M({ map: TX.bois('#5a3020') })), cx, 0.6, zc + 0.76));
@@ -1167,17 +1167,18 @@ export function atelier(D) {
 
   /* -------------------------------------------------------------- arènes par type ----------------------------------- */
   const ARENES = {
-    feu: { acc: '#e05a20', pierre: '#a08070', toit: '#5a2a22', roof: 'toit4' },
-    eau: { acc: '#2a86d8', pierre: '#d0dce4', toit: '#2a6aa8', roof: 'dome' },
-    plante: { acc: '#4aa040', pierre: '#cfc6a4', toit: '#3a7a3a', roof: 'toit4' },
-    electrik: { acc: '#f0c020', pierre: '#b8bcc4', toit: '#50545e', roof: 'voute' },
-    psy: { acc: '#c050c0', pierre: '#ddd4e6', toit: '#6a3a8a', roof: 'dome' },
-    dragon: { acc: '#6a4ad0', pierre: '#76728a', toit: '#3a2a5a', roof: 'toit4' },
-    glace: { acc: '#60c0f0', pierre: '#e4f0f6', toit: '#9ad0ec', roof: 'dome' },
-    roche: { acc: '#b08a50', pierre: '#a89a84', toit: '#6a5a4a', roof: 'toit4' },
-    combat: { acc: '#c83028', pierre: '#c8bca8', toit: '#4a3a32', roof: 'voute' },
-    spectre: { acc: '#8a50c8', pierre: '#625e70', toit: '#2a2438', roof: 'toit4' },
+    feu: { acc: '#e05a20', pierre: '#c8b0a0', toit: '#b8402a' },
+    eau: { acc: '#2a86d8', pierre: '#dce4ea', toit: '#2a6aa8' },
+    plante: { acc: '#4aa040', pierre: '#d8d0b0', toit: '#3a7a3a' },
+    electrik: { acc: '#f0c020', pierre: '#c8ccd2', toit: '#c89a20' },
+    psy: { acc: '#c050c0', pierre: '#e4dcea', toit: '#7a3a9a' },
+    dragon: { acc: '#6a4ad0', pierre: '#9a96a8', toit: '#3a2a6a' },
+    glace: { acc: '#60c0f0', pierre: '#eaf2f6', toit: '#8ac8e8' },
+    roche: { acc: '#b08a50', pierre: '#c0b29a', toit: '#7a6a52' },
+    combat: { acc: '#c83028', pierre: '#d4c8b4', toit: '#8a2a22' },
+    spectre: { acc: '#8a50c8', pierre: '#86829a', toit: '#3a2c4a' },
   };
+
   /** emblème du type dessiné sur un médaillon */
   const emblemeTex = (type, acc) => tex('em' + type, 2 * D, 2 * D, (g, px, w, h) => {
     g.fillStyle = '#f4f0e6'; g.beginPath(); g.arc(w / 2, h / 2, w / 2, 0, 7); g.fill();
@@ -1257,79 +1258,86 @@ export function atelier(D) {
     if (type === 'plante') for (let i = 0; i < 5; i++) G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 4), COL(['#f05a7a', '#f8d850', '#fafaf2'][i % 3])), x - 0.3 + i * 0.15, 0.85, z + 0.3));
     sommetType(G, type, x, 0.77, z, acc);
   }
-  /** arène (11 × 9) : un bâtiment plus haut et plus majestueux que la mairie, peu de fenêtres. Socle, grande salle de
-   *  pierre, pilastres, frise de la couleur du type, grande rosace en vitrail, deux pylônes coiffés d'un ornement du
-   *  type, avancée couverte à six colonnes sous un fronton à l'emblème, perron bordé d'ornements ; toit selon le type
-   *  (croupes, coupole, voûte). Porte de 2 cases. */
+  /** arène (12 × 11) : un grand temple de pierre entre le pavillon et le temple à colonnade. Haut podium à deux gradins
+   *  bordé d'une balustrade, péristyle de colonnes de marbre à chapiteaux dorés tout autour d'une salle de pierre,
+   *  entablement à frise de la couleur du type, premier toit en jupe à coins à peine relevés, claire-voie à vitraux,
+   *  grand toit à demi-croupes de tuiles de la couleur du type, faîtage orné et ornement du type au sommet, bannières
+   *  entre les colonnes de façade, lanternes sous l'avant-toit, perron monumental bordé d'ornements ; porte de 2 cases */
   B.arene = ({ type = 'feu', ...autres } = {}) => {
     const T = { ...(ARENES[type] || ARENES.feu), ...autres }, acc = T.acc;
-    const G = new THREE.Group(), cx = 5.5, H = 5.2, y0 = 0.6, PM = M({ map: TX.pierre(T.pierre) }), PB = M({ map: TX.pierre(mix(T.pierre, 0.35)) }), A = COL(acc);
-    G.add(at(boite(10.6, y0, 6.6, M({ map: TX.pierre(mix(T.pierre, -0.15)) })), cx, y0 / 2, 3.3));
-    G.add(at(boite(8.4, H, 6, PM), cx, y0 + H / 2, 3));
-    G.add(at(boite(8.5, 0.4, 6.1, A), cx, y0 + H - 0.35, 3));
-    for (let i = 0; i < 14; i++) G.add(at(boite(0.24, 0.24, 0.04, COL('#f4f0e6')), 1.6 + i * 0.6, y0 + H - 0.35, 6.07));
-    G.add(at(boite(8.9, 0.24, 6.5, PB), cx, y0 + H + 0.05, 3));
-    // toit
-    const yt = y0 + H + 0.17;
-    if (T.roof === 'dome') {
-      G.add(at(boite(8.4, 0.35, 6, PB), cx, yt + 0.17, 3));
-      G.add(at(cyl(2.4, 2.5, 0.8, PM, 24), cx, yt + 0.75, 3));
-      const dm = new THREE.Mesh(new THREE.SphereGeometry(2.45, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), M({ map: TX.canal(T.toit) })); dm.castShadow = true; G.add(at(dm, cx, yt + 1.15, 3));
-      for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, nv = new THREE.Mesh(new THREE.TorusGeometry(2.47, 0.05, 4, 12, Math.PI / 2), A); nv.rotation.y = -a; G.add(at(nv, cx, yt + 1.15, 3)); }
-      sommetType(G, type, cx, yt + 3.5, 3, acc);
-    } else if (T.roof === 'voute') {
-      voute(G, 1.3, 9.7, 0, 6, yt, 2.2, M({ map: TX.tole(T.toit) }), A, 0.25);
-      for (let k = 0; k < 6; k++) { const nv = new THREE.Mesh(new THREE.TorusGeometry(3.25, 0.07, 4, 16, Math.PI), A); nv.scale.set(1, 2.2 / 3.25, 1); nv.rotation.y = Math.PI / 2; G.add(at(nv, 1.6 + k * 1.56, yt, 3)); }
-      G.add(at(boite(5.5, 0.12, 1.0, M({ map: TX.verre() })), cx, yt + 2.22, 3));
-    } else {
-      G.add(toit4(G, cx, 3, yt, 4.55, 3.4, 2.4, M({ map: TX.ardoise(T.toit) }), 0.35));
-      G.add(at(boite(3.4, 0.2, 0.3, A), cx, yt + 2.5, 3));
-      if (type === 'feu') for (const dx of [-1.5, 0, 1.5]) flamme(G, cx + dx, yt + 2.58, 3, 1.3);
-      if (type === 'dragon') for (let i = 0; i < 7; i++) { const c = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.5, 5), COL('#e8e0d0')); c.rotation.x = -0.3; G.add(at(c, cx - 1.5 + i * 0.5, yt + 2.8, 3)); }
-      if (type === 'plante') for (let i = 0; i < 8; i++) G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.3, 6, 4), COL(i % 2 ? '#4a9a40' : '#3a8a38')), 2 + i * 1.0, yt + 0.5 + (i % 3) * 0.3, 5.5 - (i % 3) * 0.6));
-      if (type === 'spectre') for (const dx of [-1.8, 1.8]) { G.add(at(boite(0.4, 1.4, 0.4, COL('#2a2438')), cx + dx, yt + 2.9, 3)); G.add(at(new THREE.Mesh(new THREE.ConeGeometry(0.32, 1.0, 4), COL('#2a2438')), cx + dx, yt + 4.1, 3)); }
-      if (type === 'roche') for (let i = 0; i < 5; i++) { const p = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35), M({ map: TX.pierre('#8a7e6a') })); G.add(at(p, 2.0 + i * 1.7, yt + 0.4, 5.7)); }
+    const G = new THREE.Group(), cx = 6, cz = 4.6, A = COL(acc);
+    const PM = M({ map: TX.pierre(T.pierre) }), PB = M({ map: TX.pierre(mix(T.pierre, 0.35)) }), PS = M({ map: TX.pierre(mix(T.pierre, -0.12)) }), MA = M({ map: TX.marbre() });
+    // podium à deux gradins (z 0 → 9,4), perron au sud (z 9,4 → 10,8)
+    G.add(at(boite(12, 0.55, 9.4, PS), cx, 0.27, cz));
+    G.add(at(boite(11.4, 0.5, 8.8, PM), cx, 0.8, cz));
+    G.add(at(boite(11.5, 0.08, 8.9, PB), cx, 1.06, cz));
+    const y0 = 1.05;
+    for (let k = 0; k < 5; k++) G.add(at(boite(4.4 + k * 0.25, 0.21, 0.32, PB), cx, 0.105 + (4 - k) * 0.21, 9.2 + k * 0.32 - 0.16));
+    for (const s of [-1, 1]) {   // limons du perron
+      G.add(at(boite(0.35, 0.9, 1.7, PM), cx + s * 2.45, 0.45, 9.85));
     }
-    if (type === 'glace') for (let i = 0; i < 20; i++) { const c = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.25 + hash(i, 3) * 0.3, 5), M({ color: new THREE.Color('#d8f2ff'), transparent: true, opacity: 0.85 })); c.rotation.x = Math.PI; G.add(at(c, 1.3 + i * 0.44, y0 + H - 0.3, 6.28)); }
-    if (type === 'electrik') for (const x of [2.5, 8.5]) { G.add(at(cyl(0.03, 0.04, 1.4, COL('#c8ccd4'), 6), x, yt + 2.6, 3)); G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), LUM('#fff080', '#c0a000')), x, yt + 3.35, 3)); }
-    // pylônes
-    for (const xx of [0.9, 10.1]) {
-      const hp = H + 1.6;
-      G.add(at(boite(1.8, hp, 1.8, PM), xx, y0 + hp / 2, 5.2));
-      for (const yy of [y0 + 1.2, y0 + hp - 0.6]) G.add(at(boite(1.95, 0.2, 1.95, PB), xx, yy, 5.2));
-      G.add(at(boite(1.0, 0.04, 0.02, A), xx, y0 + hp - 1.2, 6.11));
-      fenArc(G, xx, y0 + hp - 2.4, 6.1, 0.4, 0.9, PB, M({ map: TX.vitrail(acc) }));
-      const ban = boite(0.8, 2.2, 0.03, A); G.add(at(ban, xx, y0 + 2.2, 6.12));
-      G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.28, 16), M({ map: emblemeTex(type, acc) })), xx, y0 + 2.6, 6.15));
-      G.add(at(boite(2.1, 0.25, 2.1, PB), xx, y0 + hp + 0.12, 5.2));
-      sommetType(G, type, xx, y0 + hp + 0.25, 5.2, acc);
+    // balustrade du podium (ouverte devant le perron)
+    const bx0 = cx - 5.6, bx1 = cx + 5.6, bz0 = cz - 4.3, bz1 = cz + 4.3;
+    balustrade(G, bx0, bz1, cx - 2.3, bz1, y0, PB, 0.4, 0.26); balustrade(G, cx + 2.3, bz1, bx1, bz1, y0, PB, 0.4, 0.26);
+    balustrade(G, bx0, bz0, bx0, bz1, y0, PB, 0.4, 0.26); balustrade(G, bx1, bz0, bx1, bz1, y0, PB, 0.4, 0.26);
+    // salle de pierre
+    const hc = 4.2, sx = 4.2, sz = 2.95;
+    G.add(at(boite(2 * sx, hc, 2 * sz, PM), cx, y0 + hc / 2, cz - 0.2));
+    for (const yy of [y0 + 0.15, y0 + hc - 0.3]) G.add(at(boite(2 * sx + 0.08, 0.14, 2 * sz + 0.08, PB), cx, yy, cz - 0.2));
+    const zf = cz - 0.2 + sz;
+    // grande porte à double battant sous une imposte en vitrail, encadrement doré
+    G.add(at(boite(1.8, 2.3, 0.05, M({ map: TX.bois('#5a3020') })), cx, y0 + 1.15, zf + 0.01));
+    G.add(at(boite(0.04, 2.3, 0.06, COL('#2a1a10')), cx, y0 + 1.15, zf + 0.04));
+    for (const s of [-1, 1]) for (let k = 0; k < 3; k++) G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 4), OR), cx + s * 0.45, y0 + 0.5 + k * 0.65, zf + 0.05));
+    G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.9, 18, 0, Math.PI), M({ map: TX.vitrail(acc) })), cx, y0 + 2.3, zf + 0.01));
+    G.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.07, 6, 18, Math.PI), OR), cx, y0 + 2.3, zf + 0.05));
+    for (const s of [-1, 1]) G.add(at(boite(0.12, 2.3, 0.1, OR), cx + s * 0.96, y0 + 1.15, zf + 0.05));
+    for (const s of [-1, 1]) for (const dx of [1.9, 3.0]) fenArc(G, cx + s * dx, y0 + 1.9, zf, 0.5, 2.0, PB, M({ map: TX.vitrail(acc) }));
+    // péristyle : colonnes tout autour (8 en façade), chapiteaux et bagues dorés
+    const px = 5.0, pz = 3.85, pzc = cz - 0.1, hcol = 4.2;
+    const cols = [];
+    for (let i = 0; i < 8; i++) { const x = cx - px + i * (2 * px / 7); cols.push([x, pzc + pz], [x, pzc - pz]); }
+    for (let i = 1; i < 5; i++) { const z = pzc - pz + i * (2 * pz / 5); cols.push([cx - px, z], [cx + px, z]); }
+    for (const [x, z] of cols) { colonne(G, x, z, y0, hcol, 0.24, MA, PB); G.add(at(cyl(0.29, 0.29, 0.07, OR, 12), x, y0 + hcol - 0.32, z)); }
+    // entablement : architrave, frise de la couleur du type à médaillons, corniche
+    const ye = y0 + hcol;
+    G.add(at(boite(2 * px + 0.75, 0.32, 2 * pz + 0.75, PB), cx, ye + 0.16, pzc));
+    G.add(at(boite(2 * px + 0.78, 0.3, 2 * pz + 0.78, A), cx, ye + 0.47, pzc));
+    for (let i = 0; i < 13; i++) G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.09, 10), OR), cx - px + i * (2 * px / 12), ye + 0.47, pzc + pz + 0.4));
+    G.add(at(boite(2 * px + 1.0, 0.16, 2 * pz + 1.0, PB), cx, ye + 0.7, pzc));
+    // plaque à l'emblème au-dessus de l'entrée
+    G.add(at(boite(1.5, 0.75, 0.08, PB), cx, ye + 0.45, pzc + pz + 0.44));
+    G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.3, 20), M({ map: emblemeTex(type, acc) })), cx, ye + 0.45, pzc + pz + 0.49));
+    G.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.05, 6, 20), OR), cx, ye + 0.45, pzc + pz + 0.5));
+    // premier toit en jupe : coins à peine relevés (élégance du pavillon, sans exagération)
+    const yr = ye + 0.78, TT = { col: T.toit, rive: mix(T.pierre, -0.45), bord: '#e8c060', uvk: 0.4, flare: 0.04 };
+    toitChinois(G, cx, pzc, yr, px + 0.55, pz + 0.55, 0.6, { ...TT, xt: sx + 0.05, zt: sz + 0.25, lift: 0.25 });
+    // claire-voie : mur bas percé de vitraux ronds, poteaux de pierre
+    const yv = yr + 0.55, hv = 1.8;
+    G.add(at(boite(2 * sx + 0.1, hv, 2 * sz + 0.5, PM), cx, yv + hv / 2, pzc));
+    for (let i = 0; i < 5; i++) { const x = cx - 2.8 + i * 1.4; fenArc(G, x, yv + hv / 2 - 0.1, pzc + sz + 0.25, 0.5, 0.75, PB, M({ map: TX.vitrail(acc) })); }
+    for (let i = 0; i < 6; i++) G.add(at(boite(0.18, hv, 0.1, PB), cx - 3.5 + i * 1.4, yv + hv / 2, pzc + sz + 0.27));
+    G.add(at(boite(2 * sx + 0.3, 0.14, 2 * sz + 0.7, PB), cx, yv + hv - 0.07, pzc));
+    // grand toit à demi-croupes, faîtage orné, ornement du type au sommet
+    const yh = yv + hv - 0.05;
+    toitChinois(G, cx, pzc, yh, sx + 0.75, sz + 0.75, 1.75, { ...TT, xt: sx - 1.0, zt: 0.14, lift: 0.35 });
+    const orn = new THREE.Group(); orn.scale.setScalar(0.8); G.add(orn);
+    sommetType(orn, type, cx / 0.8, (yh + 1.85) / 0.8, pzc / 0.8, acc);
+    // lanternes pendues aux coins de l'avant-toit, bannières entre les colonnes de façade
+    for (const sxx of [-1, 1]) for (const szz of [-1, 1]) { G.add(at(boite(0.03, 0.35, 0.03, COL('#2a2a30')), cx + sxx * (px + 0.3), yr - 0.05, pzc + szz * (pz + 0.3))); G.add(at(cyl(0.12, 0.12, 0.3, LUM('#ffe0a0', '#a06020'), 8), cx + sxx * (px + 0.3), yr - 0.38, pzc + szz * (pz + 0.3))); }
+    for (const s of [-1, 1]) {
+      const x = cx + s * (2 * px / 7) * 1.5;
+      G.add(at(boite(0.05, 0.05, 0.9, COL('#2a2a30')), x, ye - 0.08, pzc + pz - 0.1));
+      G.add(at(boite(0.75, 2.2, 0.03, A), x, ye - 1.2, pzc + pz + 0.3));
+      G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.24, 16), M({ map: emblemeTex(type, acc) })), x, ye - 0.9, pzc + pz + 0.32));
+      const pt = new THREE.Shape(); pt.moveTo(-0.375, 0); pt.lineTo(0.375, 0); pt.lineTo(0, -0.3); pt.closePath();
+      G.add(at(new THREE.Mesh(new THREE.ShapeGeometry(pt), A), x, ye - 2.3, pzc + pz + 0.3));
     }
-    // façade : pilastres, deux hautes baies à vitrail, grande rosace
-    for (const xx of [1.95, 3.0, 8.0, 9.05]) G.add(at(boite(0.3, H - 0.4, 0.14, PB), xx, y0 + (H - 0.4) / 2, 6.06));
-    for (const xx of [2.48, 8.52]) fenArc(G, xx, y0 + 2.0, 6.0, 0.55, 2.2, PB, M({ map: TX.vitrail(acc) }));
-    const ros = new THREE.Mesh(new THREE.CircleGeometry(0.85, 24), M({ map: TX.vitrail(acc) })); G.add(at(ros, cx, y0 + H - 1.35, 6.01));
-    G.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.1, 6, 24), PB), cx, y0 + H - 1.35, 6.05));
-    // avancée couverte à colonnes (z 6 → 8,2), fronton à l'emblème
-    G.add(at(boite(6.8, y0, 2.4, M({ map: TX.pierre(mix(T.pierre, -0.15)) })), cx, y0 / 2, 7.2));
-    const hc = 3.3;
-    for (let i = 0; i < 6; i++) { const x = cx - 3.0 + i * 1.2; colonne(G, x, 7.95, y0, hc, 0.22, M({ map: TX.marbre() }), PB); if (type === 'plante') for (let k = 0; k < 5; k++) G.add(at(boite(0.08, 0.35, 0.08, COL('#3c8c3c')), x + Math.sin(k * 2) * 0.2, y0 + 0.5 + k * 0.6, 8.18)); }
-    for (const x of [cx - 3.0, cx + 3.0]) G.add(at(boite(0.4, hc, 0.4, PB), x, y0 + hc / 2, 6.25));
-    G.add(at(boite(7.0, 0.5, 2.5, PB), cx, y0 + hc + 0.25, 7.1));
-    G.add(at(boite(7.04, 0.18, 2.54, A), cx, y0 + hc + 0.12, 7.1));
-    fronton(G, cx, y0 + hc + 0.5, 8.35, 7.0, 1.35, 2.5, PB);
-    G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.5, 20), M({ map: emblemeTex(type, acc) })), cx, y0 + hc + 0.98, 8.36));
-    G.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.06, 6, 20), OR), cx, y0 + hc + 0.98, 8.38));
-    sommetType(G, type === 'eau' || type === 'psy' || type === 'glace' ? type : type, cx, y0 + hc + 1.85, 7.9, acc);
-    // portail : double porte et vitrail en éventail
-    G.add(at(boite(1.8, 2.3, 0.04, M({ map: TX.bois('#5a3020') })), cx, y0 + 1.15, 6.01));
-    G.add(at(boite(0.04, 2.3, 0.05, COL('#2a1a10')), cx, y0 + 1.15, 6.03));
-    G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.9, 16, 0, Math.PI), M({ map: TX.vitrail(acc) })), cx, y0 + 2.3, 6.01));
-    G.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.1, 6, 16, Math.PI), A), cx, y0 + 2.3, 6.05));
-    for (const s of [-1, 1]) G.add(at(boite(0.16, 2.3, 0.16, A), cx + s * 0.98, y0 + 1.15, 6.06));
-    for (let k = 0; k < 3; k++) G.add(at(boite(6.8 + k * 0.3, 0.2, 0.3, PB), cx, 0.1 + (2 - k) * 0.2, 8.55 + k * 0.28));
-    for (const s of [-1, 1]) abordsType(G, type, cx + s * 3.95, 8.6, acc);
+    // abords du perron selon le type
+    for (const s of [-1, 1]) abordsType(G, type, cx + s * 4.0, 10.2, acc);
     return G;
   };
+
   /* -------------------------------------------------------------- ville : tours, bourse, casino ---------------------- */
   /** texture d'un étage de tour répétée verticalement (un étage = 1,1 unité) */
   const parEtage = (t) => { const c = t.clone(); c.repeat.set(1, 1 / 1.1); c.needsUpdate = true; return c; };
@@ -1506,23 +1514,25 @@ export function atelier(D) {
   B.ligue = ({ blanc = '#f4f4f2' } = {}) => {
     const G = new THREE.Group(), cx = 15, W = M({ map: TX.pierre(blanc) }), WB = M({ map: TX.pierre(mix(blanc, 0.4)) }), MA = M({ map: TX.marbre() });
     const H = 11, D0 = 14;
-    // dallage de l'allée et de l'esplanade
-    G.add(at(boite(6.4, 0.08, 24, MA), cx, 0.04, D0 + 12));
+    // allée de 32 cases (≈ 8 s à pied) bordée de colonnes isolées, sans architrave ni traverse : rien ne passe au-dessus
+    // du chemin ni ne masque le portail ; chaque colonne porte une vasque de feu
+    const LA = 32;
+    G.add(at(boite(8.0, 0.08, LA + 1, MA), cx, 0.04, D0 + 1 + LA / 2));
+    for (const s of [-1, 1]) G.add(at(boite(0.3, 0.12, LA + 1, WB), cx + s * 4.1, 0.06, D0 + 1 + LA / 2));
     G.add(at(boite(14, 0.1, 3.0, MA), cx, 0.05, D0 + 1.5));
-    // colonnade
-    const zs = []; for (let z = D0 + 3; z <= D0 + 23; z += 2) zs.push(z);
-    for (const z of zs) for (const x of [cx - 2.9, cx + 2.9]) colonne(G, x, z, 0, 5.2, 0.32, W, WB);
-    // architraves de part et d'autre, fines traverses une fois sur deux : l'allée reste à ciel ouvert
-    for (const x of [cx - 2.9, cx + 2.9]) { G.add(at(boite(0.8, 0.55, 21.0, W), x, 5.47, D0 + 13)); G.add(at(boite(0.84, 0.12, 21.04, WB), x, 5.8, D0 + 13)); }
-    for (let i = 0; i < zs.length; i += 2) G.add(at(boite(6.4, 0.22, 0.3, W), cx, 5.85, zs[i]));
-    for (let i = 0; i < zs.length - 1; i++) for (const x of [cx - 2.35, cx + 2.35]) torche(G, x, zs[i] + 1, 0.08, 1.15);
+    for (let z = D0 + 5; z <= D0 + LA; z += 2.5) for (const s of [-1, 1]) {
+      const x = cx + s * 3.6;
+      G.add(at(boite(0.95, 0.5, 0.95, WB), x, 0.25, z));
+      colonne(G, x, z, 0.5, 4.6, 0.3, W, WB);
+      G.add(at(cyl(0.42, 0.22, 0.32, OR, 12), x, 5.3, z)); flamme(G, x, 5.42, z, 1.6);
+    }
     // entrée de l'allée : deux piliers à statues et quelques marches
     for (const s of [-1, 1]) {
-      const x = cx + s * 3.6, z = D0 + 23.6;
-      G.add(at(boite(1.3, 2.2, 1.3, W), x, 1.1, z)); G.add(at(boite(1.45, 0.2, 1.45, WB), x, 2.25, z));
-      statue(G, x, 2.35, z, 0.9, s);
+      const x = cx + s * 4.9, z = D0 + LA + 1.4;
+      G.add(at(boite(1.4, 2.4, 1.4, W), x, 1.2, z)); G.add(at(boite(1.55, 0.2, 1.55, WB), x, 2.45, z));
+      statue(G, x, 2.55, z, 1.0, s);
     }
-    for (let k = 0; k < 3; k++) G.add(at(boite(6.4 + k * 0.6, 0.12, 0.35, MA), cx, 0.06 + (2 - k) * 0.08, D0 + 24 + k * 0.3));
+    for (let k = 0; k < 3; k++) G.add(at(boite(8.0 + k * 0.6, 0.12, 0.35, MA), cx, 0.06 + (2 - k) * 0.08, D0 + LA + 1.6 + k * 0.3));
     // le bâtiment
     G.add(at(boite(30, 0.8, D0, W), cx, 0.4, D0 / 2));
     G.add(at(boite(30, H, D0 - 0.4, W), cx, 0.8 + H / 2, (D0 - 0.4) / 2));
@@ -1609,7 +1619,7 @@ export const EMPRISES = {
   maison: [4, 3], maisonL: [5, 5], maisonLongue: [5, 3], maisonHaute: [4, 4], maisonExt: [7, 4], chalet: [5, 5], residence: [6, 4],
   cabaneChasseur: [4, 3], cabanePecheur: [5, 4], grange: [6, 5], moulin: [4, 4], phare: [3, 3], auberge: [6, 5], chapelle: [4, 7],
   boulangerie: [4, 4], maisonThe: [5, 5], gare: [8, 4], kiosque: [4, 5], puits: [2, 2], etal: [2, 2],
-  mairie: [9, 6], fontaine: [3, 3], centre: [7, 5], boutique: [5, 6], arene: [11, 10], labo: [10, 8],
-  pagode: [11, 12], pavillon: [8, 7], tour: [8, 5], tourVerre: [10, 7], tourDeco: [8, 8], bourse: [12, 9], casino: [14, 10], ligue: [30, 38],
+  mairie: [9, 6], fontaine: [3, 3], centre: [7, 5], boutique: [5, 6], arene: [12, 11], labo: [10, 8],
+  pagode: [11, 12], pavillon: [8, 7], tour: [8, 5], tourVerre: [10, 7], tourDeco: [8, 8], bourse: [12, 9], casino: [14, 10], ligue: [30, 49],
   escalierMontant: [1, 2], escalierDescendant: [1, 2],
 };
