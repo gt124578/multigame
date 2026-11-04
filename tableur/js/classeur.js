@@ -13,6 +13,7 @@ export class Feuille {
     this.largeurs = {};        // c → largeur en px
     this.hauteurs = {};        // r → hauteur en px
     this.fusions = [];         // { r1, c1, r2, c2 }
+    this.graphiques = [];      // { id, type, plage: 'A1:C5', titre, x, y, w, h }
     this.zone = { r2: -1, c2: -1 };
     this.cachee = false;
   }
@@ -55,6 +56,7 @@ export class Classeur {
     this.nomFichier = 'Classeur1.xlsx';
     this.evaluateur = new Evaluateur(this);
     this.version = 0;
+    this.udf = null;            // nom → fonction(args) pour les fonctions VBA utilisables dans les formules
   }
 
   // ----- Feuilles -----

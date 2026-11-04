@@ -897,7 +897,14 @@ class RangeVBA extends ObjetVBA {
       }
       case 'FONT': return new StyleVBA(this, 'font');
       case 'INTERIOR': return new StyleVBA(this, 'interior');
-      case 'BORDERS': return new StyleVBA(this, 'borders');
+      case 'BORDERS': return args && posArgs(args).length ? new StyleVBA(this, 'borders').index(args) : new StyleVBA(this, 'borders');
+      case 'BORDERAROUND': {
+        const poids = argNomme(args || [], 'WEIGHT', 1);
+        const style = argNomme(args || [], 'LINESTYLE', 0);
+        const val = style !== undefined && nombre(style) === -4142 ? null : (POIDS_BORDURE[poids === undefined ? 2 : nombre(poids)] || 'thin');
+        for (const k of ['h', 'b', 'g', 'd']) new StyleVBA(this, 'borders', k).bordurer(val);
+        return undefined;
+      }
       case 'NUMBERFORMAT': case 'NUMBERFORMATLOCAL': { const cel = this.classeur.cellule(this.f, this.r1, this.c1); return cel && cel.z ? cel.z : 'General'; }
       case 'HORIZONTALALIGNMENT': { const cel = this.classeur.cellule(this.f, this.r1, this.c1); const a = cel && cel.s && cel.s.align; return a === 'center' ? -4108 : a === 'right' ? -4152 : a === 'left' ? -4131 : 1; }
       case 'NAME': return this.adresse(true);
@@ -1018,25 +1025,46 @@ function couleurVersVBA(hex) {
 }
 const COULEURS_INDEX = { 1: '#000000', 2: '#ffffff', 3: '#ff0000', 4: '#00ff00', 5: '#0000ff', 6: '#ffff00', 7: '#ff00ff', 8: '#00ffff', 9: '#800000', 10: '#008000', 11: '#000080', 12: '#808000', 13: '#800080', 14: '#008080', 15: '#c0c0c0', 16: '#808080', 36: '#ffff99', 37: '#99ccff', 40: '#ffcc99', 44: '#ffcc00', 45: '#ff9900', 46: '#ff6600' };
 
+const COTES_BORDURE = { 7: 'g', 8: 'h', 9: 'b', 10: 'd', 5: null, 6: null, 11: null, 12: null };
+const POIDS_BORDURE = { 1: 'thin', 2: 'thin', [-4138]: 'medium', 4: 'thick' };
+
 class StyleVBA extends ObjetVBA {
-  constructor(range, genre) { super(); this.range = range; this.genre = genre; }
-  get typeName() { return this.genre === 'font' ? 'Font' : 'Interior'; }
+  constructor(range, genre, cote) { super(); this.range = range; this.genre = genre; this.cote = cote === undefined ? null : cote; }
+  get typeName() { return this.genre === 'font' ? 'Font' : this.genre === 'interior' ? 'Interior' : 'Borders'; }
   appliquer(patch) { const b = this.range.bornes(); for (let r = b.r1; r <= b.r2; r++) for (let c = b.c1; c <= b.c2; c++) this.range.classeur.style(this.range.f, r, c, patch); }
   premier() { const cel = this.range.classeur.cellule(this.range.f, this.range.r1, this.range.c1); return (cel && cel.s) || {}; }
-  get(nom) {
+  /** Modifie les bordures : fn(bordures, estBordExterieur) sur chaque cellule, pour les côtés visés. */
+  bordurer(valeur) {
+    const b = this.range.bornes();
+    const cotes = this.cote ? [this.cote] : ['h', 'b', 'g', 'd'];
+    for (let r = b.r1; r <= b.r2; r++) for (let c = b.c1; c <= b.c2; c++) {
+      const cel = this.range.classeur.cellule(this.range.f, r, c);
+      const bord = { ...((cel && cel.s && cel.s.bordures) || {}) };
+      for (const k of cotes) {
+        // Un côté de la plage entière : seulement les cellules du bord correspondant
+        if (this.cote && ((k === 'h' && r !== b.r1) || (k === 'b' && r !== b.r2) || (k === 'g' && c !== b.c1) || (k === 'd' && c !== b.c2))) continue;
+        if (valeur) bord[k] = valeur; else delete bord[k];
+      }
+      this.range.classeur.style(this.range.f, r, c, { bordures: Object.keys(bord).length ? bord : null });
+    }
+  }
+  get(nom, args) {
     const N = nom.toUpperCase(), s = this.premier();
     if (this.genre === 'font') {
       if (N === 'BOLD') return !!s.gras; if (N === 'ITALIC') return !!s.italique; if (N === 'UNDERLINE') return s.souligne ? 2 : -4142;
-      if (N === 'COLOR') return couleurVersVBA(s.couleur); if (N === 'COLORINDEX') return s.couleur ? 1 : -4105; if (N === 'SIZE') return s.taille || 11; if (N === 'NAME') return 'Calibri';
+      if (N === 'COLOR') return couleurVersVBA(s.couleur); if (N === 'COLORINDEX') return s.couleur ? 1 : -4105; if (N === 'SIZE') return s.taille ? Math.round(s.taille * 0.75) : 11; if (N === 'NAME') return 'Calibri';
     } else if (this.genre === 'interior') {
       if (N === 'COLOR') return couleurVersVBA(s.fond || '#ffffff'); if (N === 'COLORINDEX') return s.fond ? 1 : -4142; if (N === 'PATTERN') return s.fond ? 1 : -4142;
     } else {
-      if (N === 'LINESTYLE') return s.bordure ? 1 : -4142; if (N === 'WEIGHT') return 2; if (N === 'COLOR') return 0;
-      if (N === 'ITEM') return this;
+      const b = s.bordures || {};
+      const k = this.cote || 'b';
+      if (N === 'LINESTYLE') return b[k] ? 1 : -4142; if (N === 'WEIGHT') return b[k] === 'thick' ? 4 : b[k] === 'medium' ? -4138 : 2; if (N === 'COLOR' || N === 'COLORINDEX') return 0;
+      if (N === 'ITEM') return this.index(args);
+      if (N === 'COUNT') return 6;
     }
     throw erreur(E_MEMBRE, 'Propriété non gérée : ' + nom);
   }
-  index() { return this; }
+  index(args) { const i = nombre(posArgs(args)[0].v); return new StyleVBA(this.range, 'borders', COTES_BORDURE[i] === undefined ? null : COTES_BORDURE[i]); }
   set(nom, args, v) {
     const N = nom.toUpperCase();
     v = scalaire(v);
@@ -1046,16 +1074,17 @@ class StyleVBA extends ObjetVBA {
       if (N === 'UNDERLINE') return this.appliquer({ souligne: typeof v === 'boolean' ? v : nombre(v) !== -4142 });
       if (N === 'COLOR') return this.appliquer({ couleur: couleurVBA(v) });
       if (N === 'COLORINDEX') return this.appliquer({ couleur: nombre(v) === -4105 ? null : (COULEURS_INDEX[nombre(v)] || '#000000') });
-      if (N === 'SIZE') return this.appliquer({ taille: nombre(v) });
-      if (N === 'NAME' || N === 'STRIKETHROUGH') return;
+      if (N === 'SIZE') return this.appliquer({ taille: Math.round(nombre(v) * 1.333) });
+      if (N === 'NAME' || N === 'STRIKETHROUGH' || N === 'FONTSTYLE') return;
     } else if (this.genre === 'interior') {
       if (N === 'COLOR') return this.appliquer({ fond: couleurVBA(v) });
       if (N === 'COLORINDEX') return this.appliquer({ fond: nombre(v) === -4142 ? null : (COULEURS_INDEX[nombre(v)] || '#ffff00') });
       if (N === 'PATTERN') { if (nombre(v) === -4142) return this.appliquer({ fond: null }); return; }
-      if (N === 'TINTANDSHADE' || N === 'PATTERNCOLORINDEX' || N === 'THEMECOLOR') return;
+      if (N === 'TINTANDSHADE' || N === 'PATTERNCOLORINDEX' || N === 'THEMECOLOR' || N === 'PATTERNCOLOR') return;
     } else {
-      if (N === 'LINESTYLE') return this.appliquer({ bordure: nombre(v) !== -4142 });
-      if (N === 'WEIGHT' || N === 'COLOR' || N === 'COLORINDEX') return;
+      if (N === 'LINESTYLE') { const n = typeof v === 'number' ? v : (booleen(v) ? 1 : -4142); return this.bordurer(n === -4142 ? null : (this.get('LINESTYLE') === 1 ? POIDS_BORDURE[this.get('WEIGHT')] : 'thin')); }
+      if (N === 'WEIGHT') return this.bordurer(POIDS_BORDURE[nombre(v)] || 'thin');
+      if (N === 'COLOR' || N === 'COLORINDEX' || N === 'TINTANDSHADE' || N === 'THEMECOLOR') return;
     }
     throw erreur(E_MEMBRE, 'Propriété non modifiable : ' + nom);
   }
@@ -1422,8 +1451,8 @@ const FONCTIONS_VBA = {
   SPLIT: (a) => { const s = texte(a[0]); const d = a[1] === undefined ? ' ' : texte(a[1]); const n = a[2] === undefined ? -1 : nombre(a[2]); let parts = d === '' ? [s] : s.split(d); if (n > 0 && parts.length > n) parts = [...parts.slice(0, n - 1), parts.slice(n - 1).join(d)]; return TableauVBA.depuisListe(parts, 0); },
   JOIN: (a) => { if (!(a[0] instanceof TableauVBA)) throw erreur(E_TYPE, 'Type incompatible (Join)'); return a[0].data.map(texte).join(a[1] === undefined ? ' ' : texte(a[1])); },
   FILTER: (a) => { const inc = a[2] === undefined ? true : booleen(a[2]); const m = texte(a[1]).toLowerCase(); return TableauVBA.depuisListe(a[0].data.filter((x) => texte(x).toLowerCase().includes(m) === inc), 0); },
-  UBOUND: (a) => { if (!(a[0] instanceof TableauVBA)) throw erreur(E_TYPE, 'Type incompatible (UBound)'); return a[0].ubound(a[1] === undefined ? 1 : nombre(a[1])); },
-  LBOUND: (a) => { if (!(a[0] instanceof TableauVBA)) throw erreur(E_TYPE, 'Type incompatible (LBound)'); return a[0].lbound(a[1] === undefined ? 1 : nombre(a[1])); },
+  UBOUND: (a) => { if (a[0] instanceof RangeVBA) a[0] = a[0].valeur(); if (!(a[0] instanceof TableauVBA)) throw erreur(E_TYPE, 'Type incompatible (UBound)'); return a[0].ubound(a[1] === undefined ? 1 : nombre(a[1])); },
+  LBOUND: (a) => { if (a[0] instanceof RangeVBA) a[0] = a[0].valeur(); if (!(a[0] instanceof TableauVBA)) throw erreur(E_TYPE, 'Type incompatible (LBound)'); return a[0].lbound(a[1] === undefined ? 1 : nombre(a[1])); },
   IIF: (a) => (booleen(a[0]) ? a[1] : a[2]), CHOOSE: (a) => a[nombre(a[0])], SWITCH: (a) => { for (let i = 0; i + 1 < a.length; i += 2) if (booleen(a[i])) return a[i + 1]; return null; },
   TYPENAME: (a) => { const v = a[0]; if (v === undefined) return 'Empty'; if (v === null) return 'Null'; if (v === Nothing) return 'Nothing'; if (typeof v === 'boolean') return 'Boolean'; if (typeof v === 'number') return Number.isInteger(v) && Math.abs(v) < 2147483648 ? 'Long' : 'Double'; if (typeof v === 'string') return 'String'; if (v instanceof TableauVBA) return 'Variant()'; if (v instanceof ObjetVBA) return v.typeName; return 'Object'; },
   VARTYPE: (a) => { const v = a[0]; if (v === undefined) return 0; if (v === null) return 1; if (typeof v === 'boolean') return 11; if (typeof v === 'number') return Number.isInteger(v) && Math.abs(v) < 2147483648 ? 3 : 5; if (typeof v === 'string') return 8; if (v instanceof TableauVBA) return 8204; return 9; },
@@ -1952,6 +1981,38 @@ export function executerMacro(classeur, code, nomProcedure, hote = {}) {
     if (e instanceof SignalGoTo) return { resultat: undefined, sortie: it.sortie, erreur: erreur(E_ARG, 'Étiquette introuvable : ' + e.label), interpreteur: it };
     throw e;
   }
+}
+
+/**
+ * Rend les Function VBA chargées dans l'interpréteur utilisables dans les formules des cellules :
+ * classeur.udf = creerUDF(interpreteur). Les plages arrivent en Range, les tableaux en tableau VBA.
+ */
+export function creerUDF(it) {
+  return (nom) => {
+    const p = it.prog.procedures.get(nom.toUpperCase());
+    if (!p || !p.fonction) return null;
+    return (args) => {
+      const conv = (v) => {
+        if (v instanceof Plage) { const b = v.bornes(); return new RangeVBA(it, v.feuille, b.r1, b.c1, b.r2, b.c2); }
+        if (Array.isArray(v)) return TableauVBA.depuisMatrice(v);
+        if (v instanceof ErreurFormule) throw v;
+        return v === null ? undefined : v;
+      };
+      it.pas = 0;
+      let r;
+      try { r = it.appelerProcedure(p, args.map((v) => ({ v: conv(v) }))); }
+      catch (e) {
+        if (e instanceof ErreurVBA) throw new ErreurFormule('#VALUE!', e.description);
+        if (e instanceof SignalExit) r = undefined;
+        else if (e instanceof RangeError) throw new ErreurFormule('#VALUE!', 'récursion');
+        else throw e;
+      }
+      if (r instanceof RangeVBA) r = r.valeur();
+      if (r instanceof TableauVBA) return r.matrice();
+      if (r instanceof ObjetVBA || r === Nothing) throw new ErreurFormule('#VALUE!', 'objet renvoyé');
+      return r === undefined ? null : r;
+    };
+  };
 }
 
 export { RangeVBA, WorksheetVBA, texte as texteVBA, nombre as nombreVBA };

@@ -21,6 +21,14 @@ input[type=color] { width: 30px; height: 26px; padding: 1px 2px; border: 1px sol
 .logo { font-weight: 700; color: var(--accent); margin-right: 6px; }
 .sep { width: 1px; height: 20px; background: var(--bord); margin: 0 4px; }
 
+#barre-classeurs { display: flex; align-items: flex-end; gap: 2px; padding: 4px 10px 0; background: var(--entete); border-bottom: 1px solid var(--bord); }
+#liste-classeurs { display: flex; gap: 2px; overflow-x: auto; min-width: 0; }
+.classeur-onglet { display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 12px; background: #e5e7eb; border: 1px solid var(--bord); border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; user-select: none; white-space: nowrap; max-width: 260px; }
+.classeur-onglet.actif { background: var(--papier); color: var(--accent); font-weight: 600; margin-bottom: -1px; padding-bottom: 5px; }
+.classeur-nom { overflow: hidden; text-overflow: ellipsis; }
+.classeur-fermer { border: none; background: transparent; padding: 0 4px; min-width: 0; font-size: 11px; color: var(--sourd); }
+.classeur-fermer:hover { background: #fecaca; color: #991b1b; }
+#btn-nouveau-classeur { margin-bottom: 3px; padding: 1px 8px; }
 #barre-formule { display: flex; align-items: stretch; gap: 6px; padding: 4px 10px; background: var(--papier); border-bottom: 1px solid var(--bord); }
 #zone-nom { width: 110px; text-align: center; font-family: var(--mono); }
 .fx { color: var(--sourd); align-self: center; font-style: italic; }
@@ -87,3 +95,12 @@ input[type=color] { width: 30px; height: 26px; padding: 1px 2px; border: 1px sol
 #toast { position: fixed; bottom: 48px; left: 50%; transform: translateX(-50%); background: #111827; color: #fff; padding: 8px 14px; border-radius: 6px; z-index: 60; max-width: 80vw; }
 #toast.erreur { background: #991b1b; }
 @media (max-width: 800px) { #panneau { position: absolute; right: 0; top: 0; bottom: 0; width: 100%; max-width: 100%; } #corps { position: relative; } }
+
+.graphique { position: absolute; z-index: 4; background: #fff; border: 1px solid var(--bord-fort); border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.12); display: flex; flex-direction: column; overflow: hidden; }
+.graphique.actif { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-clair), 0 2px 8px rgba(0,0,0,.15); }
+.graphique-barre { display: flex; align-items: center; gap: 4px; padding: 2px 4px; background: var(--entete); border-bottom: 1px solid var(--bord); cursor: move; font-size: 11px; }
+.graphique-barre .graphique-titre { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; cursor: text; }
+.graphique-barre select, .graphique-barre button { font-size: 11px; padding: 1px 4px; min-width: 0; cursor: pointer; }
+.graphique-corps { flex: 1; min-height: 0; }
+.graphique-corps svg { width: 100%; height: 100%; display: block; }
+.graphique-redim { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, var(--bord-fort) 50%); }

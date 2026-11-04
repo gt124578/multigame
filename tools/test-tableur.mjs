@@ -7,8 +7,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { Classeur } from '../tableur/js/classeur.js';
 import { Evaluateur, ErreurFormule, decalerFormule, formaterNombre, formaterDate, tokeniser } from '../tableur/js/formules.js';
-import { executerMacro, analyserVBA } from '../tableur/js/vba.js';
-import { lireClasseur, ecrireClasseur } from '../tableur/js/xlsxio.js';
+import { executerMacro, analyserVBA, InterpreteurVBA, creerUDF } from '../tableur/js/vba.js';
+import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from '../tableur/js/xlsxio.js';
+import { preparerDonnees, rendreGraphiqueSVG } from '../tableur/js/graphiques.js';
 import { decompresserOVBA } from '../tableur/js/vbaextract.js';
 
 const require = createRequire(import.meta.url);
@@ -358,6 +359,32 @@ test('VBA : dates et chaînes', () => {
   egal(r.sortie, ['2024-02-29 30 4 1 1', '1 234 567,89 50,00% 005 ABC', '1,5 12 3,5 cba xxx   | A 65 FF', '4 -1 àb']);
 });
 
+test('VBA : fonctions utilisables dans les formules (UDF)', () => {
+  const cl = Classeur.nouveau();
+  const it = new InterpreteurVBA(cl);
+  it.charger(`
+    Function Annuite(taux As Double, n As Long) As Double
+      If taux = 0 Then Annuite = n Else Annuite = (1 - (1 + taux) ^ -n) / taux
+    End Function
+    Function SommeCarres(rg As Range) As Double
+      Dim c As Range
+      For Each c In rg: SommeCarres = SommeCarres + c.Value ^ 2: Next
+    End Function
+    Function Etiquette(x) As String
+      Etiquette = "Valeur : " & x
+    End Function
+    Function Doubles(t)
+      Dim i As Long, out()
+      ReDim out(1 To UBound(t, 1), 1 To 1)
+      For i = 1 To UBound(t, 1): out(i, 1) = t(i, 1) * 2: Next
+      Doubles = out
+    End Function`);
+  cl.udf = creerUDF(it);
+  cl.saisir(0, 0, 0, '3'); cl.saisir(0, 1, 0, '4');
+  cl.saisir(0, 0, 1, '=Annuite(3%;20)'); cl.saisir(0, 1, 1, '=SommeCarres(A1:A2)'); cl.saisir(0, 2, 1, '=Etiquette(A1)'); cl.saisir(0, 3, 1, '=SOMME(Doubles(A1:A2))'); cl.saisir(0, 4, 1, '=Inconnue(1)');
+  proche(cl.valeur(0, 0, 1), 14.8774748, 1e-6); egal(cl.valeur(0, 1, 1), 25); egal(cl.valeur(0, 2, 1), 'Valeur : 3'); egal(cl.valeur(0, 3, 1), 14); egal(cl.valeur(0, 4, 1), new ErreurFormule('#NAME?'));
+});
+
 // ---------------------------------------------------------------------------
 // Fichiers xlsx
 // ---------------------------------------------------------------------------
@@ -386,6 +413,66 @@ test('xlsx : aller-retour (feuilles, formules, formats, noms, macros, largeurs)'
   egal(csv.split('\n')[0].replace('﻿', ''), '1000');
   const f = lireClasseur(XLSX, new TextEncoder().encode('a;b\n1;2\n'), 'x.csv');
   egal(f.texte(0, 1, 1), '2');
+});
+
+test('xlsx : styles (gras, couleurs, bordures) et graphiques', () => {
+  const d = Classeur.nouveau();
+  d.saisir(0, 0, 0, 'Titre'); d.style(0, 0, 0, { gras: true, couleur: '#ff0000', fond: '#ffff00', align: 'center' });
+  d.saisir(0, 1, 0, '12,5'); d.format(0, 1, 0, '0.00'); d.style(0, 1, 0, { bordures: { h: 'thin', b: 'thick', g: 'thin', d: 'thin' }, italique: true });
+  d.style(0, 3, 2, { fond: '#00ff00' });
+  d.ajouterFeuille('Deux'); d.saisir(1, 0, 0, 'x'); d.style(1, 0, 0, { souligne: true });
+  d.feuilles[0].graphiques.push({ id: 'g1', type: 'courbes', plage: 'A1:B2', titre: 'Essai', x: 10, y: 10, w: 300, h: 200 });
+  const chemin = path.join(os.tmpdir(), 'test-tableur-styles.xlsx');
+  fs.writeFileSync(chemin, ecrireClasseur(XLSX, d));
+  const e = lireClasseur(XLSX, fs.readFileSync(chemin), 'styles.xlsx');
+  egal(e.cellule(0, 0, 0).s, { gras: true, couleur: '#ff0000', fond: '#ffff00', align: 'center' });
+  egal(e.cellule(0, 1, 0).s, { italique: true, bordures: { h: 'thin', b: 'thick', g: 'thin', d: 'thin' } }); egal(e.cellule(0, 1, 0).z, '0.00');
+  egal(e.cellule(0, 3, 2).s, { fond: '#00ff00' }); egal(e.cellule(1, 0, 0).s, { souligne: true });
+  egal(e.feuilles.map((f) => f.nom), ['Feuil1', 'Deux']); egal(e.feuilles[0].graphiques[0].titre, 'Essai');
+});
+
+test('docx : tableaux → feuilles ; modules .bas', () => {
+  // Un .docx minimal fabriqué à la main (zip via SheetJS CFB)
+  const doc = '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="x"><w:body><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Âge</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Taux</w:t></w:r></w:p></w:tc></w:tr>'
+    + '<w:tr><w:tc><w:p><w:r><w:t>60</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>2,5</w:t></w:r><w:r><w:t xml:space="preserve"> %</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
+    + '<w:tbl><w:tr><w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>Fusion &amp; co</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>x</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>';
+  const cfb = XLSX.CFB.utils.cfb_new();
+  XLSX.CFB.utils.cfb_add(cfb, '/word/document.xml', new TextEncoder().encode(doc));
+  const octets = new Uint8Array(XLSX.CFB.write(cfb, { fileType: 'zip', type: 'array' }));
+  const c = lireDocx(XLSX, octets, 'rapport.docx');
+  egal(c.feuilles.map((f) => f.nom), ['Tableau 1', 'Tableau 2']);
+  egal(c.texte(0, 0, 0), 'Âge'); egal(c.cellule(0, 1, 0).v, 60); egal(c.cellule(0, 1, 1).v, 0.025); egal(c.texte(1, 0, 0), 'Fusion & co'); egal(c.texte(1, 0, 2), 'x');
+  egal(nettoyerModuleVBA('Attribute VB_Name = "Module1"\r\nOption Explicit\r\nSub A()\r\nEnd Sub\r\n', 'Module1.bas'), "' ===== Module Module1 =====\nOption Explicit\nSub A()\nEnd Sub\n");
+});
+
+test('graphiques : préparation des données et rendu SVG', () => {
+  const m = [['Année', 'Primes', 'Sinistres'], [2021, 120, 80], [2022, 135, 95], [2023, 150, 90]];
+  const d = preparerDonnees(m, 'barres');
+  egal(d.categories, ['2021', '2022', '2023']); egal(d.series.map((s) => s.nom), ['Primes', 'Sinistres']); egal(d.series[1].valeurs, [80, 95, 90]);
+  const n = preparerDonnees([['x', 'y'], [1, 2], [2, 4]], 'nuage');
+  egal(n.xs, [1, 2]); egal(n.series[0].valeurs, [2, 4]);
+  for (const type of ['barres', 'barres-empilees', 'courbes', 'aires', 'secteurs', 'anneau', 'nuage']) {
+    const svg = rendreGraphiqueSVG({ type, titre: 'T' }, m, 400, 250);
+    egal(svg.startsWith('<svg') && svg.endsWith('</svg>'), true, type);
+    egal(svg.includes(type === 'secteurs' || type === 'anneau' ? '<path' : type === 'barres' || type === 'barres-empilees' ? '<rect x=' : '<circle'), true, type);
+  }
+  egal(rendreGraphiqueSVG({ type: 'barres' }, [['a'], ['b']]).includes('Aucune donnée'), true);
+});
+
+test('VBA : bordures et styles', () => {
+  const cl = Classeur.nouveau();
+  vba(`Sub M()
+    Range("A1:B2").Borders.LineStyle = xlContinuous
+    Range("A1:B2").Borders(xlEdgeBottom).Weight = xlThick
+    Range("D1").BorderAround Weight:=xlMedium
+    Range("A1").Font.Size = 14: Range("A1").Font.Italic = True
+    Range("B1").Interior.ColorIndex = 6
+    Range("A1:B2").Borders(xlEdgeTop).LineStyle = xlNone
+  End Sub`, 'M', cl);
+  egal(cl.cellule(0, 0, 0).s, { bordures: { b: 'thin', g: 'thin', d: 'thin' }, taille: 19, italique: true });
+  egal(cl.cellule(0, 1, 1).s, { bordures: { h: 'thin', b: 'thick', g: 'thin', d: 'thin' } });
+  egal(cl.cellule(0, 0, 3).s, { bordures: { h: 'medium', b: 'medium', g: 'medium', d: 'medium' } });
+  egal(cl.cellule(0, 0, 1).s.fond, '#ffff00');
 });
 
 test('xlsm : extraction du code VBA (décompression MS-OVBA)', () => {
