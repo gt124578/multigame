@@ -24,6 +24,7 @@ const params = () => { try { return new URLSearchParams(location.search); } catc
 export const facettesActives = () => !params().has('r3plat');
 let MAT_FAC = null;
 export function matFacettes() { return MAT_FAC || (MAT_FAC = new THREE.MeshBasicMaterial({ vertexColors: true })); }
+export const modePente = () => params().has('r3pente');
 export function relief3dActif() { return params().has('relief3d'); }
 const num = (k, d) => { const v = params().get(k); return v == null || v === '' || isNaN(+v) ? d : +v; };
 
@@ -145,17 +146,22 @@ export function matSol(mat, w, h) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uTx = { value: new THREE.Vector2(w, h) };
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec3 nrm; attribute float pied; varying vec3 vNrm; varying float vPied; varying float vY; varying vec2 vTx; uniform vec2 uTx;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNrm = nrm; vPied = pied; vY = transformed.y; vTx = uv * uTx;');
+      .replace('#include <common>', '#include <common>\nattribute vec3 nrm; attribute float pied; attribute float fr; varying vec3 vNrm; varying float vPied; varying float vY; varying vec2 vTx; varying float vFr; uniform vec2 uTx;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNrm = nrm; vPied = pied; vY = transformed.y; vTx = uv * uTx; vFr = fr;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vNrm; varying float vPied; varying float vY; varying vec2 vTx;' + GLSL_COMMUN)
+      .replace('#include <common>', '#include <common>\nvarying vec3 vNrm; varying float vPied; varying float vY; varying vec2 vTx; varying float vFr;' + GLSL_COMMUN)
       .replace('#include <map_fragment>', `#include <map_fragment>
         float bay = r3Bayer(vTx);
         float q = r3Palier(vNrm, bay);
+        ${modePente() ? `if (vFr >= 0.0) {
+          // pente d'un étage : bord haut éclairé, puis l'herbe fonce jusqu'au pied, en paliers tramés
+          float t = vFr + (bay - 0.5) * 0.18;
+          q = t < 0.08 ? 1.12 : t < 0.3 ? 0.95 : t < 0.55 ? 0.82 : t < 0.8 ? 0.7 : 0.6;
+        }` : ''}
         if (vPied < 14.0 && (1.0 - vPied / 14.0) * 1.15 > bay) q *= 0.8;
         diffuseColor.rgb *= q * r3Fond(vY);`);
   };
-  mat.customProgramCacheKey = () => 'r3sol';
+  mat.customProgramCacheKey = () => 'r3sol' + (modePente() ? 'p' : '');
   return mat;
 }
 let MAT_PAROI = null;
@@ -471,13 +477,14 @@ export class Relief3D {
   /** maillage du sol généré d'un bloc (bw × bh cases) : position, uv (alignées sur les cases), normale, pied */
   geoSol(ci, cj, bw, bh) {
     const b = this.bloc(ci, cj), D = this.details(ci, cj), nx = bw * RN + 1, nz = bh * RN + 1;
-    const pos = new Float32Array(nx * nz * 3), uv = new Float32Array(nx * nz * 2), nrm = new Float32Array(nx * nz * 3), pied = new Float32Array(nx * nz);
+    const pos = new Float32Array(nx * nz * 3), uv = new Float32Array(nx * nz * 2), nrm = new Float32Array(nx * nz * 3), pied = new Float32Array(nx * nz), fr = new Float32Array(nx * nz).fill(-1);
     for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
       const v = j * nx + i, k = (j + P) * b.N + i + P;
       pos[v * 3] = b.x0 + i / RN; pos[v * 3 + 1] = b.h[k]; pos[v * 3 + 2] = b.z0 + j / RN;
       uv[v * 2] = i / (nx - 1); uv[v * 2 + 1] = j / (nz - 1);
       const l = Math.hypot(D.gx[k], 1, D.gz[k]); nrm[v * 3] = -D.gx[k] / l; nrm[v * 3 + 1] = 1 / l; nrm[v * 3 + 2] = -D.gz[k] / l;
       pied[v] = D.pied[k];
+      if (D.ht[k] > -64 && D.hbas[k] > -64) fr[v] = Math.max(0, Math.min(1, D.ht[k] / Math.max(1, D.ht[k] + D.hbas[k])));
     }
     // les cases plates (25 sommets à la même hauteur) sont fusionnées par rangées : deux triangles au lieu de 32 ; leurs
     // bords tombent sur des sommets de la même hauteur que les cases voisines (pas de fente)
@@ -505,6 +512,7 @@ export class Relief3D {
     g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     g.setAttribute('nrm', new THREE.BufferAttribute(nrm, 3));
     g.setAttribute('pied', new THREE.BufferAttribute(pied, 1));
+    g.setAttribute('fr', new THREE.BufferAttribute(fr, 1));
     g.setIndex(idx); g.computeBoundingSphere();
     return g;
   }
@@ -536,6 +544,7 @@ export class Relief3D {
       if (!ks.some((k) => D.ht[k] >= 0 && D.hbas[k] >= 0)) continue;
       const cx = b.x0 + Math.floor(i / RN), cz = b.z0 + Math.floor(j / RN), ck = cx + ',' + cz;
       let p = cache.get(ck); if (!p) { p = this.paroiDe(cx, cz); cache.set(ck, p); }
+      if (modePente() && p.levre) continue;
       const lc = p.levre ? rgb(p.levre).map((v) => (v / 255) ** 2.2) : [0, 0, 0];
       for (const [q, k] of ks.entries()) {
         const a = i + (q === 1 || q === 2 ? 1 : 0), c = j + (q < 2 ? 1 : 0), x = b.x0 + a / RN, z = b.z0 + c / RN;
@@ -596,6 +605,7 @@ export class Relief3D {
       const cx = b.x0 + Math.floor(i / RN), cz = b.z0 + Math.floor(Math.max(r0.j0, 0) / RN);
       const pz = this.paroiDe(cx, cz + 1);
       if (pz.t >= MURS.length) continue;   // les marches gardent leur dessin
+      if (modePente() && pz.levre) continue;
       const pal = PALS[MURS[pz.t]] || PALS.montagne;
       const T0 = P3(r0.t, i, r0.j0), B0 = P3(r0.b, i, r0.j1), T1 = P3(r1.t, i + 1, r1.j0), B1 = P3(r1.b, i + 1, r1.j1);
       // la lèvre (herbe, neige) reste visible : les facettes commencent un peu sous le haut de la paroi
