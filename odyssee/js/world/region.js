@@ -1,7 +1,8 @@
 // odyssee/js/world/region.js — la région d'Odyssée : le continent (cinq arènes, la Ligue) et, au sud-est, l'archipel
-// des trois frères (Basalte, Pyros et Drakos), qu'on rejoint en surfant. Les quatre premières arènes se suivent dans
+// des trois frères (Basalte, Pyros et Drakos), au-delà des tourbillons : on y va avec le passeur du Cap Mirage. Les quatre premières arènes se suivent dans
 // l'ordre (des gardes bloquent la route) ; ensuite, ce sont les capacités de terrain qui ouvrent de nouvelles zones :
-// Coupe (badge 4) vers Mirage, Surf (badge 5) vers les îles, Éclate-Roc (badge 6) sur la Grande Île, Vol (badge 7).
+// Coupe (badge 4) vers Mirage, le bateau du Cap Mirage vers l'archipel (5 badges), Éclate-Roc (badge 6) sur la Grande Île,
+// Vol (badge 7). Une ceinture de tourbillons entoure l'archipel et les îles de l'Est : on ne les atteint pas à la nage.
 // À l'est, trois îles desservies par le bateau de l'Embarcadère de l'Aube (2, 3 et 5 badges), avec les quêtes des
 // légendaires (renvoyées dans `legends`, les quais dans `docks`).
 // Noms de lieux et personnages originaux ; les créatures du jeu côtoient les Pokémon du prototype.
@@ -18,6 +19,7 @@ import { applyRetouches } from './retouches.js';
 import { buildArena } from './arenes.js';
 import { buildSud, BADGES_SUD, LEADERS_SUD, GYM_TRAINERS_SUD } from './sud.js';
 import { addVehicules } from './vehicules.js';
+import { tourbillons } from './relief.js';
 
 // toutes les lignées connues : la créature d'Odyssée (plus proposée, mais les parties déjà commencées avec elle restent valables),
 // le Pokémon de Rouge / Bleu et celui d'Or / Argent, avec leurs évolutions
@@ -317,7 +319,7 @@ export function buildWorld() {
       { kind: 'house', x: 19, y: 8, roof: 'blue', npcs: [{ x: 4, y: 4, sprite: 'marin', text: ['Plus loin à l\'est, Voltacité ne dort jamais.', 'Ses néons éclairent la côte toute la nuit !'] }] },
       { kind: 'house', x: 24, y: 8, roof: 'teal', npcs: [{ x: 2, y: 4, sprite: 'habitante', text: ['Une créature peut retenir quatre attaques au maximum.', 'Quand elle en apprend une cinquième, il faut en oublier une.'] }] },
       { kind: 'gym', x: 5, y: 14, roof: 'blue' },
-      { kind: 'house', x: 19, y: 16, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'pecheur', text: ['Avant, un ferry partait d\'ici pour l\'archipel du sud.', 'Depuis que Drakos tient les îles, plus un bateau ne part.', 'Il faut savoir surfer pour s\'y rendre, maintenant.'] }] },
+      { kind: 'house', x: 19, y: 16, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'pecheur', text: ['Avant, un ferry partait d\'ici pour l\'archipel du sud.', 'Depuis que Drakos tient les îles, plus un bateau ne part d\'ici.', 'Et ne compte pas y aller à la nage : des tourbillons entourent l\'archipel. Seul le vieux passeur du Cap Mirage connaît la passe.'] }] },
       { kind: 'house2', x: 24, y: 16, roof: 'orange', npcs: [{ x: 2, y: 4, sprite: 'habitante', text: ['Le jour, la nuit, le matin, le soir...', 'La couleur du ciel change avec l\'heure de ton ordinateur !'] }] },
     ],
     npcs: [
@@ -386,7 +388,7 @@ export function buildWorld() {
       { kind: 'tower', x: 20, y: 6, roof: 'purple', name: 'Tour Mirage', npcs: [{ x: 5, y: 4, sprite: 'medium', text: ['Les attaques Psy sont puissantes... mais le type Ténèbres ne les craint pas.', 'Et les Insectes ne sont pas si fragiles face à elles.'] }, { x: 8, y: 5, sprite: 'vieil_homme', text: ['Les murs de cette tour racontent les légendes d\'Odyssée.', 'Trois oiseaux gardent les îles de l\'Est : la foudre, le feu et la glace.', 'Deux gardiens règnent sur le ciel et la mer : Ho-Oh, l\'arc-en-ciel, et Lugia, l\'argent des profondeurs.', 'Et au-dessus d\'eux, Odyssor, le géant des océans, qui a guidé les premiers marins jusqu\'ici.'] }] },
       { kind: 'gym', x: 3, y: 13, roof: 'purple' },
       { kind: 'house', x: 19, y: 15, roof: 'purple', npcs: [{ x: 4, y: 4, sprite: 'medium', text: ['Je savais que tu viendrais. Ne me demande pas comment.'] }] },
-      { kind: 'house', x: 24, y: 15, roof: 'teal', npcs: [{ x: 2, y: 4, sprite: 'pecheur', text: ['Au sud, la route 7 descend jusqu\'au Cap Mirage.', 'De là, on aperçoit les îles de l\'archipel.', 'Mais sans Surf, impossible de traverser.'] }] },
+      { kind: 'house', x: 24, y: 15, roof: 'teal', npcs: [{ x: 2, y: 4, sprite: 'pecheur', text: ['Au sud, la route 7 descend jusqu\'au Cap Mirage.', 'De là, on aperçoit les îles de l\'archipel.', 'Mais les tourbillons empêchent de traverser à la nage : seul le passeur du Cap y va.'] }] },
     ],
     npcs: [
       { id: 'voyante', x: 20, y: 13, sprite: 'medium', move: 'turn', text: ['Je vois... trois îles, trois frères.', 'Et une vieille rancune qui gronde comme un volcan.'] },
@@ -478,7 +480,7 @@ export function buildWorld() {
   };
   buildTown(W, maps, I);
   // plage de Cimelune, face à la Grande Île
-  W.rect(182, 236, 186, 241, T.SAND);
+  W.rect(182, 236, 185, 241, T.SAND);
 
   /* ---------- J · Plateau Céleste (Ligue) ---------- */
   const J = towns.J = {
@@ -569,7 +571,7 @@ export function buildWorld() {
   // Cap Mirage : plage, ponton et le rival qui attend
   W.rect(282, 185, 301, 188, T.SAND);
   W.zone(282, 183, 301, 188, { name: 'Cap Mirage', music: 'route', trigger: 'rival4' });
-  W.sign(296, 185, 'CAP MIRAGE\nAu sud-est : Île de Granit. Au sud : Cendrelune.\nTraversée à la nage : Surf requis.');
+  W.sign(295, 185, 'CAP MIRAGE\nAu sud-est : Île de Granit. Au sud : Cendrelune.\nTourbillons au large : baignade interdite. Passeur pour l\'archipel.');
   W.npc({ id: 'cap:pecheur', x: 286, y: 186, sprite: 'pecheur', dir: 'down', text: ['Les trois îles que tu vois là-bas, ce sont les îles des trois frères.', 'Granit, la plus proche. Puis Cendrelune, le volcan. Et la Grande Île, tout au fond.', 'Drakos, l\'aîné, règne sur les trois depuis Fort-Écaille.'] });
 
   // Grande Île : route 11 (de la plage est à Fort-Écaille, par une passe rocheuse) et forêt d'Écaille au sud
@@ -624,6 +626,16 @@ export function buildWorld() {
     docks[key] = { name, map: 'monde', x: cx - dx, y, dir: dx > 0 ? 'left' : 'right', badges, ...o };
     const x0 = Math.min(x, cx), x1 = Math.max(x, cx); W.zone(x0 - 1, y - 2, x1 + 1, y + 2, { name: o.town || name, music: o.music || 'port' });
   };
+  /** ponton vertical (depuis une plage, vers le sud ou le nord) ; le passeur se tient au bout */
+  const pierV = (key, name, x, y, dy, len, badges, o = {}) => {
+    for (let k = 0; k < len; k++) W.set(x, y + dy * k, T.BRIDGE);
+    const cy = y + dy * (len - 1), dir = dy > 0 ? 'up' : 'down';
+    W.npc({ id: 'quai:' + key, x, y: cy, dir, sprite: 'marin', script: 'ferry', dock: key });
+    docks[key] = { name, map: 'monde', x, y: cy - dy, dir, badges, ...o };
+  };
+  // le passeur du Cap Mirage et le ponton de Port-Granit : le seul bateau qui franchit les tourbillons de l'archipel
+  pierV('cap', 'Cap Mirage', 298, 189, 1, 2, 0, { town: 'Cap Mirage' });
+  pierV('granit', 'Île de Granit (Port-Granit)', 315, 195, -1, 1, 5, { town: 'Port-Granit' });
   /** passage étroit (2 cases) fermé par un PNJ tant qu'un drapeau d'histoire n'est pas levé */
   const flagGate = (id, tiles, npcAt, flag, badges, sprite, text) => {
     const n = W.npc({ id, x: npcAt[0], y: npcAt[1], dir: 'down', sprite, gate: { badges, flag, tiles }, text });
@@ -852,6 +864,13 @@ export function buildWorld() {
 
   /* ======================== TERRES DU SUD ======================== */
   buildSud({ W, maps, towns, routes, R, routeTrainer, routeItem, buildTown, ENC, ledges });
+  // (après le Sud, qui creuse le détroit)
+  // ceintures de tourbillons : l'archipel des trois frères et les îles de l'Est ne s'atteignent qu'en bateau
+  tourbillons(W, [
+    [[335.5, 0], [335.5, 296]], [[336, 290], [439, 290]],                 // îles de l'Est (et la mer qui longe le Sud)
+    [[292, 192], [337, 192]], [[294, 191], [294, 217]], [[262, 217], [295, 217]], [[262, 195], [262, 218]],   // autour de l'Îlot des Marées
+    [[186, 197.5], [263, 197.5]], [[187.5, 196], [187.5, 296]], [[186, 277], [337, 277]],                      // archipel : nord, ouest, sud
+  ], 1.0, 2026);
 
   /* ======================== ARÈNES ======================== */
   const gymTrainers = [

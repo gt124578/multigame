@@ -52,12 +52,18 @@ const { buildWorld } = await import('../odyssee/js/world/region.js');
 const { T, walkable } = await import('../odyssee/js/world/tiles.js');
 const { maps, towns, legends, docks } = buildWorld();
 const W = maps.monde;
-// exploration à travers les grottes : chaque sortie de grotte relance l'exploration du monde
+// exploration à travers les grottes : chaque sortie de grotte relance l'exploration du monde ; le bateau (permis bateau
+// dès 2 badges) relie entre eux les quais atteints, selon les badges que demande chaque quai
 // gates : true ou nombre de badges ; abil : true (Coupe, Surf, Éclate-Roc) ou Set des cases franchissables
-function explore(gates, abil) {
-  const seenW = new Uint8Array(W.w * W.h);
-  const seeds = [[towns.A.x + 5, towns.A.y + 7]], doneCaves = new Set();
-  while (seeds.length) {
+const quais = Object.values(docks).filter((d) => d.map === 'monde' && !d.show);
+function explore(gates, abil, bateau = true) {
+  const seenW = new Uint8Array(W.w * W.h), nb = gates === true ? 99 : gates === false ? 0 : gates;
+  const seeds = [[towns.A.x + 5, towns.A.y + 7]], doneCaves = new Set(), doneQuais = new Set();
+  for (;;) {
+    if (!seeds.length && bateau && nb >= 2 && quais.some((d) => seenW[d.y * W.w + d.x])) {
+      for (const d of quais) if (d.badges <= nb && !doneQuais.has(d)) { doneQuais.add(d); seeds.push([d.x, d.y]); }
+    }
+    if (!seeds.length) break;
     const [sx, sy] = seeds.pop(); if (seenW[sy * W.w + sx]) continue;
     const r = W.reach(sx, sy, gates, true, abil); for (let i = 0; i < r.length; i++) if (r[i]) seenW[i] = 1;
     for (const [k, w] of W.warps) {
@@ -71,6 +77,9 @@ function explore(gates, abil) {
   return seenW;
 }
 const seenW = explore(true, true);
+// sans bateau, même avec toutes les capacités (Surf compris), les tourbillons gardent l'archipel et les îles de l'Est
+{ const nage = explore(true, true, false), door = (id) => [...W.warps].find(([, w]) => w.map === id)?.[0].split(',').map(Number);
+  for (const t of ['granit', 'cendre', 'ecaille', 'orage', 'grue', 'givre']) { const T0 = towns[Object.keys(towns).find((k) => towns[k].id === t)]; const [cx, cy] = T0.centerDoor; ok(!nage[cy * W.w + cx], `${T0.name} hors d'atteinte à la nage (tourbillons)`); ok(seenW[cy * W.w + cx], `${T0.name} atteignable en bateau`); } }
 const at = (m, x, y) => y * m.w + x;
 const reachable = (m, seen, x, y) => [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => m.in(x + dx, y + dy) && seen[at(m, x + dx, y + dy)]);
 // portes et téléporteurs du monde

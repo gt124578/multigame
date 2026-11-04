@@ -633,6 +633,17 @@ export class WorldView {
     const L = th === 'forest' ? ['touffe', 'feuilles', 'champignons', 'brindilles', 'touffe3', 'trefle'] : ['touffe', 'touffe2', 'trefle', 'cailloux', 'paquerettes', 'boutons', 'touffe3', 'touffe', 'trefle', 'brindilles'];
     return L[Math.floor(hash(x + 503, y + 211) * L.length)];
   }
+  /** tourbillons : un grand tourbillon (2 × 2 cases) aux places d'une grille décalée quand les quatre cases en sont,
+   *  des remous d'écume sur les autres cases ; sens de rotation et remous tirés par case (pas de motif répété) */
+  tourbillonCell(G, b, x, y) {
+    const N = this.N.cells, W2 = (a, c) => b.get(a, c) === T.WHIRL;
+    const ancre = (a, c) => ((a + ((c >> 1) & 1) * 2) & 3) === 0 && (c & 1) === 0 && W2(a, c) && W2(a + 1, c) && W2(a, c + 1) && W2(a + 1, c + 1);
+    for (const [dx, dy, q] of [[0, 0, 0], [1, 0, 1], [0, 1, 2], [1, 1, 3]]) {
+      const ax = x - dx, ay = y - dy;
+      if (ancre(ax, ay)) { const v = hash(ax * 5 + 1, ay * 3 + 7) < 0.5 ? 0 : 1, k = N[`tourbillon${v}_${q}`]; if (k) flat(G, x, y, x + 1, y + 1, 0.006, k); return; }
+    }
+    const v = hash(x * 11 + 3, y * 7 + 1); if (v < 0.85) { const k = N['remous' + Math.floor(v / 0.85 * 3)]; if (k) flat(G, x, y, x + 1, y + 1, 0.006, k); }
+  }
   /** relief du dehors, dessiné à plat comme dans HeartGold / SoulSilver : paroi de roche sous le bord sud d'un plateau
    *  (lèvre d'herbe en haut, ombre au pied), rebords de roche à l'est, à l'ouest et au nord, marches taillées */
   reliefDehors(G, x, y, t, zone) {
@@ -683,7 +694,7 @@ export class WorldView {
       }
       const zone = m.outdoor ? m.zoneAt(x, y) : null, theme = zone?.theme;
       if (this.relief) this.reliefDehors(O0, x, y, t, zone);
-      if (m.outdoor && base.get(x, y) === T.WHIRL) flat(NO, x, y, x + 1, y + 1, 0.006, this.N.cells.tourbillon);
+      if (m.outdoor && base.get(x, y) === T.WHIRL) this.tourbillonCell(NO, base, x, y);
       if (m.outdoor && t === T.BRIDGE && theme === 'automne' && A.pont_rouge) flat(O0, x - 0.02, y, x + 1.02, y + 1, 0.0051, A.pont_rouge);
       if (this.decoAt.get(x + ',' + y)?.k === 'koi') flat(NO, x, y, x + 1, y + 1, 0.0055, this.N.cells.koi);
       // décor en volume

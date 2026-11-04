@@ -47,6 +47,9 @@ function explore(pos) {
       if (t0 !== T.MAT) continue; // on ne reste pas sur une porte
     }
     const onWater = t0 === T.WATER;
+    // le bateau : à côté d'un passeur, avec le permis, vers chaque quai que les badges ouvrent
+    if (p.map === 'monde' && st.bag['permis-bateau']) for (const n of m.npcs) if (n.script === 'ferry' && Math.abs(n.x - p.x) + Math.abs(n.y - p.y) === 1)
+      for (const d of Object.values(W.docks)) if (game.badgeCount() >= d.badges && (!d.show || d.show(st.flags))) push(d.map, d.x, d.y);
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const x = p.x + dx, y = p.y + dy; if (!m.in(x, y)) continue;
       const t = m.get(x, y), B = bl(p.map);
@@ -54,7 +57,7 @@ function explore(pos) {
       if (t === T.LEDGE && dy === 1 && !onWater) { if (walkable(m.get(x, y + 1)) && !B.has(x + ',' + (y + 1))) push(p.map, x, y + 1); continue; }
       if (t === T.LEDGE_E && dx === 1) { if (walkable(m.get(x + 1, y))) push(p.map, x + 1, y); continue; }
       if (t === T.LEDGE_W && dx === -1) { if (walkable(m.get(x - 1, y))) push(p.map, x - 1, y); continue; }
-      let pass = walkable(t) && (onWater || m.height(x, y) === m.height(p.x, p.y));
+      let pass = walkable(t) && m.height(x, y) === m.height(p.x, p.y);
       if (t === T.STAIRS || t0 === T.STAIRS) pass = walkable(t) && Math.abs(m.height(x, y) - m.height(p.x, p.y)) <= 1;
       if (t === T.CUT && can('coupe')) pass = true;
       if (t === T.SMASH && can('eclate')) pass = true;
@@ -126,6 +129,8 @@ leader(0);
 beat('ecl:bois1', 'ecl:bois2'); talk('lumen-bois', () => { st.bag['cs-flash'] = 1; });
 beat('ecl:grotte1', 'ecl:erebe1', 'ecl:grotte2');
 beat('ecl:azur1', 'ecl:nyx1'); talk('azur:marin'); leader(1);
+// le permis bateau (Capitainerie de Port-Azur, dès 2 badges) : l'archipel et les îles de l'Est ne s'atteignent qu'en bateau
+talk('permis:inspectrice', () => { st.bag['permis-bateau'] = 1; });
 cannot('l\'Arène de Voltacité est fermée tant que la Centrale est occupée', leaderId(2));
 beat('ecl:volta1', 'ecl:volta2', 'ecl:erebe2'); talk('volta:ingenieur', () => { st.bag['cs-force'] = 1; });
 leader(2);

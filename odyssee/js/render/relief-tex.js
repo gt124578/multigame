@@ -98,21 +98,37 @@ function marches(dir, R) {
     }
   });
 }
-/** une image du tourbillon (f sur 8) : spirale d'écume qui tourne, œil sombre au centre ; fond transparent */
-export function tourbillon(f) {
+/** une image d'un grand tourbillon (f sur 8, sens et phase selon v) : 64 × 64 pixels, spirale d'écume et œil sombre,
+ *  rendu en quatre quarts de case (fond transparent) */
+export function tourbillon(f, v = 0) {
+  const N = 64, c = document.createElement('canvas'); c.width = N; c.height = N;
+  const x = c.getContext('2d'), im = x.createImageData(N, N), d = im.data;
+  const put = (i, j, col) => { const [r, g, b] = rgb(col), k = (j * N + i) * 4; d[k] = r; d[k + 1] = g; d[k + 2] = b; d[k + 3] = 255; };
+  const sens = v & 1 ? -1 : 1, a0 = sens * (f + v * 3) * Math.PI / 4;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const dx = i - 31.5, dy = (j - 31.5) * 1.3, r = Math.hypot(dx, dy); if (r > 31) continue;
+    const th = Math.atan2(dy, dx) * sens;
+    const ph = ((th - a0 * sens - Math.log(r + 1) * 3.1) % (Math.PI * 2 / 3) + Math.PI * 2) % (Math.PI * 2 / 3);
+    const bord = r > 26 ? (r - 26) / 5 : 0, h = hash(i, j, f);
+    if (r < 3) put(i, j, '#0c2458');
+    else if (r < 6) put(i, j, ph < 1 ? '#173f94' : '#12306e');
+    else if (ph < 0.22 && h > bord) put(i, j, r > 20 ? '#9ad6f4' : '#f0faff');
+    else if (ph < 0.42 && h > bord * 1.4) put(i, j, '#6cb8ee');
+    else if (ph > 1.5 && r < 22 && h > 0.25) put(i, j, '#1e4a9c');
+  }
+  x.putImageData(im, 0, 0);
+  return c;
+}
+/** quart (q = 0 haut gauche, 1 haut droite, 2 bas gauche, 3 bas droite) d'une image de 64 px */
+export function quart(src, q) { const c = mk(); c.getContext('2d').drawImage(src, (q & 1) * C, (q >> 1) * C, C, C, 0, 0, C, C); return c; }
+/** remous entre les grands tourbillons : arcs d'écume qui tournent lentement, fond transparent */
+export function remous(f, v = 0) {
   const c = mk(), x = c.getContext('2d'), im = x.createImageData(C, C), d = im.data;
-  const put = (i, j, col) => { if (i < 0 || j < 0 || i >= C || j >= C) return; const [r, g, b] = rgb(col), k = (j * C + i) * 4; d[k] = r; d[k + 1] = g; d[k + 2] = b; d[k + 3] = 255; };
-  const a0 = f * Math.PI / 4;
-  for (let j = 0; j < C; j++) for (let i = 0; i < C; i++) {
-    const dx = i - 15.5, dy = (j - 15.5) * 1.25, r = Math.hypot(dx, dy); if (r > 15) continue;
-    const th = Math.atan2(dy, dx);
-    // deux bras en spirale logarithmique
-    const ph = ((th - a0 - Math.log(r + 1) * 2.6) % Math.PI + Math.PI) % Math.PI;
-    if (r < 2.2) put(i, j, '#12306e');
-    else if (r < 4) put(i, j, ph < 1.2 ? '#1e4a9c' : '#173f94');
-    else if (ph < 0.35) put(i, j, r > 12 ? '#9ad6f4' : '#e6f6ff');
-    else if (ph < 0.7) put(i, j, '#6cb8ee');
-    else if (ph > 2.6 && r < 11) put(i, j, '#2862be');
+  const put = (i, j, col) => { i = Math.round(i); j = Math.round(j); if (i < 0 || j < 0 || i >= C || j >= C) return; const [r, g, b] = rgb(col), k = (j * C + i) * 4; d[k] = r; d[k + 1] = g; d[k + 2] = b; d[k + 3] = 255; };
+  const arcs = [[10 + v * 3, 9, 5, 0], [22 - v * 2, 20 + v, 6, 2.1], [8, 24 - v * 4, 4, 4.2]];
+  for (const [cx, cy, R, p0] of arcs) {
+    const a0 = p0 + (v & 1 ? -1 : 1) * f * Math.PI / 8;
+    for (let t = 0; t < 2.4; t += 0.12) { const a = a0 + t; put(cx + Math.cos(a) * R, cy + Math.sin(a) * R * 0.8, t < 0.5 ? '#f0faff' : t < 1.4 ? '#9ad6f4' : '#6cb8ee'); }
   }
   x.putImageData(im, 0, 0);
   return c;

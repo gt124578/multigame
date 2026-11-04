@@ -3,7 +3,7 @@
 // une hauteur (GameMap.hg) ; on ne passe d'une hauteur à l'autre que par une marche (T.STAIRS, un niveau d'écart),
 // la paroi (T.CLIFF) est infranchissable. Le rendu (world3d.js, reliefDehors) dessine tout ça à plat, façon HeartGold.
 import { T } from './tiles.js';
-import { along } from './mapgen.js';
+import { along, rng } from './mapgen.js';
 
 const key = (x, y) => x + ',' + y;
 /** ce qu'une paroi ne recouvre jamais */
@@ -114,4 +114,21 @@ export function sinueuse(pts, pas = 3) {
   }
   out.push(pts[pts.length - 1]);
   return out;
+}
+
+/** ceinture de tourbillons sur la mer : le long de chaque ligne brisée, les cases d'eau à moins de `hw` (plus un peu de
+ *  bruit, jamais moins) deviennent des tourbillons, infranchissables à la nage */
+export function tourbillons(W, lignes, hw = 1.5, seed = 77) {
+  const r = rng(seed);
+  for (const pts of lignes) {
+    const L = lenOf(pts), n = Math.ceil(L * 2) + 1;
+    for (let i = 0; i <= n; i++) {
+      const p = along(pts, i / n), e = hw + (r() < 0.35 ? 1 : 0);
+      for (let dy = -Math.ceil(e); dy <= Math.ceil(e); dy++) for (let dx = -Math.ceil(e); dx <= Math.ceil(e); dx++) {
+        if (Math.hypot(dx, dy) > e + 0.25) continue;
+        const x = Math.floor(p.x + dx), y = Math.floor(p.y + dy);
+        if (W.get(x, y) === T.WATER) W.set(x, y, T.WHIRL);
+      }
+    }
+  }
 }

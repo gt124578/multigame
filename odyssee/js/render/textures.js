@@ -3,7 +3,7 @@
 
 import { SOL16_JEUX } from '../data/sol16.js';
 import { REGLES, kitCell } from '../data/regles.js';
-import { texturesRelief, tourbillon, koi } from './relief-tex.js';
+import { texturesRelief, tourbillon, quart, remous, koi } from './relief-tex.js';
 
 export const CELL = 16, PITCH = 18;
 
@@ -414,7 +414,11 @@ export function buildAnimAtlas() {
   for (const [k, hk] of [[4, 'fleur_o'], [5, 'fleur_w']]) if (HG[hk]) keys.push(['flower' + k, (P, f) => flowerCell(P, f >> 1, k % 3), (f) => hgFlower(hk, f, SOL32.grass0)]);
   keys.push(['lava', (P, f) => { P.fill('#e85a20'); for (let i = 0; i < 6; i++) { const x = (i * 5 + f * 3) % 16, y = (i * 7 + f) % 16; P.rect(x, y, 3, 1, '#ffb040'); P.p(x + 1, y + 1, '#ffe080'); } P.speck(5, '#b83a10'); }, SOL32.lava0 && ((f) => up2(SOL32['lava' + ((f >> 2) & 1)] || SOL32.lava0))]);
   keys.push(['deep', (P, f) => { const w = PAL.water; P.fill(w[4]); for (let k = 0; k < 3; k++) { const y = (k * 5 + 2) % 16, x0 = (k * 6 + f * 2) % 16; for (let i = 0; i < 3; i++) P.p((x0 + i) % 16, y, w[1]); } }, SOL32.deep0 && ((f) => up2(SOL32['deep' + ((f >> 2) & 1)] || SOL32.deep0))]);
-  keys.push(['tourbillon', null, (f) => tourbillon(f)], ['koi', null, (f) => koi(f)]);   // tourbillons de la mer (render/relief-tex.js)
+  // tourbillons : grands (2 × 2 cases, deux sens de rotation), remous entre eux, carpes koï (render/relief-tex.js)
+  const tbCache = new Map(), tb = (v, f) => { const k = v * 8 + f; if (!tbCache.has(k)) tbCache.set(k, tourbillon(f, v)); return tbCache.get(k); };
+  for (let v = 0; v < 2; v++) for (let q = 0; q < 4; q++) keys.push([`tourbillon${v}_${q}`, null, (f) => quart(tb(v, f), q)]);
+  for (let v = 0; v < 3; v++) keys.push([`remous${v}`, null, (f) => remous(f, v)]);
+  keys.push(['koi', null, (f) => koi(f)]);   // tourbillons de la mer (render/relief-tex.js)
   for (let f = 0; f < FR; f++) {
     const c = canvas(SIZE, SIZE), ctx = c.getContext('2d');
     keys.forEach(([key, draw, drawImg], i) => {
