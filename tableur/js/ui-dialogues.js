@@ -498,6 +498,15 @@ export function installerDialogues(api) {
     });
   }
 
-  return { ouvrir, protegerFeuille, sparklines, importerTexte, creerTableau, styleTableau: styleTableauDlg, renommerTableau: renommerTableauDlg, redimensionnerTableau, formatCellule, collageSpecial, cellules, atteindre, lien, note, doublons, colonnes, ouvert: () => !fond.hidden };
+  // ---------------------------------------------------------------------------
+  // Galerie des modèles
+  // ---------------------------------------------------------------------------
+  function modeles(liste, choisir) {
+    const boite = ouvrir('Nouveau d\'après un modèle', `<p class="aide-petite">Un classeur neuf, déjà rempli d'exemples : il suffit de remplacer les données. Les formules et les couleurs suivent.</p>
+      <div class="galerie-modeles">${liste.map((m) => `<button class="carte-modele" data-cle="${ech(m.cle)}"><span class="icone">${m.icone}</span><b>${ech(m.nom)}</b><span>${ech(m.desc)}</span></button>`).join('')}</div>`, null, { large: true });
+    boite.querySelectorAll('.carte-modele').forEach((b) => b.addEventListener('click', () => { fermer(); choisir(b.dataset.cle); }));
+  }
+
+  return { ouvrir, modeles, protegerFeuille, sparklines, importerTexte, creerTableau, styleTableau: styleTableauDlg, renommerTableau: renommerTableauDlg, redimensionnerTableau, formatCellule, collageSpecial, cellules, atteindre, lien, note, doublons, colonnes, ouvert: () => !fond.hidden };
 }
 

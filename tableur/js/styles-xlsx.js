@@ -65,6 +65,32 @@ export function lireCouleur(xml, theme) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Lignes et colonnes masquées écrites « hidden="true" » (LibreOffice), que SheetJS ne voit pas :
+ * Map nomFeuille → { lignes: [r], colonnes: [c] }.
+ */
+export function lireMasqueesXlsx(XLSX, octets) {
+  const cfb = XLSX.CFB.read(octets, { type: 'array' });
+  const wb = fichierZip(cfb, 'xl/workbook.xml'), rels = fichierZip(cfb, 'xl/_rels/workbook.xml.rels');
+  const resultat = new Map();
+  if (!wb || !rels) return resultat;
+  const cibles = {};
+  for (const r of rels.texte.matchAll(/<Relationship\b[^>]*>/g)) cibles[(/\sId="([^"]+)"/.exec(r[0]) || [])[1]] = (/\sTarget="([^"]+)"/.exec(r[0]) || [])[1];
+  for (const sh of wb.texte.matchAll(/<sheet\b[^>]*>/g)) {
+    const nom = ((/\sname="([^"]*)"/.exec(sh[0]) || [])[1] || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+    let cible = cibles[(/\sr:id="([^"]+)"/i.exec(sh[0]) || [])[1]];
+    if (!cible) continue;
+    cible = cible.replace(/^\/?xl\//, '').replace(/^\//, '');
+    const f = fichierZip(cfb, 'xl/' + cible) || fichierZip(cfb, cible);
+    if (!f || !/hidden="true"/.test(f.texte)) continue;
+    const lignes = [...f.texte.matchAll(/<row\b[^>]*\shidden="true"[^>]*>/g)].map((m) => +(/\sr="(\d+)"/.exec(m[0]) || [, 0])[1] - 1).filter((r) => r >= 0);
+    const colonnes = [];
+    for (const m of f.texte.matchAll(/<col\b[^>]*\shidden="true"[^>]*>/g)) { const a = +(/\smin="(\d+)"/.exec(m[0]) || [, 0])[1], b = +(/\smax="(\d+)"/.exec(m[0]) || [, 0])[1]; for (let c = a; c <= Math.min(b, a + 1000); c++) colonnes.push(c - 1); }
+    if (lignes.length || colonnes.length) resultat.set(nom, { lignes, colonnes });
+  }
+  return resultat;
+}
+
+/**
  * Lit les styles d'un .xlsx : renvoie Map nomFeuille → Map adresse → style (seules les cellules stylées).
  */
 export function lireStylesXlsx(XLSX, octets) {

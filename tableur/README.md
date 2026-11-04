@@ -64,9 +64,28 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 - **Affichage** : volets figés (à la cellule, première ligne, première colonne ; boutons et images des volets restent à
   l'écran), lignes et colonnes masquées, renvoi à la ligne, taille de police, impression / PDF de la feuille ou de la sélection.
   Volets, filtre, lignes masquées et mise en forme conditionnelle sont lus et écrits dans le `.xlsx` (`js/vues-xlsx.js`).
-- **Fichiers** : ouverture de `.xlsx` / `.xlsm` / `.csv` (feuilles, formules, formats, styles, largeurs, noms, feuilles masquées),
-  de `.docx` (chaque tableau Word devient une feuille) et de modules VBA `.bas` / `.cls` / `.frm` (ajoutés à l'éditeur) ;
-  enregistrement en `.xlsx` / `.xlsm` / `.csv`. Le classeur est aussi gardé dans le navigateur (`localStorage`).
+- **Fichiers** : ouverture de `.xlsx` / `.xlsm` / `.xls` / `.ods` / `.csv` (feuilles, formules, formats, styles, largeurs, noms,
+  feuilles masquées), de `.docx` (chaque tableau Word devient une feuille) et de modules VBA `.bas` / `.cls` / `.frm` ;
+  enregistrement en `.xlsx` / `.xlsm` / `.ods` / `.csv`. Avec Chrome ou Edge, **Ctrl+S réécrit le fichier ouvert sur le disque**
+  (`F12` : enregistrer sous ; ▾ d'Ouvrir : fichiers récents) ; ailleurs, le fichier est téléchargé. Les classeurs ouverts sont
+  aussi gardés dans le navigateur (IndexedDB, sans limite de taille pratique) ; une alerte prévient avant de fermer l'onglet
+  si un classeur modifié n'a été gardé nulle part.
+- **LibreOffice (`.ods`, `js/ods.js`, `js/ods-objets.js`)** : écriture complète — valeurs, formules (OpenFormula, références de
+  tableau converties en plages), formats de nombre (durées `[h]:mm`, négatifs en rouge), styles, polices, texte riche, fusions,
+  validation des données, mise en forme conditionnelle (valeur, texte, formule, doublons, premiers, moyenne, échelles, barres,
+  icônes), volets figés, mise en page (orientation, papier, ajuster, marges, zone d'impression, titres répétés), graphiques
+  (objets de LibreOffice), images, formes et zones de texte ; et la même chose relue dans un `.ods` fait par LibreOffice.
+- **CSV** (`js/csv.js`) : à l'ouverture, une boîte montre l'aperçu et laisse choisir le séparateur, l'encodage (UTF-8,
+  Windows, UTF-16), la virgule ou le point décimal et la première ligne ; enregistrement à la française (`;`, virgule, BOM).
+- **Polices et texte riche** : police par cellule (Calibri, Arial, Times New Roman… avec leurs équivalents libres), plusieurs
+  styles dans une même cellule (choisir un mot pendant la saisie puis Ctrl+B, Ctrl+I, couleur) ; bordures doubles,
+  pointillées, tirets et de couleur ; tout est lu et écrit dans le `.xlsx` et le `.ods`.
+- **Modèles** (`js/modeles.js`, Nouveau ▾) : budget mensuel, facture, relevé de notes (moyennes pondérées, rang,
+  appréciation), planning de la semaine, liste de présence, feuille d'heures, liste de tâches — prêts à remplir.
+- **Formes et zones de texte** (`js/formes.js`, bouton ◇ Formes) : zone de texte, rectangle, rectangle arrondi, ellipse,
+  triangle, losange, flèche, trait, étoile, bulle ; double-clic (ou second appui) pour écrire dedans, poignée pour
+  redimensionner, clic droit pour le remplissage, le contour, le texte et l'ordre ; G, I, S, couleurs et alignement de la
+  barre s'appliquent à la forme choisie. Écrites comme de vraies formes d'Excel (et de LibreOffice).
 - **Macros** : projet VBA comme dans l'éditeur d'Excel (`Alt+F11`) — un module de code par feuille (`Feuil1 (Hypothèses)`),
   `ThisWorkbook` et des modules standard nommés (créer, renommer, supprimer, exporter en `.bas`), avec la liste des procédures de
   chaque module ; boîte **Macros** (`Alt+F8`) pour exécuter, modifier, créer (en la nommant) ou supprimer une macro ; exécution
@@ -108,10 +127,13 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
   les exécuter, car le tableur ne compile pas de projet VBA. Le projet VBA d'origine d'un `.xlsm` est réécrit tel quel.
 - Graphiques : la description complète (palette, police…) n'est relue que par ce tableur ; un graphique d'Excel dont les
   séries viennent de plusieurs feuilles, ou de type non géré (boursier, bulles, surface, 3D), n'est pas affiché.
-  Couleurs de bordure : noir seulement. Mise en forme conditionnelle : pas de jeux d'icônes.
 - Tableaux croisés : écrits en valeurs (pas de cache de tableau croisé d'Excel) ; ceux d'un fichier Excel s'ouvrent comme
   de simples cellules ; pas de champs calculés.
-- Boutons, graphiques et images sont réécrits dans une feuille masquée que seul ce tableur relit : Excel ne les affiche pas.
+- Les boutons de macro sont réécrits dans une feuille masquée que seul ce tableur relit ; graphiques, images et formes sont
+  écrits à la fois comme de vrais objets d'Excel ou de LibreOffice et dans cette feuille (pour garder tous leurs réglages).
+- `.xls` (Excel 97-2003) : valeurs, formules, formats et fusions seulement (pas de mise en forme conditionnelle, de validation,
+  de graphiques ni d'images) ; l'enregistrer en `.xlsx` garde le reste du travail.
+- `.ods` : formats de nombre comptables et formats rares approchés ; pas de tableaux structurés (écrits comme des plages).
 - Pas de références externes entre classeurs (`=[Autre.xlsx]Feuil1!A1`) ; une macro VBA ne voit que son propre classeur.
 - VBA : pas de formulaires, d'événements, de classes, de `Property`, de fichiers ni d'API Windows.
 
@@ -138,6 +160,12 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 | `js/vues-xlsx.js` | Volets figés, filtre automatique, mise en forme conditionnelle et validation des données dans le zip `.xlsx` |
 | `js/chiffrement.js` | Ouverture des fichiers protégés par mot de passe (MS-OFFCRYPTO) |
 | `js/objets-xlsx.js` | Boutons de macro, formes et images d'un `.xlsx` |
+| `js/ods.js` | Classeurs OpenDocument : écriture (content, styles, settings), lecture des styles, validations, mises en forme conditionnelles, mise en page |
+| `js/ods-objets.js` | Graphiques, images et formes d'un `.ods` (écriture et lecture) |
+| `js/csv.js` | CSV : décodage (UTF-8, Windows, UTF-16), séparateur et virgule décimale devinés, écriture à la française |
+| `js/stockage.js` | IndexedDB : classeurs ouverts, fichiers récents et leurs accès disque |
+| `js/modeles.js` | Modèles prêts à l'emploi |
+| `js/formes.js` | Formes et zones de texte : dessin SVG, correspondance avec les formes d'Excel |
 | `js/tableaux.js`, `js/tableaux-xlsx.js` | Styles des tableaux structurés ; tableaux et tables de données dans le `.xlsx` |
 | `js/analyse.js`, `js/ui-analyse.js` | Solveur, table de données, remplissage instantané, audit des formules (sans DOM) et leurs panneaux |
 | `js/impression.js`, `js/ui-impression.js` | Découpage en pages et HTML des pages (sans DOM) ; boîte Imprimer avec aperçu |
