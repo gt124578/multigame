@@ -8,6 +8,8 @@ export const T = {
   BOULDER: 32, // gros rocher qu'on pousse avec Force
   // arènes à énigmes : barrières rouges et bleues (levées ou baissées par les dalles), lave
   BARRIER_R: 33, BARRIER_B: 34, LAVA: 35,
+  // relief du dehors : paroi d'une falaise (sous le bord sud d'un plateau plus haut), tourbillons de la mer (infranchissables)
+  CLIFF: 36, WHIRL: 37,
 };
 const WALK = new Set([T.GRASS, T.PATH, T.TALL, T.SAND, T.FLOWER, T.DOOR, T.PAVE, T.BRIDGE, T.CAVE, T.FLOOR, T.MAT, T.STAIRS, T.ASH, T.CAVEDOOR, T.SNOW, T.DARKTALL]);
 export const walkable = (t) => WALK.has(t);

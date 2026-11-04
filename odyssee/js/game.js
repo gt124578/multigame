@@ -1,6 +1,7 @@
 // odyssee/js/game.js — le jeu : déplacements sur la grille, PNJ, dresseurs, rencontres, capacités de terrain (Coupe,
 // Surf, Éclate-Roc, Vol), menus, histoire (les huit arènes et l'archipel des trois frères), sauvegarde
 import { T, walkable, isGrassEnc, DIRS, OPP } from './world/tiles.js';
+import { nearestWalkable } from './world/mapgen.js';
 import { createMon, monName, healFull, levelEvolution, itemEvolution, evolve, setUidBase, levelCap, ensureNature } from './core/mon.js';
 import { Battle } from './core/battle.js';
 import { ITEMS, itemName, applyItem, canUseOn, useCandy, formatFindItem, formatObtainItem, itemPocketName } from './core/items.js';
@@ -194,6 +195,11 @@ export class Game {
   }
 
   async start(state) {
+    // ancienne partie arrêtée sur une carte qui n'existe plus (lieu déplacé sur la carte du monde) ou dans un décor
+    // qui a changé (falaise, arbre) : on la reprend sur la case libre la plus proche
+    const mv = this.world.moved?.[state.map];
+    if (mv) Object.assign(state, { map: mv.map, x: mv.x, y: mv.y, dir: mv.dir || state.dir, surf: false });
+    if (state.map === 'monde' && !state.surf && !walkable(this.world.maps.monde.get(state.x, state.y))) [state.x, state.y] = nearestWalkable(this.world.maps.monde, state.x, state.y);
     this.state = state; this._seen = null;
     this.stepLock = false; this.stepGap = false;
     this.player = { x: state.x, y: state.y, dir: state.dir || 'down', move: null, step: 0, turnLock: 0, bumpT: 0, surf: !!state.surf };
@@ -543,7 +549,7 @@ export class Game {
     // en surf : on glisse sur l'eau, et on descend sur la berge
     if (p.surf) {
       if (m.in(tx, ty) && t === T.WATER && !this.occupied(tx, ty)) { p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur: SURF }; p.walking = true; return; }
-      if (m.in(tx, ty) && walkable(t) && t !== T.DOOR && t !== T.BRIDGE && !this.occupied(tx, ty)) { p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur: 0.25, jump: true, land: true }; p.walking = true; this.sound.sfx('ledge'); return; }
+      if (m.in(tx, ty) && walkable(t) && t !== T.DOOR && t !== T.BRIDGE && !this.occupied(tx, ty) && m.height(tx, ty) === m.height(p.x, p.y)) { p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur: 0.25, jump: true, land: true }; p.walking = true; this.sound.sfx('ledge'); return; }
       p.walking = false; if (p.bumpT <= 0) { this.sound.sfx('bump'); p.bumpT = 0.3; } return;
     }
     // Force : pousser un rocher
@@ -560,7 +566,7 @@ export class Game {
       const lx = tx + dx, ly = ty + dy;
       if (walkable(m.get(lx, ly)) && !this.occupied(lx, ly)) { p.move = { fx: p.x, fy: p.y, tx: lx, ty: ly, t: 0, dur: 0.42, jump: true }; p.walking = true; this.sound.sfx('ledge'); return; }
     }
-    if (m.in(tx, ty) && walkable(t) && !this.occupied(tx, ty) && m.height(tx, ty) === m.height(p.x, p.y)) {
+    if (m.in(tx, ty) && walkable(t) && !this.occupied(tx, ty) && m.canStep(p.x, p.y, tx, ty)) {
       const dur = this.onBike() ? VELO : isRunning ? this.runDur(isTurbo) : WALK;
       p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur }; p.walking = true;
       return;
@@ -690,7 +696,7 @@ export class Game {
     n.dir = d;
     if (n.def.move === 'wander' && Math.random() < 0.6) {
       const [dx, dy] = DIRS[d], tx = n.x + dx, ty = n.y + dy;
-      if (Math.abs(tx - n.home[0]) <= 2 && Math.abs(ty - n.home[1]) <= 2 && walkable(this.mapObj.get(tx, ty)) && !this.occupied(tx, ty, n) && this.mapObj.get(tx, ty) !== T.DOOR && this.mapObj.get(tx, ty) !== T.MAT) {
+      if (Math.abs(tx - n.home[0]) <= 2 && Math.abs(ty - n.home[1]) <= 2 && walkable(this.mapObj.get(tx, ty)) && this.mapObj.canStep(n.x, n.y, tx, ty) && !this.occupied(tx, ty, n) && this.mapObj.get(tx, ty) !== T.DOOR && this.mapObj.get(tx, ty) !== T.MAT) {
         n.move = { fx: n.x, fy: n.y, t: 0, dur: 0.32 }; n.x = tx; n.y = ty;
       }
     }
@@ -1346,6 +1352,7 @@ export class Game {
       const [dx, dy] = DIRS[n.dir];
       for (let k = 1; k <= tr.sight; k++) {
         const x = n.x + dx * k, y = n.y + dy * k;
+        if (!m.canStep(x - dx, y - dy, x, y)) break;   // pas de regard par-dessus une falaise
         if (x === p.x && y === p.y) { await this.trainerBattle(n, true); return true; }
         if (!walkable(m.get(x, y)) || this.npcs.some((q) => q !== n && q.x === x && q.y === y)) break;
       }

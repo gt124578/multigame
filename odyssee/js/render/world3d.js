@@ -161,7 +161,11 @@ function reliefKey(A, b, kind, v) {
 }
 
 /** biome des plateaux de roche dehors (montagnes des entrées de grottes et du bord du monde) */
-function bioDehors(theme) { return theme === 'snow' ? 'glace' : theme === 'volcanic' ? 'magma' : theme === 'beach' || theme === 'sea' ? 'mer' : 'montagne'; }
+function bioDehors(theme) { return theme === 'snow' ? 'glace' : theme === 'volcanic' ? 'magma' : theme === 'beach' || theme === 'sea' ? 'mer' : theme === 'canyon' || theme === 'desert' ? 'ocre' : 'montagne'; }
+/** roche des falaises du dehors (parois, rebords, marches) : celle des montagnes, ocre au désert, brune en forêt */
+function bioFalaise(zone) { const th = zone?.theme; return zone?.roche || (th === 'snow' ? 'glace' : th === 'volcanic' ? 'magma' : th === 'canyon' || th === 'desert' ? 'ocre' : th === 'forest' || th === 'automne' ? 'terre' : 'montagne'); }
+/** herbe (ou neige, sable…) qui déborde en haut d'une falaise */
+function levreFalaise(th) { return th === 'snow' ? 'neige' : th === 'volcanic' ? 'cendre' : th === 'desert' || th === 'canyon' ? 'sable' : th === 'forest' || th === 'foretsombre' ? 'foret' : 'herbe'; }
 /** bruit lisse (valeurs aléatoires sur une grille de `s` cases, interpolées) */
 function lisse(x, y, s) {
   const fx = x / s, fy = y / s, ix = Math.floor(fx), iy = Math.floor(fy); let tx = fx - ix, ty = fy - iy;
@@ -175,7 +179,7 @@ function lisse(x, y, s) {
  *  roche continue. Autour des entrées de grottes, les arbres qui bordent l'entrée deviennent la montagne de la grotte. */
 export function vueCarte(map) {
   if (!map.outdoor && map.floor !== 'cave') return map;
-  const v = Object.create(map); v.ext = true;
+  const v = Object.create(map); v.ext = true; v.base = map;
   const roc = new Set();
   if (map.outdoor) for (const b of map.buildings || []) {
     if (b.kind !== 'cave') continue;
@@ -200,7 +204,7 @@ export function vueCarte(map) {
   const W = map.w, H = map.h, cl = (a, n) => Math.max(0, Math.min(n - 1, a));
   v.get = (x, y) => {
     if (couloir.size && couloir.has(x + ',' + y)) return T.CAVE;
-    if (map.in(x, y)) return roc.size && roc.has(x + ',' + y) ? T.CAVEWALL : map.get(x, y);
+    if (map.in(x, y)) { if (roc.size && roc.has(x + ',' + y)) return T.CAVEWALL; const q = map.get(x, y); return q === T.WHIRL ? T.WATER : q; }   // tourbillon : de l'eau, avec sa spirale par-dessus
     if (!map.outdoor) return T.CAVEWALL;
     const cx = cl(x, W), cy = cl(y, H), d = Math.max(Math.abs(x - cx), Math.abs(y - cy)), b = map.get(cx, cy);
     if (b === T.WATER || b === T.BRIDGE) return T.WATER;
@@ -400,6 +404,8 @@ export class WorldView {
       walls: mk(this.texA),
       // pièces de transition des sols (terrain du bas transparent)
       overlay: mk(this.texA, { alphaTest: 0.5 }),
+      // décor animé posé sur l'eau (tourbillons)
+      animOver: mk(this.texN, { alphaTest: 0.5 }),
     };
     this.tinted = Object.values(this.mat);
     this.glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'); const g = x.createRadialGradient(16, 16, 1, 16, 16, 16); g.addColorStop(0, 'rgba(255,240,180,0.9)'); g.addColorStop(0.4, 'rgba(255,210,120,0.35)'); g.addColorStop(1, 'rgba(255,200,100,0)'); x.fillStyle = g; x.fillRect(0, 0, 32, 32); return tex(c); })();
@@ -432,6 +438,8 @@ export class WorldView {
     this.sol.setMap(map);
     this.decoAt = new Map(); for (const d of map.deco) this.decoAt.set(d.x + ',' + d.y, d);
     this.tiers = map.outdoor ? null : caveTiers(map); this.biome = caveBiome(map);
+    // relief du dehors : plateaux plus hauts, parois de falaise, marches (world/relief.js)
+    this.relief = !!map.outdoor && (map.hg?.some((h) => h !== 0) || map.t?.includes(T.CLIFF));
     this.rh = this.tiers && !this.A?.cells?.[`rp_${this.biome}_00`] ? caveHeights(map, this.tiers) : null;
     this.scene.background = new THREE.Color(map.outdoor ? '#1d4f2a' : '#0c0a10');
     if (map.id === 'monde') this.scene.background = new THREE.Color('#1d4f2a');
@@ -625,11 +633,40 @@ export class WorldView {
     const L = th === 'forest' ? ['touffe', 'feuilles', 'champignons', 'brindilles', 'touffe3', 'trefle'] : ['touffe', 'touffe2', 'trefle', 'cailloux', 'paquerettes', 'boutons', 'touffe3', 'touffe', 'trefle', 'brindilles'];
     return L[Math.floor(hash(x + 503, y + 211) * L.length)];
   }
+  /** relief du dehors, dessiné à plat comme dans HeartGold / SoulSilver : paroi de roche sous le bord sud d'un plateau
+   *  (lèvre d'herbe en haut, ombre au pied), rebords de roche à l'est, à l'ouest et au nord, marches taillées */
+  reliefDehors(G, x, y, t, zone) {
+    const m = this.map, A = this.A.cells, h = m.height(x, y), th = zone?.theme, bio = bioFalaise(zone);
+    const Y = 0.0049, v = hash(x * 3 + 1, y * 7 + 5);
+    if (t === T.CLIFF) {
+      let r = 0; while (r < 6 && m.get(x, y - r - 1) === T.CLIFF) r++;
+      const rw = A[`rw_${bio}_${Math.floor(v * 3)}`] || A.rw_montagne_0;
+      if (rw) flat(G, x, y, x + 1, y + 1, Y, rw, r === 0 ? 1 : Math.max(0.72, 0.94 - 0.08 * r));
+      if (r === 0) { const L = A[`fal_levre_${levreFalaise(th)}_${v < 0.5 ? 0 : 1}`]; if (L) flat(G, x, y, x + 1, y + 1, Y + 0.0002, L); }
+      const fin = (q) => q !== T.CLIFF && q !== T.STAIRS;
+      if (fin(m.get(x - 1, y)) && A[`fal_bout_w_${bio}`]) flat(G, x, y, x + 1, y + 1, Y + 0.0001, A[`fal_bout_w_${bio}`]);
+      if (fin(m.get(x + 1, y)) && A[`fal_bout_e_${bio}`]) flat(G, x, y, x + 1, y + 1, Y + 0.0001, A[`fal_bout_e_${bio}`]);
+      return;
+    }
+    if (t === T.STAIRS) {
+      const d = m.height(x, y - 1) > h ? 's' : m.height(x, y - 1) < h && m.get(x, y - 1) !== T.CLIFF ? 'n' : m.height(x + 1, y) < h ? 'e' : m.height(x - 1, y) < h ? 'w' : m.height(x, y + 1) < h || m.get(x, y + 1) === T.STAIRS ? 's' : null;
+      const k = d && (A[`marches_${d}_${bio}`] || A[`marches_${d}_montagne`]);
+      if (k) { flat(G, x, y, x + 1, y + 1, Y + 0.0001, k); return; }
+    }
+    if (m.get(x, y - 1) === T.CLIFF && A.fal_pied) flat(G, x, y, x + 1, y + 1, Y, A.fal_pied);
+    if (h > 0) {
+      const bas = (dx, dy) => m.height(x + dx, y + dy) < h && m.get(x + dx, y + dy) !== T.CLIFF && m.get(x + dx, y + dy) !== T.STAIRS;
+      if (bas(1, 0)) flat(G, x, y, x + 1, y + 1, Y + 0.0002, A[`fal_bord_e_${bio}`]);
+      if (bas(-1, 0)) flat(G, x, y, x + 1, y + 1, Y + 0.0002, A[`fal_bord_w_${bio}`]);
+      if (bas(0, -1)) flat(G, x, y, x + 1, y + 1, Y + 0.0003, A[`fal_bord_n_${bio}`]);
+    }
+  }
   tierAt(x, y) { const m = this.map; if (x < 0 || y < 0 || x >= m.w || y >= m.h) return 3; return this.tiers[y * m.w + x] || 0; }
 
   buildChunk(ci, cj) {
     const m = this.map, A = this.A.cells, S = this.S.rects;
-    const G = new Geo(), N = new Geo(), P = new Geo(), Wl = new Geo(), Sh = new Geo(), O0 = new Geo();
+    const G = new Geo(), N = new Geo(), P = new Geo(), Wl = new Geo(), Sh = new Geo(), O0 = new Geo(), NO = new Geo();
+    const base = m.base || m;
     const glows = [];
     const x0 = ci * CH, y0 = cj * CH;
     const wallH = 2 * Math.tan(EL), caveH = 1.25 * Math.tan(EL);
@@ -645,6 +682,10 @@ export class WorldView {
         const k = this.detailAt(x, y); if (A['dec_' + k]) flat(O0, x, y, x + 1, y + 1, 0.004, A['dec_' + k]);
       }
       const zone = m.outdoor ? m.zoneAt(x, y) : null, theme = zone?.theme;
+      if (this.relief) this.reliefDehors(O0, x, y, t, zone);
+      if (m.outdoor && base.get(x, y) === T.WHIRL) flat(NO, x, y, x + 1, y + 1, 0.006, this.N.cells.tourbillon);
+      if (m.outdoor && t === T.BRIDGE && theme === 'automne' && A.pont_rouge) flat(O0, x - 0.02, y, x + 1.02, y + 1, 0.0051, A.pont_rouge);
+      if (this.decoAt.get(x + ',' + y)?.k === 'koi') flat(NO, x, y, x + 1, y + 1, 0.0055, this.N.cells.koi);
       // décor en volume
       if (t === T.TREE || t === T.PINE) {
         // forêts rangées comme sur DS : un arbre par bloc de 2 × 2 cases, les rangées se chevauchent un peu ;
@@ -659,6 +700,7 @@ export class WorldView {
           let key = t === T.PINE ? 'pine' : vb < 0.6 ? 'tree' : S.tree3 && vb < 0.68 ? 'tree3' : 'tree2';
           if (theme === 'volcanic') key = 'deadtree';
           else if (theme === 'snow') key = 'snowpine';
+          else if (theme === 'automne' && t === T.TREE && S.automne0) { const a = 'automne' + Math.floor(hash(x * 7 + 3, y * 3 + 9) * 6); if (S[a]) key = a; }
           const r = S[key], cx = x + 0.5 + (v - 0.5) * 0.2, cz = y + 0.7;
           billboard(P, cx, cz, SW(r), SH(r), r, 0, vb > 0.5, 1);
           flat(Sh, cx - 0.75, cz - 0.3, cx + 0.75, cz + 0.3, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
@@ -736,7 +778,7 @@ export class WorldView {
     const add = (geo, mat, order = 0) => { const g = geo.build(); if (g) { const me = new THREE.Mesh(g, mat); me.renderOrder = order; me.frustumCulled = false; grp.add(me); } };
     // sous le sol généré (sol.js, ordre -2, sans profondeur : pas de scintillement entre couches presque à la même hauteur)
     const sous = this.sol.couvre() ? -3 : 0;
-    add(G, this.mat.ground, sous); add(N, this.mat.anim, sous); add(O, this.mat.overlay, sous); add(O0, this.mat.overlay); add(Sh, this.mat.shadow, 1); add(P, this.mat.sprite); add(Wl, this.mat.walls);
+    add(G, this.mat.ground, sous); add(N, this.mat.anim, sous); add(O, this.mat.overlay, sous); add(O0, this.mat.overlay); add(Sh, this.mat.shadow, 1); add(P, this.mat.sprite); add(Wl, this.mat.walls); add(NO, this.mat.animOver);
     for (const [gx, gz, gy] of glows) {
       const me = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), this.matGlow); me.position.set(gx, gy, gz + 0.05); me.rotation.x = -0.3; me.userData.lampGlow = true; this.glows.add(me);
     }

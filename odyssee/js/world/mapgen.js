@@ -29,6 +29,12 @@ export class GameMap {
   get(x, y) { return this.in(x, y) ? this.t[y * this.w + x] : this.edge; }
   set(x, y, v) { if (this.in(x, y)) this.t[y * this.w + x] = v; }
   height(x, y) { return this.in(x, y) ? this.hg[y * this.w + x] : 0; }
+  setHeight(x, y, h) { if (this.in(x, y)) this.hg[y * this.w + x] = h; }
+  /** peut-on passer d'une case à sa voisine selon le relief ? même hauteur, ou une marche d'escalier (un niveau d'écart) */
+  canStep(x0, y0, x1, y1) {
+    const a = this.height(x0, y0), b = this.height(x1, y1);
+    return a === b || ((this.get(x0, y0) === T.STAIRS || this.get(x1, y1) === T.STAIRS) && Math.abs(a - b) <= 1);
+  }
   rect(x0, y0, x1, y1, v, only = null) { for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) if (!only || only.includes(this.get(x, y))) this.set(x, y, v); }
   blob(cx, cy, rx, ry, v, r = Math.random, only = null) {
     for (let y = Math.floor(cy - ry - 1); y <= cy + ry + 1; y++) for (let x = Math.floor(cx - rx - 1); x <= cx + rx + 1; x++) {
