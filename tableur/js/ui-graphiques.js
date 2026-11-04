@@ -263,13 +263,13 @@ export function installerGraphiques(api) {
   // ---------------------------------------------------------------------------
   // Dessin sur la feuille
   // ---------------------------------------------------------------------------
-  function rendreSurFeuille(f, garder = null) {
+  function rendreSurFeuille(f, garder = null, z = 1) {
     let html = '';
     for (const g of f.graphiques || []) {
       if (garder && !garder(g)) continue;
       normaliser(g);
       const svg = rendreGraphiqueSVG(g, api.donnees(f, g.plage), g.w - 2, g.h - 26, { edition: g.id === api.actif() });
-      html += `<div class="graphique${g.id === api.actif() ? ' actif' : ''}" data-id="${g.id}" style="left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px">
+      html += `<div class="graphique${g.id === api.actif() ? ' actif' : ''}" data-id="${g.id}" style="left:${g.x * z}px;top:${g.y * z}px;width:${g.w}px;height:${g.h}px${z !== 1 ? `;transform:scale(${z});transform-origin:0 0` : ''}">
         <div class="graphique-barre"><span class="graphique-titre" title="${ech(nomType(g))} — glisser pour déplacer, double-clic pour régler">${ech(g.titre || nomType(g))}</span><button class="graphique-reglages" title="Paramètres du graphique">⚙</button><button class="graphique-suppr" title="Supprimer">✕</button></div>
         <div class="graphique-corps">${svg}</div><div class="graphique-redim"></div></div>`;
     }

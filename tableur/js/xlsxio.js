@@ -7,6 +7,7 @@ import { lireStylesXlsx, ecrireStylesXlsx } from './styles-xlsx.js';
 import { lireObjetsXlsx } from './objets-xlsx.js';
 import { lireVuesXlsx, ecrireVuesXlsx } from './vues-xlsx.js';
 import { lireTableauxXlsx, ecrireTableauxXlsx } from './tableaux-xlsx.js';
+import { lirePageXlsx, ecrirePageXlsx } from './page-xlsx.js';
 import { ecrireGraphiquesXlsx, specDepuisChartXml, positionAncre } from './graphiques-xlsx.js';
 
 const FEUILLE_MACROS = '_MacrosTableur';
@@ -111,6 +112,7 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
         const f = classeur.feuille(nom);
         if (!f) continue;
         if (v.figer) f.figer = v.figer;
+        if (v.zoom) f.zoom = v.zoom;
         if (v.couleur) f.couleur = v.couleur;
         if (v.mfc) f.mfc = v.mfc;
         if (v.validations) f.validations = v.validations;
@@ -131,10 +133,29 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
         if (t && !f.filtre) { f.filtre = { r1: t.r1, c1: t.c1, r2: t.totaux ? t.r2 - 1 : t.r2, c2: t.c2, criteres: {} }; f.filtrees = new Set(); }
       }
     } catch (e) { console.warn('Tableaux non lus :', e); }
+    try {
+      for (const [nom, res] of lirePageXlsx(XLSX, donnees)) {
+        const f = classeur.feuille(nom);
+        if (!f) continue;
+        if (res.miseEnPage) f.miseEnPage = { ...(f.miseEnPage || {}), ...res.miseEnPage };
+        if (res.protection) f.protection = res.protection;
+      }
+    } catch (e) { console.warn('Mise en page non lue :', e); }
   }
   // Noms définis
   if (wb.Workbook && wb.Workbook.Names) {
     for (const n of wb.Workbook.Names) {
+      if (/^_xlnm\.Print_(Area|Titles)$/i.test(n.Name || '') && n.Ref && n.Sheet !== undefined && n.Sheet !== null) {
+        // Zone d'impression et titres à répéter
+        const f = classeur.feuille(wb.SheetNames[n.Sheet]);
+        if (f) {
+          const parts = String(n.Ref).split(',').map((x) => x.replace(/^.*!/, '').replace(/\$/g, ''));
+          const R = f.miseEnPage || (f.miseEnPage = {});
+          if (/Area$/i.test(n.Name)) R.zone = parts.join(';');
+          else for (const x of parts) { if (/^\d+:\d+$/.test(x)) R.titresLignes = x; else if (/^[A-Z]+:[A-Z]+$/i.test(x)) R.titresColonnes = x.toUpperCase(); }
+        }
+        continue;
+      }
       if (!n.Name || n.Name.startsWith('_xlnm.') || !n.Ref) continue;
       if (/^solver_/i.test(n.Name)) { lireNomSolveur(classeur, wb, n); continue; }
       // Un nom peut être propre à une feuille (même nom sur plusieurs feuilles, comme « MortTable »)
@@ -242,6 +263,16 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
     wb.Workbook.Sheets.push({ name: f.nom, Hidden: f.cachee ? 1 : 0 });
   });
   classeur.feuilles.forEach((f, i) => { if (f.solveur && f.solveur.objectif) wb.Workbook.Names.push(...nomsSolveur(f, i)); });
+  classeur.feuilles.forEach((f, i) => {
+    const R = f.miseEnPage;
+    if (!R) return;
+    const nf = /^[A-Za-z_][\w.]*$/.test(f.nom) ? f.nom : "'" + f.nom.replace(/'/g, "''") + "'";
+    const abs = (x) => x.split(':').map((y) => y.replace(/^([A-Z]*)(\d*)$/i, (t, a, b) => (a ? '$' + a.toUpperCase() : '') + (b ? '$' + b : ''))).join(':');
+    const zones = String(R.zone || '').split(/[;,]/).map((x) => x.replace(/\$/g, '').trim()).filter(Boolean);
+    if (zones.length) wb.Workbook.Names.push({ Name: '_xlnm.Print_Area', Ref: zones.map((z) => nf + '!' + abs(z)).join(','), Sheet: i });
+    const titres = [R.titresLignes, R.titresColonnes].map((x) => String(x || '').replace(/\$/g, '').trim()).filter(Boolean);
+    if (titres.length) wb.Workbook.Names.push({ Name: '_xlnm.Print_Titles', Ref: titres.map((z) => nf + '!' + abs(z)).join(','), Sheet: i });
+  });
   for (const d of classeur.noms.values()) wb.Workbook.Names.push({ Name: d.nom, Ref: convertirFormule('=' + d.ref, 'en').slice(1) });
   classeur.feuilles.forEach((f, i) => { for (const d of f.noms.values()) wb.Workbook.Names.push({ Name: d.nom, Ref: convertirFormule('=' + d.ref, 'en').slice(1), Sheet: i }); });
   const macros = (classeur.macros || '').trim();
@@ -278,6 +309,7 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
   try { out = ecrireStylesXlsx(XLSX, out, classeur.feuilles); } catch (e) { console.warn('Styles non écrits :', e); }
   try { out = ecrireVuesXlsx(XLSX, out, classeur.feuilles); } catch (e) { console.warn('Volets, filtre ou mise en forme conditionnelle non écrits :', e); }
   if (bookType !== 'csv') try { out = ecrireTableauxXlsx(XLSX, out, classeur); } catch (e) { console.warn('Tableaux non écrits :', e); }
+  if (bookType !== 'csv') try { out = ecrirePageXlsx(XLSX, out, classeur); } catch (e) { console.warn('Mise en page non écrite :', e); }
   if (bookType !== 'csv') try { out = ecrireGraphiquesXlsx(XLSX, out, classeur); } catch (e) { console.warn('Graphiques Excel non écrits :', e); }
   return out;
 }

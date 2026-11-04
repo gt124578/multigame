@@ -73,8 +73,8 @@ export function installerDialogues(api) {
     else if (e.key === 'Enter' && !e.shiftKey && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON' && enCours && enCours.ok) { e.preventDefault(); e.stopPropagation(); enCours.ok(); }
   });
   /** Ouvre une boîte : titre, contenu HTML, action OK (renvoie false pour garder la boîte ouverte). */
-  function ouvrir(titre, html, ok, { large = false, texteOk = 'OK' } = {}) {
-    fond.innerHTML = `<div class="boite${large ? ' large' : ''}" role="dialog" aria-label="${ech(titre)}"><div class="boite-titre">${ech(titre)}<button class="boite-x" title="Fermer (Échap)">✕</button></div><div class="boite-corps">${html}</div>
+  function ouvrir(titre, html, ok, { large = false, texteOk = 'OK', classe = '' } = {}) {
+    fond.innerHTML = `<div class="boite${large ? ' large' : ''}${classe ? ' ' + classe : ''}" role="dialog" aria-label="${ech(titre)}"><div class="boite-titre">${ech(titre)}<button class="boite-x" title="Fermer (Échap)">✕</button></div><div class="boite-corps">${html}</div>
       <div class="boite-pied">${ok ? `<button class="boite-annuler">Annuler</button><button class="principal boite-ok">${ech(texteOk)}</button>` : '<button class="principal boite-annuler">Fermer</button>'}</div></div>`;
     fond.hidden = false;
     enCours = { ok: ok ? () => { if (ok() !== false) fermer(); } : null };
@@ -95,7 +95,7 @@ export function installerDialogues(api) {
     const v0 = api.classeur().valeur(api.fi(), cur.r, cur.c);
     const exemple = typeof v0 === 'number' ? v0 : -1234.5678;
     const etat = { ...lireCode(cel.z), s: JSON.parse(JSON.stringify(s0)), bord: { style: 'thin', cotes: {} }, fusion: api.selectionFusionnee() };
-    const ONGLETS = [['nombre', 'Nombre'], ['alignement', 'Alignement'], ['police', 'Police'], ['bordure', 'Bordure'], ['remplissage', 'Remplissage']];
+    const ONGLETS = [['nombre', 'Nombre'], ['alignement', 'Alignement'], ['police', 'Police'], ['bordure', 'Bordure'], ['remplissage', 'Remplissage'], ['protection', 'Protection']];
     const boite = ouvrir('Format de cellule', `<div class="onglets-boite">${ONGLETS.map(([k, t]) => `<button data-onglet="${k}">${t}</button>`).join('')}</div><div class="onglet-contenu" id="fc-contenu"></div>`, appliquer, { large: true });
     const contenu = $('fc-contenu');
     let courant = onglet;
@@ -159,6 +159,13 @@ export function installerDialogues(api) {
         contenu.querySelectorAll('[data-pre]').forEach((x) => x.addEventListener('click', () => { b.preset = b.preset === x.dataset.pre ? null : x.dataset.pre; b.cotes = {}; dessiner(); }));
         contenu.querySelectorAll('[data-cote]').forEach((x) => x.addEventListener('click', () => { b.preset = null; b.cotes[x.dataset.cote] = !b.cotes[x.dataset.cote]; dessiner(); }));
         $('fc-bs').addEventListener('change', (e) => { b.style = e.target.value; dessiner(); });
+      } else if (courant === 'protection') {
+        contenu.innerHTML = `<div class="fc-grille">
+          <label class="case"><input type="checkbox" id="fc-verr"${s.deverrouille ? '' : ' checked'}> Verrouillée</label>
+          <label class="case"><input type="checkbox" id="fc-masq"${s.masquee ? ' checked' : ''}> Masquée (la formule n'apparaît pas dans la barre)</label>
+          <p class="aide-petite">Ces réglages n'ont d'effet que lorsque la feuille est protégée (menu … › Révision › Protéger la feuille). Déverrouillez les cellules à remplir avant de protéger.</p></div>`;
+        const maj = () => { s.deverrouille = !$('fc-verr').checked || undefined; s.masquee = $('fc-masq').checked || undefined; };
+        contenu.querySelectorAll('input').forEach((el) => el.addEventListener('input', maj));
       } else if (courant === 'remplissage') {
         const couleurs = ['#ffffff', '#f2f2f2', '#d9d9d9', '#fff2cc', '#ffeb9c', '#fce4d6', '#ffc7ce', '#e2efda', '#c6efce', '#ddebf7', '#dbe5f1', '#e4dfec', '#ffff00', '#ffc000', '#ff0000', '#00b050', '#00b0f0', '#0070c0', '#7030a0', '#000000'];
         contenu.innerHTML = `<div class="fc-couleurs">${couleurs.map((c) => `<button data-fond="${c}" style="background:${c}" class="${s.fond === c ? 'choisi' : ''}" title="${c}"></button>`).join('')}</div>
@@ -176,8 +183,8 @@ export function installerDialogues(api) {
       const zAvant = cel.z || '';
       // Seules les propriétés changées sont posées sur toute la sélection (les autres cellules gardent les leurs)
       const patch = {};
-      for (const k of ['gras', 'italique', 'souligne', 'barre', 'taille', 'couleur', 'fond', 'align', 'valign', 'renvoi', 'retrait']) if ((etat.s[k] ?? null) !== (s0[k] ?? null)) patch[k] = etat.s[k] ?? null;
-      api.memoriser();
+      for (const k of ['gras', 'italique', 'souligne', 'barre', 'taille', 'couleur', 'fond', 'align', 'valign', 'renvoi', 'retrait', 'deverrouille', 'masquee']) if ((etat.s[k] ?? null) !== (s0[k] ?? null)) patch[k] = etat.s[k] ?? null;
+      api.memoriser('formatCellules');
       api.surSelection((r, c) => {
         if (Object.keys(patch).length) api.classeur().style(api.fi(), r, c, patch);
         if (z !== zAvant && (z || api.feuille().get(r, c))) api.classeur().format(api.fi(), r, c, z || null);
@@ -377,6 +384,36 @@ export function installerDialogues(api) {
     });
   }
 
-  return { ouvrir, creerTableau, styleTableau: styleTableauDlg, renommerTableau: renommerTableauDlg, redimensionnerTableau, formatCellule, collageSpecial, cellules, atteindre, lien, note, doublons, colonnes, ouvert: () => !fond.hidden };
+  // ---------------------------------------------------------------------------
+  // Protéger la feuille
+  // ---------------------------------------------------------------------------
+  function protegerFeuille() {
+    const f = api.feuille();
+    if (f.protection && f.protection.active) {
+      const p = f.protection;
+      if (!p.hash && !p.sha) { f.protection = { ...p, active: false }; api.classeur().version++; api.sauvegarder(); api.rendre(); return api.toast('Protection de la feuille ôtée'); }
+      return ouvrir('Ôter la protection', `<label>Mot de passe <input type="password" id="pf-mdp" autocomplete="off"></label>`, () => {
+        const m = $('pf-mdp').value;
+        if (p.hash && api.hacher(m) !== p.hash) { api.toast('Mot de passe incorrect', true); return false; }
+        if (!p.hash && p.sha && !api.verifierSha(m, p.sha)) { api.toast('Mot de passe incorrect', true); return false; }
+        f.protection = { ...p, active: false }; api.classeur().version++; api.sauvegarder(); api.rendre(); api.toast('Protection de la feuille ôtée');
+      });
+    }
+    const droits = { ...((f.protection && f.protection.autoriser) || {}) };
+    ouvrir('Protéger la feuille', `<p class="aide-petite">Les cellules verrouillées (toutes, par défaut) ne peuvent plus être modifiées. Pour laisser des cellules à remplir, déverrouillez-les d'abord (Format de cellule › Protection).</p>
+      <label>Mot de passe (facultatif) <input type="password" id="pf-mdp" autocomplete="new-password"></label>
+      <label>Confirmer <input type="password" id="pf-mdp2" autocomplete="new-password"></label>
+      <div class="outil-titre">Autoriser tous les utilisateurs à :</div>
+      <div class="fc-grille">${api.droits.map(([k, , t, d]) => `<label class="case"><input type="checkbox" data-droit="${k}"${(droits[k] ?? d) ? ' checked' : ''}> ${t}</label>`).join('')}</div>`, () => {
+      const m = $('pf-mdp').value;
+      if (m !== $('pf-mdp2').value) { api.toast('Les deux mots de passe sont différents', true); return false; }
+      fond.querySelectorAll('[data-droit]').forEach((x) => { droits[x.dataset.droit] = x.checked; });
+      f.protection = { active: true, autoriser: droits, ...(m ? { hash: api.hacher(m) } : {}) };
+      api.classeur().version++; api.sauvegarder(); api.rendre();
+      api.toast('Feuille protégée' + (m ? ' par mot de passe' : ''));
+    });
+  }
+
+  return { ouvrir, protegerFeuille, creerTableau, styleTableau: styleTableauDlg, renommerTableau: renommerTableauDlg, redimensionnerTableau, formatCellule, collageSpecial, cellules, atteindre, lien, note, doublons, colonnes, ouvert: () => !fond.hidden };
 }
 
