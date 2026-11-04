@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Classeur } from '../tableur/js/classeur.js';
-import { Evaluateur, ErreurFormule, decalerFormule, formaterNombre, formaterDate, tokeniser } from '../tableur/js/formules.js';
+import { Evaluateur, ErreurFormule, decalerFormule, formaterNombre, formaterDate, tokeniser, formater, couleurFormat } from '../tableur/js/formules.js';
+import { codeFormat, lireCode } from '../tableur/js/ui-dialogues.js';
 import { executerMacro, analyserVBA, InterpreteurVBA, creerUDF } from '../tableur/js/vba.js';
 import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from '../tableur/js/xlsxio.js';
 import { preparerDonnees, rendreGraphiqueSVG, normaliser, CATEGORIES } from '../tableur/js/graphiques.js';
@@ -15,7 +16,7 @@ import { listerProcedures, insererMacro, supprimerProcedure, ajouterAuProjet, de
 import { aesEcbDechiffrer, aesCbcDechiffrer, sha1, sha256, sha384, sha512, estChiffre, dechiffrerOffice, ErreurMotDePasse } from '../tableur/js/chiffrement.js';
 import { lireObjetsXlsx, nomMacro } from '../tableur/js/objets-xlsx.js';
 import * as graphiquesXlsx from '../tableur/js/graphiques-xlsx.js';
-import { trierPlage, comparerTri, zoneContigue, aUnEntete, appliquerFiltre, valeursFiltre, rechercher, remplacer, styleConditionnel, valeurCible, formuleAutomatique, validationDe, elementsListe, valeurValide, cellulesInvalides } from '../tableur/js/donnees.js';
+import { trierPlage, comparerTri, zoneContigue, aUnEntete, appliquerFiltre, valeursFiltre, rechercher, remplacer, styleConditionnel, valeurCible, formuleAutomatique, validationDe, elementsListe, valeurValide, cellulesInvalides, collerSpecial, decalerCellules, supprimerDoublons, convertirEnColonnes } from '../tableur/js/donnees.js';
 import { champsSource, calculerTCD, ecrireTCD, tcdA, actualiserTout, typeChamp } from '../tableur/js/tcd.js';
 import crypto from 'node:crypto';
 
@@ -991,6 +992,68 @@ test('xlsx : graphiques d\'un fichier écrit par un autre logiciel (espaces de n
   egal([g[0].plage, g[0].titre, g[0].titreX, g[0].titreY], ['A1:C5', 'Ventes empilées', 'Mois', '€']);
   egal(e.feuilles[1].graphiques[0].plage, "'Données'!A1:B5");
   egal(g[0].x > 0 && g[0].w > 300, true);
+});
+
+test('formats : couleurs, fractions, AM/PM, codes de la boîte Format de cellule', () => {
+  egal(couleurFormat(-5, '#,##0.00;[Red]-#,##0.00'), '#ff0000'); egal(couleurFormat(5, '#,##0.00;[Red]-#,##0.00'), null);
+  egal(couleurFormat(3, '[Bleu]0'), '#0000ff'); egal(couleurFormat(3, '[Color10]0'), '#008000');
+  egal(formater(0.75, 'h:mm AM/PM'), '6:00 PM'); egal(formater(0.25, 'hh:mm AM/PM'), '06:00 AM');
+  egal(formater(2.375, '# ??/??'), '2 3/8'); egal(formater(0.5, '# ?/?'), '1/2'); egal(formater(0.3, '?/4'), '1/4'); egal(formater(3, '# ?/?'), '3');
+  egal(formater(45000, 'dd/mm/yyyy;@'), formater(45000, 'dd/mm/yyyy'));
+  egal(codeFormat({ categorie: 'monetaire', decimales: 2, symbole: '€', negatifs: 'rouge' }), '#,##0.00 €;[Red]-#,##0.00 €');
+  egal(codeFormat({ categorie: 'nombre', decimales: 1, milliers: true, negatifs: 'parentheses' }), '#,##0.0;(#,##0.0)');
+  egal(codeFormat({ categorie: 'pourcentage', decimales: 0 }), '0%');
+  for (const z of ['#,##0.00 €;[Red]-#,##0.00 €', '0.0%', '#,##0', 'dd/mm/yyyy', 'hh:mm', '0.00E+00', '# ?/?', '@', '$#,##0.00']) egal(codeFormat(lireCode(z)), z, z);
+  egal(lireCode('0.000" kg"').categorie, 'perso');
+});
+
+test('données : collage spécial, insertion de cellules, doublons, conversion en colonnes', () => {
+  const c = Classeur.nouveau();
+  [[1, 2], [3, 4]].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  c.saisir(0, 0, 2, '=A1+B1'); c.style(0, 0, 0, { gras: true });
+  // Transposé, valeurs seulement
+  collerSpecial(c, { fi: 0, r1: 0, c1: 0, r2: 1, c2: 2 }, 0, { r: 5, c: 0 }, { quoi: 'valeurs', transposer: true });
+  egal([c.valeur(0, 5, 0), c.valeur(0, 5, 1), c.valeur(0, 7, 0)], [1, 3, 3]); egal(c.feuilles[0].get(7, 0).f, undefined); egal(c.feuilles[0].get(5, 0).s, undefined);
+  // Formats seulement
+  collerSpecial(c, { fi: 0, r1: 0, c1: 0, r2: 0, c2: 0 }, 0, { r: 1, c: 1 }, { quoi: 'formats' });
+  egal(c.feuilles[0].get(1, 1).s, { gras: true }); egal(c.valeur(0, 1, 1), 4);
+  // Multiplication
+  c.saisir(0, 10, 0, '10'); c.saisir(0, 11, 0, '20'); c.saisir(0, 10, 1, '3');
+  collerSpecial(c, { fi: 0, r1: 10, c1: 1, r2: 10, c2: 1 }, 0, { r: 10, c: 0 }, { operation: 'multiplication' });
+  egal(c.valeur(0, 10, 0), 30);
+  // Formule décalée
+  collerSpecial(c, { fi: 0, r1: 0, c1: 2, r2: 0, c2: 2 }, 0, { r: 1, c: 2 }, { quoi: 'formules' });
+  egal(c.feuilles[0].get(1, 2).f, '=A2+B2');
+  // Insérer des cellules vers le bas en A1:A1 : A1 descend, la formule suit
+  const d = Classeur.nouveau();
+  d.saisir(0, 0, 0, '5'); d.saisir(0, 1, 0, '6'); d.saisir(0, 0, 1, '=A1*2'); d.saisir(0, 0, 2, '=SOMME(A1:A2)');
+  decalerCellules(d, 0, { r1: 0, c1: 0, r2: 0, c2: 0 }, 'bas');
+  egal([d.valeur(0, 1, 0), d.valeur(0, 2, 0), d.feuilles[0].get(0, 1).f, d.valeur(0, 0, 1), d.valeur(0, 0, 2)], [5, 6, '=A2*2', 10, 11]);
+  decalerCellules(d, 0, { r1: 0, c1: 0, r2: 0, c2: 0 }, 'haut');
+  egal([d.valeur(0, 0, 0), d.feuilles[0].get(0, 1).f], [5, '=A1*2']);
+  decalerCellules(d, 0, { r1: 0, c1: 0, r2: 0, c2: 0 }, 'gauche');
+  egal(d.feuilles[0].get(0, 0).f, '=#REF!*2');
+  // Doublons
+  const e = Classeur.nouveau();
+  [['Nom', 'Ville'], ['A', 'Lyon'], ['a', 'lyon'], ['B', 'Lyon'], ['A', 'Paris']].forEach((l, r) => l.forEach((v, k) => e.saisir(0, r, k, v)));
+  egal(supprimerDoublons(e, 0, { r1: 0, c1: 0, r2: 4, c2: 1 }, [0, 1]), 1);
+  egal([1, 2, 3, 4].map((r) => e.valeur(0, r, 0)), ['A', 'B', 'A', null]);
+  egal(supprimerDoublons(e, 0, { r1: 0, c1: 0, r2: 3, c2: 1 }, [0]), 1);
+  // Conversion en colonnes
+  e.saisir(0, 10, 0, 'Dupont;Jean;45'); e.saisir(0, 11, 0, 'Martin;;30');
+  egal(convertirEnColonnes(e, 0, { r1: 10, c1: 0, r2: 11, c2: 0 }, ';'), 3);
+  egal([e.valeur(0, 10, 0), e.valeur(0, 10, 1), e.valeur(0, 10, 2), e.valeur(0, 11, 2)], ['Dupont', 'Jean', 45, 30]);
+});
+
+test('xlsx : barré, retrait, liens, couleur d\'onglet', () => {
+  const c = Classeur.nouveau(), f = c.feuilles[0];
+  c.saisir(0, 0, 0, 'Site'); f.get(0, 0).lien = 'https://exemple.fr';
+  c.saisir(0, 1, 0, 'Plus bas'); f.get(1, 0).lien = '#Feuil1!C50';
+  c.saisir(0, 2, 0, 'x'); c.style(0, 2, 0, { barre: true, retrait: 2 });
+  f.couleur = '#4472c4';
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c), 'x.xlsx'), g = e.feuilles[0];
+  egal([g.get(0, 0).lien, g.get(1, 0).lien, g.couleur], ['https://exemple.fr', '#Feuil1!C50', '#4472c4']);
+  egal([g.get(2, 0).s.barre, g.get(2, 0).s.retrait], [true, 2]);
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);

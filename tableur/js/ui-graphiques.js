@@ -80,10 +80,16 @@ export function installerGraphiques(api) {
   $('galerie-annuler').addEventListener('click', () => { fond.hidden = true; });
   fond.addEventListener('mousedown', (e) => { if (e.target === fond) fond.hidden = true; });
   fond.addEventListener('keydown', (e) => { if (e.key === 'Escape') fond.hidden = true; if (e.key === 'Enter') inserer(); });
-  $('galerie-ok').addEventListener('click', () => inserer());
+  $('galerie-ok').addEventListener('click', () => inserer(true));
   window.addEventListener('resize', () => { if (!fond.hidden) rendreGalerie(); });
 
-  function inserer() {
+  // Alt+F1 / F11 (comme Excel) : le graphique proposé, sans passer par la galerie
+  function insererDirect() {
+    ouvrirGalerie();
+    if (fond.hidden) return;
+    inserer(false);
+  }
+  function inserer(reglages = true) {
     fond.hidden = true;
     const s = api.selection();
     const { x, y } = api.position(s);
@@ -92,7 +98,7 @@ export function installerGraphiques(api) {
     api.feuille().graphiques.push(g);
     api.activer(g.id);
     api.sauvegarder(); api.rendre();
-    ouvrirParametres(g);
+    if (reglages) ouvrirParametres(g);
   }
 
   // ---------------------------------------------------------------------------
@@ -271,7 +277,7 @@ export function installerGraphiques(api) {
   }
 
   return {
-    ouvrirGalerie, ouvrirParametres, supprimer, exporter, rendreSurFeuille,
+    ouvrirGalerie, insererDirect, ouvrirParametres, supprimer, exporter, rendreSurFeuille,
     rafraichir() { if (api.panneauOuvert('graphique')) { if (courant && !api.feuille().graphiques.includes(courant)) courant = null; if (document.activeElement && panneau.contains(document.activeElement) && document.activeElement.matches('input:not([type=checkbox]), select')) majApercu(); else construirePanneau(); } },
     courant: () => courant,
   };

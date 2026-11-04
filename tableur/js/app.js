@@ -1,7 +1,7 @@
 // Interface du Tableur : grille virtualisée, barre de formule, onglets, presse-papiers, macros.
 
 import { Classeur } from './classeur.js';
-import { formater, colVersLettres, lettresVersCol, parsePlage, parseAdresse, adresse, ErreurFormule, NOMS_FONCTIONS, ALIAS, referencesDe, decalerFormule, fonction } from './formules.js';
+import { couleurFormat, formater, colVersLettres, lettresVersCol, parsePlage, parseAdresse, adresse, ErreurFormule, NOMS_FONCTIONS, ALIAS, referencesDe, decalerFormule, fonction } from './formules.js';
 import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from './xlsxio.js';
 import { estChiffre, dechiffrerOffice, ErreurMotDePasse } from './chiffrement.js';
 import { executerMacro, analyserVBA, ErreurVBA, InterpreteurVBA, creerUDF } from './vba.js';
@@ -10,6 +10,7 @@ import { installerGraphiques } from './ui-graphiques.js';
 import { styleConditionnel, validationDe, valeurValide } from './donnees.js';
 import { installerDonnees } from './ui-donnees.js';
 import { installerTCD } from './ui-tcd.js';
+import { installerDialogues } from './ui-dialogues.js';
 import { AIDE } from './aide-fonctions.js';
 import { matriceGraphique } from './graphiques-xlsx.js';
 
@@ -35,6 +36,11 @@ let glisse = null;           // sélection à la souris
 let refsColorees = [];
 let panneauCourant = null;
 let graphiqueActif = null;   // id du graphique sélectionné
+let imageActive = null;      // id de l'image sélectionnée
+let afficherFormules = false; // Ctrl+` : les formules à la place des résultats
+let pinceau = null;          // reproduire la mise en forme : { cellules, nl, nc, garder }
+let derniereAction = null;   // F4 hors saisie : refaire la dernière mise en forme
+let pressePapierObjet = null; // { genre: 'graphique' | 'image', objet, classeur, feuilleNom } : graphique ou image copié
 let macroEnCours = false;
 
 const conteneur = $('grille-conteneur'), cellulesDiv = $('cellules'), entetesCol = $('entetes-colonnes'), entetesLig = $('entetes-lignes');
@@ -140,15 +146,20 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
         }
       }
       style += `width:${w}px;`;
-      if (s.gras) style += 'font-weight:700;'; if (s.italique) style += 'font-style:italic;'; if (s.souligne) style += 'text-decoration:underline;';
-      if (s.couleur) style += `color:${s.couleur};`; if (s.fond) style += `background:${s.fond};`; if (s.taille) style += `font-size:${s.taille}px;`;
+      if (s.gras) style += 'font-weight:700;'; if (s.italique) style += 'font-style:italic;';
+      if (s.souligne || s.barre) style += `text-decoration:${[s.souligne && 'underline', s.barre && 'line-through'].filter(Boolean).join(' ')};`;
+      if (s.retrait) style += `padding-${s.align === 'right' ? 'right' : 'left'}:${4 + s.retrait * 9}px;`;
+      const cFormat = typeof v === 'number' && cel.z ? couleurFormat(v, cel.z) : null;
+      if (cFormat && !(mfc && mfc.couleur)) style += `color:${cFormat};`; else if (s.couleur) style += `color:${s.couleur};`; if (s.fond) style += `background:${s.fond};`; if (s.taille) style += `font-size:${s.taille}px;`;
       if (reduction) style += `font-size:${reduction}px;padding:0 2px;`;
       if (mfc && mfc.barre) { const b = mfc.barre; style += `background:linear-gradient(90deg,transparent ${b.debut}%,${b.negatif ? '#ff5555' : b.couleur} ${b.debut}%,${(b.negatif ? '#ff5555' : b.couleur) + '55'} ${b.fin}%,transparent ${b.fin}%)${s.fond ? ',' + s.fond : ''};`; }
       const bo = s.bordures || (s.bordure ? { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } : null);
       if (bo) { const ep = { thin: 1, medium: 2, thick: 3 }; for (const [k, css] of [['h', 'top'], ['b', 'bottom'], ['g', 'left'], ['d', 'right']]) if (bo[k]) style += `border-${css}:${ep[bo[k]]}px solid #1f2937;`; }
       if (cel.note) cls += ' note';
+      if (cel.lien) cls += ' lien';
       if (entourerInvalides && f.validations.length) { const dv = validationDe(f, r, c); if (dv && !valeurValide(classeur, F, dv, r, c)) cls += ' invalide'; }
-      html += `<div class="${cls}" style="${style}"${cel.note ? ` title="${echapper(cel.note).replace(/"/g, '&quot;')}"` : ''}>${echapper(txt)}</div>`;
+      const bulle = cel.note || (cel.lien ? cel.lien + ' — Ctrl+clic pour suivre le lien' : '');
+      html += `<div class="${cls}" style="${style}"${bulle ? ` title="${echapper(bulle).replace(/"/g, '&quot;')}"` : ''}>${afficherFormules && cel.f != null ? echapper(classeur.saisie(F, r, c)) : echapper(txt)}</div>`;
     }
   }
   return html;
@@ -242,7 +253,7 @@ function rendreObjets(f, quoi = '') {
   for (const im of f.images || []) {
     if (zoneObjet(im, z) !== quoi) continue;
     const r = rectObjet(im);
-    html += `<img class="image-feuille${im.macro ? ' cliquable' : ''}" data-image="${im.id}" src="${im.src}" alt="${echapper(im.titre || '')}" title="${echapper(im.macro ? 'Macro : ' + im.macro : (im.titre || ''))}" style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;${im.transparentBlanc ? 'mix-blend-mode:multiply;' : ''}">`;
+    html += `<img class="image-feuille${im.macro ? ' cliquable' : ''}${im.id === imageActive ? ' actif' : ''}" data-image="${im.id}" src="${im.src}" alt="${echapper(im.titre || '')}" title="${echapper(im.macro ? 'Macro : ' + im.macro : (im.titre || ''))}" style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;${im.transparentBlanc ? 'mix-blend-mode:multiply;' : ''}">`;
   }
   if (f.filtre) {
     const flt = f.filtre, r = flt.r1, h = hauteurLig(r);
@@ -261,16 +272,100 @@ function rendreObjets(f, quoi = '') {
 }
 // Les objets (boutons, images, graphiques) sont posés sur la feuille ou, quand ils sont dans les volets figés, sur les volets
 function surObjets(type, fn, capture) { cellulesDiv.addEventListener(type, fn, capture); $('volets').addEventListener(type, fn, capture); }
+// Pose une image (repère de la grille, en pixels) : ancrée à la cellule sous son coin haut-gauche
+function placerImage(im, x, y, w, h) {
+  const c = indexDepuis(xCols, x), r = indexDepuis(yLigs, y);
+  im.de = { c, dx: Math.round(x - xCols[c]), r, dy: Math.round(y - yLigs[r]) };
+  delete im.a; im.w = Math.round(w); im.h = Math.round(h);
+}
+function objetSelectionne() {
+  if (graphiqueActif) { const o = feuille().graphiques.find((x) => x.id === graphiqueActif); if (o) return { genre: 'graphique', o }; }
+  if (imageActive) { const o = feuille().images.find((x) => x.id === imageActive); if (o) return { genre: 'image', o }; }
+  return null;
+}
+const refNomFeuille = (nom) => (/^[A-Za-z_][\w.]*$/.test(nom) ? nom : "'" + nom.replace(/'/g, "''") + "'");
+/** Ctrl+C / Ctrl+X sur un graphique ou une image : renvoie vrai si un objet était choisi. */
+function copierObjet(couper) {
+  const sel = objetSelectionne();
+  if (!sel) return false;
+  const objet = JSON.parse(JSON.stringify(sel.o));
+  if (sel.genre === 'image') { const r = rectObjet(sel.o); objet.w = r.w; objet.h = r.h; delete objet.a; }
+  pressePapierObjet = { genre: sel.genre, objet, classeur, feuilleNom: feuille().nom };
+  pressePapier = null;
+  if (couper) {
+    memoriser();
+    const liste = sel.genre === 'graphique' ? 'graphiques' : 'images';
+    feuille()[liste] = feuille()[liste].filter((x) => x !== sel.o);
+    graphiqueActif = null; imageActive = null;
+    classeur.version++; sauvegarderLocal();
+  }
+  toast((sel.genre === 'graphique' ? 'Graphique' : 'Image') + (couper ? ' coupé' : ' copié') + (sel.genre === 'image' ? 'e' : '') + ' : choisissez une cellule puis Ctrl+V');
+  rendre();
+  return true;
+}
+/** Ctrl+V : le graphique ou l'image copié est posé avec son coin haut-gauche sur la cellule active. */
+function collerObjet() {
+  const p = pressePapierObjet;
+  if (!p) return false;
+  memoriser();
+  const o = JSON.parse(JSON.stringify(p.objet));
+  o.id = (p.genre === 'graphique' ? 'g' : 'i') + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const x = xCols[curseur.c], y = yLigs[curseur.r];
+  if (p.genre === 'graphique') {
+    o.x = x; o.y = y;
+    // Collé sur une autre feuille du même classeur : il garde ses données d'origine
+    if (p.classeur === classeur && p.feuilleNom !== feuille().nom && !String(o.plage || '').includes('!')) o.plage = refNomFeuille(p.feuilleNom) + '!' + o.plage;
+    feuille().graphiques.push(o); graphiqueActif = o.id; imageActive = null;
+  } else {
+    placerImage(o, x, y, o.w || 120, o.h || 90);
+    feuille().images.push(o); imageActive = o.id; graphiqueActif = null;
+  }
+  classeur.version++; sauvegarderLocal(); rendre();
+  return true;
+}
+/** Flèches sur un objet choisi : il se déplace (Maj : d'un pixel). */
+function deplacerObjet(dx, dy) {
+  const sel = objetSelectionne();
+  if (!sel) return false;
+  if (sel.genre === 'graphique') { sel.o.x = Math.max(0, sel.o.x + dx); sel.o.y = Math.max(0, sel.o.y + dy); }
+  else { const r = rectObjet(sel.o); placerImage(sel.o, Math.max(0, r.x + dx), Math.max(0, r.y + dy), r.w, r.h); }
+  classeur.version++; sauvegarderLocal(); rendre();
+  return true;
+}
+function supprimerObjet() {
+  const sel = objetSelectionne();
+  if (!sel) return false;
+  memoriser();
+  const liste = sel.genre === 'graphique' ? 'graphiques' : 'images';
+  feuille()[liste] = feuille()[liste].filter((x) => x !== sel.o);
+  graphiqueActif = null; imageActive = null;
+  classeur.version++; sauvegarderLocal(); rendre();
+  return true;
+}
 function objetDepuis(el) {
   const b = el.closest('[data-bouton]'), im = el.closest('[data-image]');
   if (b) return { genre: 'bouton', o: feuille().boutons.find((x) => x.id === b.dataset.bouton) };
   if (im) return { genre: 'image', o: feuille().images.find((x) => x.id === im.dataset.image) };
   return null;
 }
-surObjets('mousedown', (e) => { const t = objetDepuis(e.target); if (t && t.o) { e.stopPropagation(); if (e.button === 0) e.preventDefault(); } }, true);
+surObjets('mousedown', (e) => {
+  const t = objetDepuis(e.target);
+  if (!t || !t.o) return;
+  e.stopPropagation(); if (e.button === 0) e.preventDefault();
+  // Une image se choisit et se déplace (celle qui lance une macro : Ctrl+clic, comme dans Excel)
+  if (t.genre === 'image' && e.button === 0 && (!t.o.macro || e.ctrlKey || e.metaKey || imageActive === t.o.id)) {
+    if (edition) validerEdition();
+    graphiqueActif = null; imageActive = t.o.id; conteneur.focus();
+    const r = rectObjet(t.o);
+    memoriser();
+    glisse = { mode: 'image', g: t.o, x0: e.clientX, y0: e.clientY, x: r.x, y: r.y, w: r.w, h: r.h };
+    rendre();
+  }
+}, true);
 surObjets('click', (e) => {
   const t = objetDepuis(e.target);
   if (!t || !t.o || !t.o.macro) return;
+  if (t.genre === 'image' && (imageActive === t.o.id || e.ctrlKey || e.metaKey)) { e.stopPropagation(); return; }
   e.stopPropagation();
   lancerMacro(t.o.macro, { depuisBouton: true });
 });
@@ -343,6 +438,17 @@ const uiT = installerTCD({
   rendre: () => rendre(), sauvegarder: () => sauvegarderLocal(), memoriser: () => memoriser(), toast: (m, e) => toast(m, e),
   ouvrirPanneau: (nom) => ouvrirPanneau(nom), panneauOuvert: (nom) => panneauCourant === nom && !$('panneau').hidden,
 });
+const uiB = installerDialogues({
+  classeur: () => classeur, fi: () => fi(), feuille: () => feuille(), selection: () => selectionNormalisee(), selectionBornee: () => selectionBornee(), curseur: () => curseur,
+  selectionner: (p, cur) => { selection = { ...p }; curseur = cur || { r: p.r1, c: p.c1 }; },
+  memoriser: () => memoriser(), rendre: () => rendre(), sauvegarder: () => sauvegarderLocal(), toast: (m, e) => toast(m, e),
+  pressePapier: () => pressePapier, allerA: (t) => allerA(t), focusGrille: () => conteneur.focus({ preventScroll: true }),
+  surSelection: (cb) => { const s = selectionBornee(); for (let r = s.r1; r <= Math.max(s.r2, s.r1); r++) for (let c = s.c1; c <= Math.max(s.c2, s.c1); c++) cb(r, c); },
+  appliquerBordures: (mode, style) => appliquerBordures(mode, style, false),
+  selectionFusionnee: () => { const s = selectionNormalisee(); return feuille().fusions.some((m) => m.r1 === s.r1 && m.c1 === s.c1); },
+  fusionner: (oui) => fusionnerSelection(oui, false),
+  lignesColonnes: (inserer, axe) => lignesColonnes(inserer, axe),
+});
 // Bouton ▾ d'un en-tête de filtre
 surObjets('mousedown', (e) => {
   const b = e.target.closest('[data-filtre-col]');
@@ -361,6 +467,9 @@ surObjets('mousedown', (e) => {
   if (e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
   e.preventDefault();
   conteneur.focus();
+  imageActive = null;
+  if (edition) validerEdition();
+  memoriser();
   if (e.target.classList.contains('graphique-redim')) glisse = { mode: 'graphique-redim', g, x0: e.clientX, y0: e.clientY, w: g.w, h: g.h };
   else glisse = { mode: 'graphique', g, x0: e.clientX, y0: e.clientY, x: g.x, y: g.y };
   rendre();
@@ -442,6 +551,9 @@ function positionnerSelection() {
   if (!fleche.hidden) { fleche.style.left = (rc.left + rc.width + 1) + 'px'; fleche.style.top = rc.top + 'px'; fleche.style.height = rc.height + 'px'; }
   voir(msgDv, !!(dv && dv.message && (dv.message.titre || dv.message.texte) && rc.width > 0 && rc.height > 0));
   if (!msgDv.hidden) { msgDv.innerHTML = (dv.message.titre ? '<b>' + echapper(dv.message.titre) + '</b>' : '') + echapper(dv.message.texte || ''); msgDv.style.left = (rc.left + 12) + 'px'; msgDv.style.top = (rc.top + rc.height + 4) + 'px'; }
+  const celActive = feuille().get(curseur.r, curseur.c), puce = $('puce-lien');
+  voir(puce, !!(celActive && celActive.lien && !edition && rc.width > 0 && rc.height > 0));
+  if (!puce.hidden) { puce.style.left = (rc.left + rc.width + (fleche.hidden ? 1 : 20)) + 'px'; puce.style.top = rc.top + 'px'; puce.style.height = rc.height + 'px'; puce.title = 'Ouvrir ' + celActive.lien; }
   uiD.curseurChange(); uiT.curseurChange();
   // Boutons de style
   const cel = feuille().get(curseur.r, curseur.c), s = (cel && cel.s) || {};
@@ -483,8 +595,9 @@ function rendreOnglets() {
     const o = document.createElement('div');
     o.className = 'onglet' + (i === fi() ? ' actif' : '');
     o.textContent = f.nom;
+    if (f.couleur) o.style.boxShadow = 'inset 0 -3px 0 ' + f.couleur;
     o.dataset.i = i;
-    o.addEventListener('click', () => { if (i !== fi()) { memoriserVue(); activerFeuille(i); } });
+    o.addEventListener('click', () => { if (i !== fi()) { memoriserVue(); activerFeuille(i); } conteneur.focus({ preventScroll: true }); });
     o.addEventListener('dblclick', () => renommerFeuille(i));
     o.addEventListener('contextmenu', (e) => { e.preventDefault(); menuOnglet(e, i); });
     liste.appendChild(o);
@@ -561,14 +674,14 @@ function instantane() {
   const f = feuille();
   const cells = new Map();
   for (const [k, cel] of f.cellules) cells.set(k, { ...cel, s: cel.s ? { ...cel.s } : undefined });
-  return { fi: fi(), nom: f.nom, cells, largeurs: { ...f.largeurs }, hauteurs: { ...f.hauteurs }, fusions: f.fusions.map((m) => ({ ...m })), graphiques: f.graphiques.map((g) => ({ ...g })), boutons: f.boutons.map((b) => ({ ...b })), noms: new Map([...classeur.noms].map(([k, v]) => [k, { ...v }])),
+  return { fi: fi(), nom: f.nom, cells, largeurs: { ...f.largeurs }, hauteurs: { ...f.hauteurs }, fusions: f.fusions.map((m) => ({ ...m })), graphiques: f.graphiques.map((g) => ({ ...g })), boutons: f.boutons.map((b) => ({ ...b })), images: f.images.map((im) => ({ ...im, de: im.de && { ...im.de }, a: im.a && { ...im.a } })), noms: new Map([...classeur.noms].map(([k, v]) => [k, { ...v }])),
     figer: f.figer ? { ...f.figer } : null, mfc: JSON.parse(JSON.stringify(f.mfc || [])), filtre: f.filtre ? JSON.parse(JSON.stringify(f.filtre)) : null, filtrees: new Set(f.filtrees || []),
     validations: JSON.parse(JSON.stringify(f.validations || [])), tcd: JSON.parse(JSON.stringify(f.tcd || [])) };
 }
 function memoriser() { historique.push(instantane()); if (historique.length > 100) historique.shift(); futur = []; }
 function restaurer(s) {
   const f = classeur.feuilles[s.fi]; if (!f) return;
-  f.cellules = s.cells; f.largeurs = s.largeurs; f.hauteurs = s.hauteurs; f.fusions = s.fusions; f.graphiques = s.graphiques; f.boutons = s.boutons; f.recalculerZone();
+  f.cellules = s.cells; f.largeurs = s.largeurs; f.hauteurs = s.hauteurs; f.fusions = s.fusions; f.graphiques = s.graphiques; f.boutons = s.boutons; if (s.images) f.images = s.images; f.recalculerZone();
   if ('mfc' in s) { f.figer = s.figer; f.mfc = s.mfc; f.filtre = s.filtre; f.filtrees = s.filtrees; }
   if ('tcd' in s) { f.validations = s.validations; f.tcd = s.tcd; }
   classeur.noms = s.noms; classeur.active = s.fi; classeur.modifie();
@@ -627,7 +740,19 @@ function validerEdition(mouvement) {
     sauvegarderLocal();
   }
   conteneur.focus();
-  if (mouvement) placerCurseur(r + (mouvement.dr || 0), c + (mouvement.dc || 0)); else rendre();
+  if (mouvement) { if (suivantDansSelection(mouvement.dr || 0, mouvement.dc || 0)) return; placerCurseur(r + (mouvement.dr || 0), c + (mouvement.dc || 0)); } else rendre();
+}
+// Ctrl+Entrée : la saisie va dans toute la sélection (formules décalées comme une recopie)
+function remplirSelection() {
+  if (!edition) return;
+  const texte = edition.origine === 'barre' ? barre.value : editeur.value;
+  const { r, c } = edition;
+  fermerSuggestions(); edition = null; editeur.hidden = true;
+  const n = selectionNormalisee(), s = { r1: n.r1, c1: n.c1, r2: Math.min(n.r2, n.r1 + 5000), c2: Math.min(n.c2, n.c1 + 200) };
+  memoriser();
+  const sel = s.r1 === s.r2 && s.c1 === s.c2 ? { r1: r, c1: c, r2: r, c2: c } : s;
+  for (let i = sel.r1; i <= sel.r2; i++) for (let j = sel.c1; j <= sel.c2; j++) classeur.saisir(fi(), i, j, texte.startsWith('=') ? decalerFormule(texte, i - r, j - c) : texte);
+  sauvegarderLocal(); conteneur.focus(); rendre();
 }
 function annulerEdition() {
   if (!edition) return;
@@ -663,6 +788,8 @@ function texteSelection(valeursAffichees = true) {
   return lignes.join('\n');
 }
 async function copier(couper = false) {
+  if (copierObjet(couper)) return;
+  pressePapierObjet = null;
   const s = selectionBornee();
   const texte = texteSelection();
   pressePapier = { classeur, feuille: feuille(), ...s, couper, texte, systeme: false };
@@ -670,6 +797,7 @@ async function copier(couper = false) {
   rendre();
 }
 async function coller(texteSysteme) {
+  if (pressePapierObjet && texteSysteme === undefined && collerObjet()) return;
   let texte = texteSysteme;
   if (texte === undefined) {
     // Le navigateur peut attendre indéfiniment une autorisation (mobile) : on n'attend pas plus d'une demi-seconde
@@ -777,22 +905,24 @@ function recopierVers(cible) { // poignée : étend la sélection vers cible (s�
 
 function surSelection(cb) { const s = selectionBornee(); memoriser(); for (let r = s.r1; r <= Math.max(s.r2, s.r1); r++) for (let c = s.c1; c <= Math.max(s.c2, s.c1); c++) cb(r, c); sauvegarderLocal(); rendre(); }
 function basculerStyle(prop) { const cel = feuille().get(curseur.r, curseur.c); const val = !(cel && cel.s && cel.s[prop]); surSelection((r, c) => classeur.style(fi(), r, c, { [prop]: val })); }
-function appliquerBordures(mode) {
+function appliquerBordures(mode, style = 'thin', memo = true) {
   const s = selectionBornee();
   const sel = selectionNormalisee();
-  memoriser();
+  if (memo) memoriser();
   for (let r = s.r1; r <= Math.max(s.r2, s.r1); r++) for (let c = s.c1; c <= Math.max(s.c2, s.c1); c++) {
     const cel = feuille().get(r, c);
     const b = { ...((cel && cel.s && cel.s.bordures) || {}) };
     const haut = r === sel.r1, bas = r === sel.r2, gauche = c === sel.c1, droite = c === sel.c2;
     switch (mode) {
-      case 'toutes': b.h = b.b = b.g = b.d = 'thin'; break;
-      case 'contour': case 'contour-epais': { const v = mode === 'contour' ? 'thin' : 'thick'; if (haut) b.h = v; if (bas) b.b = v; if (gauche) b.g = v; if (droite) b.d = v; break; }
-      case 'bas': if (bas) b.b = 'thin'; break;
+      case 'toutes': b.h = b.b = b.g = b.d = style; break;
+      case 'interieur': if (!haut) b.h = style; if (!bas) b.b = style; if (!gauche) b.g = style; if (!droite) b.d = style; break;
+      case 'contour': case 'contour-epais': { const v = mode === 'contour' ? style : 'thick'; if (haut) b.h = v; if (bas) b.b = v; if (gauche) b.g = v; if (droite) b.d = v; break; }
+      case 'bas': if (bas) b.b = style; break;
       case 'bas-epais': if (bas) b.b = 'thick'; break;
-      case 'haut': if (haut) b.h = 'thin'; break;
-      case 'gauche': if (gauche) b.g = 'thin'; break;
-      case 'droite': if (droite) b.d = 'thin'; break;
+      case 'haut': if (haut) b.h = style; break;
+      case 'gauche': if (gauche) b.g = style; break;
+      case 'droite': if (droite) b.d = style; break;
+      case 'sans-contour': if (haut) delete b.h; if (bas) delete b.b; if (gauche) delete b.g; if (droite) delete b.d; break;
       case 'aucune': delete b.h; delete b.b; delete b.g; delete b.d; break;
     }
     if (mode === 'aucune' && !cel) continue;
@@ -834,11 +964,30 @@ function renommerFeuille(i) {
   if (nom == null) return;
   try { classeur.renommerFeuille(i, nom); sauvegarderLocal(); rendre(); } catch (e) { toast(e.message, true); }
 }
+const COULEURS_ONGLET = [['', 'Aucune'], ['#c00000', 'Rouge'], ['#ed7d31', 'Orange'], ['#ffc000', 'Jaune'], ['#70ad47', 'Vert'], ['#4472c4', 'Bleu'], ['#7030a0', 'Violet'], ['#7f7f7f', 'Gris']];
+// Duplique tout : cellules, tailles, fusions, mise en forme conditionnelle, validations, volets, graphiques, images
+function dupliquerFeuille(i) {
+  const src = classeur.feuilles[i];
+  let nom = src.nom + ' (2)', k = 2; while (classeur.indexFeuille(nom) >= 0) nom = src.nom + ' (' + (++k) + ')';
+  const f = classeur.ajouterFeuille(nom, i + 1);
+  src.chaque((r, c, cel) => f.set(r, c, JSON.parse(JSON.stringify({ ...cel, v: cel.v instanceof ErreurFormule ? null : cel.v }))));
+  const copie = (x) => JSON.parse(JSON.stringify(x));
+  f.largeurs = copie(src.largeurs); f.hauteurs = copie(src.hauteurs); f.fusions = copie(src.fusions);
+  f.mfc = copie(src.mfc || []); f.validations = copie(src.validations || []); f.figer = src.figer ? { ...src.figer } : null; f.couleur = src.couleur;
+  f.graphiques = (src.graphiques || []).map((g) => ({ ...copie(g), id: 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }));
+  f.images = (src.images || []).map((im) => ({ ...copie(im), id: 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }));
+  f.boutons = (src.boutons || []).map((b) => ({ ...copie(b), id: 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }));
+  for (const [cle, d] of src.noms) f.noms.set(cle, { ...d, ref: d.ref.replace(new RegExp("^'?" + src.nom.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "'?!", 'i'), (/^[A-Za-z_][\w.]*$/.test(nom) ? nom : "'" + nom + "'") + '!') });
+  f.code = src.code || '';
+  f.recalculerZone(); classeur.modifie();
+  memoriserVue(); activerFeuille(i + 1); sauvegarderLocal();
+}
 function menuOnglet(e, i) {
   const items = [
     ['Renommer…', () => renommerFeuille(i)],
     ['Insérer une feuille', () => { classeur.ajouterFeuille(null, i + 1); activerFeuille(i + 1); sauvegarderLocal(); }],
-    ['Dupliquer', () => { const src = classeur.feuilles[i]; const f = classeur.ajouterFeuille(classeur.nomLibre(src.nom + ' ('), i + 1); src.chaque((r, c, cel) => f.set(r, c, { ...cel })); f.largeurs = { ...src.largeurs }; f.code = src.code || ''; activerFeuille(i + 1); sauvegarderLocal(); }],
+    ['Dupliquer', () => dupliquerFeuille(i)],
+    ['Couleur de l\'onglet', [...COULEURS_ONGLET.map(([c, t]) => [t, () => { classeur.feuilles[i].couleur = c || undefined; classeur.modifie(); sauvegarderLocal(); rendreOnglets(); }])]],
     ['Visualiser le code', () => { if (panneauCourant !== 'macros') ouvrirPanneau('macros'); afficherModule('feuille:' + classeur.feuilles[i].codeNom); }],
     ['Masquer', () => { if (classeur.feuilles.filter((f) => !f.cachee).length <= 1) return toast('Il faut garder une feuille visible', true); classeur.feuilles[i].cachee = true; if (fi() === i) activerFeuille(classeur.feuilles.findIndex((f) => !f.cachee)); sauvegarderLocal(); rendre(); }],
     ['Déplacer à gauche', () => { if (i > 0) { memoriserVue(); classeur.deplacerFeuille(i, i - 1); activerFeuille(i - 1); sauvegarderLocal(); } }],
@@ -855,13 +1004,19 @@ function menuOnglet(e, i) {
 // Menu contextuel et notifications
 // ---------------------------------------------------------------------------
 
-function ouvrirMenu(x, y, items) {
+// items : [libellé, action, raccourci] ; une action peut être une liste : un sous-menu (▸), avec ‹ pour revenir
+function ouvrirMenu(x, y, items, retour = null) {
   const menu = $('menu-contextuel');
   menu.innerHTML = '';
+  if (retour) { const d = document.createElement('div'); d.className = 'retour'; d.textContent = '‹ ' + retour.titre; d.addEventListener('click', (e) => { e.stopPropagation(); ouvrirMenu(x, y, retour.items); }); menu.appendChild(d); menu.appendChild(document.createElement('hr')); }
+  // Pas de séparateur en tête, en fin ni en double
+  items = items.filter((it, i, t) => it || (i > 0 && t[i - 1] && t.slice(i + 1).some(Boolean)));
   for (const it of items) {
     if (!it) { menu.appendChild(document.createElement('hr')); continue; }
-    const d = document.createElement('div'); d.textContent = it[0];
-    d.addEventListener('click', () => { fermerMenu(); it[1](); });
+    const d = document.createElement('div');
+    d.innerHTML = '<span>' + echapper(it[0]) + '</span>' + (Array.isArray(it[1]) ? '<small>▸</small>' : it[2] ? '<small>' + echapper(it[2]) + '</small>' : '');
+    if (Array.isArray(it[1])) d.addEventListener('click', (e) => { e.stopPropagation(); ouvrirMenu(x, y, it[1], { titre: it[0], items }); });
+    else d.addEventListener('click', () => { fermerMenu(); it[1](); const a = document.activeElement; if (!a || a === document.body || a.closest('.onglet, #barre-outils, .menu')) conteneur.focus({ preventScroll: true }); });
     menu.appendChild(d);
   }
   menu.hidden = false;
@@ -939,7 +1094,7 @@ function basculerClasseur(c) {
   $('format-export').value = aDesMacros(classeur) ? 'xlsm' : 'xlsx';
   activerFeuille(Math.min(classeur.active, classeur.feuilles.length - 1));
   ({ historique, futur } = classeur._hist || { historique: [], futur: [] });
-  document.title = (classeur.nomFichier || 'Classeur') + ' — Tableur';
+  document.title = (classeur.nomFichier || 'Classeur') + ' — Sprezz';
   if (panneauCourant === 'noms') rendreNoms();
   sauvegarderLocal();
   rendreClasseurs(true);
@@ -1004,7 +1159,7 @@ function basculerVers(c) { // premier affichage d'un classeur qui remplace le pr
   afficherModule();
   $('format-export').value = aDesMacros(c) ? 'xlsm' : 'xlsx';
   activerFeuille(Math.min(c.active, c.feuilles.length - 1));
-  document.title = (c.nomFichier || 'Classeur') + ' — Tableur';
+  document.title = (c.nomFichier || 'Classeur') + ' — Sprezz';
   if (panneauCourant === 'noms') rendreNoms();
   sauvegarderLocal();
 }
@@ -1024,7 +1179,7 @@ function renommerClasseur(c) {
   if (!nom || !nom.trim()) return;
   const ext = (/\.(xlsx|xlsm|xls|csv|ods)$/i.exec(c.nomFichier) || ['.xlsx'])[0];
   c.nomFichier = nomLibreClasseur(nom.trim().replace(/[\\/:*?"<>|]/g, '_') + (/\.(xlsx|xlsm|csv)$/i.test(nom.trim()) ? '' : ext), c);
-  if (c === classeur) document.title = c.nomFichier + ' — Tableur';
+  if (c === classeur) document.title = c.nomFichier + ' — Sprezz';
   sauvegarderLocal(); rendreClasseurs(true);
 }
 let signatureClasseurs = '';
@@ -1042,7 +1197,7 @@ function rendreClasseurs(forcer = false) {
     const x = document.createElement('button'); x.className = 'classeur-fermer'; x.textContent = '✕'; x.title = 'Fermer ce classeur';
     x.addEventListener('click', (e) => { e.stopPropagation(); fermerClasseur(c); });
     o.append(nom, x);
-    o.addEventListener('click', () => basculerClasseur(c));
+    o.addEventListener('click', () => { basculerClasseur(c); conteneur.focus({ preventScroll: true }); });
     o.addEventListener('dblclick', () => renommerClasseur(c));
     o.addEventListener('contextmenu', (e) => {
       e.preventDefault();
@@ -1085,7 +1240,7 @@ function nouveauClasseur() {
 // Sauvegarde locale (navigateur) de tous les classeurs ouverts, pour survivre à un rechargement
 function serialiserClasseur(c) {
   return JSON.stringify({ nomFichier: c.nomFichier, active: c.active, macros: c.macros || '', noms: [...c.noms.values()], modifie: estModifie(c),
-    feuilles: c.feuilles.map((f, fi2) => ({ nom: f.nom, codeNom: f.codeNom, cachee: f.cachee, largeurs: f.largeurs, hauteurs: f.hauteurs, fusions: f.fusions, graphiques: f.graphiques, boutons: f.boutons, images: f.images, noms: [...f.noms.values()], figer: f.figer, mfc: f.mfc, filtre: f.filtre, filtrees: [...(f.filtrees || [])], validations: f.validations, tcd: f.tcd,
+    feuilles: c.feuilles.map((f, fi2) => ({ nom: f.nom, codeNom: f.codeNom, cachee: f.cachee, largeurs: f.largeurs, hauteurs: f.hauteurs, fusions: f.fusions, graphiques: f.graphiques, boutons: f.boutons, images: f.images, noms: [...f.noms.values()], figer: f.figer, mfc: f.mfc, filtre: f.filtre, filtrees: [...(f.filtrees || [])], validations: f.validations, tcd: f.tcd, couleur: f.couleur,
       cellules: [...f.cellules].map(([k, cel]) => {
         const o = { ...cel, v: cel.v instanceof ErreurFormule ? { erreur: cel.v.code } : cel.v };
         // Comme Excel à l'enregistrement : la dernière valeur calculée d'une formule est gardée
@@ -1098,7 +1253,7 @@ function deserialiserClasseur(data) {
   c.nomFichier = data.nomFichier || 'Classeur1.xlsx';
   for (const fd of data.feuilles || []) {
     const f = c.ajouterFeuille(fd.nom); if (fd.codeNom) { try { c.changerCodeNom(f, fd.codeNom); } catch { /* nom pris */ } } f.cachee = !!fd.cachee; f.largeurs = fd.largeurs || {}; f.hauteurs = fd.hauteurs || {}; f.fusions = fd.fusions || []; f.graphiques = fd.graphiques || []; f.boutons = fd.boutons || []; f.images = fd.images || [];
-    f.figer = fd.figer || null; f.mfc = fd.mfc || []; f.filtre = fd.filtre || null; f.filtrees = new Set(fd.filtrees || []); f.validations = fd.validations || []; f.tcd = fd.tcd || [];
+    f.figer = fd.figer || null; f.mfc = fd.mfc || []; f.filtre = fd.filtre || null; f.filtrees = new Set(fd.filtrees || []); f.validations = fd.validations || []; f.tcd = fd.tcd || []; if (fd.couleur) f.couleur = fd.couleur;
     for (const n of fd.noms || []) f.noms.set(n.nom.toUpperCase(), n);
     for (const [k, cel] of fd.cellules) { if (cel.v && typeof cel.v === 'object' && cel.v.erreur) cel.v = new ErreurFormule(cel.v.erreur); f.cellules.set(k, cel); }
     f.recalculerZone();
@@ -1590,13 +1745,57 @@ function allerA(texte) {
   const k = s.lastIndexOf('!');
   if (k >= 0) { const i = classeur.indexFeuille(s.slice(0, k).replace(/^'|'$/g, '')); if (i >= 0 && i !== fi()) { memoriserVue(); activerFeuille(i); } s = s.slice(k + 1); }
   const p = plageDepuisTexte(s);
-  if (!p) { if (classeur.nom(s, fi())) return allerA(classeur.nom(s, fi())); return toast('Plage inconnue : ' + texte, true); }
+  if (!p) { if (classeur.nom(s, fi())) return allerA(classeur.nom(s, fi())); toast('Plage inconnue : ' + texte, true); return false; }
   curseur = { r: p.r1, c: p.c1 }; selection = { r1: p.r1, c1: p.c1, r2: Math.min(p.r2, p.r1 + 5000), c2: Math.min(p.c2, p.c1 + 200) };
   nbLignes = Math.max(nbLignes, selection.r2 + 60); nbColonnes = Math.max(nbColonnes, selection.c2 + 15);
   geometrie(); defiler(curseur); rendre();
+  return true;
 }
 function rendreAide() {
   $('panneau-aide').innerHTML = `
+<p><b>Sprezz</b> : un tableur simple, qui lit et écrit les fichiers Excel, avec les mêmes raccourcis qu'Excel.</p>
+<h3>Raccourcis (les mêmes qu'Excel)</h3>
+<table class="raccourcis">
+<tr><td>Ctrl+C / X / V</td><td>Copier, couper, coller (aussi un graphique ou une image : il se pose sur la cellule choisie)</td></tr>
+<tr><td>Ctrl+Alt+V</td><td>Collage spécial (valeurs, formats, transposé, opérations)</td></tr>
+<tr><td>Ctrl+Z / Ctrl+Y</td><td>Annuler / rétablir</td></tr>
+<tr><td>Ctrl+1</td><td>Format de cellule</td></tr>
+<tr><td>Ctrl+B / I / U / 5</td><td>Gras, italique, souligné, barré (aussi Ctrl+2, 3, 4)</td></tr>
+<tr><td>Ctrl+Maj+1 … 6</td><td>Nombre, heure, date, monétaire, pourcentage, scientifique ; Ctrl+Maj+~ : standard</td></tr>
+<tr><td>Ctrl+Maj+& / _</td><td>Bordure de contour / sans bordure</td></tr>
+<tr><td>F2 · Échap · Entrée · Tab</td><td>Modifier · annuler · valider (dans une sélection, on reste dedans)</td></tr>
+<tr><td>Alt+Entrée · Ctrl+Entrée</td><td>Retour à la ligne · remplir toute la sélection</td></tr>
+<tr><td>F4</td><td>En saisie : $ des références ; sinon : refaire la dernière mise en forme</td></tr>
+<tr><td>Ctrl+D / Ctrl+R · Ctrl+'</td><td>Recopier vers le bas / la droite · reprendre la formule du dessus</td></tr>
+<tr><td>Ctrl+; · Ctrl+Maj+:</td><td>Date du jour · heure</td></tr>
+<tr><td>Alt+= </td><td>Somme automatique</td></tr>
+<tr><td>Ctrl+flèches · Ctrl+Maj+flèches</td><td>Au bord des données · en sélectionnant</td></tr>
+<tr><td>Ctrl+Début / Fin · Ctrl+Maj+Fin</td><td>Début / fin des données · sélectionner jusqu'à la fin</td></tr>
+<tr><td>Ctrl+A · Ctrl+Maj+*</td><td>Le tableau autour, puis toute la feuille · la zone autour</td></tr>
+<tr><td>Ctrl+Espace · Maj+Espace</td><td>Colonnes · lignes entières</td></tr>
+<tr><td>Ctrl++ / Ctrl+-</td><td>Insérer / supprimer des cellules, lignes ou colonnes</td></tr>
+<tr><td>Ctrl+9 / Ctrl+0</td><td>Masquer les lignes / colonnes (avec Maj : les afficher)</td></tr>
+<tr><td>Ctrl+F / Ctrl+H · Maj+F4</td><td>Rechercher / remplacer · suivant</td></tr>
+<tr><td>Ctrl+G ou F5</td><td>Atteindre une cellule ou un nom</td></tr>
+<tr><td>Ctrl+K · Maj+F2</td><td>Lien hypertexte · note</td></tr>
+<tr><td>Ctrl+L (ou Ctrl+T)</td><td>Mettre sous forme de tableau</td></tr>
+<tr><td>Ctrl+Maj+L</td><td>Filtre automatique</td></tr>
+<tr><td>Alt+↓</td><td>Ouvrir la liste déroulante d'une cellule</td></tr>
+<tr><td>Alt+F1 ou F11</td><td>Graphique de la sélection</td></tr>
+<tr><td>Ctrl+\`</td><td>Afficher les formules</td></tr>
+<tr><td>Ctrl+PgSuiv / PgPréc · Maj+F11</td><td>Feuille suivante / précédente (aussi avec Alt) · nouvelle feuille</td></tr>
+<tr><td>Maj+F10</td><td>Menu de la cellule</td></tr>
+<tr><td>F9 · Ctrl+Alt+F9</td><td>Recalculer · tout recalculer</td></tr>
+<tr><td>Ctrl+S · F12 · Ctrl+O · Ctrl+P</td><td>Enregistrer · enregistrer · ouvrir · imprimer</td></tr>
+<tr><td>Alt+F11 · Alt+F8</td><td>Éditeur VBA · liste des macros</td></tr>
+</table>
+<h3>Souris et doigt</h3>
+<ul>
+<li>Glisser le <b>bord de la sélection</b> la déplace (avec Ctrl : la copie). Double-clic sur la <b>poignée</b> : recopie jusqu'au bout des données voisines. Double-clic sur le bord d'un en-tête : largeur ou hauteur ajustée au contenu.</li>
+<li><b>Graphiques et images</b> : un clic (un appui) les choisit, on les glisse n'importe où ; flèches pour les ajuster (Maj : au pixel), Alt en glissant pour les caler sur les cellules, Suppr pour les enlever.</li>
+<li>🖌 <b>Pinceau</b> : un clic reproduit la mise en forme une fois, un double-clic plusieurs fois (Échap pour finir). ⊞ fusionne et centre.</li>
+<li>En tapant un texte, Sprezz propose celui qui existe déjà dans la colonne (Entrée pour le prendre).</li>
+</ul>
 <h3>Prise en main</h3>
 <ul>
 <li>Tapez dans une cellule ; <code>Entrée</code> valide, <code>Tab</code> passe à droite, <code>F2</code> modifie, <code>Échap</code> annule, <code>Suppr</code> efface.</li>
@@ -1669,7 +1868,10 @@ conteneur.addEventListener('mousedown', (e) => {
   }
   const cel = celluleDepuisPoint(x, y);
   if (uiD.celluleChoisie(cel.r, cel.c)) { e.preventDefault(); return; }
-  if (graphiqueActif) { graphiqueActif = null; rendre(); }
+  // Bord de la sélection : on la déplace (Ctrl : on la copie), comme dans Excel
+  if (e.isTrusted && !edition && !e.shiftKey && surBordSelection(e)) { e.preventDefault(); conteneur.focus(); glisse = { mode: 'deplacer', depart: selectionNormalisee(), cel0: cel, cible: null }; return; }
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !edition) { const lc = feuille().get(cel.r, cel.c); if (lc && lc.lien) { e.preventDefault(); suivreLien(lc.lien); return; } }
+  if (graphiqueActif || imageActive) { graphiqueActif = null; imageActive = null; rendre(); }
   if (edition && (edition.origine === 'barre' ? barre : editeur).value.startsWith('=') && (edition.r !== cel.r || edition.c !== cel.c || edition.origine === 'barre')) {
     if (insererReference(cel.r, cel.c, cel.r, cel.c)) { e.preventDefault(); glisse = { mode: 'reference', depart: cel }; return; }
   }
@@ -1681,6 +1883,7 @@ conteneur.addEventListener('mousedown', (e) => {
   glisse = { mode: 'cellules' };
   rendre();
 });
+conteneur.addEventListener('mousemove', (e) => { if (glisse || edition || e.buttons) return; const bord = e.target.closest('#cellules, #volets, #grille-conteneur') && !e.target.closest('.graphique, .image-feuille, .bouton-macro') && surBordSelection(e); conteneur.classList.toggle('sur-bord', !!bord); });
 document.addEventListener('mousemove', (e) => {
   if (!glisse) return;
   const rect = conteneur.getBoundingClientRect();
@@ -1695,18 +1898,123 @@ document.addEventListener('mousemove', (e) => {
     glisse.cible = dr >= dc ? { r: cel.r, c: null } : { r: null, c: cel.c };
     selection = dr >= dc ? { r1: Math.min(d.r1, cel.r), c1: d.c1, r2: Math.max(d.r2, cel.r), c2: d.c2 } : { r1: d.r1, c1: Math.min(d.c1, cel.c), r2: d.r2, c2: Math.max(d.c2, cel.c) };
     rendre();
-  } else if (glisse.mode === 'redim-col') { const w = Math.max(20, glisse.base + e.clientX - glisse.x0); feuille().largeurs[glisse.c] = w; rendre(); }
+  } else if (glisse.mode === 'deplacer') {
+    const d = glisse.depart, dr = Math.max(-d.r1, cel.r - glisse.cel0.r), dc = Math.max(-d.c1, cel.c - glisse.cel0.c);
+    glisse.cible = dr || dc ? { r: d.r1 + dr, c: d.c1 + dc } : null;
+    const fa = $('fantome');
+    fa.hidden = !glisse.cible;
+    if (glisse.cible) { poser(fa, rectPlage(d.r1 + dr, d.c1 + dc, d.r2 + dr, d.c2 + dc)); fa.classList.toggle('copie', e.ctrlKey || e.metaKey); }
+    defiler(cel);
+  } else if (glisse.mode === 'graphique' || glisse.mode === 'image') {
+    // Déplacement d'un graphique ou d'une image ; Alt : aligné sur les cellules (comme Excel)
+    let x = Math.max(0, glisse.x + e.clientX - glisse.x0), y = Math.max(0, glisse.y + e.clientY - glisse.y0);
+    if (e.altKey) { x = xCols[indexDepuis(xCols, x + largeurCol(indexDepuis(xCols, x)) / 2)]; y = yLigs[indexDepuis(yLigs, y + hauteurLig(indexDepuis(yLigs, y)) / 2)]; }
+    if (glisse.mode === 'graphique') { glisse.g.x = x; glisse.g.y = y; } else placerImage(glisse.g, x, y, glisse.w, glisse.h);
+    glisse.bouge = true;
+    rendre();
+  } else if (glisse.mode === 'graphique-redim') { glisse.g.w = Math.max(160, glisse.w + e.clientX - glisse.x0); glisse.g.h = Math.max(110, glisse.h + e.clientY - glisse.y0); rendre(); }
+  else if (glisse.mode === 'redim-col') { const w = Math.max(20, glisse.base + e.clientX - glisse.x0); feuille().largeurs[glisse.c] = w; rendre(); }
   else if (glisse.mode === 'redim-lig') { const h = Math.max(14, glisse.base + e.clientY - glisse.y0); feuille().hauteurs[glisse.r] = h; rendre(); }
 });
-document.addEventListener('mouseup', () => {
+document.addEventListener('mouseup', (e) => {
   if (!glisse) return;
   const g = glisse; glisse = null;
+  if (g.mode === 'deplacer') { $('fantome').hidden = true; if (g.cible) deplacerCellules(g.depart, g.cible, e.ctrlKey || e.metaKey); return; }
   if (g.mode === 'poignee' && g.cible) { selection = g.depart; recopierVers({ r: g.cible.r ?? g.depart.r1, c: g.cible.c ?? g.depart.c1 }); }
   else if (g.mode === 'reference') { edition.refEnCours = null; (edition.origine === 'barre' ? barre : editeur).focus(); }
   else if (g.mode === 'redim-col' || g.mode === 'redim-lig') { classeur.modifie(); sauvegarderLocal(); }
-  else if (g.mode === 'graphique' || g.mode === 'graphique-redim') sauvegarderLocal();
+  else if (g.mode === 'graphique' || g.mode === 'graphique-redim' || g.mode === 'image') { if (g.bouge || g.mode === 'graphique-redim') { classeur.version++; sauvegarderLocal(); } }
   else if (g.mode === 'poignee') rendre();
+  else if (g.mode === 'cellules' && pinceau) appliquerPinceau();
 });
+// Double-clic sur un bord d'en-tête : largeur (ou hauteur) ajustée au contenu ; toutes les colonnes choisies à la fois
+function ajusterAuto(el) {
+  const f = feuille(), s = selectionNormalisee();
+  memoriser();
+  if (el.classList.contains('redim-col')) {
+    const c0 = +el.dataset.c, entieres = s.r2 >= 1048575 && c0 >= s.c1 && c0 <= s.c2;
+    const cols = entieres ? Array.from({ length: Math.min(s.c2, f.zone.c2 + 1) - s.c1 + 1 }, (_, i) => s.c1 + i) : [c0];
+    for (const c of cols) {
+      let w = 0;
+      f.chaque((r, cc, cel) => { if (cc !== c || f.fusions.some((m) => r >= m.r1 && r <= m.r2 && c >= m.c1 && c <= m.c2 && m.c2 > m.c1)) return; const v = classeur.valeur(fi(), r, cc); if (v === null || v === '') return; w = Math.max(w, largeurTexte(afficherValeur(v, cel.z), cel.s) + 12); });
+      if (w) f.largeurs[c] = Math.min(500, Math.max(24, Math.ceil(w)));
+    }
+  } else {
+    const r0 = +el.dataset.r, entieres = s.c2 >= 16383 && r0 >= s.r1 && r0 <= s.r2;
+    const lignes = entieres ? Array.from({ length: Math.min(s.r2, f.zone.r2 + 1) - s.r1 + 1 }, (_, i) => s.r1 + i) : [r0];
+    for (const r of lignes) {
+      let h = 0;
+      for (let c = 0; c <= f.zone.c2; c++) {
+        const cel = f.get(r, c); if (!cel) continue;
+        const t = afficherValeur(classeur.valeur(fi(), r, c), cel.z), taille = (cel.s && cel.s.taille) || 13;
+        const n = cel.s && cel.s.renvoi ? Math.max(1, Math.ceil(largeurTexte(t, cel.s) / Math.max(10, largeurCol(c) - 8))) + (t.match(/\n/g) || []).length : 1 + (t.match(/\n/g) || []).length;
+        h = Math.max(h, n * taille * 1.25 + 6);
+      }
+      if (h <= HAUTEUR_DEFAUT) delete f.hauteurs[r]; else f.hauteurs[r] = Math.ceil(h);
+    }
+  }
+  classeur.modifie(); sauvegarderLocal(); rendre();
+}
+// Double-clic sur la poignée : recopie vers le bas jusqu'au bout des données de la colonne voisine (comme Excel)
+function recopieDoubleClic() {
+  const s = selectionNormalisee(), f = feuille();
+  const plein = (r, c) => { const cel = f.get(r, c); return !!cel && (cel.f != null || (cel.v !== null && cel.v !== undefined && cel.v !== '')); };
+  let fin = s.r2;
+  for (const c of [s.c1 - 1, s.c2 + 1]) { if (c < 0) continue; let r = s.r2; while (plein(r + 1, c) && r < s.r2 + 100000) r++; fin = Math.max(fin, r); }
+  if (fin > s.r2) recopierVers({ r: fin, c: s.c1 });
+}
+// Reproduire la mise en forme (pinceau) : un clic pour une fois, un double-clic pour plusieurs (Échap pour finir)
+function prendrePinceau(garder) {
+  const s = selectionBornee(), f = feuille();
+  const cellules = [];
+  for (let r = s.r1; r <= Math.max(s.r1, s.r2); r++) { const l = []; for (let c = s.c1; c <= Math.max(s.c1, s.c2); c++) { const cel = f.get(r, c) || {}; l.push({ s: cel.s ? JSON.parse(JSON.stringify(cel.s)) : undefined, z: cel.z }); } cellules.push(l); }
+  pinceau = { cellules, nl: cellules.length, nc: cellules[0].length, garder };
+  document.body.classList.add('pinceau'); $('btn-pinceau').classList.add('actif');
+  toast(garder ? 'Pinceau : choisissez les cellules à mettre en forme (Échap pour finir)' : 'Pinceau : choisissez les cellules à mettre en forme');
+}
+function appliquerPinceau() {
+  if (!pinceau) return;
+  const s = selectionBornee(), f = feuille(), p = pinceau;
+  memoriser();
+  for (let r = s.r1; r <= Math.max(s.r1, s.r2); r++) for (let c = s.c1; c <= Math.max(s.c1, s.c2); c++) {
+    const src = p.cellules[(r - s.r1) % p.nl][(c - s.c1) % p.nc], cel = f.get(r, c) || {};
+    if (src.s) cel.s = JSON.parse(JSON.stringify(src.s)); else delete cel.s;
+    if (src.z) cel.z = src.z; else delete cel.z;
+    f.set(r, c, cel.f == null && (cel.v === null || cel.v === undefined) && !cel.s && !cel.z && !cel.note ? null : cel);
+  }
+  classeur.modifie(); sauvegarderLocal();
+  if (!p.garder) { pinceau = null; document.body.classList.remove('pinceau'); $('btn-pinceau').classList.remove('actif'); }
+  rendre();
+}
+// Saisie semi-automatique du texte (comme Excel) : un texte déjà présent dans la colonne est proposé, la fin sélectionnée
+function completerTexte(r, c, t) {
+  const f = feuille(), tl = t.toLowerCase(), trouves = new Map();
+  const voir = (rr) => { const v = classeur.valeur(fi(), rr, c); if (typeof v === 'string' && v.length > t.length && v.toLowerCase().startsWith(tl)) trouves.set(v.toLowerCase(), v); return v !== null && v !== undefined && v !== ''; };
+  for (let rr = r - 1; rr >= 0 && r - rr <= 2000 && voir(rr); rr--);
+  for (let rr = r + 1; rr <= f.zone.r2 && rr - r <= 2000 && voir(rr); rr++);
+  return trouves.size === 1 ? t + [...trouves.values()][0].slice(t.length) : null;
+}
+// Pointeur sur le bord de la sélection (hors poignée de recopie)
+function surBordSelection(e) {
+  const s = selectionNormalisee();
+  if (s.r2 >= 1048575 || s.c2 >= 16383) return false;
+  const r = rectPlage(s.r1, s.c1, s.r2, s.c2), box = conteneur.getBoundingClientRect();
+  const x = e.clientX - box.left + conteneur.scrollLeft, y = e.clientY - box.top + conteneur.scrollTop;
+  const pres = 4, dedans = x >= r.left - pres && x <= r.left + r.width + pres && y >= r.top - pres && y <= r.top + r.height + pres;
+  if (!dedans || r.width <= 0) return false;
+  const coin = x > r.left + r.width - 8 && y > r.top + r.height - 8;
+  return !coin && (x < r.left + pres || x > r.left + r.width - pres || y < r.top + pres || y > r.top + r.height - pres);
+}
+function deplacerCellules(src, cible, copie) {
+  memoriser();
+  const s2 = { r1: src.r1, c1: src.c1, r2: Math.min(src.r2, Math.max(feuille().zone.r2, src.r1)), c2: Math.min(src.c2, Math.max(feuille().zone.c2, src.c1)) };
+  classeur.copier(fi(), s2, cible, !copie);
+  // Les fusions déplacées suivent
+  if (!copie) for (const m of feuille().fusions) if (m.r1 >= src.r1 && m.r2 <= src.r2 && m.c1 >= src.c1 && m.c2 <= src.c2) { m.r1 += cible.r - src.r1; m.r2 += cible.r - src.r1; m.c1 += cible.c - src.c1; m.c2 += cible.c - src.c1; }
+  selection = { r1: cible.r, c1: cible.c, r2: cible.r + src.r2 - src.r1, c2: cible.c + src.c2 - src.c1 }; curseur = { r: cible.r, c: cible.c + (curseur.c - src.c1) };
+  curseur.r = cible.r + (curseur.r - src.r1);
+  sauvegarderLocal(); rendre();
+}
 function demarrerRedimension(e) {
   e.preventDefault(); e.stopPropagation();
   if (e.target.classList.contains('redim-col')) { const c = +e.target.dataset.c; glisse = { mode: 'redim-col', c, x0: e.clientX, base: largeurCol(c) }; }
@@ -1715,11 +2023,7 @@ function demarrerRedimension(e) {
 conteneur.addEventListener('dblclick', (e) => {
   const rect = conteneur.getBoundingClientRect();
   const x = e.clientX - rect.left, y = e.clientY - rect.top;
-  if (e.target.classList.contains('redim-col')) { // ajustement automatique
-    const c = +e.target.dataset.c; let w = 30;
-    feuille().chaque((r, cc, cel) => { if (cc === c) w = Math.max(w, afficherValeur(classeur.valeur(fi(), r, cc), cel.z).length * 7.2 + 12); });
-    feuille().largeurs[c] = Math.min(400, Math.round(w)); classeur.modifie(); rendre(); return;
-  }
+  if (e.target.classList.contains('redim-col') || e.target.classList.contains('redim-lig')) { ajusterAuto(e.target); return; }
   if (x < LARGEUR_ENTETE || y < HAUTEUR_DEFAUT) return;
   if (!edition) commencerEdition();
 });
@@ -1729,25 +2033,91 @@ conteneur.addEventListener('contextmenu', (e) => {
   const x = e.clientX - rect.left, y = e.clientY - rect.top;
   if (x >= LARGEUR_ENTETE && y >= HAUTEUR_DEFAUT) { const cel = celluleDepuisPoint(x, y); const s = selectionNormalisee(); if (cel.r < s.r1 || cel.r > s.r2 || cel.c < s.c1 || cel.c > s.c2) { curseur = cel; selection = { r1: cel.r, c1: cel.c, r2: cel.r, c2: cel.c }; rendre(); } }
   const s = selectionNormalisee();
-  const nl = s.r2 - s.r1 + 1, nc = s.c2 - s.c1 + 1;
-  ouvrirMenu(e.clientX, e.clientY, [
-    ['Couper', () => copier(true)], ['Copier', () => copier(false)], ['Coller', () => coller()], ['Coller les valeurs', () => collerValeurs()], null,
-    ['Insérer ' + nl + ' ligne' + (nl > 1 ? 's' : ''), () => { memoriser(); classeur.insererLignes(fi(), s.r1, nl); sauvegarderLocal(); rendre(); }],
-    ['Supprimer ' + nl + ' ligne' + (nl > 1 ? 's' : ''), () => { memoriser(); classeur.supprimerLignes(fi(), s.r1, nl); sauvegarderLocal(); rendre(); }],
-    ['Insérer ' + nc + ' colonne' + (nc > 1 ? 's' : ''), () => { memoriser(); classeur.insererColonnes(fi(), s.c1, nc); sauvegarderLocal(); rendre(); }],
-    ['Supprimer ' + nc + ' colonne' + (nc > 1 ? 's' : ''), () => { memoriser(); classeur.supprimerColonnes(fi(), s.c1, nc); sauvegarderLocal(); rendre(); }], null,
-    [feuille().fusions.some((m) => m.r1 === s.r1 && m.c1 === s.c1) ? 'Dissocier les cellules' : 'Fusionner les cellules', () => { memoriser(); const f = feuille(); const i = f.fusions.findIndex((m) => m.r1 === s.r1 && m.c1 === s.c1); if (i >= 0) f.fusions.splice(i, 1); else if (nl * nc > 1) f.fusions.push({ ...s }); classeur.modifie(); sauvegarderLocal(); rendre(); }],
-    ['Effacer le contenu', () => { memoriser(); classeur.effacer(fi(), s.r1, s.c1, Math.min(s.r2, feuille().zone.r2), Math.min(s.c2, feuille().zone.c2)); sauvegarderLocal(); rendre(); }],
-    ['Effacer tout (contenu et formats)', () => { memoriser(); classeur.effacer(fi(), s.r1, s.c1, Math.min(s.r2, feuille().zone.r2), Math.min(s.c2, feuille().zone.c2), true); sauvegarderLocal(); rendre(); }],
-    null, ['Trier de A à Z', () => uiD.trierRapide(false)], ['Trier de Z à A', () => uiD.trierRapide(true)], [feuille().filtre ? 'Retirer le filtre' : 'Filtrer', () => uiD.basculerFiltre()],
-    ['Mise en forme conditionnelle…', () => uiD.ouvrirMfc()], ['Validation des données…', () => uiD.validation.ouvrir()],
-    ...(validationDe(feuille(), curseur.r, curseur.c)?.type === 'liste' ? [['Choisir dans la liste…', () => uiD.validation.ouvrirListe(curseur.r, curseur.c, $('curseur').getBoundingClientRect())]] : []),
-    ...(uiT.sousCurseur() ? [['Tableau croisé : modifier les champs…', () => uiT.ouvrir()], ['Tableau croisé : actualiser', () => { uiT.ouvrir(); uiT.toutActualiser(); }]] : [['Tableau croisé dynamique…', () => uiT.ouvrir()]]), null,
-    ...(s.r2 >= 1048575 ? [] : [['Masquer les lignes', () => uiD.masquer('r', false)], ['Afficher les lignes masquées', () => uiD.masquer('r', true)]]),
-    ...(s.c2 >= 16383 ? [] : [['Masquer les colonnes', () => uiD.masquer('c', false)], ['Afficher les colonnes masquées', () => uiD.masquer('c', true)]]),
-    null, ['Définir un nom…', () => { const n = prompt('Nom pour ' + zoneNom.value + ' :'); if (n) try { classeur.definirNom(n, feuille().nom + '!' + adresseAbsolue(s)); sauvegarderLocal(); toast('Nom « ' + n + ' » défini'); } catch (err) { toast(err.message, true); } }],
-  ]);
+  ouvrirMenu(e.clientX, e.clientY, menuCellules(s));
 });
+// Menu des cellules (clic droit, appui long) : court, le reste dans des sous-menus ▸
+function menuCellules(s) {
+  const nl = s.r2 - s.r1 + 1, nc = s.c2 - s.c1 + 1;
+  const pl = (n, mot) => n + ' ' + mot + (n > 1 ? 's' : '');
+  const cel = feuille().get(curseur.r, curseur.c) || {};
+  const effacer = (tout) => { memoriser(); classeur.effacer(fi(), s.r1, s.c1, Math.min(s.r2, feuille().zone.r2), Math.min(s.c2, feuille().zone.c2), tout); sauvegarderLocal(); rendre(); };
+  const fusion = feuille().fusions.some((m) => m.r1 === s.r1 && m.c1 === s.c1);
+  return [
+    ['Couper', () => copier(true), 'Ctrl+X'], ['Copier', () => copier(false), 'Ctrl+C'], ['Coller', () => coller(), 'Ctrl+V'],
+    ['Collage spécial', [['Valeurs', () => collerValeurs()], ['Collage spécial…', () => uiB.collageSpecial(), 'Ctrl+Alt+V']]], null,
+    ['Insérer', [['Insérer ' + pl(nl, 'ligne'), () => lignesColonnes(true, 'r')], ['Insérer ' + pl(nc, 'colonne'), () => lignesColonnes(true, 'c')], ['Insérer des cellules…', () => uiB.cellules(true), 'Ctrl++']]],
+    ['Supprimer', [['Supprimer ' + pl(nl, 'ligne'), () => lignesColonnes(false, 'r')], ['Supprimer ' + pl(nc, 'colonne'), () => lignesColonnes(false, 'c')], ['Supprimer des cellules…', () => uiB.cellules(false), 'Ctrl+-']]],
+    ['Effacer', [['Le contenu', () => effacer(false), 'Suppr'], ['Les formats', () => effacerFormats()], ['Tout', () => effacer(true)], ...(cel.note ? [['La note', () => { memoriser(); delete cel.note; classeur.modifie(); sauvegarderLocal(); rendre(); }]] : [])]], null,
+    ['Format de cellule…', () => uiB.formatCellule(), 'Ctrl+1'],
+    [fusion ? 'Dissocier les cellules' : 'Fusionner et centrer', () => fusionnerSelection(!fusion)],
+    [cel.note ? 'Modifier la note…' : 'Insérer une note…', () => uiB.note(), 'Maj+F2'],
+    [cel.lien ? 'Modifier le lien…' : 'Lien hypertexte…', () => uiB.lien(), 'Ctrl+K'],
+    ...(cel.lien ? [['Ouvrir le lien', () => suivreLien(cel.lien)]] : []),
+    ...(validationDe(feuille(), curseur.r, curseur.c)?.type === 'liste' ? [['Choisir dans la liste…', () => uiD.validation.ouvrirListe(curseur.r, curseur.c, $('curseur').getBoundingClientRect()), 'Alt+↓']] : []),
+    null,
+    ['Données', [['Trier de A à Z', () => uiD.trierRapide(false)], ['Trier de Z à A', () => uiD.trierRapide(true)], ['Tri personnalisé…', () => uiD.ouvrirTri()], [feuille().filtre ? 'Retirer le filtre' : 'Filtrer', () => uiD.basculerFiltre(), 'Ctrl+Maj+L'], null,
+      ['Supprimer les doublons…', () => uiB.doublons()], ['Convertir en colonnes…', () => uiB.colonnes()], ['Validation des données…', () => uiD.validation.ouvrir()], ['Mettre sous forme de tableau', () => mettreEnTableau(), 'Ctrl+L']]],
+    ['Mise en forme conditionnelle…', () => uiD.ouvrirMfc()],
+    ...(uiT.sousCurseur() ? [['Tableau croisé', [['Modifier les champs…', () => uiT.ouvrir()], ['Actualiser', () => { uiT.ouvrir(); uiT.toutActualiser(); }]]]] : [['Tableau croisé dynamique…', () => uiT.ouvrir()]]),
+    ['Masquer / afficher', [
+      ...(s.r2 >= 1048575 ? [] : [['Masquer les lignes', () => uiD.masquer('r', false), 'Ctrl+9'], ['Afficher les lignes masquées', () => uiD.masquer('r', true), 'Ctrl+Maj+9']]),
+      ...(s.c2 >= 16383 ? [] : [['Masquer les colonnes', () => uiD.masquer('c', false), 'Ctrl+0'], ['Afficher les colonnes masquées', () => uiD.masquer('c', true), 'Ctrl+Maj+0']])]],
+    ['Définir un nom…', () => { const n = prompt('Nom pour ' + zoneNom.value + ' :'); if (n) try { classeur.definirNom(n, feuille().nom + '!' + adresseAbsolue(s)); sauvegarderLocal(); toast('Nom « ' + n + ' » défini'); } catch (err) { toast(err.message, true); } }],
+  ];
+}
+function lignesColonnes(inserer, axe) {
+  const s = selectionNormalisee(); memoriser();
+  if (axe === 'r') { const n = s.r2 - s.r1 + 1; if (inserer) classeur.insererLignes(fi(), s.r1, n); else classeur.supprimerLignes(fi(), s.r1, n); }
+  else { const n = s.c2 - s.c1 + 1; if (inserer) classeur.insererColonnes(fi(), s.c1, n); else classeur.supprimerColonnes(fi(), s.c1, n); }
+  sauvegarderLocal(); rendre();
+}
+function effacerFormats() { const s = selectionBornee(); memoriser(); for (let r = s.r1; r <= s.r2; r++) for (let c = s.c1; c <= s.c2; c++) { const cel = feuille().get(r, c); if (!cel) continue; delete cel.s; delete cel.z; feuille().set(r, c, cel.f == null && (cel.v === null || cel.v === undefined) && !cel.note ? null : cel); } classeur.modifie(); sauvegarderLocal(); rendre(); }
+function fusionnerSelection(oui, centrer = true) {
+  const s = selectionNormalisee(), f = feuille();
+  memoriser();
+  f.fusions = f.fusions.filter((m) => !(m.r2 >= s.r1 && m.r1 <= s.r2 && m.c2 >= s.c1 && m.c1 <= s.c2));
+  if (oui && (s.r2 > s.r1 || s.c2 > s.c1) && s.r2 < 1048575 && s.c2 < 16383) {
+    f.fusions.push({ r1: s.r1, c1: s.c1, r2: s.r2, c2: s.c2 });
+    if (centrer) classeur.style(fi(), s.r1, s.c1, { align: 'center' });
+  }
+  classeur.modifie(); sauvegarderLocal(); rendre();
+}
+function insererImage(fichier) {
+  const lecteur = new FileReader();
+  lecteur.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 420 / img.naturalWidth, 320 / img.naturalHeight);
+      memoriser();
+      const im = { id: 'i' + Date.now().toString(36), src: lecteur.result, titre: fichier.name };
+      placerImage(im, xCols[curseur.c], yLigs[curseur.r], Math.round(img.naturalWidth * k), Math.round(img.naturalHeight * k));
+      feuille().images.push(im); imageActive = im.id; graphiqueActif = null;
+      classeur.version++; sauvegarderLocal(); rendre();
+      toast('Image insérée : glissez-la pour la placer, Suppr pour l\'enlever');
+    };
+    img.src = lecteur.result;
+  };
+  lecteur.readAsDataURL(fichier);
+}
+function suivreLien(url) {
+  if (!url) return;
+  if (url.startsWith('#')) { allerA(url.slice(1)); return; }
+  window.open(url, '_blank', 'noopener');
+}
+// Mettre sous forme de tableau (Ctrl+L) : en-têtes colorés, lignes à bandes, bordures fines et filtre
+function mettreEnTableau() {
+  const s0 = selectionBornee();
+  const p = s0.r1 === s0.r2 && s0.c1 === s0.c2 ? uiD.zone(s0) : s0;
+  if (p.r2 <= p.r1) return toast('Choisissez un tableau avec une ligne d\'en-têtes', true);
+  memoriser();
+  for (let r = p.r1; r <= p.r2; r++) for (let c = p.c1; c <= p.c2; c++) {
+    const entete = r === p.r1;
+    classeur.style(fi(), r, c, { fond: entete ? '#1f7a4d' : ((r - p.r1) % 2 ? '#ffffff' : '#e8f3ec'), couleur: entete ? '#ffffff' : null, gras: entete || null, bordures: { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } });
+  }
+  if (!feuille().filtre) { feuille().filtre = { r1: p.r1, c1: p.c1, r2: p.r2, c2: p.c2, criteres: {} }; feuille().filtrees = new Set(); }
+  classeur.modifie(); sauvegarderLocal(); rendre();
+  toast('Tableau ' + adresse(p.r1, p.c1) + ':' + adresse(p.r2, p.c2) + ' mis en forme, avec un filtre');
+}
 function adresseAbsolue(s) { const a = adresse(s.r1, s.c1, true, true); return s.r1 === s.r2 && s.c1 === s.c2 ? a : a + ':' + adresse(s.r2, s.c2, true, true); }
 async function collerValeurs() {
   const dest = selectionNormalisee();
@@ -1761,17 +2131,21 @@ async function collerValeurs() {
 conteneur.addEventListener('keydown', (e) => {
   if (edition) return;
   if (uiD.validation.toucheListe(e)) return;
+  if (raccourciExcel(e)) return;
   if (e.altKey && e.key === 'ArrowDown') { const dv = validationDe(feuille(), curseur.r, curseur.c); if (dv && dv.type === 'liste') { e.preventDefault(); return uiD.validation.ouvrirListe(curseur.r, curseur.c, $('curseur').getBoundingClientRect()); } }
   const ctrl = e.ctrlKey || e.metaKey;
   const k = e.key;
+  // Graphique ou image choisi : Suppr l'enlève, les flèches le déplacent, Échap revient aux cellules
+  if ((k === 'Delete' || k === 'Backspace') && objetSelectionne()) { e.preventDefault(); supprimerObjet(); return; }
+  if (objetSelectionne() && !ctrl && k.startsWith('Arrow')) { e.preventDefault(); const p = e.shiftKey ? 1 : 8; deplacerObjet(k === 'ArrowLeft' ? -p : k === 'ArrowRight' ? p : 0, k === 'ArrowUp' ? -p : k === 'ArrowDown' ? p : 0); return; }
+  if (k === 'Escape' && objetSelectionne()) { graphiqueActif = null; imageActive = null; return rendre(); }
   const mouv = (dr, dc) => { e.preventDefault(); if (ctrl) { const p = sautCtrl(dr, dc); if (e.shiftKey) placerCurseur(p.r, p.c, true); else placerCurseur(p.r, p.c); } else { const base = e.shiftKey ? { r: selection.r2, c: selection.c2 } : curseur; placerCurseur(base.r + dr, base.c + dc, e.shiftKey); } };
   if (k === 'ArrowDown') return mouv(1, 0); if (k === 'ArrowUp') return mouv(-1, 0); if (k === 'ArrowRight') return mouv(0, 1); if (k === 'ArrowLeft') return mouv(0, -1);
-  if (k === 'Enter') { e.preventDefault(); return placerCurseur(curseur.r + (e.shiftKey ? -1 : 1), curseur.c); }
-  if (k === 'Tab') { e.preventDefault(); return placerCurseur(curseur.r, curseur.c + (e.shiftKey ? -1 : 1)); }
+  if (k === 'Enter') { e.preventDefault(); if (suivantDansSelection(e.shiftKey ? -1 : 1, 0)) return; return placerCurseur(curseur.r + (e.shiftKey ? -1 : 1), curseur.c); }
+  if (k === 'Tab') { e.preventDefault(); if (suivantDansSelection(0, e.shiftKey ? -1 : 1)) return; return placerCurseur(curseur.r, curseur.c + (e.shiftKey ? -1 : 1)); }
   if (k === 'Home') { e.preventDefault(); return ctrl ? placerCurseur(0, 0) : placerCurseur(curseur.r, 0); }
   if (k === 'End' && ctrl) { e.preventDefault(); return placerCurseur(Math.max(0, feuille().zone.r2), Math.max(0, feuille().zone.c2)); }
   if (k === 'PageDown' || k === 'PageUp') { e.preventDefault(); const n = Math.max(1, Math.floor((conteneur.clientHeight - HAUTEUR_DEFAUT) / HAUTEUR_DEFAUT) - 1); return placerCurseur(curseur.r + (k === 'PageDown' ? n : -n), curseur.c, e.shiftKey); }
-  if (k === 'Delete' && graphiqueActif) { e.preventDefault(); feuille().graphiques = feuille().graphiques.filter((x) => x.id !== graphiqueActif); graphiqueActif = null; sauvegarderLocal(); return rendre(); }
   if (k === 'Delete') { e.preventDefault(); const s = selectionBornee(); memoriser(); classeur.effacer(fi(), s.r1, s.c1, s.r2, s.c2); sauvegarderLocal(); return rendre(); }
   if (k === 'Backspace') { e.preventDefault(); return commencerEdition(''); }
   if (k === 'F2') { e.preventDefault(); return commencerEdition(); }
@@ -1807,6 +2181,80 @@ conteneur.addEventListener('keydown', (e) => {
   }
   if (k.length === 1 && !e.altKey) { e.preventDefault(); commencerEdition(k); }
 });
+
+// ---------------------------------------------------------------------------
+// Raccourcis d'Excel (mêmes touches, pour ne rien réapprendre)
+// ---------------------------------------------------------------------------
+const FORMATS_RAPIDES = { Digit1: '#,##0.00', Digit2: 'hh:mm', Digit3: 'dd/mm/yyyy', Digit4: '#,##0.00 €', Digit5: '0%', Digit6: '0.00E+00', Backquote: '' };
+function poserFormat(z) { surSelection((r, c) => { if (z || feuille().get(r, c)) classeur.format(fi(), r, c, z || null); }); derniereAction = () => poserFormat(z); }
+function selectionRegion() { const s = selectionNormalisee(); if (s.r1 === s.r2 && s.c1 === s.c2) { const z = uiD.zone(s); if (z.r2 > z.r1 || z.c2 > z.c1) return z; } return null; }
+function raccourciExcel(e) {
+  const ctrl = e.ctrlKey || e.metaKey, k = e.key, code = e.code;
+  const fait = (fn) => { e.preventDefault(); fn(); return true; };
+  if (ctrl && e.altKey && (k === 'v' || k === 'V')) return fait(() => uiB.collageSpecial());
+  if (ctrl && !e.altKey && (k === '+' || code === 'NumpadAdd' || (code === 'Equal' && e.shiftKey))) return fait(() => uiB.cellules(true));
+  if (ctrl && e.shiftKey && FORMATS_RAPIDES[code] !== undefined) return fait(() => poserFormat(FORMATS_RAPIDES[code]));
+  if (ctrl && e.shiftKey && code === 'Digit7') return fait(() => { appliquerBordures('contour'); derniereAction = () => appliquerBordures('contour'); });
+  if (ctrl && e.shiftKey && (code === 'Minus' || k === '_')) return fait(() => appliquerBordures('aucune'));
+  if (ctrl && e.shiftKey && code === 'Digit9') return fait(() => uiD.masquer('r', true));
+  if (ctrl && e.shiftKey && code === 'Digit0') return fait(() => uiD.masquer('c', true));
+  if (ctrl && e.shiftKey && (code === 'Digit8' || k === '*')) return fait(() => { const z = uiD.zone(selectionNormalisee()); selection = { ...z }; rendre(); });
+  if (ctrl && e.shiftKey && (k === 'F' || k === 'f' || k === 'P' || k === 'p')) return fait(() => uiB.formatCellule('police'));
+  if (ctrl && e.shiftKey && (k === ':' || code === 'Semicolon' || code === 'Period')) return fait(() => { const d = new Date(); memoriser(); classeur.saisir(fi(), curseur.r, curseur.c, String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')); sauvegarderLocal(); rendre(); });
+  if (ctrl && !e.shiftKey && !e.altKey) {
+    if (code === 'Digit1' || code === 'Numpad1') return fait(() => uiB.formatCellule());
+    if (code === 'Digit2') return fait(() => basculerStyle('gras'));
+    if (code === 'Digit3') return fait(() => basculerStyle('italique'));
+    if (code === 'Digit4') return fait(() => basculerStyle('souligne'));
+    if (code === 'Digit5') return fait(() => { basculerStyle('barre'); derniereAction = () => basculerStyle('barre'); });
+    if (code === 'Digit9') return fait(() => uiD.masquer('r', false));
+    if (code === 'Digit0') return fait(() => uiD.masquer('c', false));
+    if (code === 'Backquote' || k === '`' || k === '²') return fait(() => { afficherFormules = !afficherFormules; toast(afficherFormules ? 'Formules affichées (Ctrl+` pour revenir)' : 'Résultats affichés'); rendre(); });
+    if (code === 'Space' || k === ' ') return fait(() => { const s = selectionNormalisee(); selection = { r1: 0, c1: s.c1, r2: 1048575, c2: s.c2 }; rendre(); });
+    if (k === '-' || code === 'NumpadSubtract' || code === 'Minus') return fait(() => uiB.cellules(false));
+    if (k === 'k' || k === 'K') return fait(() => uiB.lien());
+    if (k === 'g' || k === 'G') return fait(() => uiB.atteindre());
+    if (k === 'l' || k === 'L') return fait(() => mettreEnTableau());
+    if (k === 't' || k === 'T') return fait(() => mettreEnTableau());
+    if (k === "'" || code === 'Quote') return fait(() => { if (curseur.r > 0) commencerEdition(classeur.saisie(fi(), curseur.r - 1, curseur.c)); });
+    if (k === 'PageDown' || k === 'PageUp') return fait(() => changerFeuille(k === 'PageDown' ? 1 : -1));
+    if (k === 'Backspace') return fait(() => defiler(curseur));
+    if (k === 'F1') return fait(() => $('btn-outils').click());
+    if (k === 'F3') return fait(() => ouvrirPanneau('noms'));
+    if (k === 'a' || k === 'A') { const z = selectionRegion(); if (z && !(selection.r1 === z.r1 && selection.r2 === z.r2 && selection.c1 === z.c1 && selection.c2 === z.c2)) return fait(() => { selection = { ...z }; rendre(); }); }
+  }
+  if (ctrl && e.shiftKey && (k === 'End' || k === 'Home')) return fait(() => { if (k === 'End') { selection.r2 = Math.max(0, feuille().zone.r2); selection.c2 = Math.max(0, feuille().zone.c2); } else { selection.r2 = 0; selection.c2 = 0; } rendre(); });
+  if (ctrl && e.altKey && (k === 'PageDown' || k === 'PageUp')) return fait(() => changerFeuille(k === 'PageDown' ? 1 : -1));
+  if (!ctrl && e.shiftKey && (code === 'Space' || k === ' ')) return fait(() => { const s = selectionNormalisee(); selection = { r1: s.r1, c1: 0, r2: s.r2, c2: 16383 }; rendre(); });
+  if (!ctrl && e.shiftKey && k === 'F2') return fait(() => uiB.note());
+  if ((e.shiftKey && k === 'F10') || k === 'ContextMenu') return fait(() => { const r = $('curseur').getBoundingClientRect(); ouvrirMenu(r.left + 10, r.bottom, menuCellules(selectionNormalisee())); });
+  if (!ctrl && !e.shiftKey && k === 'F12') return fait(() => enregistrer());
+  if (ctrl && !e.shiftKey && k === 'F12') return fait(() => $('fichier').click());
+  if (ctrl && !e.shiftKey && k === 'F2') return fait(() => uiD.imprimer());
+  if (!ctrl && e.shiftKey && k === 'F11') return fait(() => { memoriserVue(); classeur.ajouterFeuille(null, fi() + 1); activerFeuille(fi() + 1); sauvegarderLocal(); });
+  if (!ctrl && e.shiftKey && k === 'F3') return fait(() => ouvrirPanneau('fonctions'));
+  if (!ctrl && e.shiftKey && k === 'F4') return fait(() => uiD.rechercherSuivant(1));
+  if ((e.altKey && k === 'F1') || (!ctrl && !e.altKey && !e.shiftKey && k === 'F11')) return fait(() => uiG.insererDirect());
+  if (!ctrl && !e.altKey && !e.shiftKey && k === 'F5' && panneauCourant !== 'macros') return fait(() => uiB.atteindre());
+  if (!ctrl && !e.altKey && !e.shiftKey && k === 'F4' && derniereAction) return fait(() => derniereAction());
+  if (k === 'Escape' && pinceau) return fait(() => { pinceau = null; document.body.classList.remove('pinceau'); $('btn-pinceau').classList.remove('actif'); });
+  return false;
+}
+function changerFeuille(sens) {
+  const n = classeur.feuilles.length; let i = fi();
+  for (let k = 0; k < n; k++) { i = (i + sens + n) % n; if (!classeur.feuilles[i].cachee) break; }
+  if (i !== fi()) { memoriserVue(); activerFeuille(i); }
+}
+// Entrée / Tab dans une sélection de plusieurs cellules : on reste dedans (comme Excel)
+function suivantDansSelection(dr, dc) {
+  const s = selectionNormalisee();
+  if (s.r1 === s.r2 && s.c1 === s.c2 || s.r2 >= 1048575 || s.c2 >= 16383) return false;
+  let { r, c } = curseur;
+  if (dr) { r += dr; if (r > s.r2) { r = s.r1; c = c + 1 > s.c2 ? s.c1 : c + 1; } else if (r < s.r1) { r = s.r2; c = c - 1 < s.c1 ? s.c2 : c - 1; } }
+  else { c += dc; if (c > s.c2) { c = s.c1; r = r + 1 > s.r2 ? s.r1 : r + 1; } else if (c < s.c1) { c = s.c2; r = r - 1 < s.r1 ? s.r2 : r - 1; } }
+  curseur = { r, c }; defiler(curseur); rendre();
+  return true;
+}
 // Coller depuis l'extérieur (texte tabulé)
 // Rechercher / remplacer : aussi quand le focus est ailleurs que dans la grille (panneau, barre d'outils)
 document.addEventListener('keydown', (e) => {
@@ -1818,6 +2266,13 @@ conteneur.addEventListener('paste', (e) => { if (edition) return; e.preventDefau
 
 // ----- Éditeur de cellule -----
 editeur.addEventListener('input', () => { barre.value = editeur.value; edition.refEnCours = null; ajusterEditeur(); positionnerSelection(); });
+editeur.addEventListener('input', (e) => {
+  if (!edition || edition.origine !== 'cellule' || !e.inputType || !e.inputType.startsWith('insert')) return;
+  const t = editeur.value;
+  if (!t || t.startsWith('=') || /^[\d\s.,+\-]/.test(t) || editeur.selectionStart !== t.length) return;
+  const prop = completerTexte(edition.r, edition.c, t);
+  if (prop) { editeur.value = prop; editeur.setSelectionRange(t.length, prop.length); barre.value = prop; }
+});
 editeur.addEventListener('keydown', (e) => toucheEdition(e, 'cellule'));
 barre.addEventListener('focus', () => { if (!edition) { edition = { r: curseur.r, c: curseur.c, origine: 'barre' }; positionnerSelection(); } });
 barre.addEventListener('input', () => { if (edition) { editeur.value = barre.value; edition.refEnCours = null; positionnerSelection(); } });
@@ -1926,7 +2381,8 @@ function toucheEdition(e, origine) {
   if (!edition) return;
   e.stopPropagation();
   if (toucheSuggestions(e)) return;
-  if (e.key === 'Enter' && !e.altKey) { e.preventDefault(); validerEdition({ dr: e.shiftKey ? -1 : 1 }); }
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.altKey) { e.preventDefault(); remplirSelection(); }
+  else if (e.key === 'Enter' && !e.altKey) { e.preventDefault(); validerEdition({ dr: e.shiftKey ? -1 : 1 }); }
   else if (e.key === 'Enter' && e.altKey) { e.preventDefault(); const t = e.target; const p = t.selectionStart; t.value = t.value.slice(0, p) + '\n' + t.value.slice(p); t.setSelectionRange(p + 1, p + 1); if (origine === 'cellule') ajusterEditeur(); }
   else if (e.key === 'Tab') { e.preventDefault(); validerEdition({ dc: e.shiftKey ? -1 : 1 }); }
   else if (e.key === 'Escape') { e.preventDefault(); annulerEdition(); }
@@ -1971,6 +2427,13 @@ $('btn-bouton').addEventListener('click', insererBouton);
 $('btn-graphique').addEventListener('click', () => creerGraphique());
 const sousBouton = (id) => { const r = $(id).getBoundingClientRect(); return [r.left, r.bottom + 2]; };
 $('btn-somme').addEventListener('click', () => uiD.sommeAuto());
+$('btn-pinceau').addEventListener('click', () => { if (pinceau) { pinceau = null; document.body.classList.remove('pinceau'); $('btn-pinceau').classList.remove('actif'); return; } prendrePinceau(false); });
+$('btn-pinceau').addEventListener('dblclick', () => { prendrePinceau(true); });
+$('btn-fusion').addEventListener('click', () => { const s = selectionNormalisee(); fusionnerSelection(!feuille().fusions.some((m) => m.r1 === s.r1 && m.c1 === s.c1)); });
+$('puce-lien').addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
+$('puce-lien').addEventListener('click', (e) => { e.stopPropagation(); const c = feuille().get(curseur.r, curseur.c); if (c && c.lien) suivreLien(c.lien); });
+poignee.addEventListener('dblclick', (e) => { e.preventDefault(); e.stopPropagation(); glisse = null; recopieDoubleClic(); });
+$('fichier-image').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) insererImage(f); });
 $('fleche-liste').addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
 $('fleche-liste').addEventListener('click', (e) => { e.stopPropagation(); uiD.validation.ouvrirListe(curseur.r, curseur.c, $('curseur').getBoundingClientRect()); });
 $('btn-somme-menu').addEventListener('click', () => uiD.menuSomme(...sousBouton('btn-somme')));
@@ -1981,6 +2444,10 @@ $('btn-tcd').addEventListener('click', () => uiT.ouvrir());
 $('btn-mfc').addEventListener('click', () => uiD.menuMfc(...sousBouton('btn-mfc')));
 $('btn-figer').addEventListener('click', () => uiD.menuFiger(...sousBouton('btn-figer')));
 $('btn-plus').addEventListener('click', () => ouvrirMenu(...sousBouton('btn-plus'), [
+  ['Format de cellule…', () => uiB.formatCellule(), 'Ctrl+1'], ['Collage spécial…', () => uiB.collageSpecial(), 'Ctrl+Alt+V'], ['Atteindre…', () => uiB.atteindre(), 'Ctrl+G'], null,
+  ['Insérer une image…', () => $('fichier-image').click()], ['Mettre sous forme de tableau', () => mettreEnTableau(), 'Ctrl+L'],
+  ['Supprimer les doublons…', () => uiB.doublons()], ['Convertir en colonnes…', () => uiB.colonnes()], null,
+  [afficherFormules ? 'Afficher les résultats' : 'Afficher les formules', () => { afficherFormules = !afficherFormules; rendre(); }, 'Ctrl+`'], null,
   ['Valeur cible…', () => uiD.ouvrirCible()], ['Validation des données…', () => uiD.validation.ouvrir()], ['Actualiser les tableaux croisés', () => uiT.toutActualiser()], ['Imprimer / PDF (feuille)', () => uiD.imprimer()], ['Imprimer la sélection', () => uiD.imprimer({ selectionSeule: true })], null,
   ['Recalculer (F9)', () => { classeur.evaluateur.invalider(); rendre(); toast('Recalculé'); }], ['Tout recalculer (Ctrl+Alt+F9)', () => { classeur.abandonnerCaches(); rendre(); toast('Tout est recalculé (valeurs du fichier oubliées)'); }],
 ]));
@@ -2067,7 +2534,10 @@ conteneur.addEventListener('touchstart', (e) => {
   const rect = conteneur.getBoundingClientRect();
   const x = t.clientX - rect.left, y = t.clientY - rect.top;
   let mode = 'appui';
+  const gEl = cible.closest('.graphique'), imEl = cible.closest('.image-feuille');
   if (cible === poignee || cible.classList.contains('redim-col') || cible.classList.contains('redim-lig') || cible.classList.contains('graphique-redim') || cible.closest('.graphique-barre')) mode = 'glisser';
+  // Graphique ou image déjà choisi (premier appui) : le doigt le déplace, où qu'il le prenne
+  else if ((gEl && gEl.dataset.id === graphiqueActif) || (imEl && imEl.dataset.image === imageActive)) mode = 'glisser';
   else if (!edition && x > LARGEUR_ENTETE && y > HAUTEUR_DEFAUT) {
     const cel = celluleDepuisPoint(x, y), s2 = selectionNormalisee();
     if (cel.r >= s2.r1 && cel.r <= s2.r2 && cel.c >= s2.c1 && cel.c <= s2.c2) mode = 'selection';
@@ -2193,7 +2663,7 @@ if (!restaurerLocal()) { classeur = Classeur.nouveau(); classeur.nomFichier = 'C
 for (const c of classeurs) if (c.enregistre === undefined) c.enregistre = c.version;
 afficherModule();
 activerFeuille(Math.min(classeur.active, classeur.feuilles.length - 1));
-document.title = (classeur.nomFichier || 'Classeur') + ' — Tableur';
+document.title = (classeur.nomFichier || 'Classeur') + ' — Sprezz';
 conteneur.focus();
 if (window.HubBridge && window.HubBridge.shown) window.HubBridge.shown();
 rendreClasseurs(true);

@@ -844,8 +844,12 @@ export function formaterDate(serie, fmt) {
   const pad = (n, l = 2) => String(n).padStart(l, '0');
   const moisNoms = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   const joursNoms = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
-  const h = d.getUTCHours(), mi = d.getUTCMinutes(), s = d.getUTCSeconds();
-  let f = fmt.replace(/\[[^\]]*\]/g, '').replace(/\\(.)/g, '$1').replace(/"([^"]*)"/g, '$1');
+  const h24 = d.getUTCHours(), mi = d.getUTCMinutes(), s = d.getUTCSeconds();
+  let f = fmt.split(';')[0].replace(/\[[^\]]*\]/g, '').replace(/\\(.)/g, '$1').replace(/"([^"]*)"/g, '$1');
+  // AM/PM : heures sur 12 ; le marqueur est mis de côté pour que ses lettres ne soient pas prises pour des mois
+  const ampm = /AM\/PM|A\/P/i.exec(f);
+  if (ampm) f = f.replace(ampm[0], '\u0002');
+  const h = ampm ? (h24 % 12 || 12) : h24;
   // Les « m » juste après « h » ou avant « s » sont des minutes.
   f = f.replace(/(h+[:.\s]*)m+/gi, (x) => x.replace(/m+/i, (mm) => '§'.repeat(mm.length)));
   f = f.replace(/m+(?=[:.\s]*s)/gi, (mm) => '§'.repeat(mm.length));
@@ -863,7 +867,43 @@ export function formaterDate(serie, fmt) {
     .replace(/hh/gi, pad(h)).replace(/(?<![a-z])h(?![a-z])/gi, String(h))
     .replace(/§§/g, pad(mi)).replace(/§/g, String(mi))
     .replace(/ss/gi, pad(s)).replace(/(?<![a-z])s(?![a-z])/gi, String(s))
-    .replace(/AM\/PM/i, h < 12 ? 'AM' : 'PM');
+    .replace('\u0002', ampm ? (ampm[0].length > 3 ? (h24 < 12 ? 'AM' : 'PM') : (h24 < 12 ? 'A' : 'P')) : '');
+}
+
+// Couleurs des formats de nombre (« [Rouge] », « [Red] », « [Couleur10] »…)
+const COULEURS_FORMAT = { red: '#ff0000', rouge: '#ff0000', blue: '#0000ff', bleu: '#0000ff', green: '#008000', vert: '#008000', magenta: '#ff00ff', cyan: '#00ffff', yellow: '#c8a800', jaune: '#c8a800', black: '#000000', noir: '#000000', white: '#ffffff', blanc: '#ffffff' };
+const PALETTE_FORMAT = ['#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#800000', '#008000', '#000080', '#808000', '#800080', '#008080', '#c0c0c0', '#808080'];
+/** Couleur imposée par le format de nombre pour cette valeur (section choisie comme pour l'affichage), ou null. */
+export function couleurFormat(v, z) {
+  if (typeof v !== 'number' || !z || !z.includes('[')) return null;
+  const sections = z.split(';');
+  const f = sections.length > 1 && v < 0 ? sections[1] : sections.length > 2 && v === 0 ? sections[2] : sections[0];
+  const m = /\[([A-Za-zéè]+)(\d*)\]/.exec(f);
+  if (!m) return null;
+  const nom = m[1].toLowerCase();
+  if ((nom === 'color' || nom === 'couleur') && m[2]) return PALETTE_FORMAT[(+m[2] - 1) % 16] || null;
+  return COULEURS_FORMAT[nom] || null;
+}
+
+// Fractions : « # ?/? », « # ??/?? », « ?/4 »
+function formaterFraction(n, f) {
+  const m = /^(#+\s+|0\s+)?([?#0]+)\/([?#0]+|\d+)$/.exec(f.trim());
+  if (!m) return null;
+  const neg = n < 0; let x = Math.abs(n);
+  let entier = 0;
+  if (m[1]) { entier = Math.floor(x); x -= entier; }
+  let num, den;
+  if (/^\d+$/.test(m[3])) { den = +m[3]; num = Math.round(x * den); }
+  else {
+    const max = Math.pow(10, m[3].length) - 1;
+    let best = [0, 1, Infinity];
+    for (let d = 1; d <= max; d++) { const k = Math.round(x * d), e = Math.abs(x - k / d); if (e < best[2] - 1e-12) best = [k, d, e]; }
+    [num, den] = best;
+  }
+  if (m[1] && num === den) { entier++; num = 0; }
+  const fr = num ? num + '/' + den : '';
+  const txt = m[1] ? (entier || !fr ? String(entier) : '') + (entier && fr ? ' ' : '') + fr : (num + '/' + den);
+  return (neg ? '-' : '') + (txt || '0');
 }
 
 /** Formate un nombre selon un motif Excel simple (0.00, #,##0, 0%, 0.0E+00, « # ##0,00 € »). */
@@ -877,6 +917,7 @@ export function formaterNombre(n, fmt) {
   else if (sections.length > 2 && n === 0) f = sections[2];
   if (f === 'General' || f === 'Standard' || f === '') return nombreVersTexte(neg ? -Math.abs(n) : n).replace('.', OPTIONS.decimal);
   f = f.replace(/\[[^\]]*\]/g, '').replace(/_./g, ' ').replace(/\*./g, '');
+  if (f.includes('/') && /[?#0]\s*\/\s*[?#0\d]/.test(f)) { const fr = formaterFraction(neg ? -Math.abs(n) : n, f); if (fr !== null) return fr; }
   const litteraux = [];
   f = f.replace(/"([^"]*)"|\\(.)/g, (m, a, b) => { litteraux.push(a ?? b); return '\u0001'; });
   const premier = f.search(/[0#?]/);

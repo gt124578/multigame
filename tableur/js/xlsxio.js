@@ -68,6 +68,7 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
         if (cel.v !== undefined && cel.v !== null && !(cel.v instanceof ErreurFormule)) cel.cache = cel.v;
         delete cel.v;
       }
+      if (c.l && c.l.Target) cel.lien = String(c.l.Target).replace(/^#?/, (m) => (/^(https?:|mailto:|tel:|ftp:|file:)/i.test(String(c.l.Target)) ? '' : '#'));
       if (Array.isArray(c.c) && c.c.length) cel.note = c.c.map((x) => String(x.t || '').trim()).filter(Boolean).join('\n');
       if (c.s && typeof c.s === 'object') {
         const s = {};
@@ -107,6 +108,7 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
         const f = classeur.feuille(nom);
         if (!f) continue;
         if (v.figer) f.figer = v.figer;
+        if (v.couleur) f.couleur = v.couleur;
         if (v.mfc) f.mfc = v.mfc;
         if (v.validations) f.validations = v.validations;
         if (v.filtre) {
@@ -194,7 +196,8 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
       else if (typeof v === 'boolean') { o.t = 'b'; o.v = v; }
       else { o.t = 's'; o.v = String(v); }
       if (cel.z) o.z = cel.z;
-      if (cel.note) o.c = [{ a: 'Tableur', t: cel.note }];
+      if (cel.note) o.c = [{ a: 'Sprezz', t: cel.note }];
+      if (cel.lien) o.l = { Target: cel.lien };
       ws[k] = o;
       if (r > r2) r2 = r;
       if (c > c2) c2 = c;
