@@ -133,3 +133,32 @@ export function tourbillons(W, lignes, hw = 1.5, seed = 77) {
     }
   }
 }
+
+/** après avoir posé des plateaux sur une route : les bouts de couloir que le relief a isolés (ni marche ni chemin pour y
+ *  monter) redeviennent de la forêt, pour qu'aucun dresseur, objet ou recoin n'y tombe. cells : clés « x,y » du couloir */
+export function boucher(W, cells, depart) {
+  const r = W.reach(depart[0], depart[1], true, false, true);
+  const pris = new Set([...W.npcs.map((n) => key(n.x, n.y)), ...W.items.map((i) => key(i.x, i.y))]);
+  const SOL = new Set([T.GRASS, T.TALL, T.DARKTALL, T.FLOWER, T.PATH, T.SAND, T.SNOW]);
+  for (const k of cells) {
+    const [x, y] = k.split(',').map(Number);
+    if (!r[y * W.w + x] && SOL.has(W.get(x, y)) && !pris.has(k)) W.set(x, y, T.TREE);
+  }
+}
+
+/** massif rocheux (montagne infranchissable) : la roche remplace la forêt dans le polygone ; ses cases reçoivent des
+ *  gradins (1 à 3 selon la distance au pied) que le rendu dessine en parois successives, comme une vraie montagne */
+export function massif(W, cells, o = {}) {
+  const R = [];
+  for (const [x, y] of cells) { const t = W.get(x, y); if (t === T.TREE || t === T.PINE || (o.tout && t !== T.BUILD && t !== T.DOOR)) { W.set(x, y, T.CAVEWALL); R.push([x, y]); } }
+  // distance au pied (cases qui ne sont pas de la roche)
+  const d = new Map(), q = [];
+  for (const [x, y] of R) if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => W.get(x + a, y + b) !== T.CAVEWALL)) { d.set(key(x, y), 0); q.push([x, y]); }
+  for (let i = 0; i < q.length; i++) {
+    const [x, y] = q[i], k = d.get(key(x, y));
+    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) { const kk = key(x + a, y + b); if (W.get(x + a, y + b) === T.CAVEWALL && !d.has(kk)) { d.set(kk, k + 1); q.push([x + a, y + b]); } }
+  }
+  const pas = o.pas || 4, base = o.base ?? 0;
+  for (const [x, y] of R) W.setHeight(x, y, base + 1 + Math.min(o.max ?? 2, Math.floor((d.get(key(x, y)) ?? 0) / pas)));
+  return R;
+}

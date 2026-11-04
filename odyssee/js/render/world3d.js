@@ -659,14 +659,30 @@ export class WorldView {
       if (fin(m.get(x + 1, y)) && A[`fal_bout_e_${bio}`]) flat(G, x, y, x + 1, y + 1, Y + 0.0001, A[`fal_bout_e_${bio}`]);
       return;
     }
+    if (t === T.CAVEWALL) {
+      const bm = bioDehors(th);
+      // montagne en gradins : une paroi là où la roche du dessus est plus haute, un rebord sur les côtés
+      if (m.get(x, y - 1) === T.CAVEWALL && m.height(x, y - 1) > h) {
+        const rw = A[`rw_${bm}_${Math.floor(v * 3)}`] || A.rw_montagne_0;
+        if (rw) flat(G, x, y, x + 1, y + 1, Y + 0.0004, rw, 0.86);
+      } else if (m.get(x, y - 1) === T.CAVEWALL && m.get(x, y - 2) === T.CAVEWALL && m.height(x, y - 2) > m.height(x, y - 1) && A.fal_pied) flat(G, x, y, x + 1, y + 1, Y + 0.0004, A.fal_pied);
+      const cote = (dx) => m.get(x + dx, y) === T.CAVEWALL && m.height(x + dx, y) < h && !(m.get(x, y - 1) === T.CAVEWALL && m.height(x, y - 1) > h);
+      if (cote(1)) flat(G, x, y, x + 1, y + 1, Y + 0.0005, A[`fal_bord_e_${bm}`]);
+      if (cote(-1)) flat(G, x, y, x + 1, y + 1, Y + 0.0005, A[`fal_bord_w_${bm}`]);
+      return;
+    }
     if (t === T.STAIRS) {
       const d = m.height(x, y - 1) > h ? 's' : m.height(x, y - 1) < h && m.get(x, y - 1) !== T.CLIFF ? 'n' : m.height(x + 1, y) < h ? 'e' : m.height(x - 1, y) < h ? 'w' : m.height(x, y + 1) < h || m.get(x, y + 1) === T.STAIRS ? 's' : null;
       const k = d && (A[`marches_${d}_${bio}`] || A[`marches_${d}_montagne`]);
       if (k) { flat(G, x, y, x + 1, y + 1, Y + 0.0001, k); return; }
     }
     if (m.get(x, y - 1) === T.CLIFF && A.fal_pied) flat(G, x, y, x + 1, y + 1, Y, A.fal_pied);
+    // flancs d'un plateau voisin plus haut, à l'ouest ou à l'est (sauf contre une marche ou une montagne)
+    const flanc = (dx) => { const q = m.get(x + dx, y); return m.height(x + dx, y) > h && q !== T.CLIFF && q !== T.STAIRS && q !== T.CAVEWALL && t !== T.STAIRS; };
+    if (flanc(-1) && A[`fal_flanc_w_${bio}`]) flat(G, x, y, x + 1, y + 1, Y + 0.0001, A[`fal_flanc_w_${bio}`]);
+    if (flanc(1) && A[`fal_flanc_e_${bio}`]) flat(G, x, y, x + 1, y + 1, Y + 0.0001, A[`fal_flanc_e_${bio}`]);
     if (h > 0) {
-      const bas = (dx, dy) => m.height(x + dx, y + dy) < h && m.get(x + dx, y + dy) !== T.CLIFF && m.get(x + dx, y + dy) !== T.STAIRS;
+      const bas = (dx, dy) => { const q = m.get(x + dx, y + dy); return m.height(x + dx, y + dy) < h && q !== T.CLIFF && q !== T.STAIRS && q !== T.CAVEWALL; };
       if (bas(1, 0)) flat(G, x, y, x + 1, y + 1, Y + 0.0002, A[`fal_bord_e_${bio}`]);
       if (bas(-1, 0)) flat(G, x, y, x + 1, y + 1, Y + 0.0002, A[`fal_bord_w_${bio}`]);
       if (bas(0, -1)) flat(G, x, y, x + 1, y + 1, Y + 0.0003, A[`fal_bord_n_${bio}`]);

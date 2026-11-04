@@ -74,6 +74,21 @@ function bord(cote, R, seed) {
     }
   });
 }
+/** flanc d'un plateau vu en biais, posé sur la case basse à côté (côté 'w' : le plateau est à gauche) : paroi de roche
+ *  striée sur un tiers de case, ombre tramée au pied */
+function flanc(cote, R, seed) {
+  return toile((p) => {
+    for (let j = 0; j < C; j++) for (let b = 0; b < 14; b++) {
+      const x = cote === 'w' ? b : C - 1 - b, h = hash(x >> 1, j >> 2, seed);
+      let col = null;
+      if (b === 0) col = R[4];
+      else if (b < 9) col = (b + (h < 0.5 ? 0 : 1)) % 3 === 0 ? R[1] : b < 3 ? R[3] : R[2];
+      else if (b === 9) col = R[0];
+      else if (((x + j) & 1) === 0 && b < 12) col = '#1c2416';
+      if (col) p(x, j, col);
+    }
+  });
+}
 /** bout d'une paroi (sa fin à l'est ou à l'ouest) : la roche tourne, plus sombre */
 function bout(cote, R) {
   return toile((p) => {
@@ -188,6 +203,7 @@ export function texturesRelief(putImg, img) {
   for (const [bio, R] of Object.entries(ROCHES)) {
     for (const c of ['e', 'w', 'n']) putImg(`fal_bord_${c}_${bio}`, bord(c, R, c.charCodeAt(0)));
     for (const c of ['e', 'w']) putImg(`fal_bout_${c}_${bio}`, bout(c, R));
+    for (const c of ['e', 'w']) putImg(`fal_flanc_${c}_${bio}`, flanc(c, R, c === 'e' ? 3 : 5));
     for (const d of ['s', 'n', 'e', 'w']) putImg(`marches_${d}_${bio}`, marches(d, R));
   }
 }

@@ -395,6 +395,7 @@ function secretPocket(W, pts, t0, side, obs, items) {
     for (const [a, b] of set) {
       if (!ok) break;
       if (W.get(a, b) !== T.TREE && W.get(a, b) !== T.PINE) ok = false;
+      if (W.height(a, b) !== W.height(ex - dx, ey - dy)) ok = false;   // le recoin reste au niveau du sentier (relief)
       for (let j = -1; j <= 1 && ok; j++) for (let i = -1; i <= 1; i++) {
         const q = key(a + i, b + j); if (inSet.has(q) || (a + i === ex && b + j === ey)) continue;
         const tt = W.get(a + i, b + j); if (tt !== T.TREE && tt !== T.PINE && tt !== T.WATER) { ok = false; break; }

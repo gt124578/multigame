@@ -19,7 +19,7 @@ import { applyRetouches } from './retouches.js';
 import { buildArena } from './arenes.js';
 import { buildSud, BADGES_SUD, LEADERS_SUD, GYM_TRAINERS_SUD } from './sud.js';
 import { addVehicules } from './vehicules.js';
-import { tourbillons } from './relief.js';
+import { tourbillons, plateau, polygone, sinueuse, boucher, massif } from './relief.js';
 
 // toutes les lignées connues : la créature d'Odyssée (plus proposée, mais les parties déjà commencées avec elle restent valables),
 // le Pokémon de Rouge / Bleu et celui d'Or / Argent, avec leurs évolutions
@@ -501,10 +501,12 @@ export function buildWorld() {
   const R = (id, name, pts, o, enc, music = 'route') => {
     const res = carveRoute(W, pts, { seed: routes.length * 97 + 13, ...o });
     const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]), m = (o.w || 9) / 2 + 2;
-    routes.push({ id, name, pts });
+    routes.push({ id, name, pts, cells: res.info.keys() });
     W.zone(Math.floor(Math.min(...xs) - m), Math.floor(Math.min(...ys) - m), Math.ceil(Math.max(...xs) + m), Math.ceil(Math.max(...ys) + m), { name, music, enc: ENC[enc], theme: o.theme, route: id, prio: 0 });
     void res; return pts;
   };
+  /** relief posé sur une route : les morceaux de couloir devenus inaccessibles redeviennent forêt */
+  const relief = (pts) => { const r = routes.find((q) => q.pts === pts), p = along(pts, 0.5); boucher(W, [...r.cells], nearestWalkable(W, p.x, p.y)); };
   const r1 = R('r1', 'Route 1', [[34.5, 240], [34.5, 224], [30.5, 210], [38.5, 190], [34.5, 174], [34.5, 160]], { w: 13, grass: 0.8, trees: 0.04 }, 'r1');
   ledges(W, r1, [0.18, 0.32, 0.55, 0.7], { reach: 7 });
   routeTrainer(W, r1, 0.35, 1, 4, 'Gamin', 'Léo', [[1013, 4], [1010, 4]], { intro: 'Hé ! Toi aussi tu viens d\'avoir ta première créature ?' });
@@ -528,16 +530,22 @@ export function buildWorld() {
   routeTrainer(W, bois, 0.85, -1, 4, 'Topdresseur', 'Yanis', [[1043, 12], [1011, 12], [1021, 11]]);
   routeItem(W, bois, 0.3, -1, 6, 'super-potion'); routeItem(W, bois, 0.55, 1, 6, 'paralyze-heal'); routeItem(W, bois, 0.75, -1, 6, 'moon-stone');
 
-  const r3a = R('r3', 'Route 3', [[121, 40.5], [135, 41.5], [148.5, 41.5]], { w: 10, grass: 0.8, trees: 0.04, rocks: 0.02, taperEnd: false }, 'r3');
+  // route 3 : elle serpente vers le Mont Lunaire et grimpe sur ses contreforts jusqu'à la Grotte Lunaire, qui le traverse
+  const r3a = R('r3', 'Route 3', sinueuse([[121, 40.5], [128, 43.5], [135, 40.5], [142, 42.5], [148.5, 41.5]]), { w: 10, grass: 0.8, trees: 0.04, rocks: 0.02, taperEnd: false }, 'r3');
+  plateau(W, polygone([[137.5, 27], [153, 25], [154.5, 34], [153.5, 47.5], [146, 48.5], [137.5, 47.5]]), 1); relief(r3a);
   routeTrainer(W, r3a, 0.35, 1, 3, 'Montagnard', 'Gaston', [[1026, 11], [74, 12], [66, 12]]);
   routeTrainer(W, r3a, 0.7, -1, 3, 'Fillette', 'Lise', [[1039, 12], [35, 11]]);
   routeItem(W, r3a, 0.55, 1, 4, 'burn-heal');
   routeTrainer(W, r3a, 0.15, -1, 3, 'Gamin', 'Joris', [[1024, 11], [21, 11]]);
   routeTrainer(W, r3a, 0.88, 1, 3, 'Randonneuse', 'Célia', [[1026, 12], [1039, 12]]);
-  const r3b = R('r3e', 'Route 3', [[173.5, 41.5], [178, 41.5], [182, 34.5], [187, 33.5]], { w: 8, grass: 0.6, trees: 0.03, taperStart: false }, 'r3');
+  const r3b = R('r3e', 'Route 3', sinueuse([[173.5, 41.5], [177, 43.5], [180.5, 38], [183, 34.5], [187, 33.5]]), { w: 8, grass: 0.6, trees: 0.03, taperStart: false }, 'r3');
+  plateau(W, polygone([[167.5, 26], [181.5, 26], [181.5, 47.5], [167.5, 47.5]]), 1); relief(r3b);
   routeTrainer(W, r3b, 0.6, -1, 3, 'Randonneuse', 'Maëlle', [[1034, 13], [27, 13]]);
 
-  const r4 = R('r4', 'Route 4', [[218, 41.5], [235, 42.5], [250, 50.5], [262, 58.5], [277, 58.5]], { w: 12, grass: 0.6, trees: 0.03, flowers: 0.03 }, 'r4', 'route2');
+  // route 4 : elle monte sur la falaise qui domine la baie, longe le bord, puis redescend au pied d'une colline
+  const r4 = R('r4', 'Route 4', sinueuse([[218, 41.5], [222, 41.5], [228, 44], [234, 40.5], [244, 39.5], [254, 41.5], [262, 49], [270, 56.5], [277, 58.5]]), { w: 12, grass: 0.6, trees: 0.03, flowers: 0.03 }, 'r4', 'route2');
+  plateau(W, polygone([[229.5, 35.5], [260.5, 35.5], [260.5, 44.5], [255.5, 46.5], [229.5, 46.5]]), 1);
+  plateau(W, polygone([[263.5, 41.5], [274.5, 41.5], [274.5, 50.5], [263.5, 45.5]]), 1); relief(r4);
   routeTrainer(W, r4, 0.18, -1, 4, 'Pêcheur', 'Yves', [[1031, 15], [1029, 15], [60, 15]]);
   routeTrainer(W, r4, 0.4, 1, 4, 'Marin', 'Loïc', [[66, 16], [1033, 16]]);
   routeTrainer(W, r4, 0.62, -1, 4, 'Fillette', 'Romane', [[1037, 16], [179, 17]]);
@@ -603,7 +611,10 @@ export function buildWorld() {
   W.zone(99, 165, 112, 172, { name: 'Route 9', music: 'route', enc: ENC.r9, trigger: 'rival5' });
   void r9; void r9b;
 
-  const r10 = R('r10', 'Route 10', [[49, 248.5], [75, 250.5], [100, 247.5], [125, 242.5], [150, 238.5]], { w: 12, grass: 0.8, trees: 0.05, rocks: 0.02, bridge: true }, 'r10');
+  // route 10 : elle longe des falaises (au nord), passe le chenal, puis franchit une butte par deux escaliers
+  const r10 = R('r10', 'Route 10', sinueuse([[49, 248.5], [62, 251], [75, 248], [88, 251], [100, 247.5], [112, 245.5], [125, 241.5], [138, 240.5], [150, 238.5]]), { w: 12, grass: 0.8, trees: 0.05, rocks: 0.02, bridge: true }, 'r10');
+  plateau(W, polygone([[65.5, 232], [97.5, 232], [97.5, 241.5], [88, 244.5], [76, 242.5], [65.5, 243.5]]), 1);
+  plateau(W, polygone([[109.5, 236.5], [130.5, 233.5], [130.5, 250.5], [109.5, 253.5]]), 1); relief(r10);
   routeTrainer(W, r10, 0.2, 1, 4, 'Topdresseur', 'Victor', [[1035, 36], [128, 36], [1014, 36]]);
   routeTrainer(W, r10, 0.45, -1, 4, 'Karatéka', 'Ryu', [[68, 37], [1033, 37]]);
   routeTrainer(W, r10, 0.7, 1, 4, 'Topdresseuse', 'Léa', [[241, 37], [1040, 37], [1037, 37]]);
@@ -837,6 +848,9 @@ export function buildWorld() {
   /* ======================== GROTTES ======================== */
   // Grotte Lunaire : entre la route 3 ouest et est
   const g1in = W.building('cave', 146, 38), g1out = W.building('cave', 171, 38);
+  // le Mont Lunaire : la montagne que la grotte traverse, entre les deux bouts de la route 3 (la roche remplace la forêt)
+  massif(W, polygone([[149, 14], [171, 12], [182, 19], [180, 30], [175, 37.5], [167, 45], [160, 50], [153, 45], [147, 37.5], [143, 26]]));
+  W.zone(143, 12, 182, 37, { name: 'Mont Lunaire', music: 'route', prio: 0 });
   const grotte = caveMap('grotte', 46, 32, 4242, [{ x: 4, y: 26 }, { x: 41, y: 26 }], { name: 'Grotte Lunaire', via: [{ x: 14, y: 8 }, { x: 30, y: 20 }, { x: 36, y: 6 }] });
   grotte.encounter = ENC.grotte; maps.grotte = grotte;
   for (const [cx, cy, out] of [[4, 26, g1in], [41, 26, g1out]]) {
