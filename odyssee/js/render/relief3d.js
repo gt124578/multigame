@@ -251,6 +251,8 @@ export class Relief3D {
     if (b.in(cx, cz) && b.get(cx, cz) === T.BRIDGE && ravin(b, cx, cz)) return b.height(cx, cz) * LV + this.leveeVille(cx, cz);
     return this.H(x, z);
   }
+  /** le point (x, z) est-il sur une paroi (case de falaise, ou pente raide) ? */
+  surParoi(x, z) { const s = this.sorteDe(Math.floor(x), Math.floor(z)); if (s === C) return true; const e = 0.25; return Math.hypot(this.H(x + e, z) - this.H(x - e, z), this.H(x, z + e) - this.H(x, z - e)) / (2 * e) > PENTE_DOUCE_MAX; }
   /** hauteur où poser un sprite (arbre, rocher) : sur une paroi, le haut de sa case (il se tient au bord du replat) */
   Hpose(x, z) {
     if (this.sorteDe(Math.floor(x), Math.floor(z)) !== C) return this.H(x, z);

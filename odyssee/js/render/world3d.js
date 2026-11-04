@@ -939,7 +939,15 @@ export class WorldView {
     const O = new Geo();
     if (SOL16 && m.outdoor) this.wangChunk(O, x0, y0);
     // relief en 3D : tout ce qui est posé suit le sol (l'ancien sol passe juste dessous du sol généré)
-    if (r3d) { for (const q of [G, N, O]) this.r3dLift(q, -0.03); for (const q of [O0, NO, Sh, P, Wl]) this.r3dLift(q, 0); }
+    if (r3d) {
+      for (const q of [G, N, O]) this.r3dLift(q, -0.03); for (const q of [O0, NO, P, Wl]) this.r3dLift(q, 0);
+      // ombres au sol : posées à plat sous l'arbre (au haut de sa case), et pas d'ombre sur une paroi
+      for (let v = 0; v < Sh.n; v += 4) {
+        const cx = (Sh.p[v * 3] + Sh.p[v * 3 + 6]) / 2, cz = (Sh.p[v * 3 + 2] + Sh.p[v * 3 + 8]) / 2;
+        const h = r3d.surParoi(cx, cz) ? -1e3 : r3d.Hpose(cx, cz);
+        for (let k = 0; k < 4; k++) Sh.p[(v + k) * 3 + 1] += h;
+      }
+    }
     const grp = new THREE.Group();
     const add = (geo, mat, order = 0) => { const g = geo.build(); if (g) { const me = new THREE.Mesh(g, mat); me.renderOrder = order; me.frustumCulled = false; grp.add(me); } };
     // sous le sol généré (sol.js, ordre -2, sans profondeur : pas de scintillement entre couches presque à la même hauteur)
