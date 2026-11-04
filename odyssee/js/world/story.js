@@ -391,7 +391,7 @@ function secretPocket(W, pts, t0, side, obs, items) {
     const cx = ex + dx * 5, cy = ey + dy * 5;
     for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) set.push([cx + i, cy + j]);
     const inSet = new Set(set.map(([a, b]) => key(a, b)));
-    let ok = W.in(cx - 3, cy - 3) && W.in(cx + 3, cy + 3);
+    let ok = W.in(cx - 3, cy - 3) && W.in(cx + 3, cy + 3) && W.height(ex, ey) === W.height(ex - dx, ey - dy);
     for (const [a, b] of set) {
       if (!ok) break;
       if (W.get(a, b) !== T.TREE && W.get(a, b) !== T.PINE) ok = false;

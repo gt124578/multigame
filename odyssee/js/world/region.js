@@ -20,7 +20,7 @@ import { buildArena } from './arenes.js';
 import { buildSud, BADGES_SUD, LEADERS_SUD, GYM_TRAINERS_SUD } from './sud.js';
 import { addVehicules } from './vehicules.js';
 import { addMine } from './mine.js';
-import { tourbillons, plateau, polygone, sinueuse, boucher, massif } from './relief.js';
+import { tourbillons, plateau, polygone, sinueuse, boucher, massif, bande } from './relief.js';
 
 // toutes les lignées connues : la créature d'Odyssée (plus proposée, mais les parties déjà commencées avec elle restent valables),
 // le Pokémon de Rouge / Bleu et celui d'Or / Argent, avec leurs évolutions
@@ -619,6 +619,8 @@ export function buildWorld() {
   routeItem(W, r1, 0.5, -1, 5, 'potion'); routeItem(W, r1, 0.9, 1, 5, 'poke-ball', 2);
 
   const r2 = R('r2', 'Route 2', [[34.5, 138], [34.5, 120], [37.5, 104], [52.5, 96.5], [75.5, 94.5], [99.5, 92.5]], { w: 11, grass: 0.7, trees: 0.05, flowers: 0.03, taperEnd: false }, 'r2');
+  // la route grimpe sur une butte boisée (marches au sud, redescente au nord) avant de tourner vers l'est
+  plateau(W, polygone([[27.5, 111.5], [44.5, 110.5], [45.5, 124.5], [27.5, 125.5]]), 1); relief(r2);
   routeTrainer(W, r2, 0.2, -1, 3, 'Insectomane', 'Noé', [[1017, 6], [1018, 6], [10, 7]]);
   routeTrainer(W, r2, 0.45, 1, 3, 'Fillette', 'Jade', [[1039, 7], [29, 7]]);
   routeTrainer(W, r2, 0.7, -1, 4, 'Gamin', 'Sacha', [[21, 8], [1034, 7]]);
@@ -686,6 +688,8 @@ export function buildWorld() {
 
   const r5 = R('r5', 'Route 5', sinueuse([[283.5, 94], [281, 100], [266, 101], [248, 97], [230, 100.5], [212, 97.5], [196, 101], [182.5, 104], [182.5, 112]]), { w: 12, grass: 0.75, trees: 0.05, rocks: 0.01 }, 'r5');
   ledges(W, r5, [0.08], { reach: 6 });
+  // au milieu de la route, un plateau : on y monte par l'ouest, on en redescend à l'est
+  plateau(W, polygone([[213.5, 90.5], [237.5, 90.5], [237.5, 106.5], [213.5, 106.5]]), 1); relief(r5);
   routeTrainer(W, r5, 0.12, 1, 4, 'Scientifique', 'Pierre', [[1036, 19], [100, 19], [81, 20]]);
   routeTrainer(W, r5, 0.3, -1, 4, 'Randonneuse', 'Élise', [[77, 20], [1014, 20]]);
   routeTrainer(W, r5, 0.46, 1, 4, 'Karatéka', 'Kenji', [[66, 21], [1033, 22]]);
@@ -694,6 +698,15 @@ export function buildWorld() {
   routeItem(W, r5, 0.22, -1, 5, 'super-potion', 2); routeItem(W, r5, 0.5, 1, 5, 'thunder-stone'); routeItem(W, r5, 0.7, -1, 5, 'full-heal'); routeItem(W, r5, 0.9, 1, 5, 'rare-candy');
 
   const r6 = R('r6', 'Route 6', sinueuse([[214.5, 131.5], [226, 133], [236, 138], [246, 140.5], [256, 144.5], [266, 146.5], [278, 146.5]]), { w: 12, grass: 0.8, trees: 0.06, flowers: 0.04 }, 'r6', 'route2');
+  // une falaise boisée longe la route par le nord ; un escalier taillé monte à un petit belvédère
+  {
+    const p = along(r6, 0.7);
+    for (let k = 0; k <= 7; k++) for (const s of [0, 1]) { const x = Math.round(p.x - p.nx * k) + s, y = Math.round(p.y - p.ny * k); if (W.get(x, y) !== T.WATER) W.set(x, y, T.PATH); }
+    plateau(W, bande(r6, 3.5, 8, -1, 0.56, 0.8), 1);
+    const q = [Math.round(p.x - p.nx * 6), Math.round(p.y - p.ny * 6)];
+    for (let y = q[1] - 2; y <= q[1]; y++) for (let x = q[0] - 2; x <= q[0] + 3; x++) if (W.height(x, y) === 1 && [T.TREE, T.TALL].includes(W.get(x, y))) W.set(x, y, T.GRASS);
+    relief(r6); W.item(...nearestWalkable(W, q[0] + 2, q[1] - 1), 'elixir');
+  }
   routeTrainer(W, r6, 0.15, 1, 4, 'Randonneuse', 'Nina', [[1038, 24], [70, 24]]);
   routeTrainer(W, r6, 0.35, -1, 4, 'Insectomane', 'Hugo', [[1019, 25], [127, 25]]);
   routeTrainer(W, r6, 0.55, 1, 3, 'Médium', 'Morgane', [[1023, 25], [92, 24], [1039, 26]]);
@@ -719,6 +732,8 @@ export function buildWorld() {
   W.rect(255, 236, 259, 241, T.SAND);
   // la passe : des rochers fissurés barrent la route sur toute sa largeur (Éclate-Roc)
   { const p = along(r11, 0.55); for (let k = -6; k <= 6; k++) { const x = Math.round(p.x + p.nx * k), y = Math.round(p.y + p.ny * k); for (const [xx, yy] of [[x, y], [x + 1, y]]) { const t = W.get(xx, yy); if (t !== T.TREE && t !== T.WATER) W.set(xx, yy, T.SMASH); } } }
+  // la passe est une gorge : deux murailles de roche boisée l'enserrent, de part et d'autre du sentier
+  plateau(W, [...bande(r11, 3, 9, 1, 0.3, 0.7), ...bande(r11, 3, 9, -1, 0.3, 0.7)], 1); relief(r11);
   routeTrainer(W, r11, 0.25, 1, 3, 'Garde d\'Écaille', 'Ronan', [[1044, 44], [1025, 44], [1048, 45]], { intro: 'Halte ! La Grande Île appartient à Drakos !', lose: 'Tch... Passe, alors.' });
   routeTrainer(W, r11, 0.8, -1, 3, 'Garde d\'Écaille', 'Solène', [[1050, 46], [1012, 45], [1035, 45]], { intro: 'Tu veux voir Drakos ? Montre-moi d\'abord ce que tu vaux !', lose: 'Drakos va enfin avoir un vrai adversaire...' });
   routeItem(W, r11, 0.4, 1, 4, 'max-potion');
