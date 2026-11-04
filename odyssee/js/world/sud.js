@@ -6,7 +6,7 @@
 import { T } from './tiles.js';
 import { room } from './interiors.js';
 import { bande, massif, plateau, boucher, sinueuse } from './relief.js';
-import { rng, along, nearestWalkable } from './mapgen.js';
+import { rng, along, nearestWalkable, GRAND } from './mapgen.js';
 
 // rencontres : [espèce, niveau min, niveau max, poids]
 export const ENC_SUD = {
@@ -121,16 +121,16 @@ export function buildSud(ctx) {
     roads: [[44, 0, 45, 61, T.PAVE], [2, 30, 93, 31, T.PAVE], [2, 14, 93, 15, T.PAVE], [2, 46, 93, 47, T.PAVE], [20, 2, 21, 59, T.PAVE], [70, 2, 71, 59, T.PAVE]],
     deco: [
       ['sign', 43, 4, 'MÉTROPOLE\nLa ville qui ne dort jamais.'], ['sign', 46, 33, 'ARÈNE DE MÉTROPOLE\nChampionne : Margot\nLa reine des affaires.'],
-      ['sign', 24, 39, 'CASINO DE MÉTROPOLE\nJetons au comptoir — 20 ₽ pièce.'], ['sign', 64, 13, 'BOURSE DE MÉTROPOLE\nCotations en continu.'], ['sign', 74, 45, 'BOUTIQUE DE MODE\nChangez de style !'],
+      ['sign', 37, 43, 'CASINO DE MÉTROPOLE\nJetons au comptoir — 20 ₽ pièce.'], ['sign', 64, 13, 'BOURSE DE MÉTROPOLE\nCotations en continu.'], ['sign', 74, 45, 'BOUTIQUE DE MODE\nChangez de style !'],
       ['lamp', 42, 12], ['lamp', 47, 12], ['lamp', 42, 28], ['lamp', 47, 28], ['lamp', 42, 44], ['lamp', 47, 44], ['lamp', 18, 28], ['lamp', 23, 28], ['lamp', 68, 28], ['lamp', 73, 28],
       ['lamp', 18, 44], ['lamp', 73, 44], ['lamp', 18, 12], ['lamp', 73, 12],
       // le parc central : pelouse, fleurs, fontaine
       ['flowers', 25, 50, 30, 51], ['flowers', 34, 50, 39, 51], ['fontaine', 32, 53], ['banc', 27, 55], ['banc', 37, 55], ['trees', 23, 57, 41, 58],
     ],
     buildings: [
-      { kind: 'center', x: 36, y: 8 }, { kind: 'mart', x: 49, y: 8 }, { kind: 'gym', x: 48, y: 37, roof: 'gray' },
-      { kind: 'tower', x: 22, y: 34, w: 9, d: 5, h: 4, door: 4, id: 'casino', name: 'Casino de Métropole', kit: 'gc2', flat: true, roof: 'gray', interior: casinoInterior },
-      { kind: 'tower', x: 58, y: 5, w: 8, d: 6, h: 9, door: 4, id: 'bourse', name: 'Bourse de Métropole', kit: 'gc1', flat: true, roof: 'gray', interior: bourseInterior },
+      { kind: 'center', ...GRAND.center, x: 36, y: 8 }, { kind: 'mart', ...GRAND.mart, x: 49, y: 8 }, { kind: 'gym', ...GRAND.gym, x: 50, y: 32, roof: 'gray' },
+      { kind: 'tower', ...GRAND.casino, x: 22, y: 34, id: 'casino', name: 'Casino de Métropole', roof: 'gray', interior: casinoInterior },
+      { kind: 'tower', ...GRAND.bourse, x: 58, y: 5, id: 'bourse', name: 'Bourse de Métropole', roof: 'gray', interior: bourseInterior },
       { kind: 'tower', x: 73, y: 39, w: 6, d: 4, h: 3, door: 3, id: 'mode', name: 'Boutique de mode', kit: 'gc3', flat: true, roof: 'gray', interior: modeInterior },
       { kind: 'bighouse', x: 4, y: 49, roof: 'gray', name: 'Résidence', npcs: [{ x: 4, y: 5, sprite: 'habitante', text: ['Je travaille au 42ᵉ étage. Je n\'ai jamais vu le ciel en semaine.'] }] },
       { kind: 'house2', x: 82, y: 49, roof: 'blue', npcs: [{ x: 2, y: 4, sprite: 'topdresseur', text: ['Pierre, à la Bourse ? Il m\'a recalé trois fois.', 'Révise les forwards et les options, ses questions changent à chaque fois !'] }] },
@@ -138,7 +138,7 @@ export function buildSud(ctx) {
     npcs: [
       { id: 'businessman', x: 40, y: 20, sprite: 'topdresseur', move: 'wander', text: ['Pardon, je suis pressé. J\'ai une réunion au 87ᵉ étage.'] },
       { id: 'touriste', x: 60, y: 31, sprite: 'randonneuse', move: 'wander', text: ['Métropole, c\'est immense ! Je me suis perdue trois fois depuis ce matin.', 'Il paraît que la Championne travaille aussi à la Bourse.'] },
-      { id: 'joueur', x: 26, y: 41, sprite: 'vieil_homme', move: 'turn', text: ['Le Casino ? On y entre riche, on en ressort… avec des jetons.', 'Les lots du comptoir valent parfois le détour : Super Bonbon, Pierres…'] },
+      { id: 'joueur', x: 27, y: 44, sprite: 'vieil_homme', move: 'turn', text: ['Le Casino ? On y entre riche, on en ressort… avec des jetons.', 'Les lots du comptoir valent parfois le détour : Super Bonbon, Pierres…'] },
       { id: 'enfant', x: 33, y: 49, sprite: 'enfant', move: 'wander', text: ['Mon père dit que la Bourse, c\'est comme les combats : il faut lire l\'adversaire.'] },
       { id: 'garde-est', x: 93, y: 32, sprite: 'garde', dir: 'left', gate: { badges: 9, tiles: [[94, 30], [94, 31]] }, text: ['La route 14 mène à Port-Lisière, sur les falaises.', 'Reviens avec le Badge Pavé de Margot.'] },
       { id: 'garde-sud', x: 46, y: 59, sprite: 'garde', dir: 'left', gate: { badges: 14, tiles: [[44, 60], [45, 60]] }, text: ['La route 20 file vers Ombreval, dans les ténèbres du sud.', 'Elle est fermée tant que tu n\'as pas treize badges… Fais le tour par l\'est !'] },
@@ -175,22 +175,22 @@ export function buildSud(ctx) {
   routeItem(W, r14, 0.3, -1, 5, 'max-potion'); routeItem(W, r14, 0.7, 1, 5, 'ultra-ball', 3);
 
   const P = towns.SP = {
-    id: 'lisiere', name: 'Port-Lisière', x: 201, y: 322, w: 36, h: 28, exits: [['w', 14], ['e', 14]], gym: 9, stock: 7, music: 'port',
-    roads: [[2, 14, 33, 15], [17, 4, 18, 25]],
-    deco: [['sign', 15, 12, 'PORT-LISIÈRE\nLà où le vent prend son élan.'], ['sign', 20, 20, 'ARÈNE DE PORT-LISIÈRE\nChampion : Aurèle\nLe pilote des falaises.'],
-      ['waterRect', 26, 22, 33, 25], ['flowers', 4, 18, 7, 19], ['lamp', 16, 13], ['lamp', 19, 13], ['sand', 24, 19, 33, 21]],
+    id: 'lisiere', name: 'Port-Lisière', x: 201, y: 322, w: 50, h: 42, exits: [['w', 14], ['e', 14]], gym: 9, stock: 7, music: 'port', fermer: true, lotir: { n: 6, seed: 101 },
+    roads: [[2, 14, 49, 15], [17, 4, 18, 39], [2, 33, 47, 33], [44, 15, 45, 33]],
+    deco: [['sign', 15, 12, 'PORT-LISIÈRE\nLà où le vent prend son élan.'], ['sign', 22, 32, 'ARÈNE DE PORT-LISIÈRE\nChampion : Aurèle\nLe pilote des falaises.'],
+      ['waterRect', 38, 35, 47, 39], ['flowers', 4, 18, 7, 19], ['lamp', 16, 13], ['lamp', 19, 13], ['sand', 36, 34, 47, 34]],
     buildings: [
-      { kind: 'center', x: 5, y: 7 }, { kind: 'mart', x: 23, y: 7 }, { kind: 'gym', x: 19, y: 18, roof: 'blue' },
+      { kind: 'center', ...GRAND.center, x: 4, y: 6 }, { kind: 'mart', ...GRAND.mart, x: 23, y: 7 }, { kind: 'gym', ...GRAND.gym, x: 24, y: 16, roof: 'blue' },
       { kind: 'house', x: 4, y: 20, roof: 'blue', npcs: [{ x: 4, y: 4, sprite: 'marin', text: ['Les ventilateurs de l\'arène poussent dans tous les sens.', 'Regarde où mène chaque souffle avant de t\'y engager !'] }] },
     ],
     npcs: [{ id: 'pilote', x: 11, y: 12, sprite: 'topdresseur', move: 'wander', text: ['Aurèle a fait trois fois le tour de la région en deltaplane.', 'Ses Pokémon Vol ne craignent que la Glace, l\'Électrik et la Roche.'] },
-      { id: 'garde', x: 33, y: 17, sprite: 'garde', dir: 'up', gate: { badges: 10, tiles: [[34, 14], [34, 15]] }, text: ['Le marais, à l\'est, est dangereux. Il faut le Badge Rafale.'] }],
+      { id: 'garde', x: 47, y: 16, sprite: 'garde', dir: 'up', gate: { badges: 10, tiles: [[48, 14], [48, 15]] }, text: ['Le marais, à l\'est, est dangereux. Il faut le Badge Rafale.'] }],
   };
   buildTown(W, ctx.maps, P);
 
   /* ---------- route 15 → Marais-Noir (marécage, passerelles) ---------- */
   W.blob(262, 330, 6, 4, T.WATER, rngLite(15)); W.blob(285, 322, 5, 3, T.WATER, rngLite(16));
-  const r15 = R('r15', 'Route 15', [[237, 336.5], [252, 336.5], [264, 330.5], [278, 322.5], [290, 318.5], [301, 318.5]], { w: 12, grass: 1.1, tall: T.DARKTALL, trees: 0.06, bridge: true, theme: 'forest' }, 'r15', 'forest');
+  const r15 = R('r15', 'Route 15', [[251, 336.5], [256, 336.5], [264, 330.5], [278, 322.5], [290, 318.5], [301, 318.5]], { w: 12, grass: 1.1, tall: T.DARKTALL, trees: 0.06, bridge: true, theme: 'forest' }, 'r15', 'forest');
   routeTrainer(W, r15, 0.15, -1, 4, 'Ninja', 'Hayate', [[49, 56], [453, 57]]);
   routeTrainer(W, r15, 0.35, 1, 4, 'Médium', 'Bérénice', [[195, 57], [342, 57], [89, 57]]);
   routeTrainer(W, r15, 0.55, -1, 3, 'Pêcheur', 'Albin', [[195, 57], [453, 58]]);
@@ -199,30 +199,34 @@ export function buildSud(ctx) {
   routeItem(W, r15, 0.45, 1, 6, 'full-heal', 2); routeItem(W, r15, 0.85, 1, 6, 'rare-candy');
 
   const N = towns.SN = {
-    id: 'marais', name: 'Marais-Noir', x: 301, y: 305, w: 34, h: 26, exits: [['w', 13], ['s', 17]], gym: 10, stock: 7, music: 'mystic',
-    roads: [[2, 13, 18, 14, T.PATH], [17, 13, 18, 23, T.PATH]],
-    deco: [['sign', 15, 11, 'MARAIS-NOIR\nOn y entre en bottes, on en sort en rampant.'], ['sign', 21, 19, 'ARÈNE DE MARAIS-NOIR\nChampionne : Morgane\nLa dame des brumes.'],
-      ['water', 6, 20, 3, 2], ['water', 28, 6, 3, 2.5], ['tall', 26, 18, 31, 22]],
+    id: 'marais', name: 'Marais-Noir', x: 301, y: 305, w: 46, h: 38, exits: [['w', 13], ['s', 17]], gym: 10, stock: 7, music: 'mystic', fermer: true, lotir: { n: 5, seed: 113 },
+    roads: [[2, 13, 43, 14, T.PATH], [17, 13, 18, 37, T.PATH], [2, 31, 43, 31, T.PATH]],
+    deco: [['sign', 15, 11, 'MARAIS-NOIR\nOn y entre en bottes, on en sort en rampant.'], ['sign', 23, 30, 'ARÈNE DE MARAIS-NOIR\nChampionne : Morgane\nLa dame des brumes.'],
+      ['water', 6, 20, 3, 2], ['water', 28, 6, 3, 2.5], ['tall', 40, 16, 43, 24]],
     buildings: [
-      { kind: 'center', x: 4, y: 6 }, { kind: 'mart', x: 11, y: 6 }, { kind: 'gym', x: 21, y: 7, roof: 'purple' },
+      { kind: 'center', ...GRAND.center, x: 3, y: 5 }, { kind: 'mart', ...GRAND.mart, x: 11, y: 6 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 15, roof: 'purple' },
       { kind: 'house', x: 4, y: 15, roof: 'brown', npcs: [{ x: 4, y: 4, sprite: 'vieil_homme', text: ['Dans l\'arène, les murs sont invisibles.', 'Avance à tâtons : chaque mur heurté est un mur de moins à chercher.'] }] },
     ],
-    npcs: [{ id: 'garde', x: 20, y: 23, sprite: 'garde', dir: 'up', gate: { badges: 11, tiles: [[17, 24], [18, 24]] }, text: ['Au sud, les Dunes d\'Ocre. Le Badge Venin d\'abord !'] }],
+    npcs: [{ id: 'garde', x: 19, y: 35, sprite: 'garde', dir: 'up', gate: { badges: 11, tiles: [[17, 36], [18, 36]] }, text: ['Au sud, les Dunes d\'Ocre. Le Badge Venin d\'abord !'] }],
   };
   buildTown(W, ctx.maps, N);
 
   /* ---------- route 16 → Dunes d'Ocre (désert) ---------- */
   // un vrai désert : sable à perte de vue entre des mesas de roche ocre, cactus, crêtes de dunes dont on se laisse glisser
-  const r16 = R('r16', 'Route 16', sinueuse([[318.5, 331], [318.5, 341], [326, 351], [334, 356], [342, 366], [352, 368], [363, 372.5]]), { w: 13, grass: 0.35, trees: 0, rocks: 0.04, ground: T.SAND, overwrite: false, theme: 'desert' }, 'r16');
+  const r16 = R('r16', 'Route 16', sinueuse([[318.5, 343], [319, 348], [326, 353], [334, 356], [342, 366], [352, 368], [363, 372.5]]), { w: 13, grass: 0.35, trees: 0, rocks: 0.04, ground: T.SAND, overwrite: false, theme: 'desert' }, 'r16');
   {
-    const r = rng(1616), ville = (x, y) => [towns.SN, { x: 363, y: 360, w: 36, h: 26 }].some((t) => x >= t.x - 2 && x <= t.x + t.w + 1 && y >= t.y - 2 && y <= t.y + t.h + 1);
+    const r = rng(1616), ville = (x, y) => [towns.SN, { x: 363, y: 360, w: 46, h: 38 }].some((t) => x >= t.x - 2 && x <= t.x + t.w + 1 && y >= t.y - 2 && y <= t.y + t.h + 1);
     for (const [x, y] of bande(r16, 0, 11, 0, 0.04, 0.97)) {
       if (ville(x, y) || W.get(x, y) !== T.TREE) continue;
       W.set(x, y, T.SAND);
       const q = r(); if (q < 0.035) W.prop(q < 0.022 ? 'cactus' : 'cactus2', x, y); else if (q < 0.045) W.set(x, y, T.ROCK);
     }
     // au-delà du sable, des mesas de roche ocre ferment le désert (toute la forêt de la zone disparaît)
-    const mesa = []; for (let y = 322; y <= 386; y++) for (let x = 292; x <= 376; x++) if (!ville(x, y) && W.get(x, y) === T.TREE) mesa.push([x, y]);
+    // une cuvette ovale aux bords irréguliers (pas un rectangle) : au-delà, la forêt reprend
+    const mesa = []; for (let y = 318; y <= 392; y++) for (let x = 288; x <= 382; x++) {
+      const q = ((x - 336) / 46) ** 2 + ((y - 357) / 34) ** 2 + (Math.sin(x * 0.31 + y * 0.17) + Math.sin(y * 0.23 - x * 0.11)) * 0.06;
+      if (q <= 1 && !ville(x, y) && W.get(x, y) === T.TREE) mesa.push([x, y]);
+    }
     massif(W, mesa, { pas: 3 });
     for (const [t, o] of [[0.3, 6], [0.5, -7], [0.75, 6], [0.62, 8]]) { const p = along(r16, t), x = Math.round(p.x + p.nx * o), y = Math.round(p.y + p.ny * o); if (W.get(x, y) === T.SAND) W.prop('rocher_grand', x, y); }
     ctx.ledges?.(W, r16, [0.22, 0.6], { reach: 7 });
@@ -235,24 +239,27 @@ export function buildSud(ctx) {
   routeItem(W, r16, 0.35, 1, 6, 'max-repel'); routeItem(W, r16, 0.6, -1, 6, 'revive', 2);
 
   const D = towns.SD = {
-    id: 'dunes', name: 'Dunes d\'Ocre', x: 363, y: 360, w: 36, h: 26, exits: [['w', 12], ['s', 18]], gym: 11, stock: 7, music: 'city', ground: T.SAND,
-    roads: [[2, 12, 19, 13, T.PATH], [18, 12, 19, 23, T.PATH]],
-    deco: [['sign', 16, 10, 'DUNES D\'OCRE\nLe vent sculpte la ville chaque nuit.'], ['sign', 22, 18, 'ARÈNE DES DUNES\nChampion : Gaspard\nLe bâtisseur de sable.'],
-      ['rock', 4, 18], ['rock', 30, 4], ['rock', 31, 20], ['palm', 8, 21], ['palm', 28, 9], ['water', 10, 20, 2.5, 1.8]],
+    id: 'dunes', name: 'Dunes d\'Ocre', x: 363, y: 360, w: 46, h: 38, exits: [['w', 12], ['s', 18]], gym: 11, stock: 7, music: 'city', ground: T.SAND, fermer: true,
+    roads: [[2, 12, 43, 13, T.PATH], [18, 12, 19, 37, T.PATH], [2, 31, 43, 31, T.PATH], [42, 13, 43, 31, T.PATH]],
+    deco: [['sign', 16, 10, 'DUNES D\'OCRE\nLe vent sculpte la ville chaque nuit.'], ['sign', 23, 30, 'ARÈNE DES DUNES\nChampion : Gaspard\nLe bâtisseur de sable.'],
+      ['rock', 4, 18], ['rock', 30, 4], ['rock', 31, 35], ['palm', 8, 21], ['palm', 28, 9], ['water', 10, 20, 2.5, 1.8]],
     buildings: [
-      { kind: 'center', x: 5, y: 5 }, { kind: 'mart', x: 12, y: 5 }, { kind: 'gym', x: 22, y: 6, roof: 'brown' },
-      { kind: 'house', x: 25, y: 16, roof: 'brown', npcs: [{ x: 4, y: 4, sprite: 'montagnard', text: ['Dans l\'arène, le sable glisse.', 'Tu ne t\'arrêtes que contre un rocher : regarde bien où chacun t\'arrêtera.'] }] },
+      { kind: 'center', ...GRAND.center, x: 4, y: 4 }, { kind: 'mart', ...GRAND.mart, x: 12, y: 5 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 15, roof: 'brown' },
+      { kind: 'house', x: 3, y: 27, roof: 'orange', npcs: [{ x: 4, y: 4, sprite: 'randonneuse', text: ['Ici, on balaie le sable devant sa porte trois fois par jour.'] }] },
+      { kind: 'house2', x: 8, y: 27, roof: 'brown', npcs: [{ x: 2, y: 4, sprite: 'habitant', text: ['Les caravanes du désert s\'arrêtent toujours ici avant le canyon.'] }] },
+      { kind: 'house', x: 13, y: 27, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'enfant', text: ['J\'ai trouvé un os énorme dans les dunes ! Maman dit que c\'est un fossile.'] }] },
+      { kind: 'house', x: 33, y: 4, roof: 'brown', npcs: [{ x: 4, y: 4, sprite: 'montagnard', text: ['Dans l\'arène, le sable glisse.', 'Tu ne t\'arrêtes que contre un rocher : regarde bien où chacun t\'arrêtera.'] }] },
     ],
-    npcs: [{ id: 'garde', x: 20, y: 23, sprite: 'garde', dir: 'up', gate: { badges: 12, tiles: [[18, 24], [19, 24]] }, text: ['La route 17 descend vers Forge-Acier. Il te faut le Badge Dune.'] }],
+    npcs: [{ id: 'garde', x: 20, y: 35, sprite: 'garde', dir: 'up', gate: { badges: 12, tiles: [[18, 36], [19, 36]] }, text: ['La route 17 descend vers Forge-Acier. Il te faut le Badge Dune.'] }],
   };
   buildTown(W, ctx.maps, D);
 
   /* ---------- route 17 → Forge-Acier ---------- */
   // le Canyon d'Ocre : la route descend au fond d'une gorge entre deux parois de roche ocre, grimpe sur une corniche
   // le long de la paroi nord, puis redescend vers Forge-Acier
-  const r17 = R('r17', 'Route 17 — Canyon d\'Ocre', sinueuse([[381.5, 386], [381.5, 395], [376, 404], [366, 412], [354, 416], [342, 421], [332, 424], [322, 425.5]]), { w: 10, grass: 0.5, trees: 0, rocks: 0.05, theme: 'canyon' }, 'r17');
+  const r17 = R('r17', 'Route 17 — Canyon d\'Ocre', sinueuse([[381.5, 398], [381, 404], [374, 410], [364, 414], [352, 417], [344, 421], [334, 425.5]]), { w: 10, grass: 0.5, trees: 0, rocks: 0.05, theme: 'canyon' }, 'r17');
   {
-    const ville = (x, y) => [towns.SD, { x: 288, y: 412, w: 34, h: 26 }].some((t) => x >= t.x - 2 && x <= t.x + t.w + 1 && y >= t.y - 2 && y <= t.y + t.h + 1);
+    const ville = (x, y) => [towns.SD, { x: 288, y: 412, w: 46, h: 38 }].some((t) => x >= t.x - 2 && x <= t.x + t.w + 1 && y >= t.y - 2 && y <= t.y + t.h + 1);
     massif(W, bande(r17, 4.6, 13, 0, 0.03, 0.97).filter(([x, y]) => !ville(x, y)), { tout: true, pas: 2, max: 3 });
     // la corniche : un tronçon du chemin passe sur une vire, au-dessus du fond de la gorge
     const p = along(r17, 0.5), cote = p.ny < 0 ? 1 : -1;   // côté nord de la route
@@ -268,12 +275,12 @@ export function buildSud(ctx) {
   routeItem(W, r17, 0.4, 1, 6, 'full-restore'); routeItem(W, r17, 0.8, -1, 6, 'ultra-ball', 5);
 
   const F = towns.SF = {
-    id: 'forge', name: 'Forge-Acier', x: 288, y: 412, w: 34, h: 26, exits: [['e', 13], ['w', 13]], gym: 12, stock: 7, music: 'city',
-    roads: [[2, 13, 31, 14, T.PAVE], [16, 4, 17, 22, T.PAVE]],
-    deco: [['sign', 14, 11, 'FORGE-ACIER\nLe cœur battant de l\'industrie du Sud.'], ['sign', 19, 18, 'ARÈNE DE FORGE-ACIER\nChampion : Ferdinand\nLe maître forgeron.'],
+    id: 'forge', name: 'Forge-Acier', x: 288, y: 412, w: 46, h: 38, exits: [['e', 13], ['w', 13]], gym: 12, stock: 7, music: 'city', fermer: true, lotir: { n: 5, seed: 127 },
+    roads: [[2, 13, 45, 14, T.PAVE], [16, 4, 17, 35, T.PAVE], [2, 33, 43, 33, T.PAVE]],
+    deco: [['sign', 14, 11, 'FORGE-ACIER\nLe cœur battant de l\'industrie du Sud.'], ['sign', 21, 32, 'ARÈNE DE FORGE-ACIER\nChampion : Ferdinand\nLe maître forgeron.'],
       ['lamp', 15, 12], ['lamp', 18, 12], ['rock', 3, 20], ['rock', 29, 5]],
     buildings: [
-      { kind: 'center', x: 5, y: 6 }, { kind: 'mart', x: 22, y: 6 }, { kind: 'gym', x: 19, y: 17, roof: 'gray' },
+      { kind: 'center', ...GRAND.center, x: 4, y: 5 }, { kind: 'mart', ...GRAND.mart, x: 22, y: 6 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 16, roof: 'gray' },
       { kind: 'tower', x: 4, y: 16, w: 7, d: 5, h: 5, door: 3, name: 'Fonderie', kit: 'gc0', flat: true, npcs: [{ x: 3, y: 5, sprite: 'montagnard', text: ['Ici, on coule l\'acier des rails et des ponts.', 'L\'arène ? Des tapis roulants et des barrières. Coupe le bon courant !'] }] },
     ],
     npcs: [{ id: 'garde', x: 2, y: 15, sprite: 'garde', dir: 'up', gate: { badges: 13, tiles: [[1, 13], [1, 14]] }, text: ['Rosebrume, à l\'ouest, ne reçoit que les porteurs du Badge Rouage.'] }],
@@ -281,7 +288,7 @@ export function buildSud(ctx) {
   buildTown(W, ctx.maps, F);
 
   /* ---------- route 18 → Rosebrume (prairie fleurie) ---------- */
-  const r18 = R('r18', 'Route 18', [[287, 425.5], [266, 428], [246, 437], [226, 440], [206, 440.5]], { w: 12, grass: 0.8, trees: 0.04, flowers: 0.1 }, 'r18');
+  const r18 = R('r18', 'Route 18', [[287, 425.5], [266, 428], [246, 437], [230, 440], [218, 440.5]], { w: 12, grass: 0.8, trees: 0.04, flowers: 0.1 }, 'r18');
   routeTrainer(W, r18, 0.2, 1, 4, 'Fillette', 'Capucine', [[36, 65], [184, 65]]);
   routeTrainer(W, r18, 0.42, -1, 4, 'Dame Kimono', 'Sakura', [[210, 66], [700, 66]]);
   routeTrainer(W, r18, 0.62, 1, 4, 'Topdresseur', 'Florent', [[683, 66], [303, 66], [670, 66]]);
@@ -289,12 +296,12 @@ export function buildSud(ctx) {
   routeItem(W, r18, 0.3, -1, 6, 'max-potion', 2); routeItem(W, r18, 0.7, 1, 6, 'moon-stone');
 
   const Ro = towns.SR = {
-    id: 'rose', name: 'Rosebrume', x: 170, y: 428, w: 36, h: 26, exits: [['e', 12], ['w', 12]], gym: 13, stock: 7, music: 'town',
-    roads: [[2, 12, 33, 13, T.PATH], [17, 4, 18, 22, T.PATH]],
-    deco: [['sign', 15, 10, 'ROSEBRUME\nLa ville qui sent bon le rêve.'], ['sign', 20, 18, 'ARÈNE DE ROSEBRUME\nChampionne : Lilas\nLa fée des roses.'],
-      ['flowers', 3, 3, 12, 5], ['flowers', 23, 3, 32, 5], ['flowers', 3, 20, 10, 23], ['fontaine', 27, 19]],
+    id: 'rose', name: 'Rosebrume', x: 170, y: 428, w: 48, h: 38, exits: [['e', 12], ['w', 12]], gym: 13, stock: 7, music: 'town', fermer: true, lotir: { n: 6, seed: 131 },
+    roads: [[2, 12, 47, 13, T.PATH], [17, 4, 18, 35, T.PATH], [2, 33, 45, 33, T.PATH]],
+    deco: [['sign', 15, 10, 'ROSEBRUME\nLa ville qui sent bon le rêve.'], ['sign', 21, 32, 'ARÈNE DE ROSEBRUME\nChampionne : Lilas\nLa fée des roses.'],
+      ['flowers', 3, 3, 12, 5], ['flowers', 23, 3, 32, 5], ['flowers', 3, 20, 10, 23], ['fontaine', 9, 27]],
     buildings: [
-      { kind: 'center', x: 5, y: 7 }, { kind: 'mart', x: 24, y: 7 }, { kind: 'gym', x: 20, y: 16, roof: 'red' },
+      { kind: 'center', ...GRAND.center, x: 4, y: 6 }, { kind: 'mart', ...GRAND.mart, x: 24, y: 6 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 16, roof: 'red' },
       { kind: 'house', x: 11, y: 16, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'fillette', text: ['L\'arène de Lilas est pleine de miroirs magiques.', 'Chaque dalle t\'envoie ailleurs… mais pas n\'importe où !'] }] },
     ],
     npcs: [{ id: 'garde', x: 2, y: 14, sprite: 'garde', dir: 'up', gate: { badges: 14, tiles: [[1, 12], [1, 13]] }, text: ['Ombreval, plus à l\'ouest, est plongée dans la nuit.', 'Il faut le Badge Féérie pour y aller.'] }],
@@ -302,7 +309,7 @@ export function buildSud(ctx) {
   buildTown(W, ctx.maps, Ro);
 
   /* ---------- route 19 → Ombreval (forêt sombre) ---------- */
-  const r19 = R('r19', 'Route 19', [[169, 440.5], [150, 445], [130, 452], [110, 458], [91, 460.5]], { w: 13, grass: 1.2, tall: T.DARKTALL, trees: 0.12, theme: 'forest' }, 'r19', 'forest');
+  const r19 = R('r19', 'Route 19', [[169, 440.5], [150, 445], [130, 452], [114, 458], [103, 460.5]], { w: 13, grass: 1.2, tall: T.DARKTALL, trees: 0.12, theme: 'forest' }, 'r19', 'forest');
   routeTrainer(W, r19, 0.2, -1, 4, 'Médium', 'Séléné', [[197, 68], [302, 68]]);
   routeTrainer(W, r19, 0.4, 1, 4, 'Voleur', 'Arsène', [[262, 68], [430, 69]]);
   routeTrainer(W, r19, 0.6, -1, 4, 'Topdresseuse', 'Nuit', [[359, 69], [461, 69], [510, 69]]);
@@ -310,12 +317,12 @@ export function buildSud(ctx) {
   routeItem(W, r19, 0.5, 1, 6, 'rare-candy'); routeItem(W, r19, 0.9, -1, 6, 'dusk-stone');
 
   const O = towns.SO = {
-    id: 'ombre', name: 'Ombreval', x: 55, y: 448, w: 36, h: 26, exits: [['e', 12], ['n', 16]], gym: 14, stock: 7, music: 'mystic',
-    roads: [[2, 12, 33, 13, T.PATH], [16, 0, 17, 12, T.PATH]],
-    deco: [['sign', 14, 10, 'OMBREVAL\nIci, même la lune baisse les yeux.'], ['sign', 21, 18, 'ARÈNE D\'OMBREVAL\nChampion : Corbin\nL\'homme sans ombre.'],
-      ['lamp', 15, 14], ['lamp', 18, 14], ['trees', 2, 2, 6, 6, T.PINE], ['trees', 29, 18, 33, 23, T.PINE]],
+    id: 'ombre', name: 'Ombreval', x: 55, y: 448, w: 48, h: 40, exits: [['e', 12], ['n', 16]], gym: 14, stock: 7, music: 'mystic', fermer: true, lotir: { n: 6, seed: 139 },
+    roads: [[2, 12, 47, 13, T.PATH], [16, 0, 17, 35, T.PATH], [2, 35, 45, 35, T.PATH]],
+    deco: [['sign', 14, 10, 'OMBREVAL\nIci, même la lune baisse les yeux.'], ['sign', 21, 34, 'ARÈNE D\'OMBREVAL\nChampion : Corbin\nL\'homme sans ombre.'],
+      ['lamp', 15, 14], ['lamp', 18, 14], ['trees', 2, 2, 6, 6, T.PINE], ['trees', 40, 3, 44, 7, T.PINE]],
     buildings: [
-      { kind: 'center', x: 6, y: 5 }, { kind: 'mart', x: 24, y: 5 }, { kind: 'gym', x: 21, y: 16, roof: 'purple' },
+      { kind: 'center', ...GRAND.center, x: 5, y: 4 }, { kind: 'mart', ...GRAND.mart, x: 24, y: 5 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 17, roof: 'purple' },
       { kind: 'house', x: 9, y: 17, roof: 'gray', npcs: [{ x: 4, y: 4, sprite: 'medium', text: ['L\'arène de Corbin est plongée dans le noir.', 'Même Flash n\'y fait rien : on avance à l\'aveugle dans le labyrinthe.'] }] },
     ],
     npcs: [{ id: 'veuve', x: 12, y: 20, sprite: 'dame', move: 'turn', text: ['Après Corbin, il ne te restera que la Ligue Céleste.', 'Prends la route 20, au nord : elle remonte droit vers Métropole.'] }],
