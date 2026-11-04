@@ -122,11 +122,12 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
       }
     } catch (e) { console.warn('Volets, filtre ou mise en forme conditionnelle non lus :', e); }
     try {
-      for (const [nom, liste] of lireTableauxXlsx(XLSX, donnees)) {
+      for (const [nom, res] of lireTableauxXlsx(XLSX, donnees)) {
         const f = classeur.feuille(nom);
         if (!f) continue;
-        f.tableaux = liste;
-        const t = liste.find((x) => x.entete !== false);
+        f.tableaux = res.tableaux;
+        if (res.tablesDonnees.length) f.tablesDonnees = res.tablesDonnees;
+        const t = res.tableaux.find((x) => x.entete !== false);
         if (t && !f.filtre) { f.filtre = { r1: t.r1, c1: t.c1, r2: t.totaux ? t.r2 - 1 : t.r2, c2: t.c2, criteres: {} }; f.filtrees = new Set(); }
       }
     } catch (e) { console.warn('Tableaux non lus :', e); }
@@ -135,6 +136,7 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
   if (wb.Workbook && wb.Workbook.Names) {
     for (const n of wb.Workbook.Names) {
       if (!n.Name || n.Name.startsWith('_xlnm.') || !n.Ref) continue;
+      if (/^solver_/i.test(n.Name)) { lireNomSolveur(classeur, wb, n); continue; }
       // Un nom peut être propre à une feuille (même nom sur plusieurs feuilles, comme « MortTable »)
       const fi = n.Sheet !== undefined && n.Sheet !== null ? classeur.indexFeuille(wb.SheetNames[n.Sheet]) : null;
       try { classeur.definirNom(n.Name, convertirFormule('=' + n.Ref, 'fr').slice(1), fi !== null && fi >= 0 ? fi : null); } catch { /* nom non géré */ }
@@ -239,6 +241,7 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
     XLSX.utils.book_append_sheet(wb, ws, f.nom);
     wb.Workbook.Sheets.push({ name: f.nom, Hidden: f.cachee ? 1 : 0 });
   });
+  classeur.feuilles.forEach((f, i) => { if (f.solveur && f.solveur.objectif) wb.Workbook.Names.push(...nomsSolveur(f, i)); });
   for (const d of classeur.noms.values()) wb.Workbook.Names.push({ Name: d.nom, Ref: convertirFormule('=' + d.ref, 'en').slice(1) });
   classeur.feuilles.forEach((f, i) => { for (const d of f.noms.values()) wb.Workbook.Names.push({ Name: d.nom, Ref: convertirFormule('=' + d.ref, 'en').slice(1), Sheet: i }); });
   const macros = (classeur.macros || '').trim();
@@ -280,6 +283,40 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
 }
 
 /** Lit les tableaux d'un document Word (.docx) : chaque tableau devient une feuille. */
+// ----- Modèle du Solveur : noms cachés solver_* propres à la feuille, comme Excel -----
+const REL_SOLVEUR = { '<=': 1, '=': 2, '>=': 3, ent: 4, bin: 5 };
+function nomsSolveur(f, i) {
+  const m = f.solveur, nf = /^[A-Za-z_][\w.]*$/.test(f.nom) ? f.nom : "'" + f.nom.replace(/'/g, "''") + "'";
+  const abs = (t) => String(t || '').replace(/\$/g, '').toUpperCase().split(/[;,]/).map((x) => x.trim()).filter(Boolean).map((x) => nf + '!' + x.split(':').map((y) => y.replace(/^([A-Z]+)(\d+)$/, '$$$1$$$2')).join(':')).join(',');
+  const out = [['solver_opt', abs(m.objectif)], ['solver_typ', { max: 1, min: 2, valeur: 3 }[m.but] || 1], ['solver_val', +String(m.valeur || 0).replace(',', '.') || 0], ['solver_adj', abs(m.variables)],
+    ['solver_neg', m.positives === false ? 2 : 1], ['solver_eng', { gr: 1, simplexe: 2 }[m.methode] || 1], ['solver_ver', 3]];
+  const ks = (m.contraintes || []).filter((k) => k.g);
+  out.push(['solver_num', ks.length]);
+  ks.forEach((k, j) => {
+    out.push(['solver_lhs' + (j + 1), abs(k.g)], ['solver_rel' + (j + 1), REL_SOLVEUR[k.op] || 1]);
+    out.push(['solver_rhs' + (j + 1), k.op === 'ent' ? '"integer"' : k.op === 'bin' ? '"binary"' : /^[A-Za-z]{1,3}\$?\d/.test(String(k.d).replace(/\$/g, '')) ? abs(k.d) : +String(k.d).replace(',', '.') || 0]);
+  });
+  return out.filter(([, v]) => v !== '').map(([Name, v]) => ({ Name, Ref: String(v), Sheet: i, Hidden: true }));
+}
+function lireNomSolveur(classeur, wb, n) {
+  const f = n.Sheet !== undefined && n.Sheet !== null ? classeur.feuille(wb.SheetNames[n.Sheet]) : classeur.feuilles[0];
+  if (!f) return;
+  const m = f.solveur || (f.solveur = { objectif: '', but: 'max', valeur: '0', variables: '', contraintes: [], positives: true, methode: 'auto' });
+  const local = (r) => String(r).split(',').map((x) => x.replace(/^.*!/, '').replace(/\$/g, '')).join(';');
+  const k = n.Name.toLowerCase(), v = String(n.Ref).replace(/^=/, '');
+  const num = /\d+$/.exec(k), j = num ? +num[0] - 1 : -1;
+  const ligne = () => (m.contraintes[j] = m.contraintes[j] || { g: '', op: '<=', d: '' });
+  if (k === 'solver_opt') m.objectif = local(v);
+  else if (k === 'solver_adj') m.variables = local(v);
+  else if (k === 'solver_typ') m.but = { 1: 'max', 2: 'min', 3: 'valeur' }[+v] || 'max';
+  else if (k === 'solver_val') m.valeur = String(+v || 0).replace('.', ',');
+  else if (k === 'solver_neg') m.positives = +v !== 2;
+  else if (k === 'solver_eng') m.methode = +v === 2 ? 'simplexe' : 'auto';
+  else if (/^solver_lhs\d+$/.test(k)) ligne().g = local(v);
+  else if (/^solver_rel\d+$/.test(k)) ligne().op = { 1: '<=', 2: '=', 3: '>=', 4: 'ent', 5: 'bin' }[+v] || '<=';
+  else if (/^solver_rhs\d+$/.test(k)) ligne().d = /^"/.test(v) ? '' : /!/.test(v) ? local(v) : String(+v).replace('.', ',');
+}
+
 export function lireDocx(XLSX, octets, nomFichier = 'Document.docx') {
   const cfb = XLSX.CFB.read(octets, { type: 'array' });
   const i = cfb.FullPaths.findIndex((p) => p.toLowerCase().endsWith('word/document.xml'));

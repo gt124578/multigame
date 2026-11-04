@@ -18,6 +18,7 @@ import { lireObjetsXlsx, nomMacro } from '../tableur/js/objets-xlsx.js';
 import * as graphiquesXlsx from '../tableur/js/graphiques-xlsx.js';
 import { trierPlage, comparerTri, zoneContigue, aUnEntete, appliquerFiltre, valeursFiltre, rechercher, remplacer, styleConditionnel, valeurCible, formuleAutomatique, validationDe, elementsListe, valeurValide, cellulesInvalides, collerSpecial, decalerCellules, supprimerDoublons, convertirEnColonnes } from '../tableur/js/donnees.js';
 import { champsSource, calculerTCD, ecrireTCD, tcdA, actualiserTout, typeChamp } from '../tableur/js/tcd.js';
+import { solveur, lireContrainte, calculerTableDonnees, remplissageInstantane, antecedents, dependants, etapesEvaluation, verifierErreurs } from '../tableur/js/analyse.js';
 import crypto from 'node:crypto';
 
 const require = createRequire(import.meta.url);
@@ -1109,6 +1110,44 @@ test('tableaux structurés : références, colonne calculée, agrandissement, to
   // Un nom défini qui ressemble à une adresse n'est plus décalé
   const d = Classeur.nouveau(); d.definirNom('Prime2023', 'Feuil1!$A$1'); d.saisir(0, 0, 0, '5'); d.saisir(0, 0, 1, '=Prime2023*2'); d.insererLignes(0, 0, 1);
   egal(d.feuilles[0].get(1, 1).f, '=Prime2023*2');
+});
+
+test('Solveur : simplexe, nombres entiers, non linéaire, valeur cible', () => {
+  const modele = (cellules, formules) => { const c = Classeur.nouveau(); for (const [r, k, v] of [...cellules, ...formules]) c.saisir(0, r, k, v); return c; };
+  let c = modele([[0, 0, '0'], [0, 1, '0']], [[1, 0, '=3*A1+5*B1'], [2, 0, '=A1'], [2, 1, '=2*B1'], [2, 2, '=3*A1+2*B1']]);
+  let r = solveur(c, 0, { objectif: { r: 1, c: 0 }, but: 'max', variables: { r1: 0, c1: 0, r2: 0, c2: 1 }, contraintes: ['A3<=4', 'B3 <= 12', 'C3≤18'].map(lireContrainte) });
+  egal([r.ok, r.methode, r.x, r.y], [true, 'simplexe', [2, 6], 36]);
+  c = modele([[0, 0, '0'], [0, 1, '0']], [[1, 0, '=A1+B1'], [2, 0, '=2*A1+2*B1']]);
+  r = solveur(c, 0, { objectif: { r: 1, c: 0 }, but: 'max', variables: { r1: 0, c1: 0, r2: 0, c2: 1 }, contraintes: ['A3<=7', 'A1:B1 = ent'].map(lireContrainte) });
+  egal([r.ok, r.y], [true, 3], 'entiers');
+  c = modele([[0, 0, '1'], [0, 1, '1']], [[1, 0, '=A1*B1'], [1, 1, '=A1+B1']]);
+  r = solveur(c, 0, { objectif: { r: 1, c: 0 }, but: 'max', variables: { r1: 0, c1: 0, r2: 0, c2: 1 }, contraintes: [lireContrainte('B2<=10')] });
+  egal(r.methode, 'non linéaire'); proche(r.y, 25, 1e-4); proche(c.valeur(0, 0, 0), 5, 1e-3);
+  c = modele([[0, 0, '0,05']], [[1, 0, '=VA(A1;10;-150)']]);
+  r = solveur(c, 0, { objectif: { r: 1, c: 0 }, but: 'valeur', valeur: 1000, variables: [{ r: 0, c: 0 }], contraintes: [] });
+  proche(r.y, 1000, 1e-4);
+  c = modele([[0, 0, '0'], [0, 1, '0']], [[1, 0, '=A1+B1'], [2, 0, '=A1+B1']]);
+  r = solveur(c, 0, { objectif: { r: 1, c: 0 }, but: 'max', variables: { r1: 0, c1: 0, r2: 0, c2: 1 }, contraintes: ['A3>=5', 'A3<=4'].map(lireContrainte) });
+  egal(r.ok, false, 'impossible');
+});
+
+test('Table de données, remplissage instantané, audit des formules', () => {
+  let c = Classeur.nouveau(); c.saisir(0, 0, 0, '2'); c.saisir(0, 0, 1, '3'); c.saisir(0, 2, 0, '=A1*B1'); ['1', '2'].forEach((v, i) => c.saisir(0, 2, 1 + i, v)); ['10', '20'].forEach((v, i) => c.saisir(0, 3 + i, 0, v));
+  calculerTableDonnees(c, 0, { plage: { r1: 2, c1: 0, r2: 4, c2: 2 }, ligne: { r: 0, c: 0 }, colonne: { r: 0, c: 1 } });
+  egal([[3, 1], [3, 2], [4, 1], [4, 2]].map(([r, k]) => c.valeur(0, r, k)), [10, 20, 20, 40]); egal([c.valeur(0, 0, 0), c.valeur(0, 0, 1)], [2, 3], 'entrées remises');
+  c = Classeur.nouveau(); c.saisir(0, 0, 0, '5'); c.saisir(0, 2, 1, '=A1*2'); c.saisir(0, 2, 2, '=A1+1'); ['1', '2'].forEach((v, i) => c.saisir(0, 3 + i, 0, v));
+  calculerTableDonnees(c, 0, { plage: { r1: 2, c1: 0, r2: 4, c2: 2 }, colonne: { r: 0, c: 0 } });
+  egal([c.valeur(0, 3, 1), c.valeur(0, 4, 1), c.valeur(0, 4, 2)], [2, 4, 3]);
+  egal(remplissageInstantane([{ sources: ['Jean Dupont'], sortie: 'J. Dupont' }], [['Marie Curie']]), ['M. Curie']);
+  egal(remplissageInstantane([{ sources: ['jean.dupont@exemple.fr'], sortie: 'Jean' }], [['marie.curie@x.org']]), ['Marie']);
+  egal(remplissageInstantane([{ sources: ['Dupont', 'Jean'], sortie: 'DUPONT Jean' }], [['Curie', 'Marie']]), ['CURIE Marie']);
+  egal(remplissageInstantane([{ sources: ['2023-05-12'], sortie: '12/05/2023' }], [['2024-01-03']]), ['03/01/2024']);
+  c = Classeur.nouveau(); c.saisir(0, 0, 0, '1'); c.saisir(0, 1, 0, '2'); c.saisir(0, 2, 0, '=SOMME(A1:A2)*B1'); c.saisir(0, 0, 1, '=A1/0');
+  egal(antecedents(c, 0, 2, 0).map((p) => [p.r1, p.c1, p.r2, p.c2]), [[0, 0, 1, 0], [0, 1, 0, 1]]);
+  egal(dependants(c, 0, 0, 0).map((x) => [x.r, x.c]), [[2, 0], [0, 1]]);
+  const et = etapesEvaluation(c, 0, 2, 0); egal([et[0].texte, et[et.length - 1].resultat], ['=SOMME(⟦A1:A2⟧) * B1', '#DIV/0!']);
+  c.saisir(0, 5, 0, '=A1*2'); c.saisir(0, 6, 0, '=A1*3'); c.saisir(0, 7, 0, '=A3*2'); c.saisir(0, 8, 0, "'12");
+  egal(verifierErreurs(c, 0).map((e) => e.type + '@' + e.r + ',' + e.c), ['erreur@0,1', 'incoherente@6,0', 'texte@8,0']);
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);

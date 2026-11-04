@@ -12,6 +12,8 @@ import { styleConditionnel, validationDe, valeurValide } from './donnees.js';
 import { installerDonnees } from './ui-donnees.js';
 import { installerTCD } from './ui-tcd.js';
 import { installerDialogues } from './ui-dialogues.js';
+import { installerAnalyse } from './ui-analyse.js';
+import { antecedents, dependants, actualiserTablesDonnees } from './analyse.js';
 import { AIDE } from './aide-fonctions.js';
 import { matriceGraphique } from './graphiques-xlsx.js';
 
@@ -43,6 +45,7 @@ let pinceau = null;          // reproduire la mise en forme : { cellules, nl, nc
 let derniereAction = null;   // F4 hors saisie : refaire la dernière mise en forme
 let pressePapierObjet = null; // { genre: 'graphique' | 'image', objet, classeur, feuilleNom } : graphique ou image copié
 let macroEnCours = false;
+let fleches = [];             // flèches d'audit : { de: { fi, r1, c1, r2, c2 }, vers: { fi, r, c }, genre: 'ant' | 'dep' }
 
 const conteneur = $('grille-conteneur'), cellulesDiv = $('cellules'), entetesCol = $('entetes-colonnes'), entetesLig = $('entetes-lignes');
 const selDiv = $('selection'), cursDiv = $('curseur'), poignee = $('poignee'), editeur = $('editeur'), barre = $('saisie-formule'), zoneNom = $('zone-nom');
@@ -249,6 +252,7 @@ function rendreMaintenant() {
   let html = htmlCellules(f, F, r1, r2, c1, c2);
   html += rendreObjets(f);
   html += rendreGraphiques(f);
+  html += rendreFleches(F);
   cellulesDiv.innerHTML = html;
   positionnerSelection();
   rendreOnglets();
@@ -464,6 +468,14 @@ const uiB = installerDialogues({
   selectionFusionnee: () => { const s = selectionNormalisee(); return feuille().fusions.some((m) => m.r1 === s.r1 && m.c1 === s.c1); },
   fusionner: (oui) => fusionnerSelection(oui, false),
   lignesColonnes: (inserer, axe) => lignesColonnes(inserer, axe),
+});
+const uiA = installerAnalyse({
+  classeur: () => classeur, fi: () => fi(), feuille: () => feuille(), selection: () => selectionNormalisee(), selectionBornee: () => selectionBornee(), curseur: () => curseur,
+  selectionner: (p, cur) => { selection = { r1: p.r1, c1: p.c1, r2: p.r2, c2: p.c2 }; curseur = cur || { r: p.r1, c: p.c1 }; },
+  allerA: (i, r, c) => { if (i !== fi()) { memoriserVue(); activerFeuille(i); } placerCurseur(r, c); },
+  rendre: () => rendre(), sauvegarder: () => sauvegarderLocal(), memoriser: () => memoriser(), toast: (m, e) => toast(m, e),
+  ouvrirPanneau: (nom) => ouvrirPanneau(nom), panneauOuvert: (nom) => panneauCourant === nom && !$('panneau').hidden,
+  dialogue: (titre, html, ok, opts) => uiB.ouvrir(titre, html, ok, opts),
 });
 // Bouton ▾ d'un en-tête de filtre
 surObjets('mousedown', (e) => {
@@ -781,6 +793,7 @@ function validerEdition(mouvement) {
     const avant = feuille().get(r, c);
     const copie = avant ? { ...avant } : null;
     try { classeur.saisir(fi(), r, c, texte); } catch (e) { toast(e.message, true); }
+    if (fleches.length) fleches = [];
     // Tableau structuré : il s'agrandit si on écrit juste à côté ; une formule devient une colonne calculée
     if (texte !== '') { try { classeur.etendreTableau(fi(), r, c); if (classeur.colonneCalculee(fi(), r, c)) toast('Colonne calculée : formule recopiée dans tout le tableau'); } catch (e) { console.warn(e); } }
     // Validation des données : une saisie refusée est retirée et on la propose de nouveau
@@ -1355,7 +1368,8 @@ let timerLocal;
 function sauvegarderLocal() {
   clearTimeout(timerLocal);
   timerLocal = setTimeout(() => {
-    try { uiG.rafraichir(); uiD.rafraichir(); } catch (e) { console.warn(e); }
+    try { if (!classeur.calculManuel && classeur.feuilles.some((f) => f.tablesDonnees && f.tablesDonnees.length) && actualiserTablesDonnees(classeur)) rendre(); } catch (e) { console.warn(e); }
+    try { uiG.rafraichir(); uiD.rafraichir(); uiA.rafraichir(); } catch (e) { console.warn(e); }
     try {
       const morceaux = [];
       let total = 0;
@@ -1402,8 +1416,9 @@ function ouvrirPanneau(nom) {
   p.hidden = false;
   for (const el of document.querySelectorAll('.panneau-contenu')) el.hidden = true;
   $('panneau-' + nom).hidden = false;
-  $('panneau-titre').textContent = { macros: 'Macros VBA', fonctions: 'Fonctions', noms: 'Noms définis', aide: 'Aide', graphique: 'Graphique', rechercher: 'Rechercher et remplacer', tri: 'Tri personnalisé', mfc: 'Mise en forme conditionnelle', cible: 'Valeur cible', validation: 'Validation des données', tcd: 'Tableau croisé dynamique' }[nom] || nom;
+  $('panneau-titre').textContent = { macros: 'Macros VBA', fonctions: 'Fonctions', noms: 'Noms définis', aide: 'Aide', graphique: 'Graphique', rechercher: 'Rechercher et remplacer', tri: 'Tri personnalisé', mfc: 'Mise en forme conditionnelle', cible: 'Valeur cible', validation: 'Validation des données', tcd: 'Tableau croisé dynamique', ...uiA.titres }[nom] || nom;
   if (uiD.panneaux[nom]) uiD.panneaux[nom]();
+  if (uiA.panneaux[nom]) uiA.panneaux[nom]();
   if (nom === 'tcd') uiT.construire();
   if (nom === 'fonctions') rendreFonctions();
   if (nom === 'noms') rendreNoms();
@@ -1957,6 +1972,9 @@ conteneur.addEventListener('mousedown', (e) => {
   }
   const cel = celluleDepuisPoint(x, y);
   if (uiD.celluleChoisie(cel.r, cel.c)) { e.preventDefault(); return; }
+  // Champ de cellule d'un panneau (Solveur, Table de données…) : un clic ou un glissé l'écrit
+  const champ = document.activeElement;
+  if (champ && champ.classList && champ.classList.contains('champ-ref') && !champ.disabled) { e.preventDefault(); glisse = { mode: 'champ', champ, depart: cel }; ecrireChamp(champ, cel, cel); return; }
   // Bord de la sélection : on la déplace (Ctrl : on la copie), comme dans Excel
   if (e.isTrusted && !edition && !e.shiftKey && surBordSelection(e)) { e.preventDefault(); conteneur.focus(); glisse = { mode: 'deplacer', depart: selectionNormalisee(), cel0: cel, cible: null }; return; }
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !edition) { const lc = feuille().get(cel.r, cel.c); if (lc && lc.lien) { e.preventDefault(); suivreLien(lc.lien); return; } }
@@ -1981,6 +1999,7 @@ document.addEventListener('mousemove', (e) => {
   else if (glisse.mode === 'lignes') { selection.r2 = cel.r; rendre(); }
   else if (glisse.mode === 'colonnes') { selection.c2 = cel.c; rendre(); }
   else if (glisse.mode === 'reference') { insererReference(glisse.depart.r, glisse.depart.c, cel.r, cel.c); }
+  else if (glisse.mode === 'champ') { ecrireChamp(glisse.champ, glisse.depart, glisse.champ.dataset.plage ? cel : glisse.depart); }
   else if (glisse.mode === 'poignee') {
     const d = glisse.depart;
     const dr = cel.r < d.r1 ? d.r1 - cel.r : cel.r > d.r2 ? cel.r - d.r2 : 0, dc = cel.c < d.c1 ? d.c1 - cel.c : cel.c > d.c2 ? cel.c - d.c2 : 0;
@@ -2011,11 +2030,79 @@ document.addEventListener('mouseup', (e) => {
   if (g.mode === 'deplacer') { $('fantome').hidden = true; if (g.cible) deplacerCellules(g.depart, g.cible, e.ctrlKey || e.metaKey); return; }
   if (g.mode === 'poignee' && g.cible) { selection = g.depart; recopierVers({ r: g.cible.r ?? g.depart.r1, c: g.cible.c ?? g.depart.c1 }); }
   else if (g.mode === 'reference') { edition.refEnCours = null; (edition.origine === 'barre' ? barre : editeur).focus(); }
+  else if (g.mode === 'champ') { g.champ.focus(); }
   else if (g.mode === 'redim-col' || g.mode === 'redim-lig') { classeur.modifie(); sauvegarderLocal(); }
   else if (g.mode === 'graphique' || g.mode === 'graphique-redim' || g.mode === 'image') { if (g.bouge || g.mode === 'graphique-redim') { classeur.version++; sauvegarderLocal(); } }
   else if (g.mode === 'poignee') rendre();
   else if (g.mode === 'cellules' && pinceau) appliquerPinceau();
 });
+function ecrireChamp(champ, a, b) {
+  const t = a.r === b.r && a.c === b.c ? adresse(a.r, a.c) : adresse(Math.min(a.r, b.r), Math.min(a.c, b.c)) + ':' + adresse(Math.max(a.r, b.r), Math.max(a.c, b.c));
+  if (champ.value === t) return;
+  champ.value = t;
+  champ.dispatchEvent(new Event('input', { bubbles: true }));
+  selection = { r1: a.r, c1: a.c, r2: b.r, c2: b.c }; rendre();
+}
+
+// ----- Audit des formules : flèches des antécédents et des dépendants -----
+function tracer(genre) {
+  const F = fi(), { r, c } = curseur;
+  // Un nouveau clic sur la même cellule ajoute un niveau (comme Excel)
+  const deja = fleches.filter((x) => x.genre === genre);
+  let depart = [{ fi: F, r, c }];
+  if (deja.length) {
+    const vus = new Set(deja.map((x) => genre === 'ant' ? x.de.fi + ',' + x.de.r1 + ',' + x.de.c1 : x.vers.fi + ',' + x.vers.r + ',' + x.vers.c));
+    depart = genre === 'ant'
+      ? deja.flatMap((x) => { const o = []; for (let i = x.de.r1; i <= Math.min(x.de.r2, x.de.r1 + 40); i++) for (let j = x.de.c1; j <= Math.min(x.de.c2, x.de.c1 + 40); j++) { const cel = classeur.cellule(x.de.fi, i, j); if (cel && cel.f != null) o.push({ fi: x.de.fi, r: i, c: j }); } return o; })
+      : deja.map((x) => x.vers);
+    depart = depart.filter((d) => !fleches.some((x) => x.genre === genre && (genre === 'ant' ? x.vers.fi === d.fi && x.vers.r === d.r && x.vers.c === d.c : x.de.fi === d.fi && x.de.r1 === d.r && x.de.c1 === d.c)));
+    void vus;
+  }
+  let n = 0;
+  for (const d of depart.slice(0, 200)) {
+    if (genre === 'ant') for (const p of antecedents(classeur, d.fi, d.r, d.c)) { fleches.push({ genre, de: p, vers: d }); n++; }
+    else for (const x of dependants(classeur, d.fi, d.r, d.c)) { fleches.push({ genre, de: { fi: d.fi, r1: d.r, c1: d.c, r2: d.r, c2: d.c }, vers: x }); n++; }
+  }
+  if (!n) toast(genre === 'ant' ? (deja.length ? 'Pas d\'autre niveau d\'antécédents' : 'Cette cellule ne lit aucune autre cellule') : (deja.length ? 'Pas d\'autre niveau de dépendants' : 'Aucune formule ne lit cette cellule'));
+  rendre();
+}
+function effacerFleches() { fleches = []; rendre(); }
+// Ctrl+[ et Ctrl+] : sélectionne les antécédents / les dépendants directs (le premier groupe, sur cette feuille)
+function selectionnerLies(genre) {
+  const F = fi();
+  const liste = genre === 'ant' ? antecedents(classeur, F, curseur.r, curseur.c).filter((p) => p.fi === F) : dependants(classeur, F, curseur.r, curseur.c).filter((x) => x.fi === F).map((x) => ({ r1: x.r, c1: x.c, r2: x.r, c2: x.c }));
+  if (!liste.length) return toast(genre === 'ant' ? 'Aucun antécédent sur cette feuille' : 'Aucun dépendant sur cette feuille');
+  const r1 = Math.min(...liste.map((p) => p.r1)), c1 = Math.min(...liste.map((p) => p.c1)), r2 = Math.max(...liste.map((p) => p.r2)), c2 = Math.max(...liste.map((p) => p.c2));
+  selection = { r1, c1, r2: Math.min(r2, r1 + 1048575), c2 }; curseur = { r: liste[0].r1, c: liste[0].c1 };
+  defiler(curseur); rendre();
+  if (liste.length > 1) toast(liste.length + (genre === 'ant' ? ' antécédents' : ' dépendants') + ' (zone qui les contient sélectionnée)');
+}
+function rendreFleches(F) {
+  const liste = fleches.filter((x) => x.vers.fi === F || x.de.fi === F);
+  if (!liste.length) return '';
+  const centre = (r, c) => [xCols[c] + largeurCol(c) / 2, yLigs[r] + hauteurLig(r) / 2];
+  let svg = '';
+  for (const x of liste) {
+    const erreur = classeur.valeur(x.de.fi, x.de.r1, x.de.c1) instanceof ErreurFormule;
+    const coul = erreur ? '#dc2626' : '#2563eb';
+    const [x2, y2] = x.vers.fi === F ? centre(x.vers.r, x.vers.c) : [0, 0];
+    if (x.de.fi === F && x.vers.fi === F) {
+      const [x1, y1] = centre(x.de.r1, x.de.c1);
+      if (x.de.r2 > x.de.r1 || x.de.c2 > x.de.c1) svg += `<rect x="${xCols[x.de.c1] + 1}" y="${yLigs[x.de.r1] + 1}" width="${xCols[Math.min(x.de.c2, nbColonnes - 1) + 1] - xCols[x.de.c1] - 2}" height="${yLigs[Math.min(x.de.r2, nbLignes - 1) + 1] - yLigs[x.de.r1] - 2}" fill="none" stroke="${coul}" stroke-width="1.5"/>`;
+      svg += `<circle cx="${x1}" cy="${y1}" r="3" fill="${coul}"/><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${coul}" stroke-width="1.5" marker-end="url(#pointe-${erreur ? 'r' : 'b'})"/>`;
+    } else if (x.vers.fi === F) {
+      // Antécédent sur une autre feuille : petite icône de feuille, trait pointillé
+      const ix = Math.max(8, x2 - 70), iy = Math.max(8, y2 - 34);
+      svg += `<line x1="${ix + 8}" y1="${iy + 6}" x2="${x2}" y2="${y2}" stroke="#111827" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#pointe-n)"/><rect x="${ix}" y="${iy}" width="16" height="12" fill="#fff" stroke="#111827"/><path d="M${ix} ${iy + 4}h16M${ix + 5} ${iy}v12M${ix + 10} ${iy}v12" stroke="#111827" stroke-width=".8"/><title>${classeur.feuilles[x.de.fi].nom}!${adresse(x.de.r1, x.de.c1)}</title>`;
+    } else {
+      const [x1, y1] = centre(x.de.r1, x.de.c1);
+      svg += `<line x1="${x1}" y1="${y1}" x2="${x1 + 60}" y2="${y1 - 30}" stroke="#111827" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#pointe-n)"/><rect x="${x1 + 60}" y="${y1 - 42}" width="16" height="12" fill="#fff" stroke="#111827"/><title>${classeur.feuilles[x.vers.fi].nom}!${adresse(x.vers.r, x.vers.c)}</title>`;
+    }
+  }
+  const pointe = (id, c) => `<marker id="pointe-${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${c}"/></marker>`;
+  return `<svg class="fleches-audit" width="${xCols[nbColonnes]}" height="${yLigs[nbLignes]}"><defs>${pointe('b', '#2563eb')}${pointe('r', '#dc2626')}${pointe('n', '#111827')}</defs>${svg}</svg>`;
+}
+
 // Double-clic sur un bord d'en-tête : largeur (ou hauteur) ajustée au contenu ; toutes les colonnes choisies à la fois
 function ajusterAuto(el) {
   const f = feuille(), s = selectionNormalisee();
@@ -2243,7 +2330,7 @@ conteneur.addEventListener('keydown', (e) => {
   if (k === 'Delete') { e.preventDefault(); const s = selectionBornee(); memoriser(); classeur.effacer(fi(), s.r1, s.c1, s.r2, s.c2); sauvegarderLocal(); return rendre(); }
   if (k === 'Backspace') { e.preventDefault(); return commencerEdition(''); }
   if (k === 'F2') { e.preventDefault(); return commencerEdition(); }
-  if (k === 'F9') { e.preventDefault(); if (ctrl && e.altKey) { classeur.abandonnerCaches(); toast('Tout est recalculé (valeurs du fichier oubliées)'); } else { classeur.evaluateur.invalider(); toast('Recalculé'); } return rendre(); }
+  if (k === 'F9') { e.preventDefault(); if (ctrl && e.altKey) { classeur.abandonnerCaches(); classeur.evaluateur.recalculerTout(); actualiserTablesDonnees(classeur); toast('Tout est recalculé (valeurs du fichier oubliées)'); return rendre(); } return recalculer(); }
   if (k === 'F5' && panneauCourant === 'macros') { e.preventDefault(); return executerMacroUI(); }
   if (k === 'F11' && e.altKey) { e.preventDefault(); return ouvrirPanneau('macros'); }
   if (k === 'F8' && e.altKey) { e.preventDefault(); return ouvrirDialogueMacros(); }
@@ -2321,10 +2408,14 @@ function raccourciExcel(e) {
     if (k === 'Backspace') return fait(() => defiler(curseur));
     if (k === 'F1') return fait(() => $('btn-outils').click());
     if (k === 'F3') return fait(() => ouvrirPanneau('noms'));
+    if (k === 'e' || k === 'E') return fait(() => uiA.remplissage());
+    if (k === '[' || code === 'BracketLeft') return fait(() => selectionnerLies('ant'));
+    if (k === ']' || code === 'BracketRight') return fait(() => selectionnerLies('dep'));
     if (k === 'a' || k === 'A') { const z = selectionRegion(); if (z && !(selection.r1 === z.r1 && selection.r2 === z.r2 && selection.c1 === z.c1 && selection.c2 === z.c2)) return fait(() => { selection = { ...z }; rendre(); }); }
   }
   if (ctrl && e.shiftKey && (k === 'End' || k === 'Home')) return fait(() => { if (k === 'End') { selection.r2 = Math.max(0, feuille().zone.r2); selection.c2 = Math.max(0, feuille().zone.c2); } else { selection.r2 = 0; selection.c2 = 0; } rendre(); });
   if (ctrl && e.altKey && (k === 'PageDown' || k === 'PageUp')) return fait(() => changerFeuille(k === 'PageDown' ? 1 : -1));
+  if (ctrl && e.altKey && k === 'F5') return fait(() => { uiT.toutActualiser(); actualiserTablesDonnees(classeur); rendre(); sauvegarderLocal(); toast('Tout est actualisé'); });
   if (!ctrl && e.shiftKey && (code === 'Space' || k === ' ')) return fait(() => { const s = selectionNormalisee(); selection = { r1: s.r1, c1: 0, r2: s.r2, c2: 16383 }; rendre(); });
   if (!ctrl && e.shiftKey && k === 'F2') return fait(() => uiB.note());
   if ((e.shiftKey && k === 'F10') || k === 'ContextMenu') return fait(() => { const r = $('curseur').getBoundingClientRect(); ouvrirMenu(r.left + 10, r.bottom, menuCellules(selectionNormalisee())); });
@@ -2561,16 +2652,35 @@ $('btn-rechercher').addEventListener('click', () => uiD.ouvrirRecherche(false));
 $('btn-tcd').addEventListener('click', () => uiT.ouvrir());
 $('btn-mfc').addEventListener('click', () => uiD.menuMfc(...sousBouton('btn-mfc')));
 $('btn-figer').addEventListener('click', () => uiD.menuFiger(...sousBouton('btn-figer')));
-$('btn-plus').addEventListener('click', () => ouvrirMenu(...sousBouton('btn-plus'), [
-  ['Format de cellule…', () => uiB.formatCellule(), 'Ctrl+1'], ['Collage spécial…', () => uiB.collageSpecial(), 'Ctrl+Alt+V'], ['Atteindre…', () => uiB.atteindre(), 'Ctrl+G'], null,
-  ['Insérer une image…', () => $('fichier-image').click()], ['Mettre sous forme de tableau', () => mettreEnTableau(), 'Ctrl+L'],
-  ['Supprimer les doublons…', () => uiB.doublons()], ['Convertir en colonnes…', () => uiB.colonnes()], null,
-  [afficherFormules ? 'Afficher les résultats' : 'Afficher les formules', () => { afficherFormules = !afficherFormules; rendre(); }, 'Ctrl+`'],
-  ['Feuille', [['Nouvelle feuille', () => { memoriserVue(); classeur.ajouterFeuille(null, fi() + 1); activerFeuille(fi() + 1); sauvegarderLocal(); }, 'Maj+F11'], ['Feuille suivante', () => changerFeuille(1), 'Ctrl+PgSuiv'], ['Feuille précédente', () => changerFeuille(-1), 'Ctrl+PgPréc'], ['Dupliquer cette feuille', () => dupliquerFeuille(fi())]]],
-  ['Nouveau classeur', () => nouveauClasseur(), 'Ctrl+Alt+N'], ['Raccourcis clavier', () => { if (panneauCourant !== 'aide') ouvrirPanneau('aide'); }, '?'], null,
-  ['Valeur cible…', () => uiD.ouvrirCible()], ['Validation des données…', () => uiD.validation.ouvrir()], ['Actualiser les tableaux croisés', () => uiT.toutActualiser()], ['Imprimer / PDF (feuille)', () => uiD.imprimer()], ['Imprimer la sélection', () => uiD.imprimer({ selectionSeule: true })], null,
-  ['Recalculer (F9)', () => { classeur.evaluateur.invalider(); rendre(); toast('Recalculé'); }], ['Tout recalculer (Ctrl+Alt+F9)', () => { classeur.abandonnerCaches(); rendre(); toast('Tout est recalculé (valeurs du fichier oubliées)'); }],
-]));
+$('btn-plus').addEventListener('click', () => ouvrirMenu(...sousBouton('btn-plus'), menuPlus()));
+// Menu « … » : tout ce qui n'a pas de bouton, rangé comme les onglets d'Excel
+function menuPlus() {
+  return [
+    ['Format de cellule…', () => uiB.formatCellule(), 'Ctrl+1'], ['Collage spécial…', () => uiB.collageSpecial(), 'Ctrl+Alt+V'], ['Atteindre…', () => uiB.atteindre(), 'Ctrl+G'], null,
+    ['Insérer', [['Tableau…', () => mettreEnTableau(), 'Ctrl+L'], ['Graphique', () => uiG.insererDirect(), 'Alt+F1'], ['Image…', () => $('fichier-image').click()], ['Lien hypertexte…', () => uiB.lien(), 'Ctrl+K'], ['Note…', () => uiB.note(), 'Maj+F2']]],
+    ['Données', [['Remplissage instantané', () => uiA.remplissage(), 'Ctrl+E'], ['Supprimer les doublons…', () => uiB.doublons()], ['Convertir en colonnes…', () => uiB.colonnes()], ['Validation des données…', () => uiD.validation.ouvrir()], null,
+      ['Actualiser tout', () => { uiT.toutActualiser(); actualiserTablesDonnees(classeur); rendre(); sauvegarderLocal(); }, 'Ctrl+Alt+F5']]],
+    ['Analyse', [['Valeur cible…', () => uiD.ouvrirCible()], ['Solveur…', () => uiA.ouvrirSolveur()], ['Table de données…', () => uiA.ouvrirTableDonnees()]]],
+    ['Formules', [['Repérer les antécédents', () => tracer('ant')], ['Repérer les dépendants', () => tracer('dep')], ['Supprimer les flèches', () => effacerFleches()], null,
+      ['Sélectionner les antécédents', () => selectionnerLies('ant'), 'Ctrl+['], ['Sélectionner les dépendants', () => selectionnerLies('dep'), 'Ctrl+]'], null,
+      ['Évaluer la formule…', () => uiA.evaluerFormule()], ['Vérification des erreurs…', () => uiA.ouvrirErreurs()],
+      [afficherFormules ? 'Afficher les résultats' : 'Afficher les formules', () => { afficherFormules = !afficherFormules; rendre(); }, 'Ctrl+`'], null,
+      [(classeur.calculManuel ? '✓ ' : '') + 'Calcul manuel', () => basculerCalculManuel()],
+      ['Recalculer', () => recalculer(), 'F9'], ['Tout recalculer', () => { classeur.abandonnerCaches(); classeur.evaluateur.recalculerTout(); actualiserTablesDonnees(classeur); rendre(); toast('Tout est recalculé (valeurs du fichier oubliées)'); }, 'Ctrl+Alt+F9']]],
+    ['Mise en page', [['Imprimer / PDF', () => uiD.imprimer(), 'Ctrl+P'], ['Imprimer la sélection', () => uiD.imprimer({ selectionSeule: true })]]],
+    ['Feuille', [['Nouvelle feuille', () => { memoriserVue(); classeur.ajouterFeuille(null, fi() + 1); activerFeuille(fi() + 1); sauvegarderLocal(); }, 'Maj+F11'], ['Feuille suivante', () => changerFeuille(1), 'Ctrl+PgSuiv'], ['Feuille précédente', () => changerFeuille(-1), 'Ctrl+PgPréc'], ['Dupliquer cette feuille', () => dupliquerFeuille(fi())]]],
+    ['Nouveau classeur', () => nouveauClasseur(), 'Ctrl+Alt+N'], ['Raccourcis clavier', () => { if (panneauCourant !== 'aide') ouvrirPanneau('aide'); }, '?'],
+  ];
+}
+// F9 : recalcule (utile en calcul manuel) ; tables de données comprises
+function recalculer() { classeur.evaluateur.recalculerTout(); actualiserTablesDonnees(classeur); rendre(); toast('Recalculé'); }
+function basculerCalculManuel() {
+  classeur.calculManuel = !classeur.calculManuel;
+  if (!classeur.calculManuel) classeur.evaluateur.recalculerTout();
+  sauvegarderLocal(); rendre();
+  toast(classeur.calculManuel ? 'Calcul manuel : F9 pour recalculer' : 'Calcul automatique');
+}
+
 $('taille-police').addEventListener('change', (e) => { const v = +e.target.value; surSelection((r, c) => classeur.style(fi(), r, c, { taille: v && v !== 13 ? v : null })); conteneur.focus(); });
 $('btn-renvoi').addEventListener('click', () => basculerStyle('renvoi'));
 $('bordures').addEventListener('change', (e) => { if (e.target.value) appliquerBordures(e.target.value); e.target.value = ''; conteneur.focus(); });

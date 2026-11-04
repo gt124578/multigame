@@ -13,7 +13,7 @@ import { styleTableau, styleCelluleTableau } from './tableaux.js';
 function horsChaines(f, fn) { return f.split(/("(?:[^"]|"")*")/).map((m, i) => (i % 2 ? m : fn(m))).join(''); }
 
 /** Réglages de feuille (en JSON) gardés dans l'historique d'annulation et la sauvegarde du navigateur. */
-export const PROPRIETES_FEUILLE = ['tableaux', 'protection', 'miseEnPage', 'tablesDonnees', 'sparklines'];
+export const PROPRIETES_FEUILLE = ['tableaux', 'protection', 'miseEnPage', 'tablesDonnees', 'sparklines', 'solveur'];
 
 export class Feuille {
   constructor(nom) {

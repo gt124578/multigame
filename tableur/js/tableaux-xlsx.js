@@ -28,7 +28,7 @@ function resoudre(base, cible) {
   return parts.join('/');
 }
 
-/** Lit les tableaux : Map nomFeuille → [tableau]. */
+/** Lit les tableaux et les tables de données : Map nomFeuille → { tableaux: [...], tablesDonnees: [...] }. */
 export function lireTableauxXlsx(XLSX, octets) {
   const out = new Map();
   const z = zip(XLSX, octets);
@@ -39,16 +39,28 @@ export function lireTableauxXlsx(XLSX, octets) {
   for (const m of wb.matchAll(/<sheet\b[^>]*>/g)) {
     const t = cibles.get(attr(m[0], 'r:id')); if (!t) continue;
     const chemin = resoudre('xl/workbook.xml', t);
+    const nomF = attr(m[0], 'name'), res = { tableaux: [], tablesDonnees: [] };
+    // Tables de données : <f t="dataTable" ref="B4:C8" dt2D="1" dtr="1" r1="B1" r2="B2"/>
+    const feuilleXml = z.lire(chemin) || '';
+    for (const d of feuilleXml.matchAll(/<f\b[^>]*\bt="dataTable"[^>]*>/g)) {
+      const ref = parsePlage(String(attr(d[0], 'ref') || '').replace(/\$/g, '')), c1 = attr(d[0], 'r1'), c2 = attr(d[0], 'r2');
+      if (!ref || !c1) continue;
+      const a1 = parsePlage(c1.replace(/\$/g, '')), a2 = c2 ? parsePlage(c2.replace(/\$/g, '')) : null;
+      const cel = (p) => (p ? { r: p.r1, c: p.c1 } : null);
+      const deuxD = attr(d[0], 'dt2D') === '1', ligne = attr(d[0], 'dtr') === '1';
+      res.tablesDonnees.push({ plage: { r1: ref.r1 - 1, c1: ref.c1 - 1, r2: ref.r2, c2: ref.c2 }, ligne: deuxD ? cel(a1) : ligne ? cel(a1) : null, colonne: deuxD ? cel(a2) : ligne ? null : cel(a1) });
+    }
+    if (res.tablesDonnees.length) out.set(nomF, res);
     const relsF = z.lire(chemin.replace(/([^/]+)$/, '_rels/$1.rels'));
     if (!relsF) continue;
-    const liste = [];
+    const liste = res.tableaux;
     for (const r of relsF.matchAll(/<Relationship\b[^>]*>/g)) {
       if (attr(r[0], 'Type') !== REL_TABLE) continue;
       const xml = z.lire(resoudre(chemin, attr(r[0], 'Target')));
       const tb = xml && lireTable(xml);
       if (tb) liste.push(tb);
     }
-    if (liste.length) out.set(attr(m[0], 'name'), liste);
+    if (liste.length) out.set(nomF, res);
   }
   return out;
 }
@@ -78,15 +90,29 @@ function lireTable(xml) {
 
 /** Écrit les tableaux des feuilles (formules en anglais dans les colonnes calculées et la ligne de total). */
 export function ecrireTableauxXlsx(XLSX, octets, classeur) {
-  if (!classeur.feuilles.some((f) => f.tableaux && f.tableaux.length)) return octets;
+  if (!classeur.feuilles.some((f) => (f.tableaux && f.tableaux.length) || (f.tablesDonnees && f.tablesDonnees.length))) return octets;
   const z = zip(XLSX, octets);
   let types = z.lire('[Content_Types].xml');
   if (!types) return octets;
   let n = 0;
   while (z.index('xl/tables/table' + (n + 1) + '.xml') >= 0) n++;
   classeur.feuilles.forEach((f, k) => {
-    if (!f.tableaux || !f.tableaux.length) return;
     const cheminFeuille = 'xl/worksheets/sheet' + (k + 1) + '.xml';
+    // Tables de données : la formule TABLE() d'Excel, posée sur la première cellule des résultats
+    if (f.tablesDonnees && f.tablesDonnees.length) {
+      let xml = z.lire(cheminFeuille);
+      if (xml) {
+        for (const td of f.tablesDonnees) {
+          const p = td.plage, a = adresse(p.r1 + 1, p.c1 + 1);
+          const deuxD = !!(td.ligne && td.colonne);
+          const f2 = '<f t="dataTable" ref="' + a + ':' + adresse(p.r2, p.c2) + '" dt2D="' + (deuxD ? 1 : 0) + '" dtr="' + (deuxD || td.ligne ? 1 : 0) + '" r1="' + (deuxD || td.ligne ? adresse(td.ligne.r, td.ligne.c) : adresse(td.colonne.r, td.colonne.c)) + '"' + (deuxD ? ' r2="' + adresse(td.colonne.r, td.colonne.c) + '"' : '') + '/>';
+          const re = new RegExp('<c r="' + a + '"([^>]*?)(/>|>)');
+          xml = re.test(xml) ? xml.replace(re, (t, at, fin) => '<c r="' + a + '"' + at + '>' + f2 + (fin === '/>' ? '</c>' : '')) : xml;
+        }
+        z.ecrire(cheminFeuille, xml);
+      }
+    }
+    if (!f.tableaux || !f.tableaux.length) return;
     let xml = z.lire(cheminFeuille);
     if (!xml || xml.includes('<tableParts')) return;
     const cheminRels = 'xl/worksheets/_rels/sheet' + (k + 1) + '.xml.rels';
