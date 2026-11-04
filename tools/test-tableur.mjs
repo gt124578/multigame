@@ -14,6 +14,7 @@ import { decompresserOVBA } from '../tableur/js/vbaextract.js';
 import { listerProcedures, insererMacro, supprimerProcedure, ajouterAuProjet, decouperProjet } from '../tableur/js/projetvba.js';
 import { aesEcbDechiffrer, aesCbcDechiffrer, sha1, sha256, sha384, sha512, estChiffre, dechiffrerOffice, ErreurMotDePasse } from '../tableur/js/chiffrement.js';
 import { lireObjetsXlsx, nomMacro } from '../tableur/js/objets-xlsx.js';
+import { trierPlage, comparerTri, zoneContigue, aUnEntete, appliquerFiltre, valeursFiltre, rechercher, remplacer, styleConditionnel, valeurCible, formuleAutomatique } from '../tableur/js/donnees.js';
 import crypto from 'node:crypto';
 
 const require = createRequire(import.meta.url);
@@ -721,6 +722,130 @@ test('projet VBA : liste, création et suppression de macros nommées', () => {
   const c3 = supprimerProcedure(c2, 'lancer');
   egal(listerProcedures(c3).map((p) => p.nom), ['Taux', 'AvecArg', 'Nouvelle']);
   egal(analyserVBA(c3).procedures.size, 3);
+});
+
+function tableau() {
+  const c = Classeur.nouveau();
+  [['Nom', 'Âge', 'Prime', 'Ville'], ['Durand', 45, 1200, 'Lyon'], ['martin', 32, 800, 'Paris'], ['Bernard', 58, 2100, 'Lyon'], ['Petit', '', 650, 'Nice'], ['Robert', 39, 980, 'Paris']]
+    .forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  for (let r = 1; r <= 5; r++) c.saisir(0, r, 4, '=C' + (r + 1) + '*2');
+  return c;
+}
+
+test('données : tri (en-têtes, plusieurs clés, formules, vides à la fin)', () => {
+  egal([3, 'b', 1, null, 'A', true].sort((a, b) => comparerTri(a, b)), [1, 3, 'A', 'b', true, null]);
+  egal([3, null, 1].sort((a, b) => comparerTri(a, b, true)), [3, 1, null]);
+  const c = tableau();
+  const z = zoneContigue(c.feuilles[0], 2, 1);
+  egal(z, { r1: 0, c1: 0, r2: 5, c2: 4 });
+  egal(aUnEntete(c, 0, z), true);
+  trierPlage(c, 0, z, [{ c: 1, desc: false }], { entete: true });
+  egal([1, 2, 3, 4, 5].map((r) => c.valeur(0, r, 0)), ['martin', 'Robert', 'Durand', 'Bernard', 'Petit']);
+  // La formule a suivi sa ligne et désigne toujours la même ligne
+  egal(c.feuilles[0].get(1, 4).f, '=C2*2'); egal(c.valeur(0, 1, 4), 1600);
+  trierPlage(c, 0, z, [{ c: 3, desc: false }, { c: 2, desc: true }], { entete: true });
+  egal([1, 2, 3, 4, 5].map((r) => c.valeur(0, r, 0)), ['Bernard', 'Durand', 'Petit', 'Robert', 'martin']);
+  egal(c.valeur(0, 0, 0), 'Nom');
+});
+
+test('données : filtre automatique, rechercher et remplacer', () => {
+  const c = tableau(), f = c.feuilles[0];
+  f.filtre = { r1: 0, c1: 0, r2: 5, c2: 4, criteres: { 3: { visibles: ['Lyon', 'Nice'] } } };
+  egal([...appliquerFiltre(c, 0)].sort(), [2, 5]);
+  egal(valeursFiltre(c, 0, f.filtre, 3).map((v) => v.texte + v.n), ['Lyon2', 'Nice1', 'Paris2']);
+  f.filtre.criteres[2] = { condition: { op: '>', valeur: '900' } };
+  egal([...appliquerFiltre(c, 0)].sort(), [2, 4, 5]);
+  egal(valeursFiltre(c, 0, f.filtre, 3).map((v) => v.texte), ['Lyon', 'Paris']);
+  f.filtre.criteres = { 0: { condition: { op: 'commence', valeur: 'r' } } };
+  egal([...appliquerFiltre(c, 0)].sort(), [1, 2, 3, 4]);
+  // Insérer une ligne au-dessus décale le filtre
+  c.insererLignes(0, 0, 1); egal([f.filtre.r1, f.filtre.r2], [1, 6]);
+  const c2 = tableau();
+  egal(rechercher(c2, 'MARTIN').map((t) => t.r + ',' + t.c), ['2,0']);
+  egal(rechercher(c2, 'martin', { casse: true, entier: true }).length, 1);
+  egal(rechercher(c2, 'Martin', { casse: true }).length, 0);
+  egal(rechercher(c2, '*ar*', { entier: true }).map((t) => t.r + ',' + t.c), ['2,0', '2,3', '3,0', '5,3']);
+  egal(rechercher(c2, '1600').map((t) => t.r + ',' + t.c), ['2,4']);
+  egal(rechercher(c2, 'C3', { dans: 'formules' }).map((t) => t.r + ',' + t.c), ['2,4']);
+  egal(remplacer(c2, 'Lyon', 'Lille'), 2); egal(c2.valeur(0, 3, 3), 'Lille');
+  egal(remplacer(c2, '~*2', '*3'), 5); egal(c2.valeur(0, 1, 4), 3600);
+});
+
+test('données : mise en forme conditionnelle', () => {
+  const c = tableau(), f = c.feuilles[0];
+  f.mfc = [
+    { id: 'a', plage: 'C2:C6', type: 'valeur', op: '>', v1: '1000', style: { fond: '#ffc7ce' } },
+    { id: 'b', plage: 'C2:C6', type: 'top', n: 2, style: { gras: true, fond: '#00ff00' } },
+    { id: 'c', plage: 'D2:D6', type: 'doublons', style: { couleur: '#ff0000' } },
+    { id: 'd', plage: 'A2:A6', type: 'formule', formule: '=$B2>40', style: { italique: true } },
+    { id: 'e', plage: 'B2:B6', type: 'echelle', couleurs: ['#000000', '#ffffff'] },
+    { id: 'f', plage: 'E2:E6', type: 'barres', couleur: '#638ec6' },
+    { id: 'g', plage: 'A2:A6', type: 'texte', op: 'contient', texte: 'RT', style: { fond: '#ffff00' } },
+  ];
+  egal(styleConditionnel(c, 0, 3, 2), { fond: '#ffc7ce', gras: true }); // 2100 : la première règle garde son fond
+  egal(styleConditionnel(c, 0, 2, 2), null);                           // 800
+  egal(styleConditionnel(c, 0, 1, 3), { couleur: '#ff0000' });         // Lyon en double
+  egal(styleConditionnel(c, 0, 4, 3), null);                           // Nice unique
+  egal(styleConditionnel(c, 0, 3, 0), { italique: true }); egal(styleConditionnel(c, 0, 5, 0), { fond: '#ffff00' }); // Bernard : 58 > 40 ; Robert contient « rt »
+  egal(styleConditionnel(c, 0, 2, 1).fond, '#000000'); egal(styleConditionnel(c, 0, 3, 1).fond, '#ffffff');
+  const barre = styleConditionnel(c, 0, 3, 4).barre; egal([barre.debut, barre.fin], [0, 100]);
+  // Les plages suivent les insertions de lignes
+  c.insererLignes(0, 0, 2); egal(f.mfc[0].plage, 'C4:C8');
+});
+
+test('données : valeur cible, somme automatique', () => {
+  const c = Classeur.nouveau();
+  // Taux actuariel d'une annuité : VA(taux; 10; -100) = 800 → taux ≈ 4,28 %
+  c.saisir(0, 0, 0, '0,01'); c.saisir(0, 1, 0, '=VA(A1;10;-100)');
+  const r = valeurCible(c, 0, { r: 1, c: 0 }, 800, { r: 0, c: 0 });
+  egal(r.ok, true); egal(Math.abs(c.valeur(0, 1, 0) - 800) < 1e-4, true); egal(Math.abs(r.x - 0.04277) < 1e-4, true);
+  // Fonction non monotone : x² = 2 depuis 0
+  c.saisir(0, 0, 1, '0'); c.saisir(0, 1, 1, '=B1^2');
+  egal(Math.abs(valeurCible(c, 0, { r: 1, c: 1 }, 2, { r: 0, c: 1 }).x ** 2 - 2) < 1e-5, true);
+  let erreur = ''; try { valeurCible(c, 0, { r: 0, c: 1 }, 1, { r: 1, c: 1 }); } catch (e) { erreur = e.message; }
+  egal(/formule/.test(erreur), true);
+  const t = tableau();
+  egal(formuleAutomatique(t, 0, 6, 2), '=SOMME(C2:C6)');
+  egal(formuleAutomatique(t, 0, 1, 5), '=SOMME(E2:E2)'); t.saisir(0, 1, 3, '7'); egal(formuleAutomatique(t, 0, 1, 5), '=SOMME(B2:E2)');
+  egal(formuleAutomatique(t, 0, 10, 10, 'MOYENNE'), '=MOYENNE()');
+});
+
+test('xlsx : volets figés, filtre, mise en forme conditionnelle, lignes masquées, renvoi à la ligne', () => {
+  const c = tableau(), f = c.feuilles[0];
+  f.figer = { r: 1, c: 1 };
+  f.filtre = { r1: 0, c1: 0, r2: 5, c2: 4, criteres: { 3: { visibles: ['Lyon'] }, 2: { condition: { op: '>=', valeur: '900' } } } };
+  appliquerFiltre(c, 0);
+  f.hauteurs[8] = 0; f.largeurs[6] = 0;
+  c.style(0, 0, 0, { renvoi: true, valign: 'top', taille: 19 });
+  f.mfc = [
+    { id: 'a', plage: 'C2:C6', type: 'valeur', op: 'entre', v1: '700', v2: '1000', style: { fond: '#ffc7ce', couleur: '#9c0006', gras: true } },
+    { id: 'b', plage: 'A2:A6 D2:D6', type: 'texte', op: 'commence', texte: 'Pa', style: { fond: '#c6efce' } },
+    { id: 'c', plage: 'E2:E6', type: 'formule', formule: '=SI($B2>40;VRAI;FAUX)', style: { italique: true } },
+    { id: 'd', plage: 'B2:B6', type: 'echelle', couleurs: ['#f8696b', '#ffeb84', '#63be7b'] },
+    { id: 'e', plage: 'C2:C6', type: 'top', n: 20, pct: true, bas: true, style: { couleur: '#0000ff' } },
+    { id: 'f', plage: 'E2:E6', type: 'barres', couleur: '#ff8800' },
+  ];
+  const octets = ecrireClasseur(XLSX, c);
+  const cfb = XLSX.CFB.read(octets, { type: 'array' });
+  const xml = new TextDecoder().decode(cfb.FileIndex[cfb.FullPaths.findIndex((p) => p.endsWith('sheet1.xml'))].content);
+  egal(/<pane xSplit="1" ySplit="1" topLeftCell="B2" activePane="bottomRight" state="frozen"\/>/.test(xml), true);
+  egal(/<filterColumn colId="3"><filters><filter val="Lyon"\/><\/filters><\/filterColumn>/.test(xml), true);
+  egal(xml.includes('IF($B2&gt;40,TRUE,FALSE)'), true);
+  // Ordre exigé par Excel : autoFilter, puis conditionalFormatting, puis ignoredErrors
+  egal(xml.indexOf('</autoFilter>') < xml.indexOf('<conditionalFormatting') && (!xml.includes('<ignoredErrors') || xml.lastIndexOf('</conditionalFormatting>') < xml.indexOf('<ignoredErrors')), true);
+  const e = lireClasseur(XLSX, octets, 'x.xlsx'), g = e.feuilles[0];
+  egal(g.figer, { r: 1, c: 1 });
+  egal([g.filtre.r1, g.filtre.c1, g.filtre.r2, g.filtre.c2], [0, 0, 5, 4]);
+  egal(g.filtre.criteres[3], { visibles: ['Lyon'] }); egal(g.filtre.criteres[2], { condition: { op: '>=', valeur: '900' } });
+  egal([...g.filtrees].sort(), [...f.filtrees].sort());
+  egal([g.hauteurs[8], g.largeurs[6]], [0, 0]);
+  egal(g.get(0, 0).s, { taille: 19, valign: 'top', renvoi: true });
+  egal(g.mfc.map((r) => r.type), ['valeur', 'texte', 'formule', 'echelle', 'top', 'barres']);
+  egal(g.mfc[0].style, { gras: true, couleur: '#9c0006', fond: '#ffc7ce' }); egal([g.mfc[0].op, g.mfc[0].v1, g.mfc[0].v2], ['entre', '700', '1000']);
+  egal(g.mfc[1].plage, 'A2:A6 D2:D6'); egal(g.mfc[2].formule, '=SI($B2>40;VRAI;FAUX)');
+  egal(g.mfc[3].couleurs, ['#f8696b', '#ffeb84', '#63be7b']); egal([g.mfc[4].n, g.mfc[4].pct, g.mfc[4].bas], [20, true, true]);
+  egal(g.mfc[5].couleur, '#ff8800');
+  egal(styleConditionnel(e, 0, 2, 2), { gras: true, couleur: '#9c0006', fond: '#ffc7ce' });
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);

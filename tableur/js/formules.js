@@ -1621,6 +1621,7 @@ export function convertirFormule(formule, sens) {
     const brut = src.slice(t.pos, t.fin);
     if (t.t === T.SEP) out += sens === 'fr' ? ';' : ',';
     else if (t.t === T.NOMBRE) out += sens === 'fr' ? brut : brut.replace(',', '.');
+    else if (t.t === T.BOOL) out += sens === 'fr' ? (t.v ? 'VRAI' : 'FAUX') : (t.v ? 'TRUE' : 'FALSE');
     else if (t.t === T.FONCTION) {
       let nom = t.v.replace(/^_XLFN\.|^_XLWS\./, '');
       if (sens === 'fr') nom = ALIAS_INVERSE[nom] || brut.replace(/\s*\($/, '').replace(/^_xlfn\.|^_xlws\./i, '');

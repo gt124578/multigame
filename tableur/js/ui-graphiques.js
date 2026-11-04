@@ -257,9 +257,10 @@ export function installerGraphiques(api) {
   // ---------------------------------------------------------------------------
   // Dessin sur la feuille
   // ---------------------------------------------------------------------------
-  function rendreSurFeuille(f) {
+  function rendreSurFeuille(f, garder = null) {
     let html = '';
     for (const g of f.graphiques || []) {
+      if (garder && !garder(g)) continue;
       normaliser(g);
       const svg = rendreGraphiqueSVG(g, api.donnees(f, g.plage), g.w - 2, g.h - 26);
       html += `<div class="graphique${g.id === api.actif() ? ' actif' : ''}" data-id="${g.id}" style="left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px">
