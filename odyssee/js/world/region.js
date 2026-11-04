@@ -689,7 +689,12 @@ export function buildWorld() {
   const r5 = R('r5', 'Route 5', sinueuse([[283.5, 94], [281, 100], [266, 101], [248, 97], [230, 100.5], [212, 97.5], [196, 101], [182.5, 104], [182.5, 112]]), { w: 12, grass: 0.75, trees: 0.05, rocks: 0.01 }, 'r5');
   ledges(W, r5, [0.08], { reach: 6 });
   // au milieu de la route, un plateau : on y monte par l'ouest, on en redescend à l'est
-  plateau(W, polygone([[213.5, 90.5], [237.5, 90.5], [237.5, 106.5], [213.5, 106.5]]), 1); relief(r5);
+  // et sur le plateau, un tertre plus haut (un escalier taillé y grimpe) dont la falaise domine le sentier
+  W.rect(219, 91, 233, 95, T.GRASS, [T.TREE, T.TALL]); W.rect(226, 93, 227, 97, T.PATH, [T.GRASS, T.TALL, T.FLOWER, T.TREE]);
+  plateau(W, polygone([[213.5, 90.5], [237.5, 90.5], [237.5, 106.5], [213.5, 106.5]]), 1);
+  plateau(W, polygone([[218.5, 90.5], [234.5, 90.5], [234.5, 95.5], [218.5, 95.5]]), 2);
+  for (const [x, y] of [[221, 92], [231, 93]]) W.prop('rocher_grand', x, y);
+  relief(r5);
   routeTrainer(W, r5, 0.12, 1, 4, 'Scientifique', 'Pierre', [[1036, 19], [100, 19], [81, 20]]);
   routeTrainer(W, r5, 0.3, -1, 4, 'Randonneuse', 'Élise', [[77, 20], [1014, 20]]);
   routeTrainer(W, r5, 0.46, 1, 4, 'Karatéka', 'Kenji', [[66, 21], [1033, 22]]);
@@ -731,8 +736,10 @@ export function buildWorld() {
   W.rect(255, 236, 259, 241, T.SAND);
   // la passe : des rochers fissurés barrent la route sur toute sa largeur (Éclate-Roc)
   { const p = along(r11, 0.55); for (let k = -6; k <= 6; k++) { const x = Math.round(p.x + p.nx * k), y = Math.round(p.y + p.ny * k); for (const [xx, yy] of [[x, y], [x + 1, y]]) { const t = W.get(xx, yy); if (t !== T.TREE && t !== T.WATER) W.set(xx, yy, T.SMASH); } } }
-  // la passe est une gorge : deux murailles de roche boisée l'enserrent, de part et d'autre du sentier
-  plateau(W, [...bande(r11, 3, 9, 1, 0.3, 0.7), ...bande(r11, 3, 9, -1, 0.3, 0.7)], 1); relief(r11);
+  // la passe est une gorge : deux murailles de roche l'enserrent, de part et d'autre du sentier (on y passe à trois de front)
+  { const g = [...bande(r11, 2.6, 10, 1, 0.3, 0.72), ...bande(r11, 2.6, 10, -1, 0.3, 0.72)];
+    for (const [x, y] of g) if ([T.GRASS, T.TALL, T.FLOWER, T.ROCK].includes(W.get(x, y))) W.set(x, y, T.TREE);
+    massif(W, g, { pas: 2, max: 2 }); relief(r11); }
   routeTrainer(W, r11, 0.25, 1, 3, 'Garde d\'Écaille', 'Ronan', [[1044, 44], [1025, 44], [1048, 45]], { intro: 'Halte ! La Grande Île appartient à Drakos !', lose: 'Tch... Passe, alors.' });
   routeTrainer(W, r11, 0.8, -1, 3, 'Garde d\'Écaille', 'Solène', [[1050, 46], [1012, 45], [1035, 45]], { intro: 'Tu veux voir Drakos ? Montre-moi d\'abord ce que tu vaux !', lose: 'Drakos va enfin avoir un vrai adversaire...' });
   routeItem(W, r11, 0.4, 1, 4, 'max-potion');
