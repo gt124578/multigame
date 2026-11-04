@@ -173,7 +173,7 @@ export function addCendree({ W, maps, trainerNpc, spot, enc }) {
 
   /* ------------------------------------------------------------------ l'intérieur */
   const rdc = room('cendree:rdc', 15, 12, { floor: 'cendre', music: 'tower', wall: 'wall_cendre', name: 'Tour Cendrée' });
-  const sous = room('cendree:sous-sol', 15, 12, { floor: 'pierre', music: 'mystic', wall: 'wall_gym', name: 'Tour Cendrée — sous-sol' });
+  const sous = room('cendree:sous-sol', 15, 12, { floor: 'pierre', music: 'mystic', wall: 'wall_cendre', name: 'Tour Cendrée — sous-sol' });
   sous.set(sous.exitX, sous.exitY, T.FLOOR);   // pas de porte au sous-sol
   maps[rdc.id] = rdc; maps[sous.id] = sous;
   rdc.outside = { map: 'monde', x: B.doorX, y: B.doorY + 1, dir: 'down' };
@@ -195,8 +195,7 @@ export function addCendree({ W, maps, trainerNpc, spot, enc }) {
   for (const [x, y] of [[1, 9], [13, 3], [12, 10], [6, 2]]) sous.prop('gravats', x, y);
   sous.prop('poutre_brulee', 1, 6, true, { w: 2 }); sous.set(2, 6, T.BLOCK);
   sous.item(12, 3, 'rare-candy');
-  // des flaques : l'eau des pluies tombe par les trous du plancher
-  for (const [x, y] of [[11, 8], [12, 8], [12, 9], [13, 9], [2, 9], [3, 10]]) sous.set(x, y, T.WATER);
+  for (const [x, y] of [[12, 8], [3, 10], [8, 2]]) sous.prop('gravats', x, y);
   rdc.prop('gravats', 3, 10); sous.prop('poutre_brulee', 7, 10, true, { w: 2 }); sous.set(8, 10, T.BLOCK);
   // évènement des trois bêtes (game.js, onEnterMap) : Raikou, Entei, Suicune, et la case où chacun se tient
   sous.betes = [[243, 5, 7], [244, 7, 6], [245, 9, 7]]; sous.betesSortie = [2, 3];

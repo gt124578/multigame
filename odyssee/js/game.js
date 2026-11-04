@@ -430,7 +430,7 @@ export class Game {
     const imgs = await Promise.all(m.betes.map(([sp]) => loadImg(ASSETS.front(sp)).catch(() => null)));
     if (this.mapObj !== m) return;
     const acteurs = m.betes.map(([sp, x, y], i) => { if (!imgs[i]) return null; const a = v.imageActor(ids[i], imgs[i], 0.5); v.place(a, x, y - 0.1); return a; });
-    await this.ui.say(['Au fond du sous-sol, trois grandes silhouettes sont couchées dans la cendre...', 'Elles respirent lentement, comme si elles dormaient depuis très longtemps.']);
+    await this.ui.say(['Au fond du sous-sol, trois grandes créatures se tiennent immobiles dans la cendre, les yeux clos...', 'Elles respirent lentement, comme si elles dormaient depuis très longtemps.']);
     this.sound.sfx('bang'); v.shake = 0.3;
     this.sound.cry(ASSETS.cry(m.betes[1]?.[0] ?? m.betes[0][0]));
     await this.ui.say('Les trois créatures ouvrent les yeux et se dressent d\'un bond !');

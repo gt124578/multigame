@@ -20,7 +20,7 @@ import { buildArena } from './arenes.js';
 import { buildSud, BADGES_SUD, LEADERS_SUD, GYM_TRAINERS_SUD } from './sud.js';
 import { addVehicules } from './vehicules.js';
 import { addMine } from './mine.js';
-import { tourbillons, plateau, polygone, sinueuse, boucher, massif, bande } from './relief.js';
+import { tourbillons, plateau, polygone, rectangle, sinueuse, boucher, massif, bande } from './relief.js';
 
 // toutes les lignées connues : la créature d'Odyssée (plus proposée, mais les parties déjà commencées avec elle restent valables),
 // le Pokémon de Rouge / Bleu et celui d'Or / Argent, avec leurs évolutions
@@ -698,14 +698,13 @@ export function buildWorld() {
   routeItem(W, r5, 0.22, -1, 5, 'super-potion', 2); routeItem(W, r5, 0.5, 1, 5, 'thunder-stone'); routeItem(W, r5, 0.7, -1, 5, 'full-heal'); routeItem(W, r5, 0.9, 1, 5, 'rare-candy');
 
   const r6 = R('r6', 'Route 6', sinueuse([[214.5, 131.5], [226, 133], [236, 138], [246, 140.5], [256, 144.5], [266, 146.5], [278, 146.5]]), { w: 12, grass: 0.8, trees: 0.06, flowers: 0.04 }, 'r6', 'route2');
-  // une falaise boisée longe la route par le nord ; un escalier taillé monte à un petit belvédère
+  // une falaise boisée longe la route par le nord avant Mirage ; un escalier taillé monte à un petit belvédère
   {
-    const p = along(r6, 0.7);
-    for (let k = 0; k <= 7; k++) for (const s of [0, 1]) { const x = Math.round(p.x - p.nx * k) + s, y = Math.round(p.y - p.ny * k); if (W.get(x, y) !== T.WATER) W.set(x, y, T.PATH); }
-    plateau(W, bande(r6, 3.5, 8, -1, 0.56, 0.8), 1);
-    const q = [Math.round(p.x - p.nx * 6), Math.round(p.y - p.ny * 6)];
-    for (let y = q[1] - 2; y <= q[1]; y++) for (let x = q[0] - 2; x <= q[0] + 3; x++) if (W.height(x, y) === 1 && [T.TREE, T.TALL].includes(W.get(x, y))) W.set(x, y, T.GRASS);
-    relief(r6); W.item(...nearestWalkable(W, q[0] + 2, q[1] - 1), 'elixir');
+    W.rect(264, 138, 265, 145, T.PATH, [T.TREE, T.GRASS, T.TALL, T.FLOWER]);
+    plateau(W, rectangle(254, 134, 269, 142), 1);
+    for (let y = 136; y <= 140; y++) for (let x = 259; x <= 268; x++) if (W.height(x, y) === 1 && [T.TREE, T.TALL].includes(W.get(x, y))) W.set(x, y, T.GRASS);
+    W.prop('rocher_grand', 260, 137); W.prop('rocher_grand', 268, 137);
+    relief(r6); W.item(267, 138, 'elixir');
   }
   routeTrainer(W, r6, 0.15, 1, 4, 'Randonneuse', 'Nina', [[1038, 24], [70, 24]]);
   routeTrainer(W, r6, 0.35, -1, 4, 'Insectomane', 'Hugo', [[1019, 25], [127, 25]]);

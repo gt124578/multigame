@@ -385,6 +385,7 @@ function secretPocket(W, pts, t0, side, obs, items) {
     while (k++ < 14 && W.get(x, y) !== T.TREE && W.get(x, y) !== T.PINE) { x += dx; y += dy; }
     const before = W.get(x - dx, y - dy);
     if (k >= 14 || !walkable(before) || before === T.TALL || before === T.DARKTALL) continue;
+    if (W.items.some((it) => it.x === x - dx && it.y === y - dy) || W.npcs.some((n) => n.x === x - dx && n.y === y - dy)) continue;   // l'entrée reste libre
     const ex = x, ey = y;
     const set = [];
     for (let i = 1; i <= 3; i++) set.push([ex + dx * i, ey + dy * i]);
