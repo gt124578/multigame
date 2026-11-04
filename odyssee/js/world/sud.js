@@ -125,7 +125,7 @@ export function buildSud(ctx) {
       ['lamp', 42, 12], ['lamp', 47, 12], ['lamp', 42, 28], ['lamp', 47, 28], ['lamp', 42, 44], ['lamp', 47, 44], ['lamp', 18, 28], ['lamp', 23, 28], ['lamp', 68, 28], ['lamp', 73, 28],
       ['lamp', 18, 44], ['lamp', 73, 44], ['lamp', 18, 12], ['lamp', 73, 12],
       // le parc central : pelouse, fleurs, fontaine
-      ['flowers', 25, 50, 30, 51], ['flowers', 34, 50, 39, 51], ['fontaine', 32, 53], ['banc', 27, 55], ['banc', 37, 55], ['trees', 23, 57, 41, 58],
+      ['flowers', 25, 50, 30, 51], ['flowers', 34, 50, 39, 51], ['flowers', 50, 51, 55, 52], ['flowers', 62, 51, 67, 52], ['fontaine', 58, 53], ['fontaine', 32, 53], ['banc', 27, 55], ['banc', 37, 55], ['trees', 23, 57, 41, 58],
     ],
     buildings: [
       { kind: 'center', ...GRAND.center, x: 36, y: 8 }, { kind: 'mart', ...GRAND.mart, x: 49, y: 8 }, { kind: 'gym', ...GRAND.gym, x: 50, y: 32, roof: 'gray' },
@@ -154,8 +154,7 @@ export function buildSud(ctx) {
   }
   // les gratte-ciel de Métropole (sans porte : des bureaux, la nuit leurs fenêtres s'allument)
   const tours = [[4, 3, 7, 5, 8], [11, 3, 7, 5, 11], [24, 3, 8, 5, 10], [74, 3, 7, 5, 12], [82, 3, 9, 5, 9], [4, 17, 6, 5, 7], [11, 17, 7, 5, 9], [24, 17, 8, 6, 13],
-    [49, 18, 9, 6, 15], [60, 18, 8, 6, 11], [74, 18, 8, 5, 10], [84, 17, 7, 5, 8], [4, 33, 7, 5, 6], [11, 33, 7, 5, 9], [32, 34, 8, 5, 7], [60, 34, 8, 5, 12], [82, 33, 9, 5, 10],
-    [49, 50, 8, 5, 9], [60, 50, 8, 5, 6], [74, 50, 6, 5, 8]];
+    [49, 18, 9, 6, 15], [60, 18, 8, 6, 11], [74, 18, 8, 5, 10], [84, 17, 7, 5, 8], [4, 33, 7, 5, 6], [11, 33, 7, 5, 9], [82, 33, 9, 5, 10], [74, 50, 6, 5, 8]];
   tours.forEach(([x, y, w, d, h], i) => W.building('tower', M.x + x, M.y + y, { w, d, h, door: -1, kit: 'gc' + (i % 4), flat: true, name: 'Tour', roof: 'gray' }));
   const asphAt = (x, y) => W.deco.some((d) => d.k === 'asph' && d.x === M.x + x && d.y === M.y + y);
   {
