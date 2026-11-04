@@ -12,6 +12,9 @@ import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from '../ta
 import { preparerDonnees, rendreGraphiqueSVG } from '../tableur/js/graphiques.js';
 import { decompresserOVBA } from '../tableur/js/vbaextract.js';
 import { listerProcedures, insererMacro, supprimerProcedure, ajouterAuProjet, decouperProjet } from '../tableur/js/projetvba.js';
+import { aesEcbDechiffrer, aesCbcDechiffrer, sha1, sha256, sha384, sha512, estChiffre, dechiffrerOffice, ErreurMotDePasse } from '../tableur/js/chiffrement.js';
+import { lireObjetsXlsx, nomMacro } from '../tableur/js/objets-xlsx.js';
+import crypto from 'node:crypto';
 
 const require = createRequire(import.meta.url);
 const XLSX = require('../tableur/lib/xlsx.full.min.js');
@@ -200,8 +203,8 @@ test('analyse : erreurs de syntaxe', () => {
 // VBA
 // ---------------------------------------------------------------------------
 
-function vba(code, nom, classeur = Classeur.nouveau()) {
-  const res = executerMacro(classeur, code, nom);
+function vba(code, nom, classeur = Classeur.nouveau(), hote = {}) {
+  const res = executerMacro(classeur, code, nom, hote);
   if (res.erreur) throw new Error('VBA : ' + res.erreur.message);
   return { ...res, classeur };
 }
@@ -474,6 +477,163 @@ test('VBA : bordures et styles', () => {
   egal(cl.cellule(0, 1, 1).s, { bordures: { h: 'thin', b: 'thick', g: 'thin', d: 'thin' } });
   egal(cl.cellule(0, 0, 3).s, { bordures: { h: 'medium', b: 'medium', g: 'medium', d: 'medium' } });
   egal(cl.cellule(0, 0, 1).s.fond, '#ffff00');
+});
+
+// ---------------------------------------------------------------------------
+// Fichiers protégés par mot de passe
+// ---------------------------------------------------------------------------
+
+test('chiffrement : AES et SHA identiques à ceux de Node', () => {
+  const hex = (b) => Buffer.from(b).toString('hex');
+  for (const n of [0, 55, 56, 64, 111, 112, 128, 300]) {
+    const m = crypto.randomBytes(n);
+    for (const [f, a] of [[sha1, 'sha1'], [sha256, 'sha256'], [sha384, 'sha384'], [sha512, 'sha512']]) egal(hex(f(new Uint8Array(m))), crypto.createHash(a).update(m).digest('hex'), a + ' ' + n);
+  }
+  for (const bits of [128, 192, 256]) {
+    const cle = crypto.randomBytes(bits / 8), iv = crypto.randomBytes(16), d = crypto.randomBytes(160);
+    const e1 = crypto.createCipheriv('aes-' + bits + '-ecb', cle, null).setAutoPadding(false); const c1 = Buffer.concat([e1.update(d), e1.final()]);
+    egal(hex(aesEcbDechiffrer(new Uint8Array(cle), new Uint8Array(c1))), hex(d), 'ecb ' + bits);
+    const e2 = crypto.createCipheriv('aes-' + bits + '-cbc', cle, iv).setAutoPadding(false); const c2 = Buffer.concat([e2.update(d), e2.final()]);
+    egal(hex(aesCbcDechiffrer(new Uint8Array(cle), new Uint8Array(iv), new Uint8Array(c2))), hex(d), 'cbc ' + bits);
+  }
+});
+
+// Chiffreur « Agile » (Excel 2010+) écrit d'après MS-OFFCRYPTO avec le module crypto de Node, indépendant du déchiffreur
+function chiffrerAgile(zip, mdp, spin = 1000) {
+  const H = (b) => crypto.createHash('sha512').update(b).digest();
+  const enc = (key, iv, data) => { const c = crypto.createCipheriv('aes-256-cbc', key, iv).setAutoPadding(false); return Buffer.concat([c.update(data), c.final()]); };
+  const pad = (b, n) => (b.length % n === 0 ? b : Buffer.concat([b, Buffer.alloc(n - (b.length % n))]));
+  const kdSalt = crypto.randomBytes(16), ekSalt = crypto.randomBytes(16), secret = crypto.randomBytes(32);
+  let h = H(Buffer.concat([ekSalt, Buffer.from(mdp, 'utf16le')]));
+  for (let i = 0; i < spin; i++) { const it = Buffer.alloc(4); it.writeUInt32LE(i); h = H(Buffer.concat([it, h])); }
+  const cle = (bk) => H(Buffer.concat([h, Buffer.from(bk)])).subarray(0, 32);
+  const verif = crypto.randomBytes(16);
+  const eVin = enc(cle([0xfe, 0xa7, 0xd2, 0x76, 0x3b, 0x4b, 0x9e, 0x79]), ekSalt, verif);
+  const eVh = enc(cle([0xd7, 0xaa, 0x0f, 0x6d, 0x30, 0x61, 0x34, 0x4e]), ekSalt, pad(H(verif), 16));
+  const eKv = enc(cle([0x14, 0x6e, 0x0b, 0xe7, 0xab, 0xac, 0xd0, 0xd6]), ekSalt, secret);
+  const segs = [];
+  for (let i = 0, off = 0; off < zip.length; i++, off += 4096) { const ib = Buffer.alloc(4); ib.writeUInt32LE(i); segs.push(enc(secret, H(Buffer.concat([kdSalt, ib])).subarray(0, 16), pad(Buffer.from(zip.subarray(off, off + 4096)), 16))); }
+  const taille = Buffer.alloc(8); taille.writeUInt32LE(zip.length);
+  const b64 = (b) => b.toString('base64');
+  const xml = `<?xml version="1.0" encoding="UTF-8"?><encryption xmlns="http://schemas.microsoft.com/office/2006/encryption" xmlns:p="http://schemas.microsoft.com/office/2006/keyEncryptor/password"><keyData saltSize="16" blockSize="16" keyBits="256" hashSize="64" cipherAlgorithm="AES" cipherChaining="ChainingModeCBC" hashAlgorithm="SHA512" saltValue="${b64(kdSalt)}"/><keyEncryptors><keyEncryptor uri="http://schemas.microsoft.com/office/2006/keyEncryptor/password"><p:encryptedKey spinCount="${spin}" saltSize="16" blockSize="16" keyBits="256" hashSize="64" cipherAlgorithm="AES" cipherChaining="ChainingModeCBC" hashAlgorithm="SHA512" saltValue="${b64(ekSalt)}" encryptedVerifierHashInput="${b64(eVin)}" encryptedVerifierHashValue="${b64(eVh)}" encryptedKeyValue="${b64(eKv)}"/></keyEncryptor></keyEncryptors></encryption>`;
+  const cfb = XLSX.CFB.utils.cfb_new();
+  XLSX.CFB.utils.cfb_add(cfb, '/EncryptionInfo', Buffer.concat([Buffer.from([4, 0, 4, 0, 0x40, 0, 0, 0]), Buffer.from(xml)]));
+  XLSX.CFB.utils.cfb_add(cfb, '/EncryptedPackage', Buffer.concat([taille, ...segs]));
+  return new Uint8Array(XLSX.CFB.write(cfb, { type: 'array', fileType: 'cfb' }));
+}
+
+test('fichiers protégés : méthode Standard (LibreOffice) et Agile (Excel)', () => {
+  const lo = new Uint8Array(fs.readFileSync(new URL('./donnees-tableur/chiffre-standard-libreoffice.xlsx', import.meta.url)));
+  egal(estChiffre(XLSX, lo), true);
+  let refuse = false; try { dechiffrerOffice(XLSX, lo, 'faux'); } catch (e) { refuse = e instanceof ErreurMotDePasse; } egal(refuse, true, 'mauvais mot de passe');
+  const c1 = lireClasseur(XLSX, dechiffrerOffice(XLSX, lo, 'Mot2passe!é'), 'lo.xlsx');
+  egal(c1.feuilles.map((f) => f.nom), ['Feuil1', 'Hypothèses']); egal(c1.texte(0, 2, 0), '1343,91637934412');
+  const d = Classeur.nouveau(); d.saisir(0, 0, 0, '42'); d.saisir(0, 1, 0, '=A1*2');
+  const clair = ecrireClasseur(XLSX, d);
+  const ag = chiffrerAgile(clair, 'àgile€123');
+  egal(estChiffre(XLSX, ag), true); egal(estChiffre(XLSX, clair), false);
+  refuse = false; try { dechiffrerOffice(XLSX, ag, 'agile€123'); } catch (e) { refuse = e instanceof ErreurMotDePasse; } egal(refuse, true, 'mauvais mot de passe (Agile)');
+  const z = dechiffrerOffice(XLSX, ag, 'àgile€123');
+  egal(Buffer.compare(Buffer.from(z), Buffer.from(clair)), 0);
+  egal(lireClasseur(XLSX, z).texte(0, 1, 0), '84');
+});
+
+// ---------------------------------------------------------------------------
+// Classeurs avec des boutons de macro (comme un TD d'actuariat : « Load Table »)
+// ---------------------------------------------------------------------------
+
+function classeurAvecBouton() {
+  // Deux feuilles, chacune avec sa table (nom « MortTable » propre à la feuille), des formules qui appellent
+  // une fonction VBA, les valeurs enregistrées par Excel, et un bouton « Load Table » dans le dessin VML.
+  const d = Classeur.nouveau(); d.renommerFeuille(0, 'Pure Endowment'); d.ajouterFeuille('Whole Life');
+  const lx = [[1000, 900, 700, 400, 0], [1000, 950, 800, 500, 0]];
+  lx.forEach((t, fi) => { t.forEach((v, i) => { d.saisir(fi, 9 + i, 0, String(i)); d.saisir(fi, 9 + i, 1, String(v)); }); });
+  for (const fi of [0, 1]) for (let i = 0; i < 4; i++) d.saisir(fi, 9 + i, 2, '=dx(A' + (10 + i) + ')');
+  d.definirNom('MortTable', "'Pure Endowment'!$B$10:$B$14", 0); d.definirNom('MortTable', "'Whole Life'!$B$10:$B$14", 1);
+  d.macros = `Option Explicit
+Public MortalityTable As Variant
+Public Function lx(x As Integer) As Double
+lx = MortalityTable(x)
+End Function
+Public Function dx(x As Integer) As Double
+dx = lx(x) - lx(x + 1)
+End Function
+Sub loadMortalityTable()
+Dim vTable As Variant
+Dim nbRows As Integer
+Dim i As Integer
+Set vTable = Application.InputBox(prompt:="Mortality Table", Type:=8)
+nbRows = Application.WorksheetFunction.Count(vTable)
+ReDim MortalityTable(0 To nbRows - 1)
+For i = 0 To nbRows - 1
+    MortalityTable(i) = vTable(i + 1, 1)
+Next
+Cells.Replace What:="=", Replacement:="=", LookAt:=xlPart, SearchOrder _
+        :=xlByRows, MatchCase:=False, SearchFormat:=False, ReplaceFormat:=False
+End Sub`;
+  const octets = ecrireClasseur(XLSX, d);
+  // Ajout des valeurs enregistrées « par Excel » (celles de la feuille 2) et du bouton
+  const cfb = XLSX.CFB.read(octets, { type: 'array' });
+  const fichier = (nom) => cfb.FileIndex[cfb.FullPaths.findIndex((p) => p.endsWith(nom))];
+  [1, 2].forEach((k) => {
+    const f = fichier('xl/worksheets/sheet' + k + '.xml');
+    let xml = new TextDecoder().decode(Uint8Array.from(f.content));
+    xml = xml.replace(/(<c r="C(1[0-3])"[^>]*><f>[^<]*<\/f>)(<v>[^<]*<\/v>)?/g, (m, a, r) => a + '<v>' + [50, 150, 300, 500][+r - 10] + '</v>');
+    xml = xml.replace('</worksheet>', '<legacyDrawing r:id="rIdV"/></worksheet>');
+    if (!/xmlns:r=/.test(xml)) xml = xml.replace('<worksheet ', '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ');
+    f.content = new TextEncoder().encode(xml);
+    XLSX.CFB.utils.cfb_add(cfb, '/xl/worksheets/_rels/sheet' + k + '.xml.rels', new TextEncoder().encode('<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdV" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing" Target="../drawings/vmlDrawing' + k + '.vml"/></Relationships>'));
+    XLSX.CFB.utils.cfb_add(cfb, '/xl/drawings/vmlDrawing' + k + '.vml', new TextEncoder().encode('<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:x="urn:schemas-microsoft-com:office:excel"><v:shape id="b' + k + '" style="position:absolute" o:button="t"><v:textbox><div style="text-align:center"><font face="Arial"><b>Load\n   Table</b></font></div></v:textbox><x:ClientData ObjectType="Button"><x:Anchor>0,6,0,5,2,8,2,1</x:Anchor><x:FmlaMacro>[0]!loadMortalityTable</x:FmlaMacro></x:ClientData></v:shape></xml>'));
+  });
+  return new Uint8Array(XLSX.CFB.write(cfb, { fileType: 'zip', type: 'array' }));
+}
+
+test('boutons de macro, noms propres à une feuille, valeurs enregistrées et table chargée par un bouton', () => {
+  egal(nomMacro('[0]!loadMortalityTable'), 'loadMortalityTable'); egal(nomMacro("'TD.xlsm'!Module1.Calculer"), 'Calculer');
+  const octets = classeurAvecBouton();
+  const objets = lireObjetsXlsx(XLSX, octets);
+  egal(objets.get('Whole Life').boutons.map((b) => [b.texte, b.macro, b.de, b.a]), [['Load Table', 'loadMortalityTable', { c: 0, dx: 6, r: 0, dy: 5 }, { c: 2, dx: 8, r: 2, dy: 1 }]]);
+  const c = lireClasseur(XLSX, octets, 'td.xlsm');
+  egal(c.feuilles[1].boutons.length, 1);
+  egal(c.nom('MortTable', 0), "'Pure Endowment'!$B$10:$B$14"); egal(c.nom('MortTable', 1), "'Whole Life'!$B$10:$B$14"); egal(c.nom('MortTable'), undefined);
+  egal(c.evaluateur.evaluerFormule('=SOMME(MortTable)', 1, 0, 5), 3250);
+  const it = new InterpreteurVBA(c, { inputBox: (prompt, titre, defaut, type) => { egal(type, 8); return 'B10:B14'; } });
+  it.charger(c.macros); c.udf = creerUDF(it); c.evaluateur.invalider();
+  // Table pas encore chargée : comme Excel, on affiche les valeurs enregistrées dans le fichier
+  egal([0, 1, 2, 3].map((i) => c.valeur(1, 9 + i, 2)), [50, 150, 300, 500]);
+  // Clic sur le bouton depuis « Whole Life » : la table de cette feuille est chargée et les formules recalculées
+  c.active = 1;
+  it.executerProcedure('loadMortalityTable'); c.evaluateur.invalider();
+  egal([0, 1, 2, 3].map((i) => c.valeur(1, 9 + i, 2)), [50, 150, 300, 500]);
+  egal(c.cellule(1, 9, 2).cache, undefined, 'ressaisie par Cells.Replace');
+  egal([0, 1, 2, 3].map((i) => c.valeur(0, 9 + i, 2)), [50, 150, 300, 500], 'la variable globale sert à toutes les feuilles');
+  // Sans table du tout (recalcul complet) : erreur, comme dans Excel
+  const c2 = lireClasseur(XLSX, octets); const it2 = new InterpreteurVBA(c2); it2.charger(c2.macros); c2.udf = creerUDF(it2);
+  c2.abandonnerCaches(); egal(c2.valeur(1, 9, 2), new ErreurFormule('#VALUE!'));
+  // Les boutons et noms locaux survivent à l'enregistrement
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c));
+  egal(e.feuilles[1].boutons.map((b) => [b.texte, b.macro]), [['Load Table', 'loadMortalityTable']]); egal(e.nom('MortTable', 1), "'Whole Life'!$B$10:$B$14");
+});
+
+test('VBA : Application.InputBox (types), Range.Replace, paramètres typés', () => {
+  const cl = Classeur.nouveau();
+  cl.saisir(0, 0, 0, 'abc'); cl.saisir(0, 1, 0, 'xabcx'); cl.saisir(0, 2, 0, '=1+1');
+  const reponses = ['12,5', 'A1:A2', null];
+  const r = vba(`Sub M()
+    Dim n As Double, rg As Range, v
+    n = Application.InputBox("Nombre", Type:=1)
+    Set rg = Application.InputBox("Plage", Type:=8)
+    v = Application.InputBox("Annulé")
+    Debug.Print n * 2; rg.Address; rg.Count; v
+    Debug.Print Range("A1:A3").Replace("abc", "Z", xlPart); Range("A1").Value; Range("A2").Value
+    Range("A1:A2").Replace What:="z", Replacement:="Y", LookAt:=xlWhole
+    Debug.Print Range("A1").Value; Range("A2").Value; Moitie("7")
+  End Sub
+  Function Moitie(x As Integer) As Double
+    Moitie = x / 2
+  End Function`, 'M', cl, { inputBox: () => reponses.shift() });
+  egal(r.sortie[0], '25 $A$1:$A$2 2 Faux');
+  egal(r.sortie.slice(1), ['Vrai Z xZx', 'Y xZx 3,5']);
 });
 
 test('xlsm : extraction du code VBA (décompression MS-OVBA)', () => {

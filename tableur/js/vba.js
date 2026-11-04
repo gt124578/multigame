@@ -78,6 +78,16 @@ export class TableauVBA {
   }
 }
 
+/** Conversion d'une valeur vers un type déclaré (As Integer, As Double, As String…). Les objets et Variant restent tels quels. */
+function convertirType(v, type, ligne) {
+  const t = String(type).toUpperCase();
+  if (['INTEGER', 'LONG', 'BYTE', 'LONGLONG'].includes(t)) return arrondiBancaire(nombre(scalaire(v), ligne));
+  if (['DOUBLE', 'SINGLE', 'CURRENCY', 'DECIMAL', 'DATE'].includes(t)) return nombre(scalaire(v), ligne);
+  if (t === 'STRING') return texte(scalaire(v));
+  if (t === 'BOOLEAN') return booleen(scalaire(v), ligne);
+  return v;
+}
+
 function remplirDefaut(t, seulementVides = false) {
   const type = (t.type || '').toUpperCase();
   let d;
@@ -388,8 +398,8 @@ class ParseurVBA {
           else break;
         }
         p.nom = this.attendreId();
-        if (this.estOp('(')) { this.next(); this.attendreOp(')'); }
-        if (this.estKw('AS')) { this.next(); this.typeNom(); }
+        if (this.estOp('(')) { this.next(); this.attendreOp(')'); p.tableau = true; }
+        if (this.estKw('AS')) { this.next(); p.type = this.typeNom(); }
         if (this.estOp('=')) { this.next(); p.defaut = this.expression(); }
         params.push(p);
         if (this.estOp(',')) this.next();
@@ -674,7 +684,7 @@ class ParseurVBA {
     const fin = () => sansParentheses ? (this.peek().t === 'nl' || this.peek().t === 'eof' || this.estKw('ELSE')) : this.estOp(')');
     while (!fin()) {
       if (this.estOp(',')) { this.next(); args.push({ k: 'omis' }); continue; }
-      if (this.peek().t === 'id' && this.estOp(':=', 1)) { const nom = this.next().v; this.next(); args.push({ k: 'nomme', nom: nom.toUpperCase(), expr: this.expression() }); }
+      if ((this.peek().t === 'id' || this.peek().t === 'kw') && this.estOp(':=', 1)) { const nom = this.next().v; this.next(); args.push({ k: 'nomme', nom: nom.toUpperCase(), expr: this.expression() }); }
       else {
         const e = this.expression();
         if (this.estKw('TO')) { this.next(); args.push({ k: 'plageDim', lb: e, ub: this.expression() }); }
@@ -952,6 +962,33 @@ class RangeVBA extends ObjetVBA {
         return undefined;
       }
       case 'AUTOFIT': case 'CALCULATE': case 'MERGE': case 'UNMERGE': return undefined;
+      case 'REPLACE': {
+        const quoi = texte(scalaire(argNomme(args || [], 'WHAT', 0))), par = texte(scalaire(argNomme(args || [], 'REPLACEMENT', 1)));
+        const entier = argNomme(args || [], 'LOOKAT', 2), casse = argNomme(args || [], 'MATCHCASE', 4);
+        const toutEntier = entier !== undefined && nombre(scalaire(entier)) === 1, respecter = casse !== undefined && booleen(scalaire(casse));
+        if (!quoi) return false;
+        const re = new RegExp(toutEntier ? '^' + quoi.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$' : quoi.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), respecter ? 'g' : 'gi');
+        const b = this.bornes();
+        const f = this.feuille;
+        let trouve = false;
+        f.chaque((r, c, cel) => {
+          if (r < b.r1 || r > b.r2 || c < b.c1 || c > b.c2) return;
+          if (cel.f != null) {
+            re.lastIndex = 0;
+            if (!re.test(cel.f)) return;
+            // Une formule « ressaisie » (même identique, le classique « = » par « = ») est recalculée pour de bon
+            cel.f = cel.f.replace(re, par); delete cel.cache; trouve = true;
+          } else if (typeof cel.v === 'string') {
+            re.lastIndex = 0;
+            if (!re.test(cel.v)) return;
+            const nouv = cel.v.replace(re, par);
+            if (nouv.startsWith('=')) { cel.f = nouv; delete cel.v; } else cel.v = nouv;
+            trouve = true;
+          }
+        });
+        this.classeur.modifie();
+        return trouve;
+      }
       case 'FIND': {
         const quoi = argNomme(args || [], 'WHAT', 0);
         for (const cel of this.iterer()) { const v = cel.celValeur(cel.r1, cel.c1); if (v !== undefined && texte(v).toLowerCase().includes(texte(quoi).toLowerCase())) return cel; }
@@ -1104,7 +1141,7 @@ class WorksheetVBA extends ObjetVBA {
     if ((m = /^(\d+):(\d+)$/.exec(a))) return new RangeVBA(this.it, this.idx, +m[1] - 1, 0, +m[2] - 1, 16383);
     let pl = parsePlage(a);
     if (!pl) {
-      const def = this.it.classeur.nom(a);
+      const def = this.it.classeur.nom(a, this.idx);
       if (def) { const s = def.replace(/\$/g, ''); const k = s.lastIndexOf('!'); const nomF = k >= 0 ? s.slice(0, k).replace(/^'|'$/g, '') : null; const fi = nomF ? this.it.classeur.indexFeuille(nomF) : this.idx; pl = parsePlage(k >= 0 ? s.slice(k + 1) : s); if (pl && fi >= 0) return new RangeVBA(this.it, fi, pl.r1, pl.c1, pl.r2, pl.c2); }
       throw erreur(E_NOM, 'La méthode Range de l\'objet Worksheet a échoué : « ' + texte(p[0]) + ' »');
     }
@@ -1264,9 +1301,11 @@ class ApplicationVBA extends ObjetVBA {
       case 'ACTIVECELL': return it.selection ? it.selection.cellule(1, 1) : new RangeVBA(it, it.classeur.active, 0, 0, 0, 0);
       case 'SELECTION': return it.selection || new RangeVBA(it, it.classeur.active, 0, 0, 0, 0);
       case 'RANGE': case 'CELLS': case 'ROWS': case 'COLUMNS': return new WorksheetVBA(it, it.classeur.active).get(N, args, it);
-      case 'CALCULATE': case 'CALCULATEFULL': case 'VOLATILE': case 'WAIT': case 'DOEVENTS': return undefined;
+      case 'CALCULATE': it.classeur.evaluateur.invalider(); return undefined;
+      case 'CALCULATEFULL': case 'CALCULATEFULLREBUILD': it.classeur.abandonnerCaches(); return undefined;
+      case 'VOLATILE': case 'WAIT': case 'DOEVENTS': return undefined;
       case 'EVALUATE': return it.evaluerFormule(texte(posArgs(args)[0].v), it.classeur.active);
-      case 'INPUTBOX': return it.inputBox(args);
+      case 'INPUTBOX': return it.inputBoxApplication(args);
       case 'VERSION': return '16.0';
       case 'NAME': return 'Tableur Arcadia';
       case 'USERNAME': return 'Utilisateur';
@@ -1502,6 +1541,25 @@ export class InterpreteurVBA {
     const b = boutons === undefined ? 0 : nombre(boutons) & 15;
     return b === 4 || b === 3 ? 6 : 1; // Oui par défaut
   }
+  /** Application.InputBox : Type 1 nombre, 2 texte, 4 booléen, 8 plage (renvoie un Range), annulation → False. */
+  inputBoxApplication(args) {
+    const prompt = argNomme(args, 'PROMPT', 0), titre = argNomme(args, 'TITLE', 1), defaut = argNomme(args, 'DEFAULT', 2), type = argNomme(args, 'TYPE', 7);
+    const t = type === undefined ? 2 : nombre(scalaire(type));
+    const d = defaut instanceof RangeVBA ? defaut.adresse(false) : defaut === undefined ? '' : texte(scalaire(defaut));
+    const r = this.hote.inputBox ? this.hote.inputBox(texte(scalaire(prompt)), titre === undefined ? 'Saisie' : texte(titre), d, t) : d;
+    if (r === null || r === undefined) return false;
+    if (t & 8) {
+      let a = String(r).trim().replace(/^=/, '');
+      let fi = this.classeur.active;
+      const k = a.lastIndexOf('!');
+      if (k >= 0) { const nomF = a.slice(0, k).replace(/^'|'$/g, '').replace(/''/g, "'"); fi = this.classeur.indexFeuille(nomF); if (fi < 0) throw erreur(E_NOM, 'Feuille inconnue : ' + nomF); a = a.slice(k + 1); }
+      return new WorksheetVBA(this, fi).plageDepuis([a]);
+    }
+    if (t & 1) { try { return nombre(r); } catch { throw erreur(E_TYPE, 'Nombre attendu'); } }
+    if (t & 4) return booleen(r);
+    return String(r);
+  }
+
   inputBox(args) {
     const prompt = argNomme(args, 'PROMPT', 0), titre = argNomme(args, 'TITLE', 1), defaut = argNomme(args, 'DEFAULT', 2);
     if (this.hote.inputBox) { const r = this.hote.inputBox(texte(scalaire(prompt)), titre === undefined ? 'Tableur' : texte(titre), defaut === undefined ? '' : texte(defaut)); return r === null || r === undefined ? '' : r; }
@@ -1582,7 +1640,7 @@ export class InterpreteurVBA {
       else { k++; if (!param.optional) throw erreur(449, 'Argument non facultatif : ' + param.nom + ' (' + p.nom + ')'); val = param.defaut ? this.evaluer(param.defaut, portee) : undefined; }
       // ByRef : on garde la référence vers la variable appelante
       if (!param.byVal && !nomme && pos[k - 1] && pos[k - 1].ref) portee.vars.set(param.nom.toUpperCase(), { ref: pos[k - 1].ref });
-      else portee.vars.set(param.nom.toUpperCase(), { v: val });
+      else portee.vars.set(param.nom.toUpperCase(), { v: param.type && !param.tableau ? convertirType(val, param.type, p.ligne) : val, type: param.tableau ? null : param.type });
     }
     if (p.fonction) portee.vars.set(p.nom.toUpperCase(), { v: undefined });
     try {
@@ -2061,9 +2119,11 @@ export function creerUDF(it) {
       let r;
       try { r = it.appelerProcedure(p, args.map((v) => ({ v: conv(v) }))); }
       catch (e) {
-        if (e instanceof ErreurVBA) throw new ErreurFormule('#VALUE!', e.description);
+        const marquer = (x) => { x.vba = true; return x; };
+        if (e instanceof ErreurVBA) throw marquer(new ErreurFormule('#VALUE!', e.description));
+        if (e instanceof ErreurFormule) throw marquer(e);
         if (e instanceof SignalExit) r = undefined;
-        else if (e instanceof RangeError) throw new ErreurFormule('#VALUE!', 'récursion');
+        else if (e instanceof RangeError) throw marquer(new ErreurFormule('#VALUE!', 'récursion'));
         else throw e;
       }
       if (r instanceof RangeVBA) r = r.valeur();

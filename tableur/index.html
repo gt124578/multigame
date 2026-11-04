@@ -80,6 +80,7 @@
           <option value="anneau">Anneau</option>
           <option value="nuage">Nuage de points (X, Y)</option>
         </select>
+        <button id="btn-bouton" title="Insérer un bouton qui lance une macro VBA (sur la sélection)">🔘 Bouton</button>
         <span class="sep"></span>
         <button id="btn-noms" title="Noms définis">Noms</button>
         <button id="btn-fonctions" title="Liste des fonctions">ƒx</button>
@@ -182,6 +183,17 @@
   </div>
   <div id="menu-contextuel" class="menu" hidden></div>
   <div id="toast" hidden></div>
+  <div id="dialogue-mdp" class="voile" hidden>
+    <div class="dialogue" role="dialog" aria-labelledby="mdp-titre">
+      <h3 id="mdp-titre">🔒 Fichier protégé par mot de passe</h3>
+      <p><b id="mdp-fichier"></b> est chiffré. Entrez son mot de passe pour l'ouvrir.</p>
+      <input id="mdp-saisie" type="password" autocomplete="off" placeholder="Mot de passe">
+      <label class="mdp-voir"><input type="checkbox" id="mdp-voir"> afficher</label>
+      <p id="mdp-message" class="mdp-erreur"></p>
+      <p id="mdp-attente" hidden>Déchiffrement…</p>
+      <div class="dialogue-boutons"><button id="mdp-annuler">Annuler</button><button id="mdp-ok" class="principal">Ouvrir</button></div>
+    </div>
+  </div>
   <script src="lib/xlsx.full.min.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>

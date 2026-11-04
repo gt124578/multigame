@@ -3,6 +3,7 @@
 import { Classeur } from './classeur.js';
 import { formater, colVersLettres, lettresVersCol, parsePlage, parseAdresse, adresse, ErreurFormule, NOMS_FONCTIONS, ALIAS, referencesDe, decalerFormule, fonction } from './formules.js';
 import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from './xlsxio.js';
+import { estChiffre, dechiffrerOffice, ErreurMotDePasse } from './chiffrement.js';
 import { executerMacro, analyserVBA, ErreurVBA, InterpreteurVBA, creerUDF } from './vba.js';
 import { listerProcedures, procedureALaLigne, insererMacro, supprimerProcedure, ajouterAuProjet, nomVBAValide } from './projetvba.js';
 import { rendreGraphiqueSVG, TYPES_GRAPHIQUE } from './graphiques.js';
@@ -71,12 +72,13 @@ function celluleDepuisPoint(x, y) {
 // Affichage
 // ---------------------------------------------------------------------------
 
-function afficherValeur(v, z) {
-  let s = formater(v, z);
-  if (typeof v === 'number' && !(z && /[dmyjhs]/i.test(z.replace(/\[[^\]]*\]/g, '').replace(/"[^"]*"/g, '')) && !/[0#]/.test(z))) {
-    s = s.replace(/,/g, ' ').replace('.', ',');
-  }
-  return s;
+function afficherValeur(v, z) { return formater(v, z); }
+
+// Largeur réelle d'un texte dans la police des cellules (pour « ##### » et les débordements)
+const mesureur = document.createElement('canvas').getContext('2d');
+function largeurTexte(t, s) {
+  mesureur.font = (s && s.italique ? 'italic ' : '') + (s && s.gras ? '700 ' : '400 ') + ((s && s.taille) || 13) + 'px "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif';
+  return mesureur.measureText(t).width;
 }
 
 let rendRequis = false;
@@ -115,7 +117,13 @@ function rendreMaintenant() {
       const v = classeur.valeur(F, r, c);
       let txt = afficherValeur(v, cel.z);
       let cls = 'cellule';
-      if (typeof v === 'number' && txt.length * 7 + 8 > (fus ? w : largeurCol(c))) txt = ajusterNombre(v, cel.z, (fus ? w : largeurCol(c)) - 8);
+      let reduction = 0;
+      if (typeof v === 'number') {
+        const dispo = (fus ? w : largeurCol(c)) - 6, besoinN = largeurTexte(txt, cel.s);
+        // Un peu trop large (notre police est plus large que l'Arial 10 d'Excel) : on serre plutôt que « ##### »
+        if (besoinN > dispo && besoinN <= dispo * 1.3) reduction = Math.floor(((cel.s && cel.s.taille) || 13) * dispo / besoinN * 10) / 10;
+        else if (besoinN > dispo) txt = ajusterNombre(v, cel.z, dispo, cel.s);
+      }
       const s = cel.s || {};
       if (v instanceof ErreurFormule) cls += ' erreur';
       else if (typeof v === 'number' && !(cel.z === '@')) cls += ' nombre';
@@ -123,25 +131,96 @@ function rendreMaintenant() {
       if (s.align) cls += ' ' + { left: 'gauche', center: 'centre', right: 'droite' }[s.align];
       let style = `left:${xCols[c]}px;top:${yLigs[r]}px;height:${h}px;`;
       // Débordement du texte sur les cellules vides voisines
-      if (typeof v === 'string' && !fus && txt.length * 7 > w - 8 && !s.align) {
-        let cc = c + 1, ww = w;
-        while (cc < nbColonnes && cc <= c2 + 1 && !f.get(r, cc) && ww < txt.length * 7.5 + 8) { ww += largeurCol(cc); cc++; }
-        if (ww > w) { w = ww; cls += ' deborde'; style += 'background:#fff;'; }
+      const besoin = typeof v === 'string' && !fus ? largeurTexte(txt, s) + 10 : 0;
+      if (besoin > w && s.align !== 'center') {
+        let ww = w;
+        if (s.align === 'right') { // texte aligné à droite : il déborde sur les cellules vides de gauche
+          let cc = c - 1;
+          while (cc >= 0 && !f.get(r, cc) && ww < besoin) { ww += largeurCol(cc); cc--; }
+          if (ww > w) { style += `left:${xCols[cc + 1]}px;`; w = ww; cls += ' deborde'; }
+        } else {
+          let cc = c + 1;
+          while (cc < nbColonnes && cc <= c2 + 1 && !f.get(r, cc) && ww < besoin) { ww += largeurCol(cc); cc++; }
+          if (ww > w) { w = ww; cls += ' deborde'; style += 'background:#fff;'; }
+        }
       }
       style += `width:${w}px;`;
       if (s.gras) style += 'font-weight:700;'; if (s.italique) style += 'font-style:italic;'; if (s.souligne) style += 'text-decoration:underline;';
       if (s.couleur) style += `color:${s.couleur};`; if (s.fond) style += `background:${s.fond};`; if (s.taille) style += `font-size:${s.taille}px;`;
+      if (reduction) style += `font-size:${reduction}px;padding:0 2px;`;
       const bo = s.bordures || (s.bordure ? { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } : null);
       if (bo) { const ep = { thin: 1, medium: 2, thick: 3 }; for (const [k, css] of [['h', 'top'], ['b', 'bottom'], ['g', 'left'], ['d', 'right']]) if (bo[k]) style += `border-${css}:${ep[bo[k]]}px solid #1f2937;`; }
-      html += `<div class="${cls}" style="${style}">${echapper(txt)}</div>`;
+      if (cel.note) cls += ' note';
+      html += `<div class="${cls}" style="${style}"${cel.note ? ` title="${echapper(cel.note).replace(/"/g, '&quot;')}"` : ''}>${echapper(txt)}</div>`;
     }
   }
+  html += rendreObjets(f);
   html += rendreGraphiques(f);
   cellulesDiv.innerHTML = html;
   positionnerSelection();
   rendreOnglets();
   rendreStatut();
   rendreClasseurs();
+}
+
+// ----- Boutons (macros) et images posés sur la feuille -----
+function rectObjet(o) {
+  const x1 = xCols[Math.min(o.de.c, nbColonnes)] + (o.de.dx || 0), y1 = yLigs[Math.min(o.de.r, nbLignes)] + (o.de.dy || 0);
+  if (o.a) { const x2 = xCols[Math.min(o.a.c, nbColonnes)] + (o.a.dx || 0), y2 = yLigs[Math.min(o.a.r, nbLignes)] + (o.a.dy || 0); return { x: x1, y: y1, w: Math.max(16, x2 - x1), h: Math.max(12, y2 - y1) }; }
+  return { x: x1, y: y1, w: o.w || 80, h: o.h || 24 };
+}
+function rendreObjets(f) {
+  let html = '';
+  for (const im of f.images || []) {
+    const r = rectObjet(im);
+    html += `<img class="image-feuille${im.macro ? ' cliquable' : ''}" data-image="${im.id}" src="${im.src}" alt="${echapper(im.titre || '')}" title="${echapper(im.macro ? 'Macro : ' + im.macro : (im.titre || ''))}" style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;${im.transparentBlanc ? 'mix-blend-mode:multiply;' : ''}">`;
+  }
+  for (const b of f.boutons || []) {
+    const r = rectObjet(b);
+    html += `<button class="bouton-macro${b.forme ? ' forme' : ''}" data-bouton="${b.id}" title="Macro : ${echapper(b.macro || '(aucune)')} — clic droit pour modifier" style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;${b.fond ? 'background:' + b.fond + ';' : ''}">${echapper(b.texte || 'Bouton')}</button>`;
+  }
+  return html;
+}
+function objetDepuis(el) {
+  const b = el.closest('[data-bouton]'), im = el.closest('[data-image]');
+  if (b) return { genre: 'bouton', o: feuille().boutons.find((x) => x.id === b.dataset.bouton) };
+  if (im) return { genre: 'image', o: feuille().images.find((x) => x.id === im.dataset.image) };
+  return null;
+}
+cellulesDiv.addEventListener('mousedown', (e) => { const t = objetDepuis(e.target); if (t && t.o) { e.stopPropagation(); if (e.button === 0) e.preventDefault(); } }, true);
+cellulesDiv.addEventListener('click', (e) => {
+  const t = objetDepuis(e.target);
+  if (!t || !t.o || !t.o.macro) return;
+  e.stopPropagation();
+  lancerMacro(t.o.macro, { depuisBouton: true });
+});
+cellulesDiv.addEventListener('contextmenu', (e) => {
+  const t = objetDepuis(e.target);
+  if (!t || !t.o) return;
+  e.preventDefault(); e.stopPropagation();
+  const o = t.o, liste = t.genre === 'bouton' ? feuille().boutons : feuille().images;
+  const items = [];
+  if (t.genre === 'bouton') items.push(['Modifier le texte…', () => { const x = prompt('Texte du bouton :', o.texte); if (x !== null) { o.texte = x; sauvegarderLocal(); rendre(); } }]);
+  items.push(['Affecter une macro…', () => { const x = choisirMacro(o.macro); if (x !== null) { o.macro = x; sauvegarderLocal(); rendre(); } }]);
+  if (o.macro) items.push(['Exécuter « ' + o.macro + ' »', () => lancerMacro(o.macro, { depuisBouton: true })]);
+  items.push(['Placer sur la sélection', () => { const s2 = selectionNormalisee(); o.de = { c: s2.c1, dx: 2, r: s2.r1, dy: 2 }; o.a = { c: s2.c2 + 1, dx: -2, r: s2.r2 + 1, dy: -2 }; delete o.w; delete o.h; sauvegarderLocal(); rendre(); }]);
+  items.push(null, ['Supprimer', () => { liste.splice(liste.indexOf(o), 1); sauvegarderLocal(); rendre(); }]);
+  ouvrirMenu(e.clientX, e.clientY, items);
+}, true);
+function choisirMacro(actuelle) {
+  const subs = classeur.vba ? classeur.vba.listerProcedures() : [];
+  const x = prompt('Macro à lancer' + (subs.length ? ' (' + subs.join(', ') + ')' : ' (écrivez d\'abord une Sub dans l\'éditeur VBA)') + ' :', actuelle || subs[0] || '');
+  return x === null ? null : x.trim();
+}
+function insererBouton() {
+  const macro = choisirMacro('');
+  if (macro === null) return;
+  const texte = prompt('Texte du bouton :', macro || 'Bouton');
+  if (texte === null) return;
+  const s2 = selectionNormalisee();
+  const plusieurs = s2.r1 !== s2.r2 || s2.c1 !== s2.c2;
+  feuille().boutons.push({ id: 'b' + Date.now().toString(36), texte, macro, de: { c: s2.c1, dx: 2, r: s2.r1, dy: 2 }, ...(plusieurs ? { a: { c: s2.c2 + 1, dx: -2, r: s2.r2 + 1, dy: -2 } } : { w: Math.max(90, texte.length * 8 + 20), h: 26 }) });
+  sauvegarderLocal(); rendre();
 }
 
 // ----- Graphiques -----
@@ -208,14 +287,12 @@ cellulesDiv.addEventListener('dblclick', (e) => {
 });
 
 // Un nombre trop large pour sa cellule : moins de chiffres significatifs, sinon « ##### » comme Excel.
-function ajusterNombre(v, z, largeur) {
-  const max = Math.max(1, Math.floor(largeur / 7));
+function ajusterNombre(v, z, largeur, s) {
   if (!z || z === 'General') {
-    for (let k = 14; k >= 1; k--) { const t = afficherValeur(parseFloat(v.toPrecision(k)), null); if (t.length <= max) return t; }
-    const e = v.toExponential(Math.max(0, max - 6)).replace('.', ',').replace('e+', 'E+').replace('e-', 'E-');
-    if (e.length <= max) return e;
+    for (let k = 14; k >= 1; k--) { const t = afficherValeur(parseFloat(v.toPrecision(k)), null); if (largeurTexte(t, s) <= largeur) return t; }
+    for (let k = 6; k >= 0; k--) { const e = v.toExponential(k).replace('.', ',').replace('e+', 'E+').replace('e-', 'E-'); if (largeurTexte(e, s) <= largeur) return e; }
   }
-  return '#'.repeat(max);
+  return '#'.repeat(Math.max(1, Math.floor(largeur / largeurTexte('#', s))));
 }
 
 function echapper(s) { return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
@@ -344,12 +421,12 @@ function instantane() {
   const f = feuille();
   const cells = new Map();
   for (const [k, cel] of f.cellules) cells.set(k, { ...cel, s: cel.s ? { ...cel.s } : undefined });
-  return { fi: fi(), nom: f.nom, cells, largeurs: { ...f.largeurs }, hauteurs: { ...f.hauteurs }, fusions: f.fusions.map((m) => ({ ...m })), graphiques: f.graphiques.map((g) => ({ ...g })), noms: new Map([...classeur.noms].map(([k, v]) => [k, { ...v }])) };
+  return { fi: fi(), nom: f.nom, cells, largeurs: { ...f.largeurs }, hauteurs: { ...f.hauteurs }, fusions: f.fusions.map((m) => ({ ...m })), graphiques: f.graphiques.map((g) => ({ ...g })), boutons: f.boutons.map((b) => ({ ...b })), noms: new Map([...classeur.noms].map(([k, v]) => [k, { ...v }])) };
 }
 function memoriser() { historique.push(instantane()); if (historique.length > 100) historique.shift(); futur = []; }
 function restaurer(s) {
   const f = classeur.feuilles[s.fi]; if (!f) return;
-  f.cellules = s.cells; f.largeurs = s.largeurs; f.hauteurs = s.hauteurs; f.fusions = s.fusions; f.graphiques = s.graphiques; f.recalculerZone();
+  f.cellules = s.cells; f.largeurs = s.largeurs; f.hauteurs = s.hauteurs; f.fusions = s.fusions; f.graphiques = s.graphiques; f.boutons = s.boutons; f.recalculerZone();
   classeur.noms = s.noms; classeur.active = s.fi; classeur.modifie();
 }
 function annuler() { if (!historique.length) return; futur.push(instantane()); restaurer(historique.pop()); rendre(); sauvegarderLocal(); }
@@ -641,7 +718,11 @@ function toast(msg, erreur = false) {
 async function ouvrirFichier(file) {
   const ext = (file.name.split('.').pop() || '').toLowerCase();
   try {
-    const buf = new Uint8Array(await file.arrayBuffer());
+    let buf = new Uint8Array(await file.arrayBuffer());
+    if (estChiffre(XLSX, buf)) {
+      buf = await dechiffrerAvecMotDePasse(buf, file.name);
+      if (!buf) return;
+    }
     if (ext === 'bas' || ext === 'cls' || ext === 'frm' || ext === 'vba') {
       let texte;
       try { texte = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch { texte = new TextDecoder('windows-1252').decode(buf); }
@@ -700,6 +781,43 @@ function basculerClasseur(c) {
   rendre();
 }
 /** Ajoute un classeur (ouvert ou nouveau) ; un classeur vide et intact au premier plan est remplacé, comme dans Excel. */
+/** Demande le mot de passe d'un fichier chiffré (plusieurs essais) et renvoie le zip déchiffré, ou null si annulé. */
+async function dechiffrerAvecMotDePasse(octets, nomFichier) {
+  // Mot de passe par défaut d'Excel pour les classeurs seulement « protégés en écriture »
+  try { return dechiffrerOffice(XLSX, octets, 'VelvetSweatshop'); } catch { /* il faut le vrai mot de passe */ }
+  let message = '';
+  for (;;) {
+    const mdp = await demanderMotDePasse(nomFichier, message);
+    if (mdp === null) { toast('Ouverture annulée'); return null; }
+    $('mdp-attente').hidden = false;
+    await new Promise((r) => setTimeout(r, 30)); // laisse s'afficher « Déchiffrement… »
+    try { const zip = dechiffrerOffice(XLSX, octets, mdp); fermerDialogueMdp(); return zip; }
+    catch (e) {
+      $('mdp-attente').hidden = true;
+      if (e instanceof ErreurMotDePasse) { message = 'Mot de passe incorrect, réessayez.'; continue; }
+      fermerDialogueMdp(); throw e;
+    }
+  }
+}
+let resoudreMdp = null;
+function demanderMotDePasse(nomFichier, message) {
+  return new Promise((resolve) => {
+    resoudreMdp = resolve;
+    $('mdp-fichier').textContent = nomFichier;
+    $('mdp-message').textContent = message || '';
+    $('mdp-attente').hidden = true;
+    $('mdp-saisie').value = '';
+    $('dialogue-mdp').hidden = false;
+    setTimeout(() => $('mdp-saisie').focus(), 0);
+  });
+}
+function fermerDialogueMdp() { $('dialogue-mdp').hidden = true; $('mdp-attente').hidden = true; }
+function repondreMdp(valeur) { const r = resoudreMdp; resoudreMdp = null; if (valeur === null) fermerDialogueMdp(); if (r) r(valeur); }
+$('mdp-ok').addEventListener('click', () => repondreMdp($('mdp-saisie').value));
+$('mdp-annuler').addEventListener('click', () => repondreMdp(null));
+$('mdp-saisie').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); repondreMdp($('mdp-saisie').value); } else if (e.key === 'Escape') repondreMdp(null); });
+$('mdp-voir').addEventListener('change', (e) => { $('mdp-saisie').type = e.target.checked ? 'text' : 'password'; });
+
 function chargerClasseur(nouveau, remplacerVierge = true) {
   if (edition) annulerEdition();
   nouveau.enregistre = nouveau.version;
@@ -802,13 +920,20 @@ function nouveauClasseur() {
 // Sauvegarde locale (navigateur) de tous les classeurs ouverts, pour survivre à un rechargement
 function serialiserClasseur(c) {
   return JSON.stringify({ nomFichier: c.nomFichier, active: c.active, macros: c.macros || '', noms: [...c.noms.values()], modifie: estModifie(c),
-    feuilles: c.feuilles.map((f) => ({ nom: f.nom, codeNom: f.codeNom, cachee: f.cachee, largeurs: f.largeurs, hauteurs: f.hauteurs, fusions: f.fusions, graphiques: f.graphiques, cellules: [...f.cellules].map(([k, cel]) => [k, { ...cel, v: cel.v instanceof ErreurFormule ? { erreur: cel.v.code } : cel.v }]) })) });
+    feuilles: c.feuilles.map((f, fi2) => ({ nom: f.nom, codeNom: f.codeNom, cachee: f.cachee, largeurs: f.largeurs, hauteurs: f.hauteurs, fusions: f.fusions, graphiques: f.graphiques, boutons: f.boutons, images: f.images, noms: [...f.noms.values()],
+      cellules: [...f.cellules].map(([k, cel]) => {
+        const o = { ...cel, v: cel.v instanceof ErreurFormule ? { erreur: cel.v.code } : cel.v };
+        // Comme Excel à l'enregistrement : la dernière valeur calculée d'une formule est gardée
+        if (cel.f != null) { const [r, col] = k.split(',').map(Number); const v = c.valeur(fi2, r, col); if (v !== null && v !== undefined && !(v instanceof ErreurFormule) && typeof v !== 'object') o.cache = v; else delete o.cache; }
+        return [k, o];
+      }) })) });
 }
 function deserialiserClasseur(data) {
   const c = new Classeur();
   c.nomFichier = data.nomFichier || 'Classeur1.xlsx';
   for (const fd of data.feuilles || []) {
-    const f = c.ajouterFeuille(fd.nom); if (fd.codeNom) { try { c.changerCodeNom(f, fd.codeNom); } catch { /* nom pris */ } } f.cachee = !!fd.cachee; f.largeurs = fd.largeurs || {}; f.hauteurs = fd.hauteurs || {}; f.fusions = fd.fusions || []; f.graphiques = fd.graphiques || [];
+    const f = c.ajouterFeuille(fd.nom); if (fd.codeNom) { try { c.changerCodeNom(f, fd.codeNom); } catch { /* nom pris */ } } f.cachee = !!fd.cachee; f.largeurs = fd.largeurs || {}; f.hauteurs = fd.hauteurs || {}; f.fusions = fd.fusions || []; f.graphiques = fd.graphiques || []; f.boutons = fd.boutons || []; f.images = fd.images || [];
+    for (const n of fd.noms || []) f.noms.set(n.nom.toUpperCase(), n);
     for (const [k, cel] of fd.cellules) { if (cel.v && typeof cel.v === 'object' && cel.v.erreur) cel.v = new ErreurFormule(cel.v.erreur); f.cellules.set(k, cel); }
     f.recalculerZone();
   }
@@ -1039,15 +1164,72 @@ function supprimerMacroUI(cle, nom) {
 }
 
 // Les Function du code VBA deviennent des fonctions de formule (=MaFonction(A1;2))
+// Un seul interpréteur VBA par classeur : les variables Public remplies par une macro (une table chargée
+// par un bouton, par exemple) restent disponibles pour les fonctions VBA utilisées dans les cellules.
+function hoteVBA() {
+  return {
+    log: (t) => journalVBA(t),
+    msgBox: (t, boutons, titre) => { const b = boutons & 15; if (b === 4 || b === 3 || b === 1) return confirm((titre ? titre + '\n\n' : '') + t) ? (b === 1 ? 1 : 6) : (b === 1 ? 2 : 7); alert((titre ? titre + '\n\n' : '') + t); return 1; },
+    inputBox: (t, titre, defaut, type) => {
+      if (type & 8) {
+        // Excel laisse sélectionner la plage à la souris : ici, la sélection en cours est proposée
+        const s2 = selectionNormalisee();
+        const proposition = defaut || (s2.r1 !== s2.r2 || s2.c1 !== s2.c2 ? adresse(s2.r1, s2.c1) + ':' + adresse(s2.r2, s2.c2) : '');
+        return prompt((titre && titre !== 'Saisie' ? titre + '\n\n' : '') + t + '\n\nPlage de cellules (ex. B10:B120, ou Feuille!B10:B120). Astuce : sélectionnez-la avant de cliquer sur le bouton.', proposition);
+      }
+      return prompt((titre && titre !== 'Saisie' ? titre + '\n\n' : '') + t, defaut);
+    },
+    enregistrer: () => toast('ThisWorkbook.Save : utilisez le bouton Enregistrer pour télécharger le fichier'),
+  };
+}
 function chargerUDF() {
+  const signature = classeur.macros;
+  if (classeur.vba && classeur.vbaCode === signature) { classeur.evaluateur.invalider(); return; }
+  classeur.vbaCode = signature;
+  classeur.vba = null;
   if (!classeur.modulesVBA().some((m) => m.code.trim())) { classeur.udf = null; classeur.evaluateur.invalider(); return; }
   try {
-    const it = new InterpreteurVBA(classeur, { log: () => {}, msgBox: () => 1, inputBox: () => '' });
-    it.limitePas = 200000;
+    // Un seul interpréteur pour tout le projet : les variables Public d'une macro servent ensuite aux fonctions des cellules
+    const it = new InterpreteurVBA(classeur, hoteVBA());
+    it.limitePas = 5_000_000;
     for (const m of classeur.modulesVBA()) if (m.code.trim()) { try { it.charger(m.code, { nom: m.nom, genre: m.genre, feuille: m.feuille }); } catch { /* module en cours de frappe */ } }
+    classeur.vba = it;
     classeur.udf = creerUDF(it);
   } catch { classeur.udf = null; }
   classeur.evaluateur.invalider();
+}
+/** Lance une Sub (depuis l'éditeur ou un bouton de la feuille). */
+function lancerMacro(nom, { depuisBouton = false } = {}) {
+  if (macroEnCours) return;
+  if (edition) validerEdition();
+  chargerUDF();
+  const it = classeur.vba;
+  if (!it) { toast('Ce classeur n\'a pas de code VBA, ou il contient une erreur : ouvrez l\'éditeur VBA et cliquez sur Vérifier', true); return; }
+  if (!it.prog.procedures.has(String(nom).toUpperCase())) { toast('Macro « ' + nom + ' » introuvable dans le code VBA', true); return; }
+  if (depuisBouton && panneauCourant === 'macros') $('sortie-vba').innerHTML = '';
+  if (!depuisBouton) $('sortie-vba').innerHTML = '';
+  memoriser();
+  macroEnCours = true;
+  const debut = performance.now();
+  journalVBA('▶ ' + nom);
+  it.hote = hoteVBA();
+  it.sortie = [];
+  let erreur = null;
+  try { it.executerProcedure(nom); }
+  catch (e) { erreur = e instanceof ErreurVBA ? e : null; if (!erreur && !(e && e.constructor && /Signal/.test(e.constructor.name))) { journalVBA('Erreur interne : ' + e.message, 'err'); console.error(e); } }
+  macroEnCours = false;
+  if (erreur) {
+    journalVBA('✖ Erreur ' + erreur.numero + (erreur.module ? ' dans ' + erreur.module : '') + (erreur.ligne ? ' (ligne ' + erreur.ligne + ')' : '') + ' : ' + erreur.description, 'err');
+    if (depuisBouton) toast('Macro « ' + nom + ' » : erreur ' + erreur.numero + ' — ' + erreur.description, true);
+    else if (erreur.ligne) montrerErreur(erreur.module, erreur.ligne);
+  } else {
+    journalVBA('✔ Terminé en ' + Math.round(performance.now() - debut) + ' ms');
+    if (depuisBouton) toast('Macro « ' + nom + ' » exécutée');
+  }
+  classeur.active = Math.min(classeur.active, classeur.feuilles.length - 1);
+  classeur.evaluateur.invalider(); // les variables globales ont pu changer
+  classeur.version++;
+  geometrie(); sauvegarderLocal(); rendre();
 }
 
 /** Liste des macros à exécuter (toutes celles du projet, groupées par module). */
@@ -1079,32 +1261,10 @@ function suivreCurseurVBA() {
 }
 function journalVBA(texte, classe) { const s = $('sortie-vba'); const d = document.createElement('div'); if (classe) d.className = classe; d.textContent = texte; s.appendChild(d); s.scrollTop = s.scrollHeight; }
 function executerMacroUI(nomQualifie) {
-  if (macroEnCours) return;
-  if (edition) validerEdition();
   const nom = typeof nomQualifie === 'string' ? nomQualifie : $('liste-procedures').value;
   if (panneauCourant !== 'macros') ouvrirPanneau('macros');
-  $('sortie-vba').innerHTML = '';
-  if (!nom) { journalVBA('Aucune macro à exécuter : créez une Sub sans paramètre (« + Macro »).', 'err'); return; }
-  memoriser();
-  macroEnCours = true;
-  const debut = performance.now();
-  journalVBA('▶ ' + nom);
-  const hote = {
-    log: (t) => journalVBA(t),
-    msgBox: (t, boutons, titre) => { const b = boutons & 15; if (b === 4 || b === 3 || b === 1) return confirm((titre ? titre + '\n\n' : '') + t) ? (b === 1 ? 1 : 6) : (b === 1 ? 2 : 7); alert((titre ? titre + '\n\n' : '') + t); return 1; },
-    inputBox: (t, titre, defaut) => prompt(t, defaut),
-    enregistrer: () => toast('ThisWorkbook.Save : utilisez le bouton Enregistrer pour télécharger le fichier'),
-  };
-  let res;
-  try { res = executerMacro(classeur, null, nom, hote); }
-  catch (e) { journalVBA('Erreur interne : ' + e.message, 'err'); console.error(e); macroEnCours = false; rendre(); return; }
-  macroEnCours = false;
-  const err = res.erreur;
-  if (err) journalVBA('✖ Erreur ' + err.numero + (err.module ? ' dans ' + err.module : '') + (err.ligne ? ' (ligne ' + err.ligne + ')' : '') + ' : ' + err.description, 'err');
-  else journalVBA('✔ Terminé en ' + Math.round(performance.now() - debut) + ' ms');
-  if (err && err.ligne) montrerErreur(err.module, err.ligne);
-  classeur.active = Math.min(classeur.active, classeur.feuilles.length - 1);
-  geometrie(); sauvegarderLocal(); rendre();
+  if (!nom) { $('sortie-vba').innerHTML = ''; journalVBA('Aucune macro à exécuter : créez une Sub sans paramètre (« + Macro »).', 'err'); return; }
+  lancerMacro(nom);
   rendreArbreVBA(false);
 }
 function montrerErreur(nomModule, ligne) {
@@ -1243,24 +1403,25 @@ function rendreFonctions() {
 }
 function rendreNoms() {
   const liste = $('liste-noms'); liste.innerHTML = '';
-  for (const d of classeur.noms.values()) {
+  const tous = [...[...classeur.noms.values()].map((d) => [d, null]), ...[...feuille().noms.values()].map((d) => [d, fi()])];
+  for (const [d, local] of tous) {
     const el = document.createElement('div'); el.className = 'nom-defini';
-    el.innerHTML = `<b>${echapper(d.nom)}</b><span>${echapper(d.ref)}</span>`;
+    el.innerHTML = `<b>${echapper(d.nom)}</b><span>${echapper(d.ref)}${local !== null ? ' <i>(feuille « ' + echapper(feuille().nom) + ' »)</i>' : ''}</span>`;
     const aller = document.createElement('button'); aller.textContent = '→'; aller.title = 'Aller à la plage';
     aller.addEventListener('click', () => allerA(d.ref));
     const suppr = document.createElement('button'); suppr.textContent = '✕'; suppr.title = 'Supprimer le nom';
-    suppr.addEventListener('click', () => { memoriser(); classeur.supprimerNom(d.nom); rendreNoms(); sauvegarderLocal(); rendre(); });
+    suppr.addEventListener('click', () => { memoriser(); classeur.supprimerNom(d.nom, local); rendreNoms(); sauvegarderLocal(); rendre(); });
     el.appendChild(aller); el.appendChild(suppr);
     liste.appendChild(el);
   }
-  if (!classeur.noms.size) liste.innerHTML = '<p style="color:var(--sourd)">Aucun nom. Sélectionnez une plage puis tapez un nom dans la zone à gauche de la barre de formule, ou ajoutez-le ci-dessus.</p>';
+  if (!tous.length) liste.innerHTML = '<p style="color:var(--sourd)">Aucun nom. Sélectionnez une plage puis tapez un nom dans la zone à gauche de la barre de formule, ou ajoutez-le ci-dessus.</p>';
 }
 function allerA(texte) {
   let s = texte.replace(/^=/, '').replace(/\$/g, '');
   const k = s.lastIndexOf('!');
   if (k >= 0) { const i = classeur.indexFeuille(s.slice(0, k).replace(/^'|'$/g, '')); if (i >= 0 && i !== fi()) { memoriserVue(); activerFeuille(i); } s = s.slice(k + 1); }
-  const p = plageDepuisTexte(s) || (classeur.nom(s) ? null : null);
-  if (!p) { if (classeur.nom(s)) return allerA(classeur.nom(s)); return toast('Plage inconnue : ' + texte, true); }
+  const p = plageDepuisTexte(s);
+  if (!p) { if (classeur.nom(s, fi())) return allerA(classeur.nom(s, fi())); return toast('Plage inconnue : ' + texte, true); }
   curseur = { r: p.r1, c: p.c1 }; selection = { r1: p.r1, c1: p.c1, r2: Math.min(p.r2, p.r1 + 5000), c2: Math.min(p.c2, p.c1 + 200) };
   nbLignes = Math.max(nbLignes, selection.r2 + 60); nbColonnes = Math.max(nbColonnes, selection.c2 + 15);
   geometrie(); defiler(curseur); rendre();
@@ -1284,6 +1445,7 @@ function rendreAide() {
 <li><b>Enregistrer</b> télécharge un .xlsx (ou .xlsm). Les formules sont écrites telles quelles ; Excel les recalcule à l'ouverture. Les macros écrites ici sont conservées dans une feuille masquée <code>_MacrosTableur</code> et rechargées par ce tableur ; le projet VBA d'origine d'un .xlsm est réécrit à l'identique.</li>
 <li><b>Plusieurs classeurs ouverts</b> : chaque fichier ouvert ou créé (<b>Nouveau</b>, bouton <b>+</b>) a son onglet en haut ; clic pour passer de l'un à l'autre, double-clic pour renommer, ✕ pour fermer (● = modifié, pas encore enregistré). Copier dans un classeur et coller dans un autre garde les formules ; celles qui citent une feuille ou un nom absent du classeur d'arrivée sont collées en valeur. Annuler (<code>Ctrl+Z</code>) est propre à chaque classeur.</li>
 <li>Tous les classeurs ouverts sont gardés dans le navigateur (rechargement de la page sans perte).</li>
+<li><b>Fichiers protégés par mot de passe</b> (« Chiffrer avec mot de passe » d'Excel, ou LibreOffice) : le mot de passe est demandé à l'ouverture, le déchiffrement se fait dans le navigateur, rien n'est envoyé. Les protections de feuille ou de classeur (sans chiffrement) et les projets VBA verrouillés s'ouvrent directement : le code est lu quand même.</li>
 </ul>
 <h3>Macros VBA</h3>
 <ul>
@@ -1293,6 +1455,8 @@ function rendreAide() {
 <li>Dans un module de feuille, <code>Range</code>, <code>Cells</code> et <code>Me</code> désignent cette feuille. Une feuille s'appelle aussi par son nom de code : <code>Feuil1.Range("A1")</code> ; une procédure par son module : <code>Module1.MaMacro</code>.</li>
 <li><b>Macros</b> (<code>Alt+F8</code>) : la liste de toutes les macros du classeur. Tapez un nom puis <b>Créer</b> pour définir une nouvelle macro, ou choisissez-en une pour l'<b>Exécuter</b>, la <b>Modifier</b> ou la <b>Supprimer</b>. <b>+ Macro</b> crée une macro nommée dans le module affiché.</li>
 <li><code>F5</code> exécute la macro où se trouve le curseur (ou celle choisie dans la liste) ; <code>Ctrl+Z</code> annule ses effets sur la feuille active.</li>
+<li><b>Boutons</b> : les boutons d'un fichier Excel (« Load Table »…) apparaissent sur la feuille et lancent leur macro. Clic droit pour changer le texte, la macro ou la place ; <b>🔘 Bouton</b> en crée un sur la sélection. Quand une macro demande une plage (<code>Application.InputBox … Type:=8</code>), la sélection en cours est proposée : sélectionnez la plage avant de cliquer.</li>
+<li>Les variables <code>Public</code> remplies par une macro restent en mémoire pour les fonctions VBA des cellules (comme dans Excel). Tant qu'elles ne sont pas remplies, les cellules gardent les valeurs enregistrées dans le fichier. <code>F9</code> recalcule, <code>Ctrl+Alt+F9</code> oublie les valeurs du fichier et recalcule tout.</li>
 <li>Les <code>Function</code> du code s'utilisent dans les cellules : <code>=MaFonction(A1;B1)</code>. Une plage arrive en <code>Range</code> (<code>For Each c In rg</code>, <code>rg.Value</code>).</li>
 </ul>`;
 }
@@ -1422,6 +1586,7 @@ conteneur.addEventListener('keydown', (e) => {
   if (k === 'Delete') { e.preventDefault(); const s = selectionBornee(); memoriser(); classeur.effacer(fi(), s.r1, s.c1, s.r2, s.c2); sauvegarderLocal(); return rendre(); }
   if (k === 'Backspace') { e.preventDefault(); return commencerEdition(''); }
   if (k === 'F2') { e.preventDefault(); return commencerEdition(); }
+  if (k === 'F9') { e.preventDefault(); if (ctrl && e.altKey) { classeur.abandonnerCaches(); toast('Tout est recalculé (valeurs du fichier oubliées)'); } else { classeur.evaluateur.invalider(); toast('Recalculé'); } return rendre(); }
   if (k === 'F5' && panneauCourant === 'macros') { e.preventDefault(); return executerMacroUI(); }
   if (k === 'F11' && e.altKey) { e.preventDefault(); return ouvrirPanneau('macros'); }
   if (k === 'F8' && e.altKey) { e.preventDefault(); return ouvrirDialogueMacros(); }
@@ -1483,7 +1648,7 @@ zoneNom.addEventListener('keydown', (e) => {
   e.preventDefault();
   const txt = zoneNom.value.trim();
   if (!txt) return;
-  if (plageDepuisTexte(txt) || txt.includes('!') || classeur.nom(txt)) { allerA(classeur.nom(txt) || txt); conteneur.focus(); return; }
+  if (plageDepuisTexte(txt) || txt.includes('!') || classeur.nom(txt, fi())) { allerA(classeur.nom(txt, fi()) || txt); conteneur.focus(); return; }
   try { const s = selectionNormalisee(); classeur.definirNom(txt, feuille().nom + '!' + adresseAbsolue(s)); sauvegarderLocal(); toast('Nom « ' + txt + ' » défini pour ' + adresseAbsolue(s)); conteneur.focus(); } catch (err) { toast(err.message, true); }
 });
 
@@ -1502,6 +1667,7 @@ $('couleur-fond').addEventListener('input', (e) => surSelection((r, c) => classe
 $('btn-sans-fond').addEventListener('click', () => surSelection((r, c) => classeur.style(fi(), r, c, { fond: null })));
 for (const b of document.querySelectorAll('[data-align]')) b.addEventListener('click', () => surSelection((r, c) => classeur.style(fi(), r, c, { align: b.dataset.align })));
 $('format-nombre').addEventListener('change', (e) => { const z = e.target.value; surSelection((r, c) => { if (z || feuille().get(r, c)) classeur.format(fi(), r, c, z || null); }); conteneur.focus(); });
+$('btn-bouton').addEventListener('click', insererBouton);
 $('graphique-type').addEventListener('change', (e) => { if (e.target.value) creerGraphique(e.target.value); e.target.value = ''; conteneur.focus(); });
 $('bordures').addEventListener('change', (e) => { if (e.target.value) appliquerBordures(e.target.value); e.target.value = ''; conteneur.focus(); });
 $('btn-decimales-moins').addEventListener('click', () => changerDecimales(-1));
