@@ -6,16 +6,17 @@
   <meta name="theme-color" content="#1f7a4d">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>Tableur — Arcadia</title>
+  <title>Sprezz</title>
   <link rel="stylesheet" href="css/tableur.css">
 </head>
 <body>
   <div id="app">
     <header id="barre-outils">
       <div class="groupe">
-        <span class="logo">▦ Tableur</span>
+        <span class="logo" title="Sprezz — tableur dans le navigateur">▦ Sprezz</span>
         <button id="btn-nouveau" title="Nouveau classeur, ouvert à côté des autres (Ctrl+Alt+N)">Nouveau</button>
         <button id="btn-ouvrir" title="Ouvrir un fichier .xlsx / .xlsm / .csv / .docx (tableaux) / .bas (module VBA) (Ctrl+O)">Ouvrir…</button>
+        <input type="file" id="fichier-image" accept="image/*" hidden>
         <input type="file" id="fichier" accept=".xlsx,.xlsm,.xls,.csv,.tsv,.ods,.docx,.bas,.cls,.frm" multiple hidden>
         <button id="btn-enregistrer" title="Télécharger le classeur (Ctrl+S)">Enregistrer</button>
         <select id="format-export" title="Format d'enregistrement">
@@ -28,6 +29,7 @@
         <button id="btn-annuler" title="Annuler (Ctrl+Z)">↶</button>
         <button id="btn-retablir" title="Rétablir (Ctrl+Y)">↷</button>
         <span class="sep"></span>
+        <button id="btn-pinceau" title="Reproduire la mise en forme : un clic pour une fois, double-clic pour plusieurs">🖌</button>
         <button id="btn-gras" title="Gras (Ctrl+B)"><b>G</b></button>
         <button id="btn-italique" title="Italique (Ctrl+I)"><i>I</i></button>
         <button id="btn-souligne" title="Souligné (Ctrl+U)"><u>S</u></button>
@@ -43,6 +45,7 @@
         <button data-align="left" title="Aligner à gauche">⇤</button>
         <button data-align="center" title="Centrer">↔</button>
         <button data-align="right" title="Aligner à droite">⇥</button>
+        <button id="btn-fusion" title="Fusionner et centrer (ou dissocier)">⊞</button>
         <button id="btn-renvoi" title="Renvoyer à la ligne automatiquement">↵ Renvoi</button>
         <select id="bordures" title="Bordures">
           <option value="">▦ Bordures</option>
@@ -124,10 +127,13 @@
         <div id="selection"></div>
         <div id="curseur"></div>
         <div id="poignee" title="Recopier"></div>
+        <button id="puce-lien" title="Ouvrir le lien" hidden>↗</button>
         <button id="fleche-liste" title="Choisir dans la liste (Alt+↓)" hidden>▾</button>
         <div id="message-validation" hidden></div>
         <textarea id="editeur" rows="1" spellcheck="false" hidden></textarea>
         <div id="plage-copie" hidden></div>
+        <div id="fantome" hidden></div>
+        <div id="zone-debord" hidden></div>
       </div>
       <aside id="panneau" hidden>
         <div id="panneau-entete">
@@ -174,6 +180,9 @@
         <div id="panneau-cible" class="panneau-contenu" hidden></div>
         <div id="panneau-validation" class="panneau-contenu" hidden></div>
         <div id="panneau-tcd" class="panneau-contenu" hidden></div>
+        <div id="panneau-solveur" class="panneau-contenu" hidden></div>
+        <div id="panneau-tabledonnees" class="panneau-contenu" hidden></div>
+        <div id="panneau-erreurs" class="panneau-contenu" hidden></div>
       </aside>
     </div>
     <footer id="onglets">

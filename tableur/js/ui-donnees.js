@@ -697,6 +697,7 @@ export function installerDonnees(api) {
   }
 
   return {
+    zone: (sel) => zoneContigue(api.feuille(), sel.r1, sel.c1),
     validation: { ouvrir: ouvrirValidation, ouvrirListe, fermerListe, toucheListe, controlerSaisie, entourer: () => entourer },
     panneaux: { validation: construireValidation, tri: construireTri, rechercher: () => construireRech(false), mfc: construireMfc, cible: construireCible },
     trierRapide, ouvrirTri, basculerFiltre, ouvrirFiltre, fermerPopup, reappliquerFiltre, effacerFiltres, ouvrirRecherche, rechercherSuivant: suivant,

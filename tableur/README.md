@@ -1,9 +1,12 @@
-# Tableur
+# Sprezz
 
-Un tableur dans le navigateur, sans étape de build ni serveur : `tableur/index.html`.
+**Sprezz** est un tableur dans le navigateur (dossier `tableur/`, adresse `…/tableur/`), sans étape de build ni serveur : `tableur/index.html`.
 Il s'ouvre vide, lit et écrit des fichiers Excel, calcule les formules (noms français et anglais)
 et exécute des macros écrites dans un sous-ensemble de VBA. Pensé pour des calculs d'actuariat
 (plusieurs feuilles, fonctions financières, lois statistiques).
+
+Principes : une interface simple (peu de boutons, des menus courts, des panneaux plutôt que des boîtes en cascade),
+utilisable au doigt comme à la souris, et **les mêmes raccourcis qu'Excel** pour ne rien réapprendre.
 
 Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 
@@ -22,6 +25,18 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
   largeurs et hauteurs, gras/italique/souligné, couleurs, alignement, formats de nombre, `F4` pour les `$`.
 - **Mise en forme** : gras, italique, souligné, couleur du texte et du fond, alignement, bordures (fines, épaisses, contour),
   formats de nombre — lus et écrits dans le `.xlsx` (`js/styles-xlsx.js` complète le fichier produit par SheetJS).
+- **Raccourcis d'Excel** : Ctrl+1 (format de cellule), Ctrl+Alt+V (collage spécial), Ctrl++ / Ctrl+- (insérer, supprimer
+  des cellules), Ctrl+Maj+1…6 (formats rapides), Ctrl+5 (barré), Ctrl+9 / Ctrl+0 (masquer), Ctrl+Espace / Maj+Espace,
+  Ctrl+Entrée (remplir la sélection), Ctrl+' , Ctrl+`, Ctrl+K (lien), Maj+F2 (note), Ctrl+G / F5 (atteindre), Ctrl+L
+  (tableau), Alt+F1 / F11 (graphique), Ctrl+PgSuiv / PgPréc, Maj+F10, F4 (refaire la mise en forme), F12… (liste dans l'aide).
+- **Édition comme Excel** : glisser le bord de la sélection pour déplacer (Ctrl : copier), double-clic sur la poignée
+  (recopie jusqu'au bout des données), double-clic sur un bord d'en-tête (ajustement automatique), Entrée qui reste dans la
+  sélection, saisie semi-automatique du texte de la colonne, pinceau (reproduire la mise en forme), fusionner et centrer,
+  barré, retrait, couleurs des formats de nombre (`[Rouge]`), fractions, AM/PM, notes, liens hypertexte (Ctrl+clic),
+  couleur des onglets, duplication complète d'une feuille, menus courts avec sous-menus.
+- **Boîtes simples** : Format de cellule (nombre, alignement, police, bordure, remplissage, avec aperçu), Collage spécial
+  (valeurs, formules, formats, notes, transposé, opérations), Insérer / supprimer des cellules (décalage vers le bas, la
+  droite…), Atteindre, Lien, Note, Supprimer les doublons, Convertir en colonnes, Mettre sous forme de tableau, Insérer une image.
 - **Graphiques** : galerie d'insertion avec un aperçu de chaque catégorie tiré des données choisies — histogramme, barres,
   lignes, aires, secteurs, nuage, radar, combiné — et leurs variantes (groupé, empilé, 100 %, marqueurs, lissé, anneau,
   éclaté…). Panneau de réglages : type, plage, séries en lignes ou en colonnes, titres du graphique et des axes, légende,
@@ -101,6 +116,7 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 | `js/donnees.js` | Tri, filtre, rechercher / remplacer, mise en forme conditionnelle, valeur cible, somme automatique (sans DOM) |
 | `js/ui-donnees.js` | Leur interface : menus, menu ▾ du filtre, panneaux, impression |
 | `js/tcd.js` | Tableaux croisés dynamiques : calcul et écriture dans la feuille (sans DOM) |
+| `js/ui-dialogues.js` | Boîtes : format de cellule, collage spécial, insertion de cellules, atteindre, lien, note, doublons, colonnes |
 | `js/ui-tcd.js` | Panneau des tableaux croisés (champs, valeurs, filtres, aperçu sur téléphone) |
 | `js/aide-fonctions.js` | Arguments et description des fonctions courantes (saisie semi-automatique) |
 | `js/vues-xlsx.js` | Volets figés, filtre automatique, mise en forme conditionnelle et validation des données dans le zip `.xlsx` |

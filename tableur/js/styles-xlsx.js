@@ -81,6 +81,7 @@ export function lireStylesXlsx(XLSX, octets) {
     if (/<b\b(?![^>]*val="0")/.test(f)) s.gras = true;
     if (/<i\b(?![^>]*val="0")/.test(f)) s.italique = true;
     if (/<u\b(?![^>]*val="none")/.test(f)) s.souligne = true;
+    if (/<strike\b(?![^>]*val="(0|false)")/.test(f)) s.barre = true;
     const sz = /<sz val="([\d.]+)"/.exec(f); if (sz && Math.abs(+sz[1] - 11) > 0.5 && Math.abs(+sz[1] - 12) > 0.5) s.taille = Math.round(+sz[1] * 1.333);
     const col = /<color[^>]*\/>/.exec(f); const c = col ? lireCouleur(col[0], theme) : null; if (c && c !== '#000000') s.couleur = c;
     return s;
@@ -107,6 +108,7 @@ export function lireStylesXlsx(XLSX, octets) {
     const al = /<alignment[^>]*horizontal="(left|center|right)"/.exec(x); if (al) s.align = al[1];
     const va = /<alignment[^>]*vertical="(top|center)"/.exec(x); if (va) s.valign = va[1];
     if (/<alignment[^>]*wrapText="(1|true)"/.test(x)) s.renvoi = true;
+    const ind = /<alignment[^>]*indent="(\d+)"/.exec(x); if (ind && +ind[1]) s.retrait = +ind[1];
     return Object.keys(s).length ? s : null;
   });
   if (!xfs.some(Boolean)) return new Map();
@@ -137,7 +139,7 @@ export function lireStylesXlsx(XLSX, octets) {
 function cleStyle(s) {
   if (!s) return '';
   const b = s.bordures || (s.bordure ? { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } : null);
-  return [s.gras ? 'B' : '', s.italique ? 'I' : '', s.souligne ? 'U' : '', s.couleur || '', s.fond || '', s.taille || '', s.align || '', s.valign || '', s.renvoi ? 'W' : '',
+  return [s.gras ? 'B' : '', s.italique ? 'I' : '', s.souligne ? 'U' : '', s.couleur || '', s.fond || '', s.taille || '', s.align || '', s.valign || '', s.renvoi ? 'W' : '', s.barre ? 'S' : '', s.retrait || '',
     b ? ['h', 'b', 'g', 'd'].map((k) => b[k] || '-').join(',') : ''].join('|');
 }
 
@@ -166,10 +168,10 @@ export function ecrireStylesXlsx(XLSX, octets, feuilles) {
     const base = xfs[origine] || xfs[0];
     const numFmtId = attr(base, 'numFmtId') || '0';
     let fontXml = police;
-    if (s.gras || s.italique || s.souligne || s.couleur || s.taille) {
+    if (s.gras || s.italique || s.souligne || s.barre || s.couleur || s.taille) {
       const sz = /<sz val="([\d.]+)"\/>/.exec(police);
       const taille = s.taille ? Math.round(s.taille * 0.75) : (sz ? sz[1] : 11);
-      fontXml = '<font>' + (s.gras ? '<b/>' : '') + (s.italique ? '<i/>' : '') + (s.souligne ? '<u/>' : '') + '<sz val="' + taille + '"/>'
+      fontXml = '<font>' + (s.gras ? '<b/>' : '') + (s.italique ? '<i/>' : '') + (s.barre ? '<strike/>' : '') + (s.souligne ? '<u/>' : '') + '<sz val="' + taille + '"/>'
         + (s.couleur ? '<color rgb="FF' + s.couleur.slice(1).toUpperCase() + '"/>' : '<color theme="1"/>') + '<name val="Calibri"/><family val="2"/><scheme val="minor"/></font>';
     }
     const fontId = indexDe(fonts, fontXml);
@@ -182,7 +184,7 @@ export function ecrireStylesXlsx(XLSX, octets, feuilles) {
     }
     const xf = '<xf numFmtId="' + numFmtId + '" fontId="' + fontId + '" fillId="' + fillId + '" borderId="' + borderId + '" xfId="0"'
       + (numFmtId !== '0' ? ' applyNumberFormat="1"' : '') + (fontId ? ' applyFont="1"' : '') + (fillId ? ' applyFill="1"' : '') + (borderId ? ' applyBorder="1"' : '')
-      + (s.align || s.valign || s.renvoi ? ' applyAlignment="1"><alignment' + (s.align ? ' horizontal="' + s.align + '"' : '') + (s.valign ? ' vertical="' + s.valign + '"' : '') + (s.renvoi ? ' wrapText="1"' : '') + '/></xf>' : '/>');
+      + (s.align || s.valign || s.renvoi || s.retrait ? ' applyAlignment="1"><alignment' + (s.align ? ' horizontal="' + s.align + '"' : s.retrait ? ' horizontal="left"' : '') + (s.valign ? ' vertical="' + s.valign + '"' : '') + (s.renvoi ? ' wrapText="1"' : '') + (s.retrait ? ' indent="' + s.retrait + '"' : '') + '/></xf>' : '/>');
     const i = indexDe(xfs, xf);
     cache.set(cle, i);
     return i;

@@ -590,3 +590,133 @@ export function formuleAutomatique(classeur, fi, r, c, fonction = 'SOMME') {
 
 /** Lettres de colonne pour l'interface (réexport pratique). */
 export { colVersLettres };
+
+// ---------------------------------------------------------------------------
+// Collage spécial, décalage de cellules, doublons, conversion en colonnes
+// ---------------------------------------------------------------------------
+
+/**
+ * Collage spécial. src : { classeur, fi, r1, c1, r2, c2 } ; dest : { r, c } dans la feuille destFi du classeur.
+ * options : quoi ('tout' | 'formules' | 'valeurs' | 'formats' | 'valeursFormats' | 'notes'), operation ('aucune' | 'addition' |
+ * 'soustraction' | 'multiplication' | 'division'), ignorerVides, transposer. Renvoie la plage collée.
+ */
+export function collerSpecial(classeur, src, destFi, dest, options = {}) {
+  const { quoi = 'tout', operation = 'aucune', ignorerVides = false, transposer = false } = options;
+  const sc = src.classeur || classeur, sf = sc.feuilles[src.fi], f = classeur.feuilles[destFi];
+  const bloc = [];
+  for (let r = src.r1; r <= src.r2; r++) for (let c = src.c1; c <= src.c2; c++) {
+    const cel = sf.get(r, c);
+    bloc.push({ dr: r - src.r1, dc: c - src.c1, cel: cel ? JSON.parse(JSON.stringify({ ...cel, v: cel.v instanceof ErreurFormule ? null : cel.v })) : null, v: cel ? sc.valeur(src.fi, r, c) : null, err: cel && cel.v instanceof ErreurFormule ? cel.v : null });
+  }
+  const op = (a, b) => {
+    if (typeof b !== 'number') return a;
+    const x = typeof a === 'number' ? a : (a === null || a === undefined || a === '' ? 0 : null);
+    if (x === null) return a;
+    switch (operation) { case 'addition': return x + b; case 'soustraction': return x - b; case 'multiplication': return x * b; case 'division': return b === 0 ? new ErreurFormule('#DIV/0!') : x / b; default: return b; }
+  };
+  let r2 = dest.r, c2 = dest.c;
+  for (const b of bloc) {
+    const dr = transposer ? b.dc : b.dr, dc = transposer ? b.dr : b.dc;
+    const r = dest.r + dr, c = dest.c + dc;
+    r2 = Math.max(r2, r); c2 = Math.max(c2, c);
+    const vide = !b.cel || (b.cel.f == null && (b.cel.v === null || b.cel.v === undefined || b.cel.v === ''));
+    if (ignorerVides && vide) continue;
+    const ancien = f.get(r, c) || {};
+    const nouveau = { ...ancien };
+    if (quoi === 'formats') { if (b.cel && b.cel.s) nouveau.s = b.cel.s; else delete nouveau.s; if (b.cel && b.cel.z) nouveau.z = b.cel.z; else delete nouveau.z; f.set(r, c, Object.keys(nouveau).length ? nouveau : null); continue; }
+    if (quoi === 'notes') { if (b.cel && b.cel.note) nouveau.note = b.cel.note; f.set(r, c, nouveau); continue; }
+    let contenu;
+    if (quoi === 'valeurs' || quoi === 'valeursFormats' || (operation !== 'aucune' && quoi !== 'formules')) {
+      const v = b.err ? b.err : b.v instanceof ErreurFormule ? b.v : b.v;
+      contenu = { v: operation !== 'aucune' ? op(ancien.f != null ? classeur.valeur(destFi, r, c) : ancien.v, v) : v };
+    } else if (b.cel && b.cel.f != null) contenu = { f: decalerFormule(b.cel.f, r - (src.r1 + b.dr), c - (src.c1 + b.dc)) };
+    else contenu = { v: operation !== 'aucune' ? op(ancien.v, b.cel ? b.cel.v : null) : (b.cel ? b.cel.v : null) };
+    delete nouveau.f; delete nouveau.v; delete nouveau.cache;
+    Object.assign(nouveau, contenu);
+    if (quoi === 'tout' || quoi === 'valeursFormats') { if (b.cel && b.cel.s) nouveau.s = b.cel.s; else if (quoi === 'tout') delete nouveau.s; if (b.cel && b.cel.z) nouveau.z = b.cel.z; else if (quoi === 'tout') delete nouveau.z; }
+    if (quoi === 'tout' && b.cel && b.cel.note) nouveau.note = b.cel.note;
+    if (nouveau.v === null && nouveau.f == null && !nouveau.s && !nouveau.z && !nouveau.note) f.set(r, c, null); else f.set(r, c, nouveau);
+  }
+  f.recalculerZone();
+  classeur.modifie();
+  return { r1: dest.r, c1: dest.c, r2, c2 };
+}
+
+/**
+ * Insère (n > 0) ou supprime (n < 0) des cellules en décalant les voisines : sens 'lignes' (vers le bas / le haut)
+ * dans les colonnes c1..c2, ou 'colonnes' (vers la droite / la gauche) dans les lignes r1..r2.
+ * Les références des formules vers les cellules déplacées suivent (cellule seule ou plage entièrement déplacée).
+ */
+export function decalerCellules(classeur, fi, p, sens) {
+  const f = classeur.feuilles[fi];
+  const lignes = sens === 'bas' || sens === 'haut';
+  const n = lignes ? (p.r2 - p.r1 + 1) * (sens === 'bas' ? 1 : -1) : (p.c2 - p.c1 + 1) * (sens === 'droite' ? 1 : -1);
+  const dans = (r, c) => (lignes ? c >= p.c1 && c <= p.c2 && r >= p.r1 : r >= p.r1 && r <= p.r2 && c >= p.c1);
+  const supprime = (r, c) => n < 0 && (lignes ? c >= p.c1 && c <= p.c2 && r >= p.r1 && r <= p.r2 : r >= p.r1 && r <= p.r2 && c >= p.c1 && c <= p.c2);
+  const deplacer = (r, c) => (lignes ? { r: r + n, c } : { r, c: c + n });
+  // 1. Les cellules
+  const nouvelles = new Map();
+  f.chaque((r, c, cel) => {
+    if (supprime(r, c)) return;
+    const q = dans(r, c) ? deplacer(r, c) : { r, c };
+    nouvelles.set(q.r + ',' + q.c, cel);
+  });
+  f.cellules = nouvelles;
+  f.recalculerZone();
+  // 2. Les références (dans tout le classeur) vers les cellules de cette feuille
+  const re = /((?:'(?:[^']|'')+'|[A-Za-z_][\w.]*)!)?(\$?)([A-Za-z]{1,3})(\$?)(\d+)(?::(\$?)([A-Za-z]{1,3})(\$?)(\d+))?(?![\w(])/g;
+  classeur.feuilles.forEach((g, i) => g.chaque((r, c, cel) => {
+    if (cel.f == null) return;
+    const morceaux = cel.f.split(/("(?:[^"]|"")*")/);
+    cel.f = morceaux.map((m, k) => (k % 2 ? m : m.replace(re, (tout, pref, a1, col1, a2, lig1, b1, col2, b2, lig2) => {
+      const nom = pref ? pref.slice(0, -1).replace(/^'|'$/g, '').replace(/''/g, "'") : null;
+      if (nom ? nom.toLowerCase() !== f.nom.toLowerCase() : i !== fi) return tout;
+      const c1 = lettresVersCol(col1), r1 = +lig1 - 1;
+      const c2b = col2 ? lettresVersCol(col2) : c1, r2b = lig2 ? +lig2 - 1 : r1;
+      const d1 = dans(r1, c1), d2 = dans(r2b, c2b);
+      if (!col2) { if (supprime(r1, c1)) return (pref || '') + '#REF!'; if (!d1) return tout; const q = deplacer(r1, c1); return (pref || '') + a1 + colVersLettres(q.c) + a2 + (q.r + 1); }
+      if (!(d1 && d2) || supprime(r1, c1) || supprime(r2b, c2b)) return tout;
+      const q1 = deplacer(r1, c1), q2 = deplacer(r2b, c2b);
+      return (pref || '') + a1 + colVersLettres(q1.c) + a2 + (q1.r + 1) + ':' + b1 + colVersLettres(q2.c) + b2 + (q2.r + 1);
+    }))).join('');
+    delete cel.cache;
+  }));
+  classeur.modifie();
+}
+function lettresVersCol(l) { let c = 0; for (const ch of l.toUpperCase()) c = c * 26 + (ch.charCodeAt(0) - 64); return c - 1; }
+
+/** Supprime les lignes en double d'une plage (sur les colonnes indiquées) ; les suivantes remontent. Renvoie le nombre supprimé. */
+export function supprimerDoublons(classeur, fi, p, colonnes, { entete = true } = {}) {
+  const f = classeur.feuilles[fi];
+  const cols = colonnes && colonnes.length ? colonnes : Array.from({ length: p.c2 - p.c1 + 1 }, (_, i) => p.c1 + i);
+  const vus = new Set(), garder = [];
+  const r0 = p.r1 + (entete ? 1 : 0);
+  for (let r = r0; r <= p.r2; r++) {
+    const cle = cols.map((c) => { const v = classeur.valeur(fi, r, c); return typeof v === 'string' ? 's' + v.toLowerCase() : typeof v + ':' + (v instanceof ErreurFormule ? v.code : v); }).join('\u0001');
+    if (vus.has(cle)) continue;
+    vus.add(cle); garder.push(r);
+  }
+  const n = p.r2 - r0 + 1 - garder.length;
+  if (!n) return 0;
+  const lignes = garder.map((r) => { const l = []; for (let c = p.c1; c <= p.c2; c++) { const cel = f.get(r, c); l.push(cel ? { ...cel } : null); } return { r, l }; });
+  for (let r = r0; r <= p.r2; r++) for (let c = p.c1; c <= p.c2; c++) f.set(r, c, null);
+  lignes.forEach(({ r, l }, i) => l.forEach((cel, k) => { if (cel && cel.f != null && r !== r0 + i) { cel.f = decalerFormule(cel.f, r0 + i - r, 0); delete cel.cache; } f.set(r0 + i, p.c1 + k, cel); }));
+  f.recalculerZone(); classeur.modifie();
+  return n;
+}
+
+/** Convertit une colonne de textes en plusieurs colonnes (séparateur ; , tabulation, espace ou autre). Renvoie le nombre de colonnes. */
+export function convertirEnColonnes(classeur, fi, p, separateur = ';', { regrouper = false } = {}) {
+  const f = classeur.feuilles[fi];
+  const sep = separateur === 'tab' ? '\t' : separateur === 'espace' ? ' ' : separateur;
+  let max = 1;
+  for (let r = p.r1; r <= p.r2; r++) {
+    const cel = f.get(r, p.c1);
+    if (!cel || cel.f != null || typeof cel.v !== 'string') continue;
+    let morceaux = cel.v.split(sep);
+    if (regrouper) morceaux = morceaux.filter((x) => x !== '');
+    max = Math.max(max, morceaux.length);
+    morceaux.forEach((m, k) => classeur.saisir(fi, r, p.c1 + k, m.trim()));
+  }
+  return max;
+}

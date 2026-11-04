@@ -160,7 +160,9 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
   }
   // Zones : titre, légende, titres d'axes, tracé
   let haut = mini ? 4 : 8, bas = mini ? 4 : 6, gauche = mini ? 4 : 6, droite = mini ? 4 : 8;
-  if (g.titre && !mini) { svg += texte(W / 2, 6 + police * 1.35, g.titre, `text-anchor="middle" font-size="${Math.round(police * 1.3)}" font-weight="600" fill="#111827"`); haut += police * 1.6 + 4; }
+  // En édition (graphique choisi), le titre vide s'affiche « Titre du graphique » : un clic dessus pour l'écrire
+  const edition = !!options.edition && !mini;
+  if ((g.titre || edition) && !mini) { svg += texte(W / 2, 6 + police * 1.35, g.titre || 'Titre du graphique', `data-zone="titre" text-anchor="middle" font-size="${Math.round(police * 1.3)}" font-weight="600" fill="${g.titre ? '#111827' : '#9ca3af'}"${g.titre ? '' : ' font-style="italic"'}${edition ? ' style="cursor:text"' : ''}`); haut += police * 1.6 + 4; }
   const circulaire = g.type === 'secteurs';
   const legendeItems = circulaire ? d.categories.map((c, i) => [c, couleur(i)]) : d.series.map((s, i) => [s.nom, couleur(i)]);
   const pos = mini || g.legende === 'aucune' || (!circulaire && d.series.length < 2 && g.legende === 'droite' && !g.legendeForcee) ? 'aucune' : g.legende;
@@ -234,14 +236,14 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
   // Marges pour les graduations et titres d'axes
   const etiquettesVal = []; for (let v = ey.min; v <= ey.max + ey.pas * 1e-6; v += ey.pas) etiquettesVal.push(+v.toPrecision(12));
   const largeurGrad = mini ? 0 : Math.max(...etiquettesVal.map((v) => fmtVal(v, cent).length)) * police * 0.58 + 6;
-  if (g.titreY && !mini) { if (horizontal) bas += police + 6; else { gauche += police + 6; svg += texte(gauche - police + 2, (haut + H - bas) / 2, g.titreY, `text-anchor="middle" fill="#374151" transform="rotate(-90 ${gauche - police + 2} ${(haut + H - bas) / 2})"`); } }
-  if (g.titreX && !mini) { if (horizontal) { gauche += police + 6; svg += texte(gauche - police + 2, (haut + H - bas) / 2, g.titreX, `text-anchor="middle" fill="#374151" transform="rotate(-90 ${gauche - police + 2} ${(haut + H - bas) / 2})"`); } else bas += police + 6; }
+  if (g.titreY && !mini) { if (horizontal) bas += police + 6; else { gauche += police + 6; svg += texte(gauche - police + 2, (haut + H - bas) / 2, g.titreY, `data-zone="titreY" text-anchor="middle" fill="#374151"${edition ? ' style="cursor:text"' : ''} transform="rotate(-90 ${gauche - police + 2} ${(haut + H - bas) / 2})"`); } }
+  if (g.titreX && !mini) { if (horizontal) { gauche += police + 6; svg += texte(gauche - police + 2, (haut + H - bas) / 2, g.titreX, `data-zone="titreX" text-anchor="middle" fill="#374151"${edition ? ' style="cursor:text"' : ''} transform="rotate(-90 ${gauche - police + 2} ${(haut + H - bas) / 2})"`); } else bas += police + 6; }
   const largeurCat = mini ? 0 : horizontal ? Math.min(W * 0.3, Math.max(...d.categories.map((c) => Math.min(c.length, 16))) * police * 0.58 + 8) : 0;
   const zone = { x: gauche + (horizontal ? largeurCat : largeurGrad), y: haut + police * 0.5, w: 0, h: 0 };
   zone.w = Math.max(20, W - droite - zone.x - (mini ? 0 : 4));
   zone.h = Math.max(20, H - bas - zone.y - (mini ? 2 : police + 6));
-  if (g.titreX && !mini && !horizontal) svg += texte(zone.x + zone.w / 2, H - bas + police + 2, g.titreX, 'text-anchor="middle" fill="#374151"');
-  if (g.titreY && !mini && horizontal) svg += texte(zone.x + zone.w / 2, H - bas + police + 2, g.titreY, 'text-anchor="middle" fill="#374151"');
+  if (g.titreX && !mini && !horizontal) svg += texte(zone.x + zone.w / 2, H - bas + police + 2, g.titreX, 'data-zone="titreX" text-anchor="middle" fill="#374151"' + (edition ? ' style="cursor:text"' : ''));
+  if (g.titreY && !mini && horizontal) svg += texte(zone.x + zone.w / 2, H - bas + police + 2, g.titreY, 'data-zone="titreY" text-anchor="middle" fill="#374151"' + (edition ? ' style="cursor:text"' : ''));
   // Conversions valeur → pixel
   const pv = (v) => (horizontal ? zone.x + ((v - ey.min) / (ey.max - ey.min)) * zone.w : zone.y + zone.h - ((v - ey.min) / (ey.max - ey.min)) * zone.h);
   const pc = (i) => (horizontal ? zone.y + ((i + 0.5) / nbCat) * zone.h : zone.x + ((i + 0.5) / nbCat) * zone.w);

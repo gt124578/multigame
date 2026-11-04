@@ -1307,7 +1307,7 @@ class ApplicationVBA extends ObjetVBA {
       case 'EVALUATE': return it.evaluerFormule(texte(posArgs(args)[0].v), it.classeur.active);
       case 'INPUTBOX': return it.inputBoxApplication(args);
       case 'VERSION': return '16.0';
-      case 'NAME': return 'Tableur Arcadia';
+      case 'NAME': return 'Sprezz';
       case 'USERNAME': return 'Utilisateur';
       case 'PI': return Math.PI;
       case 'INTERNATIONAL': return 1;
@@ -1537,7 +1537,7 @@ export class InterpreteurVBA {
     const prompt = argNomme(args, 'PROMPT', 0), boutons = argNomme(args, 'BUTTONS', 1), titre = argNomme(args, 'TITLE', 2);
     const t = texte(scalaire(prompt));
     this.log('[MsgBox] ' + t);
-    if (this.hote.msgBox) { const r = this.hote.msgBox(t, boutons === undefined ? 0 : nombre(boutons), titre === undefined ? 'Tableur' : texte(titre)); return r === undefined ? 1 : nombre(r); }
+    if (this.hote.msgBox) { const r = this.hote.msgBox(t, boutons === undefined ? 0 : nombre(boutons), titre === undefined ? 'Sprezz' : texte(titre)); return r === undefined ? 1 : nombre(r); }
     const b = boutons === undefined ? 0 : nombre(boutons) & 15;
     return b === 4 || b === 3 ? 6 : 1; // Oui par défaut
   }
@@ -1562,7 +1562,7 @@ export class InterpreteurVBA {
 
   inputBox(args) {
     const prompt = argNomme(args, 'PROMPT', 0), titre = argNomme(args, 'TITLE', 1), defaut = argNomme(args, 'DEFAULT', 2);
-    if (this.hote.inputBox) { const r = this.hote.inputBox(texte(scalaire(prompt)), titre === undefined ? 'Tableur' : texte(titre), defaut === undefined ? '' : texte(defaut)); return r === null || r === undefined ? '' : r; }
+    if (this.hote.inputBox) { const r = this.hote.inputBox(texte(scalaire(prompt)), titre === undefined ? 'Sprezz' : texte(titre), defaut === undefined ? '' : texte(defaut)); return r === null || r === undefined ? '' : r; }
     return defaut === undefined ? '' : texte(defaut);
   }
 

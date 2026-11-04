@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Classeur } from '../tableur/js/classeur.js';
-import { Evaluateur, ErreurFormule, decalerFormule, formaterNombre, formaterDate, tokeniser } from '../tableur/js/formules.js';
+import { Evaluateur, ErreurFormule, convertirFormule, decalerFormule, formaterNombre, formaterDate, tokeniser, formater, couleurFormat } from '../tableur/js/formules.js';
+import { codeFormat, lireCode } from '../tableur/js/ui-dialogues.js';
 import { executerMacro, analyserVBA, InterpreteurVBA, creerUDF } from '../tableur/js/vba.js';
 import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from '../tableur/js/xlsxio.js';
 import { preparerDonnees, rendreGraphiqueSVG, normaliser, CATEGORIES } from '../tableur/js/graphiques.js';
@@ -15,8 +16,9 @@ import { listerProcedures, insererMacro, supprimerProcedure, ajouterAuProjet, de
 import { aesEcbDechiffrer, aesCbcDechiffrer, sha1, sha256, sha384, sha512, estChiffre, dechiffrerOffice, ErreurMotDePasse } from '../tableur/js/chiffrement.js';
 import { lireObjetsXlsx, nomMacro } from '../tableur/js/objets-xlsx.js';
 import * as graphiquesXlsx from '../tableur/js/graphiques-xlsx.js';
-import { trierPlage, comparerTri, zoneContigue, aUnEntete, appliquerFiltre, valeursFiltre, rechercher, remplacer, styleConditionnel, valeurCible, formuleAutomatique, validationDe, elementsListe, valeurValide, cellulesInvalides } from '../tableur/js/donnees.js';
+import { trierPlage, comparerTri, zoneContigue, aUnEntete, appliquerFiltre, valeursFiltre, rechercher, remplacer, styleConditionnel, valeurCible, formuleAutomatique, validationDe, elementsListe, valeurValide, cellulesInvalides, collerSpecial, decalerCellules, supprimerDoublons, convertirEnColonnes } from '../tableur/js/donnees.js';
 import { champsSource, calculerTCD, ecrireTCD, tcdA, actualiserTout, typeChamp } from '../tableur/js/tcd.js';
+import { solveur, lireContrainte, calculerTableDonnees, remplissageInstantane, antecedents, dependants, etapesEvaluation, verifierErreurs } from '../tableur/js/analyse.js';
 import crypto from 'node:crypto';
 
 const require = createRequire(import.meta.url);
@@ -54,7 +56,7 @@ test('références, plages et autres feuilles', () => {
   pose(0, 0, 0, '10'); pose(0, 1, 0, '20'); pose(0, 2, 0, '30'); pose(0, 0, 1, 'texte'); pose(1, 0, 0, '5');
   egal(F('=A1+A2'), 30); egal(F('=SOMME(A1:A3)'), 60); egal(F('=SUM(A:A)'), 60); egal(F('=SOMME(1:1)'), 10);
   egal(F('=Données!A1*2'), 10); egal(F("='Données'!A1"), 5); egal(F('=Inconnue!A1'), new ErreurFormule('#REF!'));
-  pose(0, 1, 5, '=A1:A3'); egal(c.valeur(0, 1, 5), 20, 'intersection implicite'); egal(F('=NB(A1:B3)'), 3); egal(F('=NBVAL(A1:B3)'), 4);
+  pose(0, 1, 5, '=@A1:A3'); egal(c.valeur(0, 1, 5), 20, 'intersection implicite'); pose(0, 1, 5, null); egal(F('=NB(A1:B3)'), 3); egal(F('=NBVAL(A1:B3)'), 4);
 });
 
 test('noms définis et cycles', () => {
@@ -991,6 +993,161 @@ test('xlsx : graphiques d\'un fichier écrit par un autre logiciel (espaces de n
   egal([g[0].plage, g[0].titre, g[0].titreX, g[0].titreY], ['A1:C5', 'Ventes empilées', 'Mois', '€']);
   egal(e.feuilles[1].graphiques[0].plage, "'Données'!A1:B5");
   egal(g[0].x > 0 && g[0].w > 300, true);
+});
+
+test('formats : couleurs, fractions, AM/PM, codes de la boîte Format de cellule', () => {
+  egal(couleurFormat(-5, '#,##0.00;[Red]-#,##0.00'), '#ff0000'); egal(couleurFormat(5, '#,##0.00;[Red]-#,##0.00'), null);
+  egal(couleurFormat(3, '[Bleu]0'), '#0000ff'); egal(couleurFormat(3, '[Color10]0'), '#008000');
+  egal(formater(0.75, 'h:mm AM/PM'), '6:00 PM'); egal(formater(0.25, 'hh:mm AM/PM'), '06:00 AM');
+  egal(formater(2.375, '# ??/??'), '2 3/8'); egal(formater(0.5, '# ?/?'), '1/2'); egal(formater(0.3, '?/4'), '1/4'); egal(formater(3, '# ?/?'), '3');
+  egal(formater(45000, 'dd/mm/yyyy;@'), formater(45000, 'dd/mm/yyyy'));
+  egal(codeFormat({ categorie: 'monetaire', decimales: 2, symbole: '€', negatifs: 'rouge' }), '#,##0.00 €;[Red]-#,##0.00 €');
+  egal(codeFormat({ categorie: 'nombre', decimales: 1, milliers: true, negatifs: 'parentheses' }), '#,##0.0;(#,##0.0)');
+  egal(codeFormat({ categorie: 'pourcentage', decimales: 0 }), '0%');
+  for (const z of ['#,##0.00 €;[Red]-#,##0.00 €', '0.0%', '#,##0', 'dd/mm/yyyy', 'hh:mm', '0.00E+00', '# ?/?', '@', '$#,##0.00']) egal(codeFormat(lireCode(z)), z, z);
+  egal(lireCode('0.000" kg"').categorie, 'perso');
+});
+
+test('données : collage spécial, insertion de cellules, doublons, conversion en colonnes', () => {
+  const c = Classeur.nouveau();
+  [[1, 2], [3, 4]].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  c.saisir(0, 0, 2, '=A1+B1'); c.style(0, 0, 0, { gras: true });
+  // Transposé, valeurs seulement
+  collerSpecial(c, { fi: 0, r1: 0, c1: 0, r2: 1, c2: 2 }, 0, { r: 5, c: 0 }, { quoi: 'valeurs', transposer: true });
+  egal([c.valeur(0, 5, 0), c.valeur(0, 5, 1), c.valeur(0, 7, 0)], [1, 3, 3]); egal(c.feuilles[0].get(7, 0).f, undefined); egal(c.feuilles[0].get(5, 0).s, undefined);
+  // Formats seulement
+  collerSpecial(c, { fi: 0, r1: 0, c1: 0, r2: 0, c2: 0 }, 0, { r: 1, c: 1 }, { quoi: 'formats' });
+  egal(c.feuilles[0].get(1, 1).s, { gras: true }); egal(c.valeur(0, 1, 1), 4);
+  // Multiplication
+  c.saisir(0, 10, 0, '10'); c.saisir(0, 11, 0, '20'); c.saisir(0, 10, 1, '3');
+  collerSpecial(c, { fi: 0, r1: 10, c1: 1, r2: 10, c2: 1 }, 0, { r: 10, c: 0 }, { operation: 'multiplication' });
+  egal(c.valeur(0, 10, 0), 30);
+  // Formule décalée
+  collerSpecial(c, { fi: 0, r1: 0, c1: 2, r2: 0, c2: 2 }, 0, { r: 1, c: 2 }, { quoi: 'formules' });
+  egal(c.feuilles[0].get(1, 2).f, '=A2+B2');
+  // Insérer des cellules vers le bas en A1:A1 : A1 descend, la formule suit
+  const d = Classeur.nouveau();
+  d.saisir(0, 0, 0, '5'); d.saisir(0, 1, 0, '6'); d.saisir(0, 0, 1, '=A1*2'); d.saisir(0, 0, 2, '=SOMME(A1:A2)');
+  decalerCellules(d, 0, { r1: 0, c1: 0, r2: 0, c2: 0 }, 'bas');
+  egal([d.valeur(0, 1, 0), d.valeur(0, 2, 0), d.feuilles[0].get(0, 1).f, d.valeur(0, 0, 1), d.valeur(0, 0, 2)], [5, 6, '=A2*2', 10, 11]);
+  decalerCellules(d, 0, { r1: 0, c1: 0, r2: 0, c2: 0 }, 'haut');
+  egal([d.valeur(0, 0, 0), d.feuilles[0].get(0, 1).f], [5, '=A1*2']);
+  decalerCellules(d, 0, { r1: 0, c1: 0, r2: 0, c2: 0 }, 'gauche');
+  egal(d.feuilles[0].get(0, 0).f, '=#REF!*2');
+  // Doublons
+  const e = Classeur.nouveau();
+  [['Nom', 'Ville'], ['A', 'Lyon'], ['a', 'lyon'], ['B', 'Lyon'], ['A', 'Paris']].forEach((l, r) => l.forEach((v, k) => e.saisir(0, r, k, v)));
+  egal(supprimerDoublons(e, 0, { r1: 0, c1: 0, r2: 4, c2: 1 }, [0, 1]), 1);
+  egal([1, 2, 3, 4].map((r) => e.valeur(0, r, 0)), ['A', 'B', 'A', null]);
+  egal(supprimerDoublons(e, 0, { r1: 0, c1: 0, r2: 3, c2: 1 }, [0]), 1);
+  // Conversion en colonnes
+  e.saisir(0, 10, 0, 'Dupont;Jean;45'); e.saisir(0, 11, 0, 'Martin;;30');
+  egal(convertirEnColonnes(e, 0, { r1: 10, c1: 0, r2: 11, c2: 0 }, ';'), 3);
+  egal([e.valeur(0, 10, 0), e.valeur(0, 10, 1), e.valeur(0, 10, 2), e.valeur(0, 11, 2)], ['Dupont', 'Jean', 45, 30]);
+});
+
+test('xlsx : barré, retrait, liens, couleur d\'onglet', () => {
+  const c = Classeur.nouveau(), f = c.feuilles[0];
+  c.saisir(0, 0, 0, 'Site'); f.get(0, 0).lien = 'https://exemple.fr';
+  c.saisir(0, 1, 0, 'Plus bas'); f.get(1, 0).lien = '#Feuil1!C50';
+  c.saisir(0, 2, 0, 'x'); c.style(0, 2, 0, { barre: true, retrait: 2 });
+  f.couleur = '#4472c4';
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c), 'x.xlsx'), g = e.feuilles[0];
+  egal([g.get(0, 0).lien, g.get(1, 0).lien, g.couleur], ['https://exemple.fr', '#Feuil1!C50', '#4472c4']);
+  egal([g.get(2, 0).s.barre, g.get(2, 0).s.retrait], [true, 2]);
+});
+
+test('formules qui débordent : SEQUENCE, TRIER, UNIQUE, FILTRE, A1#, #SPILL!', () => {
+  const c = Classeur.nouveau();
+  [['Nom', 'Âge'], ['b', 30], ['a', 20], ['c', 40], ['a', 20]].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  c.saisir(0, 0, 3, '=SEQUENCE(3)'); c.saisir(0, 0, 4, '=SOMME(D1#)'); c.saisir(0, 0, 5, '=TRIER(A2:B5;2;-1)');
+  c.saisir(0, 0, 8, '=UNIQUE(A2:A5)'); c.saisir(0, 0, 9, '=FILTRE(A2:A5;B2:B5>25)');
+  const t = (r, k) => { const v = c.valeur(0, r, k); return v instanceof ErreurFormule ? v.code : v; };
+  egal([0, 1, 2, 3].map((r) => t(r, 3)), [1, 2, 3, null]); egal(t(0, 4), 6);
+  egal([0, 1, 2, 3].map((r) => t(r, 5) + '/' + t(r, 6)), ['c/40', 'b/30', 'a/20', 'a/20']);
+  egal([0, 1, 2].map((r) => t(r, 8)), ['b', 'a', 'c']); egal([0, 1].map((r) => t(r, 9)), ['b', 'c']);
+  egal(c.texte(0, 2, 6), '20', 'texte d\'une cellule débordée');
+  c.saisir(0, 10, 0, '=SEQUENCE(2)'); c.saisir(0, 11, 0, 'x'); egal(t(10, 0), '#SPILL!');
+  c.saisir(0, 11, 0, null); egal(t(11, 0), 2, 'la place se libère');
+  c.saisir(0, 0, 3, '=SEQUENCE(2)'); egal([t(2, 3), t(0, 4)], [null, 3], 'débordement réduit');
+  c.saisir(0, 20, 0, '=@A2:A5'); egal(t(20, 0), '#VALUE!', 'intersection hors des lignes');
+});
+
+test('xlsx : formules matricielles dynamiques et virgules anglaises', () => {
+  const c = Classeur.nouveau(); c.saisir(0, 0, 0, '=SEQUENCE(3;2)'); c.saisir(0, 0, 3, '=SOMME(A1#)'); c.saisir(0, 0, 4, '=SI(A1>0;1,5;0)');
+  const o = ecrireClasseur(XLSX, c), e = lireClasseur(XLSX, o, 'x.xlsx');
+  egal([e.valeur(0, 2, 1), e.valeur(0, 0, 3), e.valeur(0, 0, 4)], [6, 21, 1.5]);
+  egal(e.feuilles[0].get(0, 0).f, '=SEQUENCE(3;2)');
+  e.saisir(0, 0, 0, '=SEQUENCE(2)'); egal([e.valeur(0, 2, 1), e.valeur(0, 1, 0)], [null, 2]);
+  egal(tokeniser('IF(A1>0,1.5,{1,2;3,4})', 'en').filter((t) => t.t === 'nombre').map((t) => t.v), [0, 1.5, 1, 2, 3, 4]);
+});
+
+test('tableaux structurés : références, colonne calculée, agrandissement, total, renommage', () => {
+  const c = Classeur.nouveau();
+  [['Produit', 'Prix HT', 'Qté'], ['a', 10, 2], ['b', 20, 3], ['c', 5, 10]].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  const t = c.creerTableau(0, { r1: 0, c1: 0, r2: 3, c2: 2 });
+  egal([t.nom, c.nomsColonnes(0, t)], ['Tableau1', ['Produit', 'Prix HT', 'Qté']]);
+  c.saisir(0, 0, 3, 'Montant'); c.etendreTableau(0, 0, 3);
+  c.saisir(0, 1, 3, '=[@[Prix HT]]*[@Qté]'); egal(c.colonneCalculee(0, 1, 3), true);
+  egal([1, 2, 3].map((r) => c.valeur(0, r, 3)), [20, 60, 50]);
+  c.saisir(0, 4, 0, 'd'); c.etendreTableau(0, 4, 0); c.saisir(0, 4, 1, '100'); c.saisir(0, 4, 2, '1');
+  egal([t.r2, c.valeur(0, 4, 3)], [4, 100], 'nouvelle ligne avec sa formule');
+  const F2 = (x) => c.evaluateur.evaluerFormule(x, 0, 9, 9);
+  egal([F2('=SOMME(Tableau1[Montant])'), F2('=NBVAL(Tableau1[#Tout])'), F2('=SOMME(Tableau1[[#Données];[Prix HT]:[Qté]])'), F2('=LIGNES(Tableau1)'), F2('=NBVAL(Tableau1[#En-têtes])')], [230, 20, 151, 4, 4]);
+  egal(F2('=Inconnu[Prix]'), new ErreurFormule('#NAME?'));
+  c.saisir(0, 8, 0, '=SOMME(Tableau1[Montant])');
+  c.ligneTotal(0, t, true); egal([t.r2, c.valeur(0, 5, 0), c.valeur(0, 5, 3)], [5, 'Total', 230]);
+  c.saisir(0, 0, 1, 'PU'); egal([c.feuilles[0].get(1, 3).f, c.valeur(0, 2, 3)], ['=[@PU]*[@Qté]', 60], 'colonne renommée');
+  c.insererLignes(0, 2, 1); egal([t.r2, c.valeur(0, 9, 0)], [6, 230], 'insertion dans le tableau');
+  c.renommerTableau('Tableau1', 'Ventes'); egal([c.feuilles[0].get(9, 0).f, c.valeur(0, 9, 0)], ['=SOMME(Ventes[Montant])', 230]);
+  // Écriture et relecture xlsx : les références deviennent Ventes[[#This Row],[PU]] dans le fichier
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c), 'x.xlsx'), te = e.feuilles[0].tableaux[0];
+  egal([te.nom, te.r1, te.r2, te.c2, te.totaux, e.valeur(0, 9, 0), e.valeur(0, 6, 3)], ['Ventes', 0, 6, 3, true, 230, 230]);
+  egal(convertirFormule('=[@PU]*Ventes[[#Tout];[Qté]]', 'en', { table: 'Ventes' }), '=Ventes[[#This Row],[PU]]*Ventes[[#All],[Qté]]');
+  egal(convertirFormule('=Table1[[#This Row],[Prix HT]]', 'fr'), '=Table1[@[Prix HT]]');
+  // Convertir en plage : références A1
+  c.supprimerTableau(0, t); egal([c.feuilles[0].get(9, 0).f, c.feuilles[0].get(1, 3).f, c.valeur(0, 9, 0)], ['=SOMME($D$2:$D$6)', '=B2*C2', 230]);
+  // Un nom défini qui ressemble à une adresse n'est plus décalé
+  const d = Classeur.nouveau(); d.definirNom('Prime2023', 'Feuil1!$A$1'); d.saisir(0, 0, 0, '5'); d.saisir(0, 0, 1, '=Prime2023*2'); d.insererLignes(0, 0, 1);
+  egal(d.feuilles[0].get(1, 1).f, '=Prime2023*2');
+});
+
+test('Solveur : simplexe, nombres entiers, non linéaire, valeur cible', () => {
+  const modele = (cellules, formules) => { const c = Classeur.nouveau(); for (const [r, k, v] of [...cellules, ...formules]) c.saisir(0, r, k, v); return c; };
+  let c = modele([[0, 0, '0'], [0, 1, '0']], [[1, 0, '=3*A1+5*B1'], [2, 0, '=A1'], [2, 1, '=2*B1'], [2, 2, '=3*A1+2*B1']]);
+  let r = solveur(c, 0, { objectif: { r: 1, c: 0 }, but: 'max', variables: { r1: 0, c1: 0, r2: 0, c2: 1 }, contraintes: ['A3<=4', 'B3 <= 12', 'C3≤18'].map(lireContrainte) });
+  egal([r.ok, r.methode, r.x, r.y], [true, 'simplexe', [2, 6], 36]);
+  c = modele([[0, 0, '0'], [0, 1, '0']], [[1, 0, '=A1+B1'], [2, 0, '=2*A1+2*B1']]);
+  r = solveur(c, 0, { objectif: { r: 1, c: 0 }, but: 'max', variables: { r1: 0, c1: 0, r2: 0, c2: 1 }, contraintes: ['A3<=7', 'A1:B1 = ent'].map(lireContrainte) });
+  egal([r.ok, r.y], [true, 3], 'entiers');
+  c = modele([[0, 0, '1'], [0, 1, '1']], [[1, 0, '=A1*B1'], [1, 1, '=A1+B1']]);
+  r = solveur(c, 0, { objectif: { r: 1, c: 0 }, but: 'max', variables: { r1: 0, c1: 0, r2: 0, c2: 1 }, contraintes: [lireContrainte('B2<=10')] });
+  egal(r.methode, 'non linéaire'); proche(r.y, 25, 1e-4); proche(c.valeur(0, 0, 0), 5, 1e-3);
+  c = modele([[0, 0, '0,05']], [[1, 0, '=VA(A1;10;-150)']]);
+  r = solveur(c, 0, { objectif: { r: 1, c: 0 }, but: 'valeur', valeur: 1000, variables: [{ r: 0, c: 0 }], contraintes: [] });
+  proche(r.y, 1000, 1e-4);
+  c = modele([[0, 0, '0'], [0, 1, '0']], [[1, 0, '=A1+B1'], [2, 0, '=A1+B1']]);
+  r = solveur(c, 0, { objectif: { r: 1, c: 0 }, but: 'max', variables: { r1: 0, c1: 0, r2: 0, c2: 1 }, contraintes: ['A3>=5', 'A3<=4'].map(lireContrainte) });
+  egal(r.ok, false, 'impossible');
+});
+
+test('Table de données, remplissage instantané, audit des formules', () => {
+  let c = Classeur.nouveau(); c.saisir(0, 0, 0, '2'); c.saisir(0, 0, 1, '3'); c.saisir(0, 2, 0, '=A1*B1'); ['1', '2'].forEach((v, i) => c.saisir(0, 2, 1 + i, v)); ['10', '20'].forEach((v, i) => c.saisir(0, 3 + i, 0, v));
+  calculerTableDonnees(c, 0, { plage: { r1: 2, c1: 0, r2: 4, c2: 2 }, ligne: { r: 0, c: 0 }, colonne: { r: 0, c: 1 } });
+  egal([[3, 1], [3, 2], [4, 1], [4, 2]].map(([r, k]) => c.valeur(0, r, k)), [10, 20, 20, 40]); egal([c.valeur(0, 0, 0), c.valeur(0, 0, 1)], [2, 3], 'entrées remises');
+  c = Classeur.nouveau(); c.saisir(0, 0, 0, '5'); c.saisir(0, 2, 1, '=A1*2'); c.saisir(0, 2, 2, '=A1+1'); ['1', '2'].forEach((v, i) => c.saisir(0, 3 + i, 0, v));
+  calculerTableDonnees(c, 0, { plage: { r1: 2, c1: 0, r2: 4, c2: 2 }, colonne: { r: 0, c: 0 } });
+  egal([c.valeur(0, 3, 1), c.valeur(0, 4, 1), c.valeur(0, 4, 2)], [2, 4, 3]);
+  egal(remplissageInstantane([{ sources: ['Jean Dupont'], sortie: 'J. Dupont' }], [['Marie Curie']]), ['M. Curie']);
+  egal(remplissageInstantane([{ sources: ['jean.dupont@exemple.fr'], sortie: 'Jean' }], [['marie.curie@x.org']]), ['Marie']);
+  egal(remplissageInstantane([{ sources: ['Dupont', 'Jean'], sortie: 'DUPONT Jean' }], [['Curie', 'Marie']]), ['CURIE Marie']);
+  egal(remplissageInstantane([{ sources: ['2023-05-12'], sortie: '12/05/2023' }], [['2024-01-03']]), ['03/01/2024']);
+  c = Classeur.nouveau(); c.saisir(0, 0, 0, '1'); c.saisir(0, 1, 0, '2'); c.saisir(0, 2, 0, '=SOMME(A1:A2)*B1'); c.saisir(0, 0, 1, '=A1/0');
+  egal(antecedents(c, 0, 2, 0).map((p) => [p.r1, p.c1, p.r2, p.c2]), [[0, 0, 1, 0], [0, 1, 0, 1]]);
+  egal(dependants(c, 0, 0, 0).map((x) => [x.r, x.c]), [[2, 0], [0, 1]]);
+  const et = etapesEvaluation(c, 0, 2, 0); egal([et[0].texte, et[et.length - 1].resultat], ['=SOMME(⟦A1:A2⟧) * B1', '#DIV/0!']);
+  c.saisir(0, 5, 0, '=A1*2'); c.saisir(0, 6, 0, '=A1*3'); c.saisir(0, 7, 0, '=A3*2'); c.saisir(0, 8, 0, "'12");
+  egal(verifierErreurs(c, 0).map((e) => e.type + '@' + e.r + ',' + e.c), ['erreur@0,1', 'incoherente@6,0', 'texte@8,0']);
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);

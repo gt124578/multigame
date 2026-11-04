@@ -110,6 +110,8 @@ export function lireVuesXlsx(XLSX, octets) {
     const xml = z.texte(chemin);
     if (!xml) continue;
     const res = {};
+    const tab = /<sheetPr\b[^>]*>[\s\S]*?<tabColor\b[^>]*>/.exec(xml);
+    if (tab) { const c = lireCouleur(/<tabColor\b[^>]*>/.exec(tab[0])[0], theme); if (c) res.couleur = c; }
     // Volets figés
     const pane = /<pane\b[^>]*>/.exec(xml);
     if (pane && /state="frozen(Split)?"/.test(pane[0])) {
@@ -275,7 +277,7 @@ const OPS_FILTRE_INV = Object.fromEntries(Object.entries(OPS_FILTRE).map(([k, v]
  * Le filtre lui-même (<autoFilter ref>) est écrit par SheetJS (ws['!autofilter']), qui ajoute le nom _FilterDatabase.
  */
 export function ecrireVuesXlsx(XLSX, octets, feuilles) {
-  if (!feuilles.some((f) => (f.figer && (f.figer.r || f.figer.c)) || (f.mfc && f.mfc.length) || (f.validations && f.validations.length) || (f.filtre && Object.keys(f.filtre.criteres || {}).length))) return octets;
+  if (!feuilles.some((f) => (f.figer && (f.figer.r || f.figer.c)) || (f.mfc && f.mfc.length) || (f.validations && f.validations.length) || f.couleur || (f.filtre && Object.keys(f.filtre.criteres || {}).length))) return octets;
   const cfb = XLSX.CFB.read(octets, { type: 'array' });
   const z = fichiers(cfb);
   const chemins = cheminsFeuilles(z);
@@ -286,6 +288,12 @@ export function ecrireVuesXlsx(XLSX, octets, feuilles) {
     const idx = ch && z.index(ch.chemin);
     if (idx === undefined) return;
     let xml = dec(Uint8Array.from(cfb.FileIndex[idx].content));
+    if (f.couleur) {
+      const tc = '<tabColor rgb="FF' + f.couleur.slice(1).toUpperCase() + '"/>';
+      if (/<sheetPr\b[^>]*\/>/.test(xml)) xml = xml.replace(/<sheetPr\b([^>]*)\/>/, '<sheetPr$1>' + tc + '</sheetPr>');
+      else if (/<sheetPr\b[^>]*>/.test(xml)) xml = xml.replace(/(<sheetPr\b[^>]*>)/, '$1' + tc);
+      else xml = xml.replace(/(<worksheet\b[^>]*>)/, '$1<sheetPr>' + tc + '</sheetPr>');
+    }
     const g = f.figer;
     if (g && (g.r || g.c)) {
       const pane = g.r && g.c ? 'bottomRight' : g.r ? 'bottomLeft' : 'topRight';
