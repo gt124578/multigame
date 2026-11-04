@@ -752,6 +752,21 @@ export class WorldView {
     this.sol.invalider(x, y);
     this.lastChunk = null;
   }
+  /** promesse tenue quand le sol généré couvre tout l'écran (appeler après update) : derrière une transition, on attend
+   *  les blocs plutôt que de laisser voir l'ancien sol (au plus ms millisecondes) */
+  solPret(ms) {
+    if (!this.sol.couvre()) return Promise.resolve(true);
+    this.camera.updateMatrixWorld();
+    const cam = this.camera.position, v = new THREE.Vector3();
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const [nx, ny] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      v.set(nx, ny, 0.5).unproject(this.camera).sub(cam);
+      const t = v.y < -1e-6 ? -cam.y / v.y : 400, x = cam.x + v.x * t, z = cam.z + v.z * t;
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, z); y1 = Math.max(y1, z);
+    }
+    // les arbres et les toits du bas de l'écran ont leurs pieds une case plus bas
+    return this.sol.pret(Math.floor(x0), Math.floor(y0), Math.ceil(x1), Math.ceil(y1) + 1, ms);
+  }
   ensureChunks(px, py) {
     const ci = Math.floor(px / CH), cj = Math.floor(py / CH), k = ci + ',' + cj;
     if (k === this.lastChunk) return; this.lastChunk = k;
@@ -1050,7 +1065,7 @@ export class WorldView {
   /* ---------------- image ---------------- */
   update(dt, fx, fy) {
     this.ensureChunks(fx, fy);
-    this.sol.update(dt, Math.floor(fx / CH), Math.floor(fy / CH));
+    this.sol.update(dt, Math.floor(fx / CH), Math.floor(fy / CH), fx + 0.5, fy + 0.5);
     this.animT += dt;
     if (this.animT > 0.2) {
       this.animT = 0; this.animFrame = (this.animFrame + 1) % this.N.frames.length;
