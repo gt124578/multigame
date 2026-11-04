@@ -140,6 +140,9 @@ const W = ramp('w', 7), B = ramp('b', 4), V = ramp('v', 5), L = ramp('l', 6);
 const FA = ramp('fa', 6), AG = ramp('ag', 7), HA = ramp('ha', 5), GRV = ramp('y', 5), MOU = ramp('o', 5), OC = ramp('x', 6);
 const AS_ = ramp('a', 5), TR = ramp('t', 5), HS = ramp('j', 5), N = ramp('n', 6), E = ramp('e', 6), Zs = ramp('z', 4), U = ramp('u', 5), Q = ramp('q', 5);
 const caveRamp = (b) => ramp(`c_${CAVES[b] ? b : 'terre'}`, 6);
+/** indices des teintes des hautes herbes (prairie, sous-bois, neige), du pied à la pointe : l'herbe qui passe devant
+ *  les personnages (herbes.js) est découpée dans le sol généré avec */
+export const HAUTES = [H, HK, HS, HA];
 const isIn = (arr) => { const s = new Uint8Array(256); for (const v of arr) s[v] = 1; return s; };
 const IS_GALL = isIn(G), IS_G = isIn(G.slice(2)), IS_S = isIn(S), IS_D = isIn(D);
 
@@ -247,10 +250,12 @@ class Zone {
     const gx0 = Math.floor(W0 / st), gy0 = Math.floor(H0 / st);
     const gw = Math.ceil((W0 + Wd) / st) - gx0 + 2, gh = Math.ceil((H0 + Hh) / st) - gy0 + 2, g = new Float32Array(gw * gh);
     for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) g[j * gw + i] = fbm1((gx0 + i) * st, (gy0 + j) * st, scale, s, oct);
+    const IX = new Int32Array(Wd), TX = new Float64Array(Wd);   // colonnes : mêmes pour toutes les lignes
+    for (let x = 0; x < Wd; x++) { const fx = (W0 + x) / st - gx0, i = Math.floor(fx); IX[x] = i; TX[x] = fx - i; }
     for (let y = 0, k = 0; y < Hh; y++) {
-      const wy = H0 + y, fy = wy / st - gy0, j = Math.floor(fy), ty = fy - j;
+      const wy = H0 + y, fy = wy / st - gy0, j = Math.floor(fy), ty = fy - j, oj = j * gw;
       for (let x = 0; x < Wd; x++, k++) {
-        const fx = (W0 + x) / st - gx0, i = Math.floor(fx), tx = fx - i, o = j * gw + i;
+        const o = oj + IX[x], tx = TX[x];
         const a = g[o] + (g[o + 1] - g[o]) * tx, b = g[o + gw] + (g[o + gw + 1] - g[o + gw]) * tx;
         f[k] = a + (b - a) * ty;
       }
@@ -327,26 +332,55 @@ function blade(img, Z, y, x, Ln, lean, base, pal, block) {
   }
 }
 
+/** cases de la zone où le masque a au moins un pixel */
+function occupees(Z, mask) {
+  const o = new Uint8Array(Z.cw * Z.ch), c = Z.c, Wd = Z.W;
+  for (let y = 0; y < Z.H; y++) {
+    const cy = (y / c) | 0, row = y * Wd;
+    for (let cx = 0; cx < Z.cw; cx++) {
+      if (o[cy * Z.cw + cx]) continue;
+      for (let x = cx * c, e = x + c; x < e; x++) if (mask[row + x]) { o[cy * Z.cw + cx] = 1; break; }
+    }
+  }
+  return o;
+}
+/** brins à dessiner : trois valeurs chacun, triés par pixel de pied (de haut en bas, de gauche à droite), l'ordre du
+ *  tirage départageant ceux d'un même pixel (comme un tri stable) ; tableaux typés, pas de petit tableau par brin */
+function brins(cap) {
+  const P = new Float64Array(cap), A = new Float64Array(cap), Bv = new Float64Array(cap), C = new Float64Array(cap), S = 2 ** 20;
+  let n = 0;
+  return {
+    add(i, a, b, c) { P[n] = i * S + n; A[n] = a; Bv[n] = b; C[n] = c; n++; },
+    trier(f) {
+      const k = P.subarray(0, n).sort();
+      for (let q = 0; q < n; q++) { const t = k[q], j = t % S; f((t - j) / S, A[j], Bv[j], C[j]); }
+    },
+  };
+}
+
 function herbe(Z, img, mask, block, foret = null) {
   const s = Z.s, c = Z.c, Wd = Z.W;
   const light = Z.field(120, s + 1), patch = Z.field(30, s + 2), colony = Z.field(70, s + 3, 2);
   const lv = new Uint8Array(Z.N);
   // forêt : l'herbe y est plus sombre d'un ton (bord tramé, voir foretMasque)
   for (let i = 0; i < Z.N; i++) { lv[i] = digitize(0.65 * light[i] + 0.35 * patch[i], [0.42, 0.58]) + 2 - (foret && foret[i] ? 1 : 0); if (mask[i]) img[i] = G[lv[i] + 1]; }
-  const blades = [], fl = [];
+  // brins : tirés case par case, puis dessinés de haut en bas (tri par pixel, l'ordre du tirage départage) ; les cases
+  // sans herbe sont sautées (rien n'y serait dessiné)
+  const fl = [], nb = Math.floor(c * c / 5.5), occ = occupees(Z, mask);
+  const B = brins(Z.cw * Z.ch * nb), LN = [3, 3, 4, 4, 5], LE = [-1, 0, 1];
   for (let cy = 0; cy < Z.ch; cy++) for (let cx = 0; cx < Z.cw; cx++) {
-    const r = cellRng(cx + Z.rx0, cy + Z.ry0, s + 10), n = Math.floor(c * c / 5.5);
-    for (let k = 0; k < n; k++) blades.push([cy * c + ri(r, 0, c), cx * c + ri(r, 0, c), pick(r, [3, 3, 4, 4, 5]), r(), pick(r, [-1, 0, 1])]);
+    if (!occ[cy * Z.cw + cx]) continue;
+    const r = cellRng(cx + Z.rx0, cy + Z.ry0, s + 10);
+    for (let k = 0; k < nb; k++) { const y = cy * c + ri(r, 0, c), x = cx * c + ri(r, 0, c); B.add(y * Wd + x, pick(r, LN), r(), pick(r, LE)); }
     const force = Z.kind(cx, cy) === K.F, nf = Math.floor(c * c / 60) * (force ? 3 : 1);
     for (let k = 0; k < nf; k++) fl.push([cy * c + ri(r, 2, c - 2), cx * c + ri(r, 2, c - 2), r(), force]);
   }
-  blades.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  for (const [y, x, Ln, v, lean] of blades) {
-    const i = y * Wd + x; if (!mask[i]) continue;
-    const base = lv[i];
+  B.trier((i, Ln, v, lean) => {
+    if (!mask[i]) return;
+    const y = (i / Wd) | 0, x = i - y * Wd, base = lv[i];
     if (v < 0.55) { blade(img, Z, y, x, Ln, -1, base, G, block); blade(img, Z, y, x + 1, Ln - 1, 1, base, G, block); }
     else blade(img, Z, y, x, Ln, lean, base, G, block);
-  }
+  });
   const kinds = [['fr', 'fR', 'fy'], ['fw', 'fW', 'fy'], ['fb', 'fB', 'fw']];
   for (const [y, x, v, force] of fl) {
     if (y < 2 || y >= Z.H - 3 || x < 2 || x >= Wd - 2) continue;
@@ -365,14 +399,15 @@ function hautesHerbes(Z, img, mask, lv, dark) {
   for (let i = 0; i < Z.N; i++) if (sh[i] && !mask[i] && img[i] !== TRANSPARENT && IS_G[img[i]]) img[i] = G[Math.max(0, lv[i] - 2)];
   const dk = Z.field(16, s + 20, 2);
   for (let i = 0; i < Z.N; i++) if (mask[i]) img[i] = dk[i] < 0.45 ? Hp[0] : Hp[1];
-  const d = edt(mask, Wd, Z.H, 1), bl = [];
+  const d = edt(mask, Wd, Z.H, 1), n = Math.floor(c * c / 4), occ = occupees(Z, mask), B = brins(Z.cw * Z.ch * n), LE = [-1, 1];
   for (let cy = 0; cy < Z.ch; cy++) for (let cx = 0; cx < Z.cw; cx++) {
-    const r = cellRng(cx + Z.rx0, cy + Z.ry0, s + 21), n = Math.floor(c * c / 4);
-    for (let k = 0; k < n; k++) bl.push([cy * c + ri(r, 0, c), cx * c + ri(r, 0, c), ri(r, 0, 4), pick(r, [-1, 1]), r()]);
+    if (!occ[cy * Z.cw + cx]) continue;
+    const r = cellRng(cx + Z.rx0, cy + Z.ry0, s + 21);
+    for (let k = 0; k < n; k++) { const y = cy * c + ri(r, 0, c), x = cx * c + ri(r, 0, c); B.add(y * Wd + x, ri(r, 0, 4), pick(r, LE), r()); }
   }
-  bl.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  for (const [y, x, e, lean, v] of bl) {
-    if (!mask[y * Wd + x]) continue;
+  B.trier((i, e, lean, v) => {
+    if (!mask[i]) return;
+    const y = (i / Wd) | 0, x = i - y * Wd;
     const Ln = Math.floor(4 + e + Math.min(2, d[y * Wd + x] / 5));
     const tufts = v < 0.6 ? [[0, lean], [1, -lean]] : [[0, lean]];
     for (const [dx, ln] of tufts) {
@@ -383,7 +418,7 @@ function hautesHerbes(Z, img, mask, lv, dark) {
         img[yy * Wd + xx] = j === top ? Hp[4] : j < Ln * 0.35 ? Hp[1] : j < Ln * 0.75 ? Hp[2] : Hp[3];
       }
     }
-  }
+  });
 }
 
 function cailloux(Z, img, mask, s, shade, density) {
@@ -697,13 +732,15 @@ function eau(Z, img, E, frame) {
   const sp = rocky ? [rocky[1], rocky[3], rocky[4]] : S;
   const cols = [I.wt, W[4], W[3], W[2], I.wd];
   for (let i = 0; i < Z.N; i++) {
+    const berge = !mask[i] && !block[i] && sd[i] <= 5;
+    if (!mask[i] && !berge) continue;
     const lap = Math.sin(2 * Math.PI * (ph + lapPh[i] * 2));                   // la vague va et vient
     if (mask[i]) {
       img[i] = cols[lv2[i]];
       const fd = 1.6 + 1.1 * (lap + 1) / 2, X = Z.X(i), Y = Z.Y(i);
       if (dw[i] <= fd && hash2(X, Y, s + 44) < 0.8) img[i] = W[6];               // écume
       else if (dw[i] <= fd + 1.2 && hash2(X, Y, s + 45) < 0.35) img[i] = W[5];
-    } else if (!block[i] && sd[i] <= 5) {                                       // berge
+    } else {                                                                    // berge
       if (sd[i] <= 4) img[i] = sd[i] <= 1.5 + (lap > 0.3 ? 1 : 0) ? sp[0] : sd[i] <= 3 ? sp[1] : sp[2];
       else img[i] = rocky ? rocky[0] : G[1];                                    // lisière
     }

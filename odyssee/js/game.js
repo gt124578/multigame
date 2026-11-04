@@ -209,6 +209,7 @@ export class Game {
     this.view.setTimeOfDay(this.hour());
     this.hud?.update(true);
     this.link?.hello();
+    this.view.update(0, this.player.x, this.player.y); await this.view.solPret?.();   // le sol généré est prêt avant d'ouvrir l'écran
     await this.ui.fade(false, 400);
     if (!state.flags.intro) { state.flags.intro = true; this.busy = true; await this.ui.say(['Une douce lumière filtre à travers les rideaux...', `Aujourd'hui, ${state.name}, ton aventure commence !`, 'Appuie sur H à tout moment pour revoir les touches.']); this.busy = false; }
   }
@@ -392,6 +393,7 @@ export class Game {
     this.setMap(to.map);
     this.view.update(0, this.player.x, this.player.y);
     this.save(true);
+    await this.view.solPret?.();   // l'écran se rouvre sur le sol généré, jamais sur l'ancien
     await this.ui.doorTransition(false, 240);
     if (this.mapObj.dark && this.mapObj.dark !== 'arene' && this.canField('flash') && this.lead()) await this.ui.say(`${monName(this.lead())} utilise Flash !\nLa grotte s'éclaire.`, { auto: 900 });
     await this.onEnterMap(from);
@@ -642,6 +644,7 @@ export class Game {
     await this.ui.fade(true, 140);
     p.x = o.to[0]; p.y = o.to[1]; p.dir = o.dir || p.dir; p.move = null;
     this.view.update(0, p.x, p.y); this.resetFollower?.();
+    await this.view.solPret?.();
     await this.ui.fade(false, 140);
   }
   /** gardien du savoir (arène Feu) : une bonne réponse et il s'écarte ; une mauvaise, et il faut le battre */
@@ -1438,6 +1441,7 @@ export class Game {
     this.player.x = c.x; this.player.y = c.y; this.player.dir = c.dir || 'up'; this.player.surf = false;
     this.setMap(c.map);
     this.view.update(0, this.player.x, this.player.y); this.view.render();
+    await this.view.solPret?.();
     await this.ui.fade(false, 400);
     await this.ui.say([`${st.name} a perdu ${lost.toLocaleString('fr-FR')} ₽ dans la panique...`, '... ... ...', `${st.name} reprend ses esprits. Ses créatures ont été soignées.`]);
   }
