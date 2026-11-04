@@ -1,4 +1,4 @@
-# Arcadia — Duo Drift, DavidSimulator, Bastion Clash, Tête de Calcul, Fil Rouge, Outbreak, Cyber Kart GP, Convoy Storm, Birdie Party, Mini-Golf Party, Island Rush, Mollo !, Site Noir et Mystère Mystère
+# Arcadia — Duo Drift, DavidSimulator, Bastion Clash, Tête de Calcul, Fil Rouge, Outbreak, Cyber Kart GP, Convoy Storm, Birdie Party, Mini-Golf Party, Island Rush, Mollo !, Site Noir, Mystère Mystère et Tapis Vert
 # Arcadia — Dogfight 3D, Duo Drift, DavidSimulator, Bastion Clash, Tête de Calcul, Fil Rouge, Outbreak, Cyber Kart GP, Convoy Storm, Birdie Party, Mini-Golf Party, Island Rush et Mollo !
 
 Des jeux en ligne entre potes, directement dans le navigateur, sans rien installer. On crée un salon,
@@ -190,6 +190,20 @@ Des manches de 2 à 4 minutes, de 3 à 12 invités (bots compris), et un mode D�
 - **Graphismes** : personnages animés de Quaternius aux couleurs des joueurs, mobilier Kenney et KayKit (CC0, `mystery/models/LICENSE.txt`),
   papiers peints, parquets et damiers peints au canvas, lustres, fenêtres au clair de lune. Sons et petite valse de boîte à musique synthétisés (WebAudio).
 - `?debug` expose `__mystery` ; `?autostart`, `?seed`, `?role=m|s|i`, `?mode=explore`, `?bots=4`, `?lag=150`, `?q=bas`.
+
+## Tapis Vert
+
+Poker (Texas Hold'em sans limite) et belote classique à 4 (`cartes/`), pensés pour jouer **côte à côte au bureau**, quand chacun voit l'écran de ses voisins.
+
+- **Cartes cachées par défaut** : à l'écran, seul le dos de tes cartes s'affiche. Maintiens l'onglet 👁 dans un coin (ou la touche Espace)
+  pour les voir, en petit et atténué (gris sur gris), lisible de près seulement ; le coup d'œil se referme seul.
+  Le coin (quatre au choix), la taille, le contraste, le délai de fermeture et le mode « toujours visibles » sont dans ⚙️ Réglages (retenus dans le navigateur).
+- **Rien ne fuit par le réseau** : l'hôte seul connaît le paquet ; chaque joueur reçoit ses cartes en privé, l'état public n'en contient aucune
+  (même la console ou l'onglet Réseau ne montrent que les siennes). Ce schéma vaut pour tout jeu à information cachée.
+- **Poker** : blindes, relances au curseur, tapis, pots secondaires, abattage avec le nom des combinaisons, jusqu'au dernier survivant ou en N mains, temps de réflexion réglable.
+- **Belote** : 3 + 2 + retourne, deux tours d'enchères, obligations (fournir, monter à l'atout, couper sauf partenaire maître), belote-rebelote, dix de der, capot,
+  dedans sous 82, en 501 ou 1 001 points. Les bots complètent la table ; deux humains sont assis face à face.
+- `node tools/test-cartes.mjs` teste le moteur ; `?debug` expose `__cartes` ; hors du Hub : `cartes/?game=belote&bots=3&turn=0`.
 
 ## Pour les développeurs
 - Site statique (GitHub Pages), sans étape de build.

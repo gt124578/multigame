@@ -1,8 +1,7 @@
 # Consignes pour les assistants de code (Claude, Codex, Copilot, Cursor, Gemini…) et les contributeurs
 
 Ce dépôt est **Arcadia** (anciennement « Game Hub »), le salon de jeux d'Amiel : un site statique (GitHub Pages, sans étape de build) qui réunit plusieurs
-jeux multijoueurs dans le navigateur — Duo Drift, DavidSimulator, Tête de Calcul, Bastion Clash, Outbreak, Fil Rouge, Cyber Kart GP, Convoy Storm, Birdie Party, Mini-Golf Party, Island Rush, Odyssée, Mollo !, Site Noir et Mystère Mystère.
-jeux multijoueurs dans le navigateur — Duo Drift, DavidSimulator, Tête de Calcul, Bastion Clash, Outbreak, Fil Rouge, Cyber Kart GP, Convoy Storm, Birdie Party, Mini-Golf Party, Island Rush, Odyssée, Mollo ! et Dogfight 3D.
+jeux multijoueurs dans le navigateur — Duo Drift, DavidSimulator, Tête de Calcul, Bastion Clash, Outbreak, Fil Rouge, Cyber Kart GP, Convoy Storm, Birdie Party, Mini-Golf Party, Island Rush, Odyssée, Mollo !, Site Noir, Mystère Mystère, Dogfight 3D et Tapis Vert.
 
 ## À chaque modification poussée sur `main` : journal + version
 
@@ -31,12 +30,12 @@ Filet de sécurité : si un push sur `main` ne touche pas `CHANGELOG.md`, l'acti
 (`tools/changelog-auto.mjs`) et monte la version. Elle est moins bien écrite qu'une entrée faite à la main :
 préférer l'écrire soi-même. Pour qu'elle soit lisible, écrire des messages de commit clairs, par exemple
 `feat(calcul): mode Éclair` ou `fix(david): la caméra qui suit ne se désactive plus`
-(portées reconnues : `drift`, `david`, `calcul`, `bastion`, `outbreak`, `filrouge`, `kart`, `convoy`, `golf`, `minigolf`, `royale`, `odyssee`, `mollo`, `sitenoir`, `mystery`, `hub`, `server`).
+(portées reconnues : `drift`, `david`, `calcul`, `bastion`, `outbreak`, `filrouge`, `kart`, `convoy`, `golf`, `minigolf`, `royale`, `odyssee`, `mollo`, `sitenoir`, `mystery`, `cartes`, `hub`, `server`).
 Ajouter `[skip changelog]` dans le message d'un commit purement technique pour qu'il n'apparaisse pas.
 
 ## Repères
 
-- Chaque jeu vit dans son dossier (`drift/`, `david/`, `calcul/`, `bastion/`, `outbreak/`, `filrouge/`, `kart/`, `convoy/`, `golf/`, `minigolf/`, `royale/`, `odyssee/`, `mollo/`, `sitenoir/`, `mystery/`) et tourne dans une iframe du Hub ;
+- Chaque jeu vit dans son dossier (`drift/`, `david/`, `calcul/`, `bastion/`, `outbreak/`, `filrouge/`, `kart/`, `convoy/`, `golf/`, `minigolf/`, `royale/`, `odyssee/`, `mollo/`, `sitenoir/`, `mystery/`, `cartes/`) et tourne dans une iframe du Hub ;
   le Hub (`index.html`, `hub/`) gère le salon, le classement entre potes et le pont `shared/bridge.js`.
 - Multijoueur : relais WebSocket (`shared/net.js`, serveur dans `server/`). `?local` dans l'adresse simule le réseau
   entre onglets du même navigateur pour tester à plusieurs.
@@ -65,6 +64,10 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
 - Site Noir (`sitenoir/`, moteur sans DOM dans `sitenoir/engine/`) : horreur asymétrique à la première personne, l'hôte fait autorité. `node tools/test-sitenoir.mjs` teste la carte, le déplacement, les clés, les fusibles, le générateur, l'ascenseur, les coups, l'extraction, les copies des invités et le relais d'hôte, et des parties entières entre bots ; `node tools/bench-sitenoir.mjs [parties] [niveau|all] [enquêteurs]` mesure la durée des parties, les victoires et le coût d'un pas. `sitenoir/plan.html` montre une partie de bots vue de dessus. L'image passe par `sitenoir/view/post.js` (grain VHS côté enquêteurs seulement).
 - Mollo ! (`mollo/`, moteur sans DOM dans `mollo/engine/`) : pantins physiques à sept points (Verlet et contraintes), muscles qui mollissent sous les coups. `node tools/test-mollo.mjs` teste les six arènes et leurs pièges, les objets (tirage à chaque manche, poêle, pétard, parapluie, banane), les collisions, le combat (visée, série de poings, garde, saisie, coup de tête), tenir debout, la marche, le saut,
   les coups, le KO, saisir / soulever / jeter, s'accrocher et se hisser, la fatigue des bras, la chute, des parties entières entre bots, l'instantané et la reprise par un nouvel hôte : à lancer quand on touche au moteur. Personnages et décors dessinés dans le code, aucun modèle externe.
+- Tapis Vert (`cartes/`, moteur sans DOM dans `cartes/engine/`) : poker Texas Hold'em et belote à 4, l'hôte fait autorité et n'envoie à chaque joueur que
+  ses propres cartes (`{ t:'me' }`), l'état public (`{ t:'st' }`) ne contient aucune main. Les cartes sont cachées à l'écran par défaut et se révèlent en
+  maintenant un onglet dans le coin choisi (`cartes/view/peek.js`, réglages dans `cartes/view/prefs.js`). `node tools/test-cartes.mjs` teste les
+  combinaisons, des parties entières entre bots, les pots secondaires et les obligations de la belote : à lancer quand on touche au moteur.
 - Mystère Mystère (`mystery/`, moteur sans DOM dans `mystery/engine/`) : murder mystery façon Murder Mystery 2, à la première personne, l'hôte fait autorité.
   Le manoir (`map.js`) tient sur une grille de cases de 1 m et trois niveaux (cave y = -4, rez-de-chaussée, étage y = 4) ; un escalier appartient à deux niveaux,
   on n'y entre que par le haut ou le bas. Règles, armes et réseau dans `sim.js` (les rôles ne partent jamais dans l'état public : chacun reçoit sa fiche,

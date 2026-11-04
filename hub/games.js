@@ -291,6 +291,27 @@ window.HUB_GAMES = [
     ],
     cover: 'mystery/img/affiche.jpg', // affiche 960 × 540 : vraie image du jeu, grand titre et bandeau
   },
+  {
+    id: 'cartes',
+    title: 'Tapis Vert',
+    tag: 'Poker & belote, cartes cachées',
+    desc: 'Poker Texas Hold\'em ou belote à 4 : tes cartes restent cachées à l\'écran et n\'apparaissent, en petit, que dans le coin que tu choisis quand tu le maintiens, pour jouer côte à côte au bureau sans que les voisins ne lisent ton jeu.',
+    url: 'cartes/',
+    minPlayers: 1, maxPlayers: 6, maxWithBots: 6,
+    accent: '#2fbf71',
+    icon: '🃏', score: 'Meilleur tapis',
+    settings: [
+      { key: 'mode', label: 'Jeu', options: [['poker', 'Poker (Texas Hold\'em)'], ['belote', 'Belote (à 4, en équipes)']], def: 'poker' },
+      { key: 'bots', label: 'Bots', options: [[0, 'Aucun'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']], def: 1, notMode: 'belote' },
+      { key: 'level', label: 'Niveau des bots', options: [['facile', 'Facile'], ['normal', 'Moyen'], ['expert', 'Difficile']], def: 'normal' },
+      { key: 'turn', label: 'Temps pour jouer', options: [[0, 'Sans limite'], [20, '20 s'], [30, '30 s'], [60, '1 min']], def: 30 },
+      { key: 'stack', label: 'Tapis de départ', group: 'Poker', options: [[500, '500'], [1000, '1 000'], [2000, '2 000']], def: 1000, onlyMode: 'poker' },
+      { key: 'blind', label: 'Grosse blinde', options: [[10, '10'], [20, '20'], [50, '50']], def: 10, onlyMode: 'poker' },
+      { key: 'hands', label: 'Fin de partie', options: [[0, 'Dernier survivant'], [10, '10 mains'], [20, '20 mains'], [40, '40 mains']], def: 0, onlyMode: 'poker' },
+      { key: 'target', label: 'Partie en', group: 'Belote', options: [[501, '501 points'], [1001, '1 001 points']], def: 501, onlyMode: 'belote' },
+    ],
+    cover: 'cartes/img/affiche.jpg', // affiche 960 × 540 : vraie image du jeu, grand titre et bandeau
+  },
 ];
 
 /* Fiche de présentation de chaque jeu : catégorie, durée d'une partie, commandes et astuces.
@@ -338,6 +359,9 @@ window.HUB_GAME_INFO = {
   royale: { genre: 'action', time: '10–20 min',
     keys: [['ZQSD', 'Se déplacer'], ['Souris', 'Viser · clic pour tirer'], ['Espace', 'Sauter'], ['1–5 · molette', 'Objets'], ['B / clic molette', 'Repère d\'équipe']],
     tips: ['Ouvre le planeur assez tôt pour choisir où te poser.', 'Construis un mur avant de soigner.', 'La tempête se referme : garde un œil sur la carte.'] },
+  cartes: { genre: 'plateau', time: '10–30 min',
+    keys: [['👁 (coin) ou Espace', 'Maintenir pour voir mes cartes'], ['Clic', 'Miser, suivre, se coucher · jouer une carte'], ['⚙️', 'Choisir le coin, cartes visibles ou cachées']],
+    tips: ['Tes cartes ne sont jamais envoyées aux autres : seul l\'hôte connaît le paquet.', 'Change le coin de révélation dans les réglages pour que ton voisin ne sache pas où regarder.', 'À la belote, les humains sont assis face à face quand ils sont deux : même équipe.', 'Au poker, Espace puis clic sur « Relancer » : on voit sa main et on mise sans la lâcher des yeux.'] },
   mystery: { genre: 'party', time: '3–5 min la manche',
     keys: [['ZQSD + souris', 'Se déplacer, regarder'], ['Maj · Espace', 'Courir, sauter'], ['1 / 2 · molette', 'Ranger, sortir l\'arme'], ['Clic', 'Frapper · tirer'], ['Clic droit', 'Lancer le couteau'], ['E', 'Passage secret'], ['F', 'Couper le courant (meurtrier)'], ['Tab', 'Invités']],
     tips: ['Le meurtrier garde son couteau caché : regarde les mains de tout le monde.', 'Le shérif qui tire sur un innocent est sonné et lâche son revolver : le premier innocent qui le ramasse devient le héros.', 'Le revolver tombé brille d\'un faisceau doré qu\'on voit à travers les murs.', 'La bibliothèque pivote, l\'armoire et le miroir aussi : E pour passer.', 'Un couteau lancé se plante dans le décor : va le reprendre, ou attends qu\'il revienne.', 'Pendant une coupure de courant, on ne voit qu\'à quelques mètres.'] },

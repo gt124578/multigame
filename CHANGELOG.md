@@ -1,5 +1,13 @@
 # Journal des versions — Arcadia
 
+## 3.90 — 4 novembre 2026
+- **Tapis Vert** — Nouveau jeu : poker (Texas Hold'em) et belote à 4, pensés pour jouer côte à côte au bureau.
+  - Tes cartes sont cachées par défaut : seul leur dos s'affiche. Maintiens l'onglet 👁 dans un coin (ou la touche Espace) pour les voir, en petit et atténué, le temps d'un coup d'œil.
+  - Le coin de révélation (quatre au choix), la taille et le contraste du coup d'œil, sa fermeture automatique, et le mode « cartes toujours visibles » se règlent dans ⚙️ Réglages.
+  - Les cartes des autres ne sont jamais envoyées à ton navigateur : seul l'hôte connaît le paquet.
+  - Poker : relances au curseur, tapis, pots secondaires, abattage avec le nom des combinaisons, partie jusqu'au dernier survivant ou en un nombre de mains.
+  - Belote : deux tours d'enchères, obligations de jeu (fournir, monter à l'atout, couper), belote-rebelote, dix de der, capot, dedans, en 501 ou 1 001 points ; les bots complètent la table.
+
 ## 3.89 — 3 novembre 2026
 - **Odyssée** — Nouveaux décors, dessinés au pixel près :
   - Les routes, villes et grottes ont un nouveau sol : herbe, fleurs, chemins et lacs varient d'un endroit à l'autre, plus de motifs qui se répètent.

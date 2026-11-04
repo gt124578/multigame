@@ -21,7 +21,7 @@
       if (qs.get('game')) return qs.get('game');
       // jeu ouvert seul (hors du Hub) : son dossier, un par entrée de hub/games.js
       if (/\/odyssee\/test(?:\/|$)/i.test(location.pathname)) return 'odysseetest';
-      const m = /\/(bastion|calcul|dogfight|convoy|david|drift|filrouge|golf|kart|minigolf|mollo|mystery|odyssee|odysseetest|outbreak|pokemon|royale|sitenoir)(?:\/|$)/i.exec(location.pathname);
+      const m = /\/(bastion|calcul|cartes|dogfight|convoy|david|drift|filrouge|golf|kart|minigolf|mollo|mystery|odyssee|odysseetest|outbreak|pokemon|royale|sitenoir)(?:\/|$)/i.exec(location.pathname);
       if (m) return m[1].toLowerCase();
     } catch (e) {}
     return 'hub';

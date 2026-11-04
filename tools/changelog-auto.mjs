@@ -56,7 +56,7 @@ const commits = raw.split(END).map((c) => c.trim()).filter(Boolean).map((c) => {
 
 const GAMES = {
   drift: 'Duo Drift', david: 'DavidSimulator', monopoly: 'DavidSimulator', calcul: 'Tête de Calcul',
-  bastion: 'Bastion Clash', outbreak: 'Outbreak', filrouge: 'Fil Rouge', kart: 'Cyber Kart GP', convoy: 'Convoy Storm', golf: 'Birdie Party', minigolf: 'Mini-Golf Party', royale: 'Island Rush', dogfight: 'Dogfight 3D', mollo: 'Mollo !', sitenoir: 'Site Noir', hub: 'Hub', shared: 'Hub', server: 'Serveur', relay: 'Serveur',
+  bastion: 'Bastion Clash', outbreak: 'Outbreak', filrouge: 'Fil Rouge', kart: 'Cyber Kart GP', convoy: 'Convoy Storm', golf: 'Birdie Party', minigolf: 'Mini-Golf Party', royale: 'Island Rush', dogfight: 'Dogfight 3D', mollo: 'Mollo !', sitenoir: 'Site Noir', mystery: 'Mystère Mystère', cartes: 'Tapis Vert', hub: 'Hub', shared: 'Hub', server: 'Serveur', relay: 'Serveur',
 };
 const NOT_FOR_PLAYERS = /^(\.github\/|docs\/|tools\/|AGENTS\.md$|CLAUDE\.md$|GEMINI\.md$|README\.md$)/;
 const TYPES = { feat: 'nouveau', fix: 'correction', perf: 'plus rapide', revert: 'retour en arrière' };

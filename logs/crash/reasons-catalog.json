@@ -358,6 +358,18 @@
         "EXP_HOST_STOPPED_GAME : l'hôte a quitté la partie",
         "EXP_PEER_LEFT_MIDGAME : un joueur quitte en pleine manche"
       ]
+    },
+    {
+      "id": "cartes",
+      "title": "Tapis Vert",
+      "maxPlayers": 6,
+      "engine": "DOM + moteur de cartes (poker Texas Hold'em, belote), hôte faisant autorité, mains envoyées en privé",
+      "crashReasons": [
+        "CRASH_JS_ERROR : état de table incohérent après une migration d'hôte (la main en cours est redistribuée)"
+      ],
+      "expulsionReasons": [
+        "Élimination par règles de jeu : plus de jetons au poker ; à la belote, un joueur parti est remplacé par un bot"
+      ]
     }
   ]
 }
