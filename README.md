@@ -1,5 +1,4 @@
-# Arcadia — Duo Drift, DavidSimulator, Bastion Clash, Tête de Calcul, Fil Rouge, Outbreak, Cyber Kart GP, Convoy Storm, Birdie Party, Mini-Golf Party, Island Rush, Mollo !, Site Noir et Mystère Mystère
-# Arcadia — Dogfight 3D, Duo Drift, DavidSimulator, Bastion Clash, Tête de Calcul, Fil Rouge, Outbreak, Cyber Kart GP, Convoy Storm, Birdie Party, Mini-Golf Party, Island Rush et Mollo !
+# Arcadia — Dogfight 3D, Duo Drift, DavidSimulator, Bastion Clash, Tête de Calcul, Fil Rouge, Outbreak, Cyber Kart GP, Convoy Storm, Birdie Party, Mini-Golf Party, Island Rush, Mollo !, Site Noir, Mystère Mystère et The Backrooms
 
 Des jeux en ligne entre potes, directement dans le navigateur, sans rien installer. On crée un salon,
 on partage le code, et l'hôte choisit le jeu. Le salon reste ouvert d'un jeu à l'autre.
@@ -173,7 +172,7 @@ Bagarre de pantins mous au-dessus du vide (`mollo/`). Le dernier debout gagne la
   `?debug` expose `__mollo.run(2)`, qui fait avancer le jeu de 2 s image par image ; `?autostart`, `?seed`, `?arene=four`, `?hazards=0`, `?items=0`.
 - Graphismes : personnages et décors dessinés dans le code (`mollo/view/pantin.js`, `scene.js`), textures au canvas. Musique et sons synthétisés (WebAudio).
 
-## Mystère Mystère
+## Mystère Mystère, The Backrooms
 
 Murder mystery à la première personne (`mystery/`), façon Murder Mystery 2 : un meurtrier caché parmi les invités d'un manoir, un shérif, des innocents.
 Des manches de 2 à 4 minutes, de 3 à 12 invités (bots compris), et un mode Découverte sans rôles pour visiter.
@@ -205,7 +204,7 @@ Des manches de 2 à 4 minutes, de 3 à 12 invités (bots compris), et un mode D�
   `node tools/test-royale.mjs` teste l'île d'Island Rush (plusieurs graines), le déplacement, une partie, le réseau et la prédiction ;
   `node tools/bench-royale.mjs` y fait jouer une partie entière entre bots ;
   `node tools/test-sitenoir.mjs` teste le moteur de Site Noir (carte, clés, générateur, ascenseur, coups, extraction, copies des invités, relais d'hôte, parties entières entre bots).
-  `node tools/test-mystery.mjs` teste le moteur de Mystère Mystère (manoir, escaliers, passages secrets, armes, bavure, héros, pièces, coupure, secret des rôles, prédiction, manches entre bots).
+  `node tools/test-mystery.mjs` teste le moteur de Mystère Mystère, The Backrooms (manoir, escaliers, passages secrets, armes, bavure, héros, pièces, coupure, secret des rôles, prédiction, manches entre bots).
   `node tools/test-mollo.mjs` teste le moteur de Mollo ! (arènes et pièges, objets, collisions, marche, coups, KO, prises, rebords, parties entières entre bots, reprise d'hôte).
 - Serveur relais (`server/server.js`, à redéployer quand il change) : `/status` donne les salons et les pics de trafic
   (`maxFrame`, `peakMsgs`, `peakBytes`) ; la lecture des logs (`GET /api/logs`) demande la variable d'environnement

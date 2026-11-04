@@ -8,8 +8,10 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const ROOT = new URL('..', import.meta.url).pathname;
-const CHANGELOG = ROOT + 'CHANGELOG.md', HUB = ROOT + 'hub/hub.js';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const CHANGELOG = join(ROOT, 'CHANGELOG.md'), HUB = join(ROOT, 'hub/hub.js');
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const DRY = process.argv.includes('--dry-run');
 const git = (...a) => execFileSync('git', a, { cwd: ROOT, encoding: 'utf8' }).trim();

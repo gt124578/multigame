@@ -25,6 +25,8 @@ export class HUD {
   }
   show(on) { this.root.hidden = !on; }
   banner(html, dur = 2, cls = '') {
+    // la carte du rôle est encore à l'écran : l'annonce attend qu'elle parte
+    if (this.cardT > 0.45 && !this.el.card.hidden) { this.pendingBanner = [html, dur, cls]; return; }
     const b = this.el.banner;
     b.innerHTML = html; b.className = 'banner ' + cls; b.hidden = false;
     void b.offsetWidth; b.classList.add('in');
@@ -50,6 +52,7 @@ export class HUD {
     if ((this.bannerT -= dt) <= 0 && !e.banner.hidden) { e.banner.classList.remove('in'); if (this.bannerT < -0.4) e.banner.hidden = true; }
     if ((this.toastT -= dt) <= 0) e.toast.hidden = true;
     if (this.cardT > 0) { this.cardT -= dt; if (this.cardT < 0.4) e.card.classList.add('out'); if (this.cardT <= 0) e.card.hidden = true; }
+    if (this.pendingBanner && !(this.cardT > 0.45)) { const pb = this.pendingBanner; this.pendingBanner = null; this.banner(...pb); }
     this.hitT = Math.max(0, this.hitT - dt); e.hit.style.opacity = (this.hitT * 4).toFixed(2);
     // chrono
     if (w.mode === 'explore') e.clock.textContent = 'Découverte';

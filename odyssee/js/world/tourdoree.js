@@ -34,7 +34,7 @@ export function tourDoree({ legends, trainerNpc }, x, y) {
     sage(f2, 8, 8, 'left', 'Isidore', [[164, 32], [1016, 32]], 'Plus haut, l\'air devient sacré.', 50);
     trainerNpc(f3, 6, 4, 'down', 'Grand Sage', 'Hoël', [[1040, 34], [1030, 34], [1023, 35], [1016, 36]], { id: f3.id + ':t51', sight: 0, ai: 'smart', onWin: 'grandSage', intro: 'Tu viens chercher la Plume Arc-en-ciel ? Montre-moi le lien qui t\'unit à tes créatures !', lose: 'Ce lien... il est réel.', after: 'Va sur le toit. Ho-Oh t\'attend peut-être.' });
     const gate = { badges: TOUR_DOREE_BADGES, flag: 'plume', tiles: [[10, 2], [11, 3]] };
-    const n = f3.npc({ id: id + ':novice', x: 10, y: 3, dir: 'down', sprite: 'medium', gate, text: ['Le toit est réservé à qui porte la Plume Arc-en-ciel.', 'Seul le Grand Sage peut te la confier.'] });
+    const n = f3.npc({ id: id + ':novice', x: 10, y: 3, dir: 'down', sprite: 'medium', gate, text: ['Le toit est réservé à qui porte la Plume Arc-en-ciel.', 'Le Grand Sage Hoël veille au sommet sur la plume et sur le Sifflet Céleste sacré.'] });
     f3.gates.push({ npc: n.id, ...gate });
     legends.push({ id: 'hooh', sp: 250, lvl: 40, map: roof.id, x: 6, y: 6, cond: 'plume', intro: ['La Plume Arc-en-ciel se met à briller...', 'Un arc-en-ciel déchire les nuages. Ho-Oh se pose sur la Tour Dorée !'] });
     return [f2, f3, roof];

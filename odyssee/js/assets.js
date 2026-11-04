@@ -53,6 +53,16 @@ export const ASSETS = {
   hgss: (k) => `${IMG}hgss/${k}.png`,
   deco: (k) => `${IMG}deco/${k}.png`,
   carte: (k) => `${IMG}carte/${k}.png`,
+  carteBg: `${IMG}carte/c_gear_b2w2_bg.jpg`,
+  regionMapB2W2: `${IMG}carte/odyssee_region_map_b2w2.jpg`,
+  badge: (k, locked = false) => `${IMG}badges/badge_${k}${locked ? '_locked' : ''}.png`,
+  cardFrame: `${IMG}card/b2w2_card_frame.png`,
+  cardBg: (rankTheme = 'normal') => {
+    const valid = ['normal', 'bronze', 'silver', 'gold', 'master'];
+    const t = valid.includes(rankTheme) ? rankTheme : 'normal';
+    return `${IMG}card/card_front_${t}.jpg`;
+  },
+  cardBack: `${IMG}card/card_back_case.jpg`,
   title: `${IMG}title-odyssor.png`,
 };
 /** précharge une image (résout même en cas d'échec) */

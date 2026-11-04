@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 // Test de charge du serveur relais : un hôte envoie des instantanés de 20 Ko à 30 Hz ; l'invité B n'a que 400 Ko/s.
 // node tools/relay-load.mjs old  → messages normaux (le retard de B s'accumule)
 // node tools/relay-load.mjs vol  → messages volatils (le serveur saute les images périmées de B)
@@ -6,7 +7,7 @@ import { createRequire } from 'node:module';
 const { WebSocket } = createRequire(new URL('../server/package.json', import.meta.url))('ws');
 import { spawn } from 'node:child_process';
 const VOL = process.argv[2] === 'vol';
-const srv = spawn('node', [new URL('../server/server.js', import.meta.url).pathname], { env: { ...process.env, PORT: '8099' }, stdio: 'ignore' });
+const srv = spawn('node', [fileURLToPath(new URL('../server/server.js', import.meta.url))], { env: { ...process.env, PORT: '8099' }, stdio: 'ignore' });
 await new Promise((r) => setTimeout(r, 600));
 const url = 'ws://127.0.0.1:8099', room = 'test-' + Date.now();
 // mandataire TCP qui limite le débit descendant de B à 400 Ko/s (connexion correcte mais un peu juste pour ce flux)

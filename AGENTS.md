@@ -1,8 +1,7 @@
 # Consignes pour les assistants de code (Claude, Codex, Copilot, Cursor, Gemini…) et les contributeurs
 
 Ce dépôt est **Arcadia** (anciennement « Game Hub »), le salon de jeux d'Amiel : un site statique (GitHub Pages, sans étape de build) qui réunit plusieurs
-jeux multijoueurs dans le navigateur — Duo Drift, DavidSimulator, Tête de Calcul, Bastion Clash, Outbreak, Fil Rouge, Cyber Kart GP, Convoy Storm, Birdie Party, Mini-Golf Party, Island Rush, Odyssée, Mollo !, Site Noir et Mystère Mystère.
-jeux multijoueurs dans le navigateur — Duo Drift, DavidSimulator, Tête de Calcul, Bastion Clash, Outbreak, Fil Rouge, Cyber Kart GP, Convoy Storm, Birdie Party, Mini-Golf Party, Island Rush, Odyssée, Mollo ! et Dogfight 3D.
+jeux multijoueurs dans le navigateur — Duo Drift, DavidSimulator, Tête de Calcul, Bastion Clash, Outbreak, Fil Rouge, Cyber Kart GP, Convoy Storm, Birdie Party, Mini-Golf Party, Island Rush, Odyssée, Mollo !, Site Noir, Mystère Mystère, Dogfight 3D et The Backrooms.
 
 ## À chaque modification poussée sur `main` : journal + version
 
@@ -36,7 +35,7 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
 
 ## Repères
 
-- Chaque jeu vit dans son dossier (`drift/`, `david/`, `calcul/`, `bastion/`, `outbreak/`, `filrouge/`, `kart/`, `convoy/`, `golf/`, `minigolf/`, `royale/`, `odyssee/`, `mollo/`, `sitenoir/`, `mystery/`) et tourne dans une iframe du Hub ;
+- Chaque jeu vit dans son dossier (`drift/`, `david/`, `calcul/`, `bastion/`, `outbreak/`, `filrouge/`, `kart/`, `convoy/`, `golf/`, `minigolf/`, `royale/`, `odyssee/`, `mollo/`, `sitenoir/`, `mystery/`, `backrooms/`) et tourne dans une iframe du Hub ;
   le Hub (`index.html`, `hub/`) gère le salon, le classement entre potes et le pont `shared/bridge.js`.
 - Multijoueur : relais WebSocket (`shared/net.js`, serveur dans `server/`). `?local` dans l'adresse simule le réseau
   entre onglets du même navigateur pour tester à plusieurs.
@@ -68,14 +67,21 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
 - Mystère Mystère (`mystery/`, moteur sans DOM dans `mystery/engine/`) : murder mystery façon Murder Mystery 2, à la première personne, l'hôte fait autorité.
   Le manoir (`map.js`) tient sur une grille de cases de 1 m et trois niveaux (cave y = -4, rez-de-chaussée, étage y = 4) ; un escalier appartient à deux niveaux,
   on n'y entre que par le haut ou le bas. Règles, armes et réseau dans `sim.js` (les rôles ne partent jamais dans l'état public : chacun reçoit sa fiche,
-  `sheet`), chemins des bots dans `nav.js` (A* entre niveaux, passages secrets compris), bots dans `bots.js`. `node tools/test-mystery.mjs` teste le manoir,
+  `sheet`), chemins des bots dans `nav.js` (A* entre niveaux, passages secrets compris), bots dans `bots.js`. `node tools/test-mystery.mjs`, `node tools/test-backrooms.mjs` teste le manoir,
   le déplacement, les escaliers, les passages secrets, le couteau, le lancer, le revolver, la bavure, le héros, les pièces, la coupure, le secret des rôles,
   la prédiction des invités et des manches entières entre bots (à lancer quand on touche au moteur). Modèles CC0 (Quaternius, Kenney, KayKit) : `mystery/models/LICENSE.txt`.
   `?debug` expose `__mystery` (`ff(sec)` avance le moteur sans dessiner, `to(x, z, niveau)`, `start()`) ; `?autostart`, `?seed`, `?role=m|s|i`, `?mode=explore`, `?bots=4`, `?lag=150`, `?q=bas`.
+- The Backrooms (`backrooms/`, moteur sans DOM dans `backrooms/engine/`) : Level 0 sur deux étages (`createLevel0` dans `map.js` : on tombe par les trous
+  du couloir piégé, on remonte par 2 escaliers ; 5 cassettes réparties ; un ascenseur par étage, un seul vrai, `realFloor`) puis Level 1 (`level1.js`, entrepôt,
+  étagères, 3 fusibles, coupures de courant, embuscades), reliés par un ascenseur qui part quand tous les joueurs encore en vie sont dedans.
+  À plusieurs, l'hôte fait autorité (`snapshot` / `applySnapshot`), l'invité se déplace chez lui (`predict`). `node --experimental-detect-module tools/test-backrooms.mjs`.
 - Sauvegardes en ligne (`server/saves.js`, client `odyssee/js/net/cloud.js`) : le relais range les parties dans le dépôt GitHub,
   branche `saves`, sous le code ami du compte Hub. Mise en route sur Render : `docs/SAUVEGARDES.md`. Test : `node tools/test-saves.mjs`.
   Comptes Arcadia (identifiant + mot de passe, profil chiffré dans le navigateur avant de partir) : client `hub/account.js`, serveur `server/accounts.js`
   (même branche, dossier `accounts/`). Test : `node tools/test-accounts.mjs`. Le relais doit être redéployé sur Render pour qu'ils marchent.
+  Comptes VIP (`hub/vip.js`) : jeux, réglages ou options réservés avec `vip: true` dans `hub/games.js` (option : `['val', 'Libellé', { vip: true }]`),
+  retirés de la liste des autres joueurs ; dans un jeu, `HubBridge.info.vip`. Donner le grade à un compte en ligne : `node tools/vip-add.mjs <identifiant>`
+  (`--retirer` pour l'enlever). Test : `node tools/test-vip.mjs`.
 - Mini-Golf Party : `node tools/test-minigolf.mjs` construit les 72 trous (dont les 18 du Marathon, ~2 min) et vérifie qu'un bot expert les termine (à lancer quand on touche aux trous ou à la physique).
 - Odyssée (aventure solo façon DS, `odyssee/`) : `node tools/test-odyssee.mjs` joue 600 combats aléatoires et vérifie que toute la région
   (portes, grottes, PNJ, objets, arènes) est accessible depuis Bourg-Aube sans qu'un PNJ ne bloque le passage, et que la progression

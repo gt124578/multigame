@@ -21,9 +21,7 @@ const LUGIA = 249, SHADOW_MOVE = 10001, AEROBLAST = 177;
 async function receive(g, item, qty = 1) {
   const st = g.state;
   g.give(item, qty); g.sound.sfx('item');
-  const d = ITEMS[item], cs = d?.field && FIELD[d.field];
-  if (cs) await g.ui.say(`${st.name} reçoit la ${cs.cs} ${cs.name} !\nElle est rangée dans les Objets rares du Sac.`);
-  else await g.ui.say(`${st.name} reçoit ${qty > 1 ? qty + ' × ' : ''}${itemName(item)} !${d?.key ? '\nVous rangez l\'objet dans les Objets rares.' : ''}`);
+  await g.ui.say(formatObtainItem(st.name, item, qty));
 }
 
 /** reçoit un Pokémon (équipe, ou PC si elle est pleine) */

@@ -547,6 +547,17 @@ function step(dt) {
   }
   // tic-tac des dix dernières secondes
   if (w.ph === 'play' && w.t > 0 && w.t <= 10 && Math.ceil(w.t) !== S.lastTick) { S.lastTick = Math.ceil(w.t); sfx.play('tick'); }
+  // plus que deux survivants, puis un seul : la tension monte d'un cran (le nombre de vivants est public)
+  if (w.ph === 'play' && w.mode !== 'explore' && w.intro <= 0) {
+    if (S.survRound !== w.round) { S.survRound = w.round; S.survSaid = 99; }
+    const left = view.players.filter((p) => !p.dead && !p.spec).length - 1; // sans le meurtrier
+    if (left <= 2 && left >= 1 && left < S.survSaid && view.players.length >= 4) {
+      S.survSaid = left;
+      const amM = priv && priv.role === 'm';
+      hud.banner(left === 1 ? (amM ? 'Plus qu\'un seul survivant<small>Trouve-le avant l\'aube</small>' : 'Dernier survivant !<small>Tiens jusqu\'à l\'aube</small>') : 'Plus que deux survivants…<small>Le meurtrier se rapproche</small>', 2.4, 'horror');
+      sfx.play('heart', { vol: 1 });
+    }
+  }
   hud.update(view, dt, hudInfo(view));
 }
 function hudInfo(v) {

@@ -301,11 +301,28 @@ window.HUB_GAMES = [
     ],
     cover: 'mystery/img/affiche.jpg', // affiche 960 × 540 : vraie image du jeu, grand titre et bandeau
   },
+  {
+    id: 'backrooms', vip: true, // réservé aux comptes VIP (hub/vip.js)
+    title: 'The Backrooms',
+    tag: 'Survie & Horreur',
+    desc: "Seul ou à plusieurs, échappe-toi des Backrooms : 5 cassettes VHS sur les deux étages du Level 0 pour ouvrir le bon ascenseur, puis 3 fusibles pour relancer le monte-charge de l'entrepôt du Level 1, avant que l'entité ne vous rattrape.",
+    url: 'backrooms/',
+    minPlayers: 1, maxPlayers: 6, maxWithBots: 6,
+    accent: '#eab308',
+    icon: '🚪', score: 'Cassettes trouvées',
+    settings: [
+      { key: 'difficulty', label: 'Difficulté de l\'entité', options: [['normal', 'Normale'], ['hard', 'Rapide & Agressive'], ['peaceful', 'Exploration (Sans monstre)']], def: 'normal' },
+    ],
+    cover: 'backrooms/img/affiche.jpg',
+  },
 ];
 
 /* Fiche de présentation de chaque jeu : catégorie, durée d'une partie, commandes et astuces.
    Affichée sur l'écran de chargement commun, dans le menu Arcadia en jeu et pour les filtres de l'accueil. */
 window.HUB_GAME_INFO = {
+  backrooms: { genre: 'action', time: '10–20 min',
+    keys: [['ZQSD / Flèches', 'Se déplacer'], ['Souris', 'Regarder autour de soi'], ['Maj (Shift)', 'Courir (Endurance limitée)'], ['1', 'Allumer / Éteindre la lampe torche'], ['2 3 puis E', 'Choisir une case, utiliser son objet'], ['F', 'Ramasser (échange si l\'inventaire est plein)'], ['T', 'Siffler (trop, et l\'entité arrive)'], ['Échap', 'Pause'], ['⚙ Réglages', 'Mode Sans souris : les flèches tournent la vue']],
+    tips: ['Écoute attentivement : le bourdonnement strident de l\'entité devient de plus en plus fort quand elle s\'approche.', "Casse sa ligne de vue : derrière quelques murs, l'entité finit par te perdre.", 'Suis les barres de SIGNAL du caméscope pour trouver les cassettes (Level 0) ou les fusibles (Level 1), puis l\'ascenseur.', "L'ascenseur part quand tout le monde est dedans : plus vous êtes à l'abri, plus l'entité s'acharne sur ceux qui restent.", "Le Level 0 a deux étages : un faux pas dans un trou t'envoie en bas, les escaliers font remonter.", "Il y a un ascenseur par étage, mais un seul est le vrai : l'autre se change en mur quand les cassettes sont trouvées.", 'Au Level 1, garde des piles : les coupures de courant te laissent seul avec ta lampe.', "Au bout d'une rangée d'étagères, l'entité peut t'attendre en silence.", "L'eau d'amande rend tout ton souffle : garde-la dans ton inventaire pour une poursuite.", 'Ta lampe vide sa pile : éteins-la dans les zones éclairées et ramasse les piles dans le noir.'] },
   dogfight: { genre: 'action', time: '5–10 min',
     keys: [['Souris', 'Viser, l\'avion suit'], ['ZQSD / flèches', 'Piloter soi-même'], ['Espace / clic', 'Canon'], ['E / clic droit', 'Missile'], ['F', 'Leurres'], ['Maj', 'Postcombustion'], ['C', 'Aérofrein']],
     tips: ['Place le réticule blanc sur le cercle vert : c\'est là que les balles rencontrent la cible.', 'Monter et serrer les virages coûte de la vitesse : garde de l\'énergie.', 'Un nuage te cache des missiles et des bots.', 'En Domination, vole bas : au-dessus du plafond de la zone, tu ne captures rien.', 'En Escorte, le transport est fragile face à plusieurs attaquants : reste près de lui.'] },

@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 // Tests du serveur relais : ancien protocole, places qui survivent aux coupures (protocole 3) et amis.
 // node tools/test-relay.mjs      (prérequis : cd server && npm install)
 import { createRequire } from 'node:module';
@@ -9,7 +10,7 @@ const { WebSocket } = createRequire(new URL('../server/package.json', import.met
 
 const PORT = 8187, URL_WS = 'ws://127.0.0.1:' + PORT;
 const RELAY_LOG_DIR = mkdtempSync(join(tmpdir(), 'relais-logs-')); // pas dans logs/crash du dépôt
-const srv = spawn('node', [new URL('../server/server.js', import.meta.url).pathname], {
+const srv = spawn('node', [fileURLToPath(new URL('../server/server.js', import.meta.url))], {
   env: { ...process.env, PORT: String(PORT), RELAY_GRACE_MS: '1500', RELAY_AWAY_MS: '300', RELAY_LOG_DIR }, stdio: ['ignore', 'ignore', 'inherit'],
 });
 await new Promise((r) => setTimeout(r, 500));
@@ -216,7 +217,7 @@ const relays = (c, pred = () => true) => c.got.filter((m) => m.type === 'relay' 
 {
   // second serveur aux limites réduites (connexion muette repérée en 2 × 300 ms)
   const P2 = PORT + 1, U2 = 'ws://127.0.0.1:' + P2, H2 = 'http://127.0.0.1:' + P2;
-  const srv2 = spawn('node', [new URL('../server/server.js', import.meta.url).pathname], {
+  const srv2 = spawn('node', [fileURLToPath(new URL('../server/server.js', import.meta.url))], {
     env: { ...process.env, PORT: String(P2), RELAY_PING_MS: '300', RELAY_MAX_FRAME: '4096', RELAY_RATE_MSGS: '50', LOGS_TOKEN: 'secret-de-test', RELAY_LOG_DIR },
     stdio: ['ignore', 'ignore', 'pipe'],
   });

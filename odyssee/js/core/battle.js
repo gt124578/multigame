@@ -98,6 +98,16 @@ export class Battle {
         this.say(`Le talent Intimidation de ${this.nm(side)} s'active !`);
         this.lastUser = side; this.boost(opp, 2, -1, true);
       }
+    } else if (ab.id === 'halo-sylvestre') {
+      const opp = 1 - side;
+      const foe = this.act(opp);
+      if (!isFainted(foe)) {
+        this.say(`Le Halo Sylvestre de ${this.nm(side)} rayonne doucement !`);
+        this.lastUser = side; this.boost(opp, 4, -1, true);
+      }
+    } else if (ab.id === 'coeur-vaillant') {
+      this.say(`Le Cœur Vaillant de ${this.nm(side)} s'enflamme de bravoure !`);
+      this.lastUser = side; this.boost(side, 2, 1, true);
     } else if (ab.id === 'drizzle') {
       this.say(`Le talent Crachin de ${this.nm(side)} fait tomber la pluie !`);
       this.setWeather('rain', 5);
@@ -641,7 +651,7 @@ export class Battle {
       if (m.slp <= 0) { m.status = null; this.ev.push({ t: 'status', side: i, status: null }); this.say(`${this.Nm(i)} se réveille !`); }
       else { this.ev.push({ t: 'anim', side: i, k: 'sleep' }); this.say(`${this.Nm(i)} dort profondément.`); v.charge = null; v.rampage = null; return; }
     }
-    if (v.flinch) { this.say(`${this.Nm(i)} a peur ! Il ne peut pas attaquer !`); v.charge = null; return; }
+    if (v.flinch && this.ab(i) !== 'inner-focus' && this.ab(i) !== 'coeur-vaillant') { this.say(`${this.Nm(i)} a peur ! Il ne peut pas attaquer !`); v.charge = null; return; }
     if (v.conf > 0) {
       v.conf--;
       if (v.conf === 0) this.say(`${this.Nm(i)} n'est plus confus !`);
@@ -799,6 +809,11 @@ export class Battle {
       if (tAb?.id === 'flame-body' && this.r(100) < 30) {
         this.inflict(i, 'brn', mv, true);
       }
+      if (tAb?.id === 'cire-brulante') {
+        this.say(`La Cire Brûlante de ${this.nm(d)} jaillit !`);
+        if (this.r(100) < 30) this.inflict(i, 'brn', mv, true);
+        this.lastUser = d; this.boost(i, 6, -1, true);
+      }
       if (tAb?.id === 'poison-point' && this.r(100) < 30) {
         this.inflict(i, 'psn', mv, true);
       }
@@ -820,7 +835,7 @@ export class Battle {
     const ch = (c) => (this.ab(i) === 'serene-grace' ? c * 2 : c), noSec = this.ab(i) === 'sheer-force' || (tAb?.id === 'shield-dust');
     if (!isFainted(T) && !noSec) {
       if (x.flinch && first && this.r(100) < ch(x.flinch)) {
-        if (tAb?.id === 'inner-focus') { /* Attention : n'a pas peur */ }
+        if (tAb?.id === 'inner-focus' || tAb?.id === 'coeur-vaillant') { /* Attention ou Cœur Vaillant : n'a pas peur */ }
         else { tv.flinch = true; if (tAb?.id === 'steadfast') { this.lastUser = d; this.boost(d, 6, 1, true); } }
       }
       if (x.ail && x.ailc && this.r(100) < ch(x.ailc)) this.inflict(d, x.ail, mv, true);
@@ -957,7 +972,7 @@ export class Battle {
   boost(i, sid, c, secondary) {
     const v = this.sides[i].v, s = sid - 1, id = this.ab(i), byFoe = c < 0 && i !== this.lastUser;
     if (c < 0 && this.sides[i].screens.mist && i !== this.lastUser) { if (!secondary) this.say(`${this.Nm(i)} est protégé par la brume !`); return false; }
-    if (byFoe && (id === 'clear-body' || id === 'white-smoke' || (id === 'hyper-cutter' && s === 1) || (id === 'keen-eye' && s === 6) || (id === 'big-pecks' && s === 2))) {
+    if (byFoe && (id === 'clear-body' || id === 'white-smoke' || (id === 'hyper-cutter' && s === 1) || (id === 'coeur-vaillant' && s === 1) || (id === 'keen-eye' && s === 6) || (id === 'big-pecks' && s === 2))) {
       if (!secondary || sid === 2) this.say(`${getAbility(this.act(i)).name} de ${this.nm(i)} empêche la baisse !`); return false;
     }
     if (id === 'simple') c *= 2;

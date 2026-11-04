@@ -1,0 +1,20 @@
+Modèles de The Backrooms : Poly Haven (https://polyhaven.com), domaine public (CC0 1.0,
+https://creativecommons.org/publicdomain/zero/1.0/) : utilisation libre, même commerciale, sans obligation de citer.
+On les cite quand même, avec plaisir.
+
+Version glTF 1k compactée en .glb : géométrie d'origine, seule la texture de couleur est gardée (réduite en JPEG 512 px).
+  WetFloorSign_01.glb  https://polyhaven.com/a/WetFloorSign_01
+  SchoolChair_01.glb  https://polyhaven.com/a/SchoolChair_01
+  plastic_monobloc_chair_01.glb  https://polyhaven.com/a/plastic_monobloc_chair_01
+  metal_office_desk.glb  https://polyhaven.com/a/metal_office_desk
+  Television_01.glb  https://polyhaven.com/a/Television_01
+  trashbag.glb  https://polyhaven.com/a/trashbag
+  cardboard_box_01.glb  https://polyhaven.com/a/cardboard_box_01
+  fire_alarm.glb  https://polyhaven.com/a/fire_alarm
+  power_box_01.glb  https://polyhaven.com/a/power_box_01
+  wall_clock.glb  https://polyhaven.com/a/wall_clock
+  Barrel_01.glb  https://polyhaven.com/a/Barrel_01
+  wooden_crate_01.glb  https://polyhaven.com/a/wooden_crate_01
+  propane_tank.glb  https://polyhaven.com/a/propane_tank
+  hand_truck.glb  https://polyhaven.com/a/hand_truck
+  plastic_crate_01.glb  https://polyhaven.com/a/plastic_crate_01

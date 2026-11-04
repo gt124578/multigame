@@ -358,6 +358,20 @@
         "EXP_HOST_STOPPED_GAME : l'hôte a quitté la partie",
         "EXP_PEER_LEFT_MIDGAME : un joueur quitte en pleine manche"
       ]
+    },
+    {
+      "id": "backrooms",
+      "title": "The Backrooms",
+      "maxPlayers": 4,
+      "engine": "Three.js (Horreur coopérative 3D vue VHS)",
+      "crashReasons": [
+        "CRASH_WEBGL_CONTEXT_LOST : perte de contexte WebGL dans les couloirs du Level 0 ou 1",
+        "Échec de chargement des textures ou modèles d'entités"
+      ],
+      "expulsionReasons": [
+        "EXP_HOST_STOPPED_GAME : l'hôte a quitté l'exploration",
+        "EXP_PEER_LEFT_MIDGAME : un explorateur s'est déconnecté"
+      ]
     }
   ]
 }

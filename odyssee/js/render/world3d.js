@@ -8,6 +8,7 @@ import { SPRITES } from '../data/sprites.js';
 import { Sol } from './sol.js';
 import { archeGrotte, jourGrotte } from './grottes.js';
 import { sorteCase, K as SORTE } from './solgen.js';
+import { WeatherSystem } from './weather3d.js';
 import { choisirModele, geometriesModele, couleurBase, EMPRISES } from './bati-jeu.js';
 import { dessinHerbe, imageHerbe, NIMAGES, MARGE as HERBE_M, HAUTEUR as HERBE_H } from './herbes.js';
 
@@ -440,6 +441,7 @@ export class WorldView {
     this.focus = new THREE.Vector3(); this.shake = 0;
     this.actors = new Map();
     this.root = null;
+    try { this.weather = new WeatherSystem(this.scene); } catch (e) { this.weather = null; }
   }
 
   resize(w, h) {
@@ -1341,6 +1343,8 @@ export class WorldView {
     this.camera.position.set(this.focus.x, d * Math.sin(EL), this.focus.z + d * Math.cos(EL));
     if (this.shake > 0) { this.camera.position.x += (Math.random() - 0.5) * this.shake; this.camera.position.y += (Math.random() - 0.5) * this.shake; this.shake *= 0.85; if (this.shake < 0.01) this.shake = 0; }
     this.camera.lookAt(this.focus.x, 0, this.focus.z);
+    this.weather?.update(dt, this.focus.x, this.focus.z);
   }
+  setWeather(w) { this.weather?.setWeather(w); }
   render() { this.renderer.render(this.scene, this.camera); }
 }

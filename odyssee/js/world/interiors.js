@@ -45,7 +45,7 @@ export function houseInterior(id, name, o = {}) {
   furn(m, 'table', 4, 4); if (o.bed) furn(m, 'bed', w - 2, 4);
   // la chambre du joueur : une armoire pour changer de tenue
   if (o.bed && o.kitchen) m.object(5, 2, { use: (api) => api.game.frigo() });   // le frigo : son aimant d'agence immobilière
-  if (o.bed) { furn(m, 'armoire', w - 2, 2); m.object(w - 2, 2, { use: (api) => api.game.apparence({ armoire: true }) }); }
+  if (o.bed) { furn(m, 'armoire', w - 2, 2); m.object(w - 2, 2, { use: (api) => api.game.apparence({ armoire: true }) }); furn(m, 'pc', 2, 2); m.object(2, 2, { type: 'pc' }); }
   if (o.kitchen) { furn(m, 'fridge', 5, 2); furn(m, 'kitchen', 6, 2); }
   else furn(m, w > 9 ? 'clock' : 'painting', 5, 2);
   if (o.extraBooks) furn(m, 'books', 6, 2);
@@ -55,7 +55,7 @@ export function houseInterior(id, name, o = {}) {
 export function labInterior(id) {
   const m = room(id, 13, 12, { floor: 'lab', music: 'lab', wall: 'wall_mart', name: 'Labo du Prof. Saule' });
   for (const x of [1, 2, 3, 9, 10, 11]) furn(m, 'books', x, 2);
-  furn(m, 'pc', 5, 2); furn(m, 'pc', 7, 2);
+  furn(m, 'pc', 5, 2); furn(m, 'pc', 7, 2); m.object(5, 2, { type: 'pc' }); m.object(7, 2, { type: 'pc' });
   for (const x of [5, 6, 7]) { m.set(x, 5, T.BLOCK); m.deco.push({ k: 'counter', x, y: 5, front: 'counterfront', top: 'lab', ball: true }); }
   furn(m, 'plant', 1, 9); furn(m, 'plant', 11, 9); furn(m, 'labmachine', 1, 6); furn(m, 'labmachine', 11, 6);
   return m;

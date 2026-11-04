@@ -154,7 +154,7 @@ function aimAt(sim, b, q, err = 0) {
 // ------------------------------------------------------------------ cerveau
 function think(sim, b, dt) {
   const B0 = brain(sim, b);
-  if (b.role === 'm' && b.kills !== B0.lastKills) { B0.lastKills = b.kills; if (b.kills) { B0.calm = 1.5 + Math.random() * 3; B0.target = null; } }
+  if (b.role === 'm' && b.kills !== B0.lastKills) { B0.lastKills = b.kills; if (b.kills) { B0.calm = 1.5 + Math.random() * 3; B0.target = null; B0.exposedT = 10; } }
   const B = brain(sim, b), inp = b.inp;
   B.repath -= dt; B.useCd -= dt; B.react -= dt; B.throwCd -= dt; B.boT -= dt;
   if (b.stun > 0) { steer(sim, b, dt, null); return; }
@@ -244,7 +244,10 @@ function murderer(sim, b, dt) {
   const live = sim.players.filter((q) => q !== b && q.st === 'ok');
   // les armes qu'on voit : un revolver sorti qui nous regarde, c'est dangereux
   const guns = live.filter((q) => q.drawn && sim.holding(q) === 'gun' && canSee(sim, b, q));
-  const threat = guns.find((q) => { const dx = b.x - q.x, dz = b.z - q.z, d = Math.hypot(dx, dz); const f = (-Math.sin(q.yaw) * dx - Math.cos(q.yaw) * dz) / (d || 1); return f > 0.75 && d < 22; });
+  // il ne se sent visé que s'il s'est montré (couteau sorti ou meurtre récent) : sinon il reste l'innocent qu'il joue
+  if (b.drawn || b.atkT > 0) B.exposedT = 10;
+  B.exposedT = Math.max(0, (B.exposedT || 0) - dt);
+  const threat = B.exposedT > 0 && guns.find((q) => { const dx = b.x - q.x, dz = b.z - q.z, d = Math.hypot(dx, dz); const f = (-Math.sin(q.yaw) * dx - Math.cos(q.yaw) * dz) / (d || 1); return f > 0.75 && d < 22; });
   // couteau lancé : on va le chercher (il revient aussi tout seul)
   if (!b.hasKnife) {
     B.wantDraw = false;
@@ -278,7 +281,7 @@ function murderer(sim, b, dt) {
     return;
   }
   // au début, on se fond dans la foule
-  if (B.calm === undefined) B.calm = 6 + Math.random() * 12;
+  if (B.calm === undefined) B.calm = 12 + Math.random() * 14;
   if (B.calm > 0) { B.calm -= dt; B.wantDraw = false; const c = nearCoin(sim, b, 7); if (c) { goTo(sim, b, c.x, c.z, c.lv, 'coin'); steer(sim, b, dt, follow(sim, b, dt) || { dx: c.x - b.x, dz: c.z - b.z }); } else wander(sim, b, dt); return; }
   // la proie : la plus proche, de préférence seule (personne d'autre ne la voit)
   let tgt = B.target ? sim.byId.get(B.target) : null;

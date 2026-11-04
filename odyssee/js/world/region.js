@@ -53,10 +53,10 @@ export const BADGES = [
 ];
 // capacités de terrain : obtenues auprès d'un Champion, utilisables avec le badge indiqué
 export const FIELD = {
-  coupe: { name: 'Coupe', cs: 'CS01', badge: 4, desc: 'Tranche les petits arbres qui barrent le chemin.' },
-  surf: { name: 'Surf', cs: 'CS02', badge: 5, desc: 'Permet de traverser l\'eau sur le dos d\'une créature.' },
+  coupe: { name: 'Coupe', item: 'secateur-sylvestre', itemName: 'Sécateur Sylvestre', cs: 'Sécateur Sylvestre', badge: 4, desc: 'Tranche les petits arbres et arbustes épineux qui barrent le chemin.' },
+  surf: { name: 'Surf', item: 'harnais-flottant', itemName: 'Harnais Flottant', cs: 'Harnais Flottant', badge: 5, desc: 'Selle nautique étanche permettant de naviguer et glisser sur l\'eau.' },
   eclate: { name: 'Éclate-Roc', cs: 'CS03', badge: 6, desc: 'Brise les rochers fissurés.' },
-  vol: { name: 'Vol', cs: 'CS04', badge: 7, desc: 'Ramène en un instant dans une ville déjà visitée.' },
+  vol: { name: 'Vol', item: 'sifflet-celeste', itemName: 'Sifflet Céleste', cs: 'Sifflet Céleste', badge: 5, desc: 'Sifflet appelant un oiseau pour voyager en un instant vers une ville déjà visitée.' },
   // données par l'histoire (la Team Éclipse) : Flash par le Dr Lumen, Force par l'ingénieur de la Centrale
   flash: { name: 'Flash', cs: 'CS05', badge: 1, desc: 'Éclaire les grottes plongées dans le noir.' },
   force: { name: 'Force', cs: 'CS06', badge: 3, desc: 'Pousse les gros rochers qui barrent certains chemins.' },
@@ -467,7 +467,7 @@ export function buildWorld() {
     buildings: [
       { kind: 'center', ...GRAND.center, x: 2, y: 3 }, { kind: 'mart', ...GRAND.mart, x: 10, y: 4 },
       { kind: 'bighouse', x: 21, y: 5, roof: 'purple', name: 'Résidence Floralia', npcs: [{ x: 3, y: 4, sprite: 'habitante', text: ['Les attaques de statut ne font pas de dégâts, mais elles changent tout.', 'Un adversaire endormi, c\'est un adversaire inoffensif !'] }, { x: 7, y: 5, sprite: 'scientifique', text: ['J\'ai vu un dresseur aux cheveux bleus foncer vers l\'Arène.', 'Il avait l\'air pressé de te battre...'] }] },
-      { kind: 'house2', x: 27, y: 6, roof: 'green', npcs: [{ x: 2, y: 4, sprite: 'gamin', text: ['Les petits arbres à l\'est bloquent la route de Mirage.', 'Flora sait comment les couper... mais elle ne l\'apprend qu\'aux dresseurs qui la battent !'] }] },
+      { kind: 'house2', x: 27, y: 6, roof: 'green', npcs: [{ x: 2, y: 4, sprite: 'gamin', text: ['Les buissons épineux à l\'est bloquent la Route 6 vers Mirage.', 'Flora, notre Championne, conserve le précieux Sécateur Sylvestre.', 'Elle ne le confie qu\'aux dresseurs qui remportent le Badge Pétale !'] }] },
       { kind: 'gym', ...GRAND.gym, x: 26, y: 21, roof: 'green' },
       { kind: 'house', x: 4, y: 16, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'habitante', text: ['Ta créature la plus en forme combat en premier.', 'Change l\'ordre de ton équipe dans le menu Équipe !'] }] },
       { kind: 'house', x: 9, y: 16, roof: 'orange', npcs: [{ x: 2, y: 4, sprite: 'habitant', text: ['Mirage, à l\'est, est une ville étrange.', 'On dit que ses habitants lisent dans les pensées.'] }] },
@@ -750,7 +750,7 @@ export function buildWorld() {
   W.rect(282, 185, 301, 188, T.SAND);
   W.zone(282, 183, 301, 188, { name: 'Cap Mirage', music: 'route', trigger: 'rival4' });
   W.sign(295, 185, 'CAP MIRAGE\nAu sud-est : Île de Granit. Au sud : Cendrelune.\nTourbillons au large : baignade interdite. Passeur pour l\'archipel.');
-  W.npc({ id: 'cap:pecheur', x: 286, y: 186, sprite: 'pecheur', dir: 'down', text: ['Les trois îles que tu vois là-bas, ce sont les îles des trois frères.', 'Granit, la plus proche. Puis Cendrelune, le volcan. Et la Grande Île, tout au fond.', 'Drakos, l\'aîné, règne sur les trois depuis Fort-Écaille.'] });
+  W.npc({ id: 'cap:pecheur', x: 286, y: 186, sprite: 'pecheur', dir: 'down', text: ['Les trois îles que tu vois là-bas, ce sont les îles des trois frères.', 'Granit, la plus proche. Puis Cendrelune, le volcan. Et la Grande Île, tout au fond.', 'Drakos, l\'aîné, règne sur les trois depuis Fort-Écaille.', 'Même avec le Harnais Flottant, n\'essaie pas d\'y aller à la nage : les tourbillons t\'avaleraient. Le passeur du Cap t\'y emmènera.', 'Là-bas, ton Harnais te servira pour passer d\'une île à l\'autre.'] });
 
   // Grande Île : route 11 (de la plage est à Fort-Écaille, par une passe rocheuse) et forêt d'Écaille au sud
   const r11 = R('r11', 'Route 11', [[256.5, 238.5], [247, 240.5], [239, 233.5], [233, 224], [229, 218.5]], { w: 10, grass: 0.8, trees: 0.06, rocks: 0.05, taperEnd: false }, 'ecaille');

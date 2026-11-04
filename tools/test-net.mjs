@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 // Tests de bout en bout de la connexion : shared/net.js et shared/room.js tournent dans de faux navigateurs, reliés au
 // vrai serveur relais par des mandataires TCP que l'on coupe, fige ou bloque, comme un wifi capricieux.
 // node tools/test-net.mjs      (prérequis : cd server && npm install)
@@ -12,12 +13,12 @@ const { WebSocket: NodeWS } = createRequire(new URL('../server/package.json', im
 // comme dans un navigateur, une erreur de connexion n'est qu'un événement (suivi de la fermeture)
 class WebSocket extends NodeWS { constructor(u) { super(u); this.on('error', () => {}); } }
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ROOT_TMP = path.join(tmpdir(), 'relais-logs-'); // logs du serveur hors du dépôt
 const SPORT = 8188;
 let srv = null;
 const startServer = async () => {
-  srv = spawn('node', [ROOT + 'server/server.js'], { env: { ...process.env, PORT: String(SPORT), RELAY_GRACE_MS: '2500', RELAY_LOG_DIR: fs.mkdtempSync(ROOT_TMP) }, stdio: ['ignore', 'ignore', 'inherit'] });
+  srv = spawn('node', [path.join(ROOT, 'server', 'server.js')], { env: { ...process.env, PORT: String(SPORT), RELAY_GRACE_MS: '2500', RELAY_LOG_DIR: fs.mkdtempSync(ROOT_TMP) }, stdio: ['ignore', 'ignore', 'inherit'] });
   await sleep(400);
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -77,7 +78,7 @@ function hiddenTab(slot) {
 }
 
 // Faux navigateur : un contexte isolé par joueur (comme un onglet), avec net.js et room.js
-const SRC = ['shared/net.js', 'shared/room.js'].map((f) => fs.readFileSync(ROOT + f, 'utf8'));
+const SRC = ['shared/net.js', 'shared/room.js'].map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8'));
 function browser(port, env = {}) {
   const L = {};
   const w = {

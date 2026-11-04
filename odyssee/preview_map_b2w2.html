@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aperçu — Carte de la Région d'Odyssée B2W2 (v4.05)</title>
+  <link rel="stylesheet" href="odyssee.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #050912;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .preview-bar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      background: #0e1726;
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: 1px solid #1e3a5f;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .preview-bar button {
+      background: #0284c7;
+      color: #fff;
+      border: 1px solid #38bdf8;
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .preview-bar button:hover {
+      background: #0369a1;
+    }
+    .map-preview-container {
+      position: relative;
+      width: 100%;
+      max-width: 960px;
+      height: 640px;
+      background: #000;
+      border: 2px solid #0284c7;
+      box-shadow: 0 8px 32px rgba(0, 224, 255, 0.25);
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-bar">
+    <span><b>🛰️ C-Gear 5G — Carte de la Région d'Odyssée :</b></span>
+    <button onclick="reopenMap(31, 219, 'Bourg-En-Vol')">Position : Bourg-En-Vol [31, 219]</button>
+    <button onclick="reopenMap(110, 180, 'Port-Azur')">Position : Port-Azur [110, 180]</button>
+    <button onclick="reopenMap(280, 95, 'Plateau Ligue')">Position : Plateau Ligue [280, 95]</button>
+  </div>
+
+  <div class="map-preview-container" id="mapContainer"></div>
+
+  <script type="module">
+    import { mapScreen } from './js/ui/screens.js';
+
+    let currentPos = { x: 31, y: 219, loc: 'Bourg-En-Vol' };
+
+    function createMockGame(px, py, locName) {
+      const container = document.getElementById('mapContainer');
+      container.innerHTML = '';
+      return {
+        ui: {
+          root: container,
+          sound: {
+            sfx(key) { console.log('[SFX]', key); },
+            cry(id) { console.log('[CRY]', id); }
+          },
+          input: {
+            push(handler) {
+              const onKeyDown = (e) => {
+                if (e.key === 'ArrowLeft') handler('left');
+                else if (e.key === 'ArrowRight') handler('right');
+                else if (e.key === 'ArrowUp') handler('up');
+                else if (e.key === 'ArrowDown') handler('down');
+                else if (e.key === ' ' || e.key === 'Enter') handler('a');
+                else if (e.key === 'Escape') handler('b');
+                else if (e.key.toLowerCase() === 'm') handler('map');
+              };
+              window.addEventListener('keydown', onKeyDown);
+              return () => window.removeEventListener('keydown', onKeyDown);
+            }
+          }
+        },
+        state: {
+          name: 'Aurore',
+          id: 57983,
+          badges: [true, true, false, false, false, false, false, false, false, false, false, false, false, false, false],
+          visited: ['bourg', 'sylve', 'port_azur'],
+          explored: [
+            // route 1 and bourg-en-vol explored chunks
+            31 * 55 + 27, 31 * 55 + 28, 32 * 55 + 27, 32 * 55 + 28,
+            30 * 55 + 27, 29 * 55 + 27, 28 * 55 + 27, 27 * 55 + 27
+          ]
+        },
+        world: {
+          towns: {
+            bourg: { id: 'bourg', name: 'Bourg-En-Vol', x: 30, y: 215, w: 16, h: 16 },
+            sylve: { id: 'sylve', name: 'Sylve-les-Bois', x: 32, y: 150, w: 20, h: 20, gym: 0 },
+            port_azur: { id: 'port_azur', name: 'Port-Azur', x: 110, y: 180, w: 24, h: 24, gym: 1 },
+            plateau: { id: 'plateau', name: 'Plateau Ligue', x: 280, y: 95, w: 24, h: 24 }
+          },
+          routes: [
+            { name: 'Route 1', pts: [[30, 215], [31, 185], [32, 150]] },
+            { name: 'Route 2', pts: [[32, 150], [70, 165], [110, 180]] }
+          ],
+          maps: {
+            monde: {
+              id: 'monde',
+              w: 440, h: 520,
+              buildings: [{ kind: 'cave', x: 70, y: 160, w: 4, d: 2 }],
+              get(x, y) {
+                // simple demo terrain generator
+                if (x < 15 || y > 490 || (x > 180 && y > 300)) return 2; // water
+                return 1; // ground
+              },
+              zoneAt(x, y) {
+                return { name: locName, theme: 'plains' };
+              }
+            }
+          }
+        },
+        worldPos() {
+          return { x: px, y: py };
+        },
+        locationName() {
+          return locName;
+        },
+        levelCap() {
+          return 35;
+        }
+      };
+    }
+
+    window.reopenMap = (x, y, loc) => {
+      currentPos = { x, y, loc };
+      const game = createMockGame(x, y, loc);
+      mapScreen(game);
+    };
+
+    // Initial render
+    reopenMap(currentPos.x, currentPos.y, currentPos.loc);
+  </script>
+</body>
+</html>

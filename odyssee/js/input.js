@@ -6,7 +6,7 @@ const MAP = {
   KeyF: 'a', Space: 'a', Enter: 'a', NumpadEnter: 'a', KeyE: 'a', KeyK: 'a',
   Escape: 'b', Backspace: 'b', KeyX: 'b', KeyL: 'b',
   ShiftLeft: 'run', ShiftRight: 'run', KeyR: 'autorun', CapsLock: 'autorun',
-  Tab: 'menu', KeyM: 'menu', KeyC: 'map', KeyV: 'velo', KeyQ: 'quests', KeyJ: 'quests', KeyU: 'hud', KeyH: 'help', F1: 'help',
+  Tab: 'menu', KeyM: 'menu', KeyC: 'map', KeyV: 'velo', KeyQ: 'quests', KeyJ: 'quests', KeyT: 'trophies', KeyO: 'friends', KeyG: 'friends', KeyU: 'hud', KeyH: 'help', F1: 'help',
 };
 export class Input {
   constructor() {

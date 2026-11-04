@@ -236,6 +236,7 @@ export class UI {
       <tr><td>Annuler, revenir</td><td><kbd>Échap</kbd> (ou <kbd>Retour arrière</kbd>)</td></tr>
       <tr><td>Menu (équipe, sac, sauvegarde…)</td><td><kbd>Échap</kbd>, <kbd>Tab</kbd> ou <kbd>M</kbd></td></tr>
       <tr><td>Carte de la région</td><td><kbd>C</kbd></td></tr>
+      <tr><td>Journal Quêtes / Trophées</td><td><kbd>Q</kbd> (Quêtes) · <kbd>T</kbd> (Trophées & Médailles)</td></tr>
       <tr><td>Afficher / replier le HUD</td><td><kbd>U</kbd> (ou clic sur ▴ / ▾)</td></tr>
       <tr><td>Capacités de terrain</td><td>face à un petit arbre, un rocher fissuré ou à l'eau : <kbd>F</kbd></td></tr>
       <tr><td>Sauvegarder</td><td><kbd>Échap</kbd> → SAUVER (ou bouton SAUVER du HUD)</td></tr>

@@ -4,11 +4,12 @@ import fs from 'fs';
 console.log('=== Test Arrière-plans de Combat (Arènes, Ville & Village) ===');
 
 // 1. Vérification des dimensions des fichiers PNG
+const root = fs.existsSync('odyssee/img/battle') ? '.' : 'arcadia';
 const bgs = [
-  'arcadia/odyssee/img/battle/bg_gym.png',
-  'arcadia/odyssee/img/battle/bg_gym_rock.png',
-  'arcadia/odyssee/img/battle/bg_city.png',
-  'arcadia/odyssee/img/battle/bg_village.png',
+  `${root}/odyssee/img/battle/bg_gym.png`,
+  `${root}/odyssee/img/battle/bg_gym_rock.png`,
+  `${root}/odyssee/img/battle/bg_city.png`,
+  `${root}/odyssee/img/battle/bg_village.png`,
 ];
 
 for (const p of bgs) {
@@ -22,14 +23,14 @@ for (const p of bgs) {
 }
 
 // 2. Vérification de la logique dans game.js
-const gameSrc = fs.readFileSync('arcadia/odyssee/js/game.js', 'utf8');
+const gameSrc = fs.readFileSync(fs.existsSync('odyssee/js/game.js') ? 'odyssee/js/game.js' : 'arcadia/odyssee/js/game.js', 'utf8');
 assert.ok(gameSrc.includes("const isVillage = z?.town === 'aube' || z?.town === 'sylve'"), 'game.js doit détecter les villages');
 assert.ok(gameSrc.includes("const isCity = !!z?.town"), 'game.js doit détecter les villes');
 assert.ok(gameSrc.includes("const gymKind = (m.arene === 'rock'"), 'game.js doit varier les arènes (gym_rock vs gym)');
 console.log('✓ Logique de sélection des décors validée dans game.js');
 
 // 3. Vérification de battleView.js
-const bvSrc = fs.readFileSync('arcadia/odyssee/js/ui/battleView.js', 'utf8');
+const bvSrc = fs.readFileSync(fs.existsSync('odyssee/js/ui/battleView.js') ? 'odyssee/js/ui/battleView.js' : 'arcadia/odyssee/js/ui/battleView.js', 'utf8');
 assert.ok(bvSrc.includes("gym_rock: 'bg_gym_rock'"), 'battleView.js doit mapper gym_rock');
 assert.ok(bvSrc.includes("city: 'bg_city'"), 'battleView.js doit mapper city');
 assert.ok(bvSrc.includes("village: 'bg_village'"), 'battleView.js doit mapper village');

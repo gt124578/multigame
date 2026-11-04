@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aperçu — Carte de Dresseur B2W2 (v4.02)</title>
+  <link rel="stylesheet" href="odyssee.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #060a12;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+    .preview-controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      background: #0f172a;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+    .preview-controls button {
+      background: #0284c7;
+      color: #fff;
+      border: 1px solid #38bdf8;
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .preview-controls button:hover {
+      background: #0369a1;
+    }
+    .card-wrap {
+      width: 100%;
+      max-width: 960px;
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-controls">
+    <span><b>Aperçu B2W2 Carte de Dresseur :</b></span>
+    <button onclick="setFace('profile')">Face A : Profil</button>
+    <button onclick="setFace('badges')">Face B : 15 Badges</button>
+    <button onclick="setTheme('normal')">Normal</button>
+    <button onclick="setTheme('bronze')">Bronze</button>
+    <button onclick="setTheme('silver')">Argent</button>
+    <button onclick="setTheme('gold')">Or</button>
+    <button onclick="setTheme('master')">Maître 5★</button>
+  </div>
+
+  <div class="card-wrap" id="cardContainer"></div>
+
+  <script type="module">
+    import { cardScreen } from './js/ui/screens.js';
+    import { BADGES } from './js/world/region.js';
+
+    const mockGame = {
+      ui: {
+        root: document.getElementById('cardContainer'),
+        sound: { sfx() {}, badgeChime() {} }
+      },
+      state: {
+        name: 'Aurore',
+        id: 57983,
+        gender: 'f',
+        money: 85400,
+        dex: { caught: Array(48).fill(1), seen: Array(94).fill(1) },
+        time: 14200,
+        badges: [true, true, true, true, true, false, false, false, false, false, false, false, false, false, false],
+        party: [
+          { sp: 1003, lvl: 42, nick: 'Capysaule', hp: 128, stats: [128], ball: 'hyper-ball' },
+          { sp: 25, lvl: 38, nick: 'Pikachu', hp: 88, stats: [95], ball: 'super-ball', shiny: true }
+        ],
+        flags: { champion: false },
+        pvp: { totalWins: 6, totalLosses: 1, trophies: { pvp_streak_5: { unlocked: true } } }
+      }
+    };
+
+    // Render directly into container
+    cardScreen(mockGame, BADGES);
+
+    window.setFace = (face) => {
+      const casing = document.querySelector('.b2w2-card-casing');
+      const bg = document.querySelector('.tc-pixelart-bg');
+      const prof = document.querySelector('.tc-face-profile');
+      const badg = document.querySelector('.tc-face-badges');
+      if (face === 'profile') {
+        prof.classList.add('active');
+        badg.classList.remove('active');
+        bg.src = 'img/card/card_front_normal.jpg';
+      } else {
+        prof.classList.remove('active');
+        badg.classList.add('active');
+        bg.src = 'img/card/card_back_case.jpg';
+      }
+    };
+
+    window.setTheme = (theme) => {
+      const casing = document.querySelector('.b2w2-card-casing');
+      const bg = document.querySelector('.tc-pixelart-bg');
+      casing.className = `b2w2-card-casing card-${theme}`;
+      bg.src = `img/card/card_front_${theme}.jpg`;
+    };
+  </script>
+</body>
+</html>

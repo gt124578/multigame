@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 // tools/test-saves.mjs — sauvegardes en ligne du serveur relais (server/saves.js), contre une fausse API GitHub.
 // Usage : node tools/test-saves.mjs   (le serveur ws doit être installé : cd server && npm install)
 import http from 'node:http';
@@ -38,7 +39,7 @@ await new Promise((r) => api.listen(0, r));
 const apiPort = api.address().port;
 
 const start = (port, env) => {
-  const p = spawn('node', [new URL('../server/server.js', import.meta.url).pathname], { env: { ...process.env, PORT: String(port), RELAY_LOG_DIR: '/tmp/ddtest-saves-logs', ...env }, stdio: ['ignore', 'ignore', 'inherit'] });
+  const p = spawn('node', [fileURLToPath(new URL('../server/server.js', import.meta.url))], { env: { ...process.env, PORT: String(port), RELAY_LOG_DIR: '/tmp/ddtest-saves-logs', ...env }, stdio: ['ignore', 'ignore', 'inherit'] });
   return p;
 };
 const srv = start(8131, { GITHUB_TOKEN: 'jeton-test', SAVES_REPO: 'o/r', SAVES_API: `http://127.0.0.1:${apiPort}`, SAVES_GAP_MS: '400' });

@@ -16,6 +16,7 @@ export class Link {
     this.inbox = [];         // messages de session arrivés avant qu'on les attende
     this.onRequest = null;   // (from, msg) → appelé à la réception d'une invitation
     this.onCard = null;      // () → fiche dresseur envoyée à qui la demande
+    this.onSpectate = null;  // (from, msg) → gestion des spectateurs d'un combat en cours
     this.lastSent = '';
     this.lastSentAt = 0;
     this.me = null;          // () → { map, x, y, dir, run, busy, name, gender } ou null (pas encore en jeu)
@@ -27,7 +28,7 @@ export class Link {
     });
   }
 
-  get myId() { return this.H ? this.H.info.myId : 0; }
+  get myId() { return this.H?.info?.myId || 0; }
   playerInfo(id) { return (this.H?.players || []).find((p) => String(p.id) === String(id)) || null; }
   nameOf(id) { return this.others.get(String(id))?.name || this.playerInfo(id)?.name || 'Dresseur'; }
 
@@ -64,12 +65,14 @@ export class Link {
         gender: m.gender === 'f' ? 'f' : 'm', tn: typeof m.tn === 'string' && m.tn.length < 20 ? m.tn : '', map: m.map, x: m.x, y: m.y, dir: m.dir || 'down', run: !!m.run, busy: !!m.busy, t: Date.now(),
         // position affichée (interpolée) : on la garde d'un message à l'autre sur la même carte
         dx: prev && prev.map === m.map ? prev.dx : m.x, dy: prev && prev.map === m.map ? prev.dy : m.y, step: prev?.step || 0,
+        pvp: m.pvp && typeof m.pvp === 'object' ? m.pvp : null,
       });
       return;
     }
     if (m.t === 'hello') { this.lastSent = ''; return; }
     if (m.t === 'bye') { this.drop(from); return; }
     if (m.t === 'card?') { const c = this.onCard?.(); this.send(from, { t: 'card', rid: m.rid, card: c }); return; }
+    if (m.t === 'spec_join' || m.t === 'spec_leave') { if (this.onSpectate && this.onSpectate(from, m)) return; }
     if (m.t === 'req') {
       if (this.onRequest) this.onRequest(from, m);
       else this.send(from, { t: 'rep', rid: m.rid, ok: false, why: 'busy' });

@@ -1,4 +1,5 @@
 // odyssee/js/ui/screens.js — écrans plein cadre : équipe, résumé, sac, Pokédex, carte, carte de dresseur, boutique, PC, options
+export { trophiesScreen, showTrophyToast } from './trophiesView.js';
 import { el, esc } from './ui.js';
 import { SPECIES } from '../data/species.js';
 import { ORIGINALES } from '../data/remplacants.js';
@@ -12,6 +13,7 @@ import { ASSETS } from '../assets.js';
 import { SPRITES } from '../data/sprites.js';
 import { T, walkable } from '../world/tiles.js';
 import { getAllQuests, setTrackedQuest, syncJournal } from '../core/questsData.js';
+import { getFriendsManager, formatFid, parseFid } from '../net/friends.js';
 
 export const TYPE_FR = { fairy: 'Fée', normal: 'Normal', fighting: 'Combat', flying: 'Vol', poison: 'Poison', ground: 'Sol', rock: 'Roche', bug: 'Insecte', ghost: 'Spectre', steel: 'Acier', fire: 'Feu', water: 'Eau', grass: 'Plante', electric: 'Électrik', psychic: 'Psy', ice: 'Glace', dragon: 'Dragon', dark: 'Ténèbres' };
 export const TYPE_COL = { fairy: '#ee99ac', normal: '#a8a878', fighting: '#c03028', flying: '#a890f0', poison: '#a040a0', ground: '#e0c068', rock: '#b8a038', bug: '#a8b820', ghost: '#705898', steel: '#b8b8d0', fire: '#f08030', water: '#6890f0', grass: '#78c850', electric: '#f8d030', psychic: '#f85888', ice: '#98d8d8', dragon: '#7038f8', dark: '#705848' };
@@ -64,6 +66,19 @@ export function partyScreen(game, o = {}) {
 
     const foot = el('div', 'pfoot');
     const help = el('div', 'box phelp');
+    if (o.mode === 'menu') {
+      const pcBtn = el('button', 'pc-link-btn', 'BOÎTES PC 💻');
+      pcBtn.type = 'button';
+      pcBtn.title = 'Accéder au Système de Stockage des Pokémon';
+      pcBtn.onclick = async () => {
+        if (busy) return;
+        busy = true;
+        await pcScreen(game);
+        busy = false;
+        draw();
+      };
+      foot.append(pcBtn);
+    }
     const cancel = el('button', 'pcancel', 'RETOUR ✕');
     cancel.type = 'button';
     foot.append(help, cancel);
@@ -171,7 +186,7 @@ export function partyScreen(game, o = {}) {
               <div class="pslot-types">${typesHtml}</div>
               <div class="pslot-hp-box">
                 <div class="hp-b2w2">
-                  <span class="hp-tag">HP</span>
+                  <span class="hp-tag">PV</span>
                   <div class="hp-track"><u style="width:${(r * 100).toFixed(1)}%;background:${hpCol(r)}"></u></div>
                 </div>
                 <div class="phpn">${m.hp} / ${m.stats[0]}</div>
@@ -216,7 +231,7 @@ export function partyScreen(game, o = {}) {
             </div>
             <div class="pslot-sub-right">
               <div class="hp-b2w2">
-                <span class="hp-tag">HP</span>
+                <span class="hp-tag">PV</span>
                 <div class="hp-track"><u style="width:${(r * 100).toFixed(1)}%;background:${hpCol(r)}"></u></div>
               </div>
               <div class="phpn">${m.hp} / ${m.stats[0]}</div>
@@ -280,7 +295,7 @@ export function partyScreen(game, o = {}) {
       } else if (k === 'b') {
         if (swapFrom >= 0) { swapFrom = -1; draw(); return; }
         ui.sound.sfx('cancel'); close(-1); return;
-      } else if (k === 'a') {
+      } else if (k === 'a' || k === 'space') {
         await triggerSlot(i); return;
       } else return;
       ui.sound.sfx('blip'); draw();
@@ -534,13 +549,17 @@ export function summaryScreen(game, list, idx) {
     };
     draw();
     const pop = ui.input.push((k) => {
-      if (k === 'left') page = (page + 2) % 3;
-      else if (k === 'right') page = (page + 1) % 3;
-      else if (k === 'up') idx = (idx - 1 + list.length) % list.length;
-      else if (k === 'down') idx = (idx + 1) % list.length;
-      else if (k === 'b' || k === 'a') { close(); return; }
-      else return;
-      ui.sound.sfx('blip'); draw();
+      if (k === 'left') { page = (page + 2) % 3; ui.sound.sfx('blip'); draw(); }
+      else if (k === 'right') { page = (page + 1) % 3; ui.sound.sfx('blip'); draw(); }
+      else if (k === 'up') { idx = (idx - 1 + list.length) % list.length; ui.sound.sfx('blip'); draw(); }
+      else if (k === 'down') { idx = (idx + 1) % list.length; ui.sound.sfx('blip'); draw(); }
+      else if (k === 'a' || k === 'space') {
+        page = (page + 1) % 3;
+        ui.sound.sfx('blip');
+        draw();
+      } else if (k === 'b') {
+        close();
+      }
     });
   });
 }
@@ -1033,11 +1052,39 @@ export function dexScreen(game) {
     };
     draw();
     const pop = ui.input.push((k) => {
-      if (k === 'up') i = (i - 1 + ids.length) % ids.length; else if (k === 'down') i = (i + 1) % ids.length;
-      else if (k === 'left') i = Math.max(0, i - 10); else if (k === 'right') i = Math.min(ids.length - 1, i + 10);
-      else if (k === 'b' || k === 'a') { pop(); s.remove(); ui.sound.sfx('cancel'); resolve(); return; }
-      else return;
-      ui.sound.sfx('blip'); draw();
+      if (k === 'up') {
+        i = (i - 1 + ids.length) % ids.length;
+        ui.sound.sfx('blip');
+        draw();
+      } else if (k === 'down') {
+        i = (i + 1) % ids.length;
+        ui.sound.sfx('blip');
+        draw();
+      } else if (k === 'left') {
+        i = Math.max(0, i - 10);
+        ui.sound.sfx('blip');
+        draw();
+      } else if (k === 'right') {
+        i = Math.min(ids.length - 1, i + 10);
+        ui.sound.sfx('blip');
+        draw();
+      } else if (k === 'a' || k === 'space') {
+        const id = ids[i];
+        if (seen.has(id)) {
+          try { ui.sound?.cry?.(id); } catch (e) {}
+          if (spr) {
+            spr.style.transform = 'scale(1.2)';
+            setTimeout(() => { if (spr) spr.style.transform = ''; }, 200);
+          }
+        } else {
+          try { ui.sound?.sfx?.('cancel'); } catch (e) {}
+        }
+      } else if (k === 'b') {
+        pop();
+        s.remove();
+        ui.sound.sfx('cancel');
+        resolve();
+      }
     });
   });
 }
@@ -1048,12 +1095,13 @@ export function dexScreen(game) {
 /** carte de la région, dessinée comme le Pokégear de HeartGold / SoulSilver : mer en trois bleus, côtes en falaises,
  *  plaines et forêts, montagnes en paliers, routes blanches cerclées de gris, villes en pastilles rouges.
  *  Un pixel = une case ; le relief est posé par blocs de 2 × 2 cases, comme les pixels doublés du DS. */
-const HG = {
-  open: [81, 186, 218], far: [66, 181, 206], deep: [57, 165, 189], foam: [139, 219, 244],
-  flat: [97, 195, 146], shadow: [81, 179, 128], cliff: [197, 145, 106],
-  top: [242, 178, 130], vhigh: [220, 162, 114], high: [195, 146, 105], low: [162, 130, 89],
-  ink: '#525252', road: '#ffffff', town: '#fa5263', townDark: '#a23047', special: '#72cb93', water: '#60b2fc',
+const B2W2_PALETTE = {
+  open: [20, 68, 108], far: [14, 50, 84], deep: [10, 36, 62], foam: [0, 224, 255],
+  flat: [60, 164, 116], shadow: [40, 126, 86], cliff: [168, 122, 88],
+  top: [238, 180, 136], vhigh: [214, 158, 116], high: [188, 140, 100], low: [156, 122, 84],
+  ink: '#0b1c2d', road: '#e0f4ff', town: '#ef4444', townDark: '#991b1b', special: '#00e0ff', water: '#185a9d',
 };
+const HG = B2W2_PALETTE;
 let carteIcons = null;
 function loadCarteIcons() {
   if (carteIcons) return carteIcons;
@@ -1109,15 +1157,15 @@ function regionTerrain(game) {
 }
 
 /** cadre de la carte : ce qu'on a exploré (plus une marge), jamais plus petit qu'un tiers de la région ;
- *  il garde les proportions de la région et s'élargit à mesure qu'on avance */
-export function exploredView(game) {
+ *  il s'adapte au ratio de l'écran (par défaut 16/10) et s'élargit à mesure qu'on avance */
+export function exploredView(game, targetAspect) {
   const W = game.world.maps.monde, C = 8, cw = Math.ceil(W.w / C), seen = game.state.explored || [];
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const i of seen) { const cx = i % cw, cy = Math.floor(i / cw); x0 = Math.min(x0, cx * C); y0 = Math.min(y0, cy * C); x1 = Math.max(x1, cx * C + C); y1 = Math.max(y1, cy * C + C); }
   const p = game.worldPos(); if (!isFinite(x0)) { x0 = p.x - 20; x1 = p.x + 20; y0 = p.y - 15; y1 = p.y + 15; }
-  const M = 14, ar = W.w / W.h;
+  const M = 16, ar = targetAspect || (16 / 10);
   x0 -= M; y0 -= M; x1 += M; y1 += M;
-  let w = Math.max(x1 - x0, W.w / 3), h = Math.max(y1 - y0, W.h / 3);
+  let w = Math.max(x1 - x0, 80), h = Math.max(y1 - y0, 50);
   if (w / h > ar) h = w / ar; else w = h * ar;
   w = Math.min(w, W.w); h = Math.min(h, W.h);
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
@@ -1125,20 +1173,39 @@ export function exploredView(game) {
   return { x, y, w, h };
 }
 
-/** dessine la région dans le cadre v (en cases) : relief, routes, villes, et le noir de ce qui reste à découvrir */
+/** vue régionale complète de l'archipel d'Odyssée */
+export function fullRegionView(game, targetAspect) {
+  const W = game.world.maps.monde;
+  const ar = targetAspect || (16 / 10);
+  let w = W.w, h = W.h;
+  if (w / h > ar) h = w / ar; else w = h * ar;
+  const x = Math.max(0, (W.w - w) / 2), y = Math.max(0, (W.h - h) / 2);
+  return { x, y, w, h };
+}
+
+/** dessine la région dans le cadre v (en cases) : relief, routes, villes, et voile radar C-Gear */
 function drawRegion(game, cv, v) {
   const W = game.world.maps.monde, ctx = cv.getContext('2d'), R = regionTerrain(game);
-  const s = cv.width / v.w;                    // pixels écran par case
-  const X = (x) => (x - v.x) * s, Y = (y) => (y - v.y) * s;
+  const sx = cv.width / v.w, sy = cv.height / v.h;
+  const X = (x) => (x - v.x) * sx, Y = (y) => (y - v.y) * sy;
   ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = '#07080c'; ctx.fillRect(0, 0, cv.width, cv.height);
-  ctx.drawImage(R.canvas, v.x, v.y, v.w, v.h, 0, 0, cv.width, cv.height);
+  ctx.fillStyle = '#060c18'; ctx.fillRect(0, 0, cv.width, cv.height);
+
+  // Découpage sécurisé du canvas de terrain de la région
+  const sx0 = Math.max(0, Math.min(W.w, Math.floor(v.x)));
+  const sy0 = Math.max(0, Math.min(W.h, Math.floor(v.y)));
+  const sw = Math.min(W.w - sx0, Math.ceil(v.w));
+  const sh = Math.min(W.h - sy0, Math.ceil(v.h));
+  if (sw > 0 && sh > 0) {
+    ctx.drawImage(R.canvas, sx0, sy0, sw, sh, X(sx0), Y(sy0), sw * sx, sh * sy);
+  }
+
   // icônes du Pokégear : grandeur fixe à l'écran (deux pixels par pixel d'icône quand la carte est zoomée)
-  const k = Math.max(1, Math.min(3, Math.round(s / 2.2)));
+  const k = Math.max(1, Math.min(3, Math.round(sx / 2.2)));
   const I = loadCarteIcons();
   const icon = (key, x, y) => { const im = I[key]; if (im && im.complete && im.naturalWidth) ctx.drawImage(im, Math.round(X(x) - im.width * k / 2), Math.round(Y(y) - im.height * k + 2 * k), im.width * k, im.height * k); };
   const { kind, bw, toOpen, toFoot, B } = R;
-  const step = Math.max(14, Math.round(22 * 2.2 / s * k));
+  const step = Math.max(14, Math.round(22 * 2.2 / sx * k));
   for (let y = 10; y < W.h - 6; y += step) for (let x = 10; x < W.w - 6; x += step) {
     const jx = x + ((x * 7 + y * 13) % 9) - 4, jy = y + ((x * 11 + y * 5) % 9) - 4;
     if (jx < v.x - 10 || jx > v.x + v.w + 10 || jy < v.y - 10 || jy > v.y + v.h + 14) continue;
@@ -1146,10 +1213,11 @@ function drawRegion(game, cv, v) {
     if (kk === 2 && toOpen[i] >= 4 && ((x + y) / step | 0) % 2 === 0) icon((jx * 5 + jy) % 7 ? 'arbre_v' : 'arbre_o', jx, jy);
     else if (kk === 3 && toFoot[i] >= 3) icon((jx * 3 + jy) % 2 ? 'montagne' : 'colline', jx, jy);
   }
+
   // routes : un trait blanc cerclé de gris
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const roads = (game.world.routes || []).map((r) => r.pts);
-  for (const [lw, col] of [[Math.max(4, s * 1.9), HG.ink], [Math.max(2, s * 1.1), HG.road]]) {
+  for (const [lw, col] of [[Math.max(4, sx * 1.9), HG.ink], [Math.max(2, sx * 1.1), HG.road]]) {
     ctx.strokeStyle = col; ctx.lineWidth = lw;
     for (const pts of roads) { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(X(x + 0.5), Y(y + 0.5)) : ctx.moveTo(X(x + 0.5), Y(y + 0.5)))); ctx.stroke(); }
   }
@@ -1163,25 +1231,35 @@ function drawRegion(game, cv, v) {
   for (const m of Object.values(game.world.maps)) if (m !== W && m.outdoor && m.outside?.map === 'monde' && m.id !== 'magma') pill(m.outside.x, m.outside.y, 6, 6, HG.special);
   const visited = new Set(game.state.visited || []);
   for (const t of Object.values(game.world.towns)) {
-    const big = t.gym != null || t.id === 'plateau';
-    pill(t.x + t.w / 2, t.y + t.h / 2, big ? 14 : 10, big ? 10 : 8, visited.has(t.id) ? HG.town : '#b0b0b0', visited.has(t.id) ? HG.townDark : '#808080');
+    const isGym = t.gym != null;
+    const isLigue = t.id === 'plateau';
+    const big = isGym || isLigue;
+    const isVis = visited.has(t.id);
+    const fillCol = isLigue ? (isVis ? '#a855f7' : '#7e22ce') : isGym ? (isVis ? '#fbbf24' : '#d97706') : (isVis ? '#ef4444' : '#64748b');
+    const darkCol = isLigue ? '#4c1d95' : isGym ? '#92400e' : (isVis ? '#991b1b' : '#334155');
+    pill(t.x + t.w / 2, t.y + t.h / 2, big ? 14 : 10, big ? 10 : 8, fillCol, darkCol);
   }
-  // ce qui n'a pas été exploré reste dans le noir, aux bords adoucis (façon Elden Ring)
+
+  // Voile radar B2W2 : les zones explorées sont découpées et 100% nettes et vives,
+  // les zones inexplorées restent sous un élégant filtre radar semi-transparent C-Gear
   const seen = game.state.explored || [], C = 8, cw = Math.ceil(W.w / C), ch = Math.ceil(W.h / C);
   const mask = document.createElement('canvas'); mask.width = cw; mask.height = ch;
   const mx = mask.getContext('2d'), md = mx.createImageData(cw, ch);
   for (const i of seen) if (i >= 0 && i < cw * ch) md.data[i * 4 + 3] = 255;
   mx.putImageData(md, 0, 0);
+
   const fog = document.createElement('canvas'); fog.width = cv.width; fog.height = cv.height;
   const fx = fog.getContext('2d');
-  fx.fillStyle = '#07080c'; fx.fillRect(0, 0, fog.width, fog.height);
+  fx.fillStyle = 'rgba(6, 12, 22, 0.72)';
+  fx.fillRect(0, 0, fog.width, fog.height);
   fx.globalCompositeOperation = 'destination-out';
   fx.imageSmoothingEnabled = true;
-  fx.filter = `blur(${Math.max(2, s * 3.2)}px)`;
-  fx.drawImage(mask, X(0), Y(0), cw * C * s, ch * C * s);
+  fx.filter = `blur(${Math.max(2, sx * 3.2)}px)`;
+  fx.drawImage(mask, X(0), Y(0), cw * C * sx, ch * C * sy);
   fx.filter = 'none'; fx.globalCompositeOperation = 'source-over';
   ctx.drawImage(fog, 0, 0);
 }
+
 export function mapScreen(game) {
   const ui = game.ui, W = game.world.maps.monde, towns = game.world.towns, st = game.state;
   const allTowns = Object.values(towns);
@@ -1218,33 +1296,64 @@ export function mapScreen(game) {
               ? 'Siège du Conseil des 4 et du Maître de la Ligue'
               : 'Ville visitée · Centre Pokémon disponible',
           tag: hasGym ? (gotBadge ? 'BADGE OBTENU ✓' : `ARÈNE #${gIdx + 1} (CAP N.${capLvl})`) : t.id === 'plateau' ? 'LIGUE POKÉMON' : 'VILLE VISITÉE',
-          tagCls: hasGym ? (gotBadge ? 'badge-ok' : 'gym') : 'town',
+          tagCls: hasGym ? (gotBadge ? 'badge-ok' : 'gym') : t.id === 'plateau' ? 'league' : 'town',
         };
       })
     );
 
     s.innerHTML = `
-      <div class="scr-bar">
-        <div class="scr-bar-left">
-          <img class="scr-bar-ico" src="img/hud/map.png" alt="">
-          <span class="scr-bar-title">CARTE DE LA RÉGION D'ODYSSÉE</span>
-          <span class="scr-bar-sub">${visited.size} / ${allTowns.length} VILLES</span>
+      <!-- Fond et Châssis C-Gear B2W2 Nanobanana (sans fausses cartes ni texte intrusif) -->
+      <img class="map-pixelart-bg" src="${ASSETS.carteBg}" alt="">
+      <div class="map-scanlines"></div>
+
+      <!-- En-tête C-Gear B2W2 -->
+      <div class="map-b2w2-hdr">
+        <div class="map-hdr-left">
+          <div class="map-cgear-icon"></div>
+          <div class="map-hdr-titles">
+            <span class="map-hdr-main">CARTE DE LA RÉGION D'ODYSSÉE</span>
+            <span class="map-hdr-sub">${visited.size} / ${allTowns.length} VILLES DÉCOUVERTES · SYSTÈME C-GEAR 5G</span>
+          </div>
         </div>
-        <div class="scr-bar-right">
-          <span class="scr-cap-badge">NIV. MAX ACTUEL : <b>N.${game.levelCap ? game.levelCap() : levelCap(st.badges)}</b></span>
-          <button type="button" class="scr-close-btn" data-act="close">FERMER ✕</button>
+        <div class="map-hdr-right">
+          <span class="map-cap-pill">CAP NIVEAU : <b>N.${game.levelCap ? game.levelCap() : levelCap(st.badges)}</b></span>
+          <button type="button" class="map-close-btn" data-act="close" title="Fermer (Échap)">FERMER ✕</button>
         </div>
       </div>
+
+      <!-- Barre de localisation GPS en direct -->
+      <div class="map-gps-bar">
+        <div class="map-gps-left">
+          <span class="map-gps-dot"></span>
+          <span class="map-gps-title">GPS EN DIRECT :</span>
+          <span class="map-gps-loc">${esc(here.toUpperCase())}</span>
+          <span class="map-gps-coords">[LOC: ${Math.round(p.x)}, ${Math.round(p.y)}]</span>
+        </div>
+        <div class="map-gps-right">
+          <button type="button" class="map-ctrl-btn" data-act="me" title="Centrer la sélection sur ma position (Touche Espace / C)">⌖ MA POSITION</button>
+          <button type="button" class="map-ctrl-btn" data-act="toggle-view" title="Basculer entre vue zoomée et vue de la région">🗺️ VUE RÉGION</button>
+        </div>
+      </div>
+
+      <!-- Cadre Écran Cartographique Central Grand Écran B2W2 -->
       <div class="map-stage">
-        <div class="map-wrap" style="aspect-ratio:${W.w} / ${W.h}">
-          <canvas class="mapcv" width="${W.w * 2}" height="${W.h * 2}"></canvas>
+        <div class="map-wrap">
+          <canvas class="mapcv"></canvas>
           <div class="map-labels"></div>
           <div class="map-corner tl"></div><div class="map-corner tr"></div>
           <div class="map-corner bl"></div><div class="map-corner br"></div>
+          <div class="map-hud-overlay">
+            <span class="map-coord-tag">GPS: [${Math.round(p.x)}, ${Math.round(p.y)}]</span>
+            <span class="map-radar-tag">RADAR 5G ACTIF</span>
+          </div>
         </div>
       </div>
+
+      <!-- Panneau Inférieur Tactile B2W2 -->
       <div class="map-footer">
-        <button type="button" class="map-nav-btn" data-act="prev" title="Lieu précédent (◀)">◀</button>
+        <button type="button" class="map-nav-btn prev" data-act="prev" title="Lieu précédent (◀ ou Flèche Gauche)">
+          <span class="map-btn-arr">◀</span> LIEU PRÉC.
+        </button>
         <div class="map-info">
           <div class="map-info-top">
             <span class="map-where"></span>
@@ -1252,11 +1361,14 @@ export function mapScreen(game) {
           </div>
           <div class="map-sub"></div>
         </div>
-        <button type="button" class="map-nav-btn" data-act="next" title="Lieu suivant (▶)">▶</button>
+        <button type="button" class="map-nav-btn next" data-act="next" title="Lieu suivant (▶ ou Flèche Droite)">
+          LIEU SUIV. <span class="map-btn-arr">▶</span>
+        </button>
         <div class="map-legend">
           <span><i class="lg-dot me"></i> Vous</span>
           <span><i class="lg-dot town"></i> Ville</span>
           <span><i class="lg-dot gym"></i> Arène</span>
+          <span><i class="lg-dot league"></i> Ligue</span>
         </div>
       </div>`;
 
@@ -1266,18 +1378,34 @@ export function mapScreen(game) {
     const tagEl = s.querySelector('.map-tag');
     const subEl = s.querySelector('.map-sub');
 
-    // la carte est cadrée sur ce qu'on a exploré : elle se dézoome à mesure qu'on découvre la région
-    // (à l'ouverture, elle part du cadre de la dernière fois et s'élargit jusqu'au nouveau)
-    const target = exploredView(game), from = st.mapView && st.mapView.w ? st.mapView : target;
+    let isFullRegion = false;
+    const target = exploredView(game, 16 / 10), from = st.mapView && st.mapView.w ? st.mapView : target;
     let view = { ...from };
-    const fit = () => { const r = c.getBoundingClientRect(); const w = Math.max(320, Math.round(r.width * (window.devicePixelRatio || 1))); if (c.width !== w) { c.width = w; c.height = Math.round(w * W.h / W.w); } };
-    const place = (node, x, y) => { node.style.left = ((x - view.x) / view.w * 100) + '%'; node.style.top = ((y - view.y) / view.h * 100) + '%'; };
+
+    const fit = () => {
+      const r = c.getBoundingClientRect();
+      const w = Math.max(320, Math.round(r.width * (window.devicePixelRatio || 1)));
+      const h = Math.max(200, Math.round(r.height * (window.devicePixelRatio || 1)));
+      if (c.width !== w || c.height !== h) {
+        c.width = w;
+        c.height = h;
+      }
+    };
+    const place = (node, x, y) => {
+      node.style.left = ((x - view.x) / view.w * 100) + '%';
+      node.style.top = ((y - view.y) / view.h * 100) + '%';
+    };
     const pinsAt = [];
-    const draw = () => { fit(); drawRegion(game, c, view); for (const [node, x, y] of pinsAt) place(node, x, y); };
+    const draw = () => {
+      fit();
+      drawRegion(game, c, view);
+      for (const [node, x, y] of pinsAt) place(node, x, y);
+    };
     draw();
     Object.values(loadCarteIcons()).forEach((im) => { if (!im.complete) im.onload = draw; });
+
     if (Math.abs(from.w - target.w) > 0.5 || Math.abs(from.x - target.x) > 0.5 || Math.abs(from.y - target.y) > 0.5) {
-      const t0 = performance.now(), D = 1100;
+      const t0 = performance.now(), D = 900;
       const anim = () => {
         if (!s.isConnected) return;
         const u = Math.min(1, (performance.now() - t0) / D), e = 1 - Math.pow(1 - u, 3);
@@ -1285,21 +1413,36 @@ export function mapScreen(game) {
         draw();
         if (u < 1) requestAnimationFrame(anim);
       };
-      setTimeout(() => requestAnimationFrame(anim), 250);
+      setTimeout(() => requestAnimationFrame(anim), 200);
     }
     st.mapView = target;
 
+    // Balise Joueur "VOUS ÊTES ICI" interactive avec double halo radar
     const me = el('div', 'map-me');
+    me.innerHTML = `
+      <div class="map-me-radar-outer"></div>
+      <div class="map-me-radar"></div>
+      <div class="map-me-core"></div>
+      <div class="map-me-tag">VOUS ÊTES ICI</div>
+    `;
+    me.title = `Votre position : ${here} [${Math.round(p.x)}, ${Math.round(p.y)}]`;
+    me.addEventListener('click', (e) => {
+      e.stopPropagation();
+      k = 0;
+      ui.sound.sfx('blip');
+      show();
+    });
     pinsAt.push([me, p.x, p.y]); place(me, p.x, p.y);
     lab.appendChild(me);
 
-    // Interactive town pins on the map
+    // Points d'intérêt des villes & arènes visitées
     spots.forEach((sp, idx) => {
       if (idx === 0) return;
       const pin = el('button', 'map-pin ' + (sp.tagCls || ''));
       pin.type = 'button';
       pinsAt.push([pin, sp.x, sp.y]); place(pin, sp.x, sp.y);
       pin.title = sp.name;
+      pin.innerHTML = sp.tagCls?.includes('gym') ? '★' : sp.tagCls?.includes('badge-ok') ? '✓' : sp.tagCls?.includes('league') ? '👑' : '●';
       pin.addEventListener('click', (e) => {
         e.stopPropagation();
         k = idx;
@@ -1309,7 +1452,15 @@ export function mapScreen(game) {
       lab.appendChild(pin);
     });
 
+    // Viseur / Réticule de ciblage B2W2
     const cur = el('div', 'map-cur');
+    cur.innerHTML = `
+      <div class="map-cur-bracket tl"></div>
+      <div class="map-cur-bracket tr"></div>
+      <div class="map-cur-bracket bl"></div>
+      <div class="map-cur-bracket br"></div>
+      <div class="map-cur-crosshair"></div>
+    `;
     lab.appendChild(cur);
     const curAt = [cur, p.x, p.y]; pinsAt.push(curAt);
 
@@ -1320,12 +1471,94 @@ export function mapScreen(game) {
       whereEl.textContent = q.name;
       tagEl.textContent = q.tag || '';
       tagEl.className = 'map-tag ' + (q.tagCls || '');
-      subEl.textContent = q.sub || '';
+      
+      if (k === 0) {
+        subEl.textContent = `Position actuelle du dresseur · Coordonnées [${Math.round(p.x)}, ${Math.round(p.y)}]`;
+      } else {
+        const dist = Math.round(Math.hypot(q.x - p.x, q.y - p.y));
+        const dx = q.x - p.x, dy = q.y - p.y;
+        const dir = (Math.abs(dy) > Math.abs(dx) * 2) ? (dy < 0 ? 'Nord' : 'Sud') : (Math.abs(dx) > Math.abs(dy) * 2) ? (dx < 0 ? 'Ouest' : 'Est') : (dy < 0 ? 'Nord-' : 'Sud-') + (dx < 0 ? 'Ouest' : 'Est');
+        subEl.innerHTML = `${esc(q.sub || '')} <span class="map-sub-dist">· À ~${dist} pas au ${dir}</span>`;
+      }
     };
     show();
 
+    // Clic n'importe où sur la carte : Waypoint GPS interactif
+    c.addEventListener('click', (e) => {
+      const rect = c.getBoundingClientRect();
+      const clickX = (e.clientX - rect.left) / rect.width;
+      const clickY = (e.clientY - rect.top) / rect.height;
+      const worldX = Math.round(view.x + clickX * view.w);
+      const worldY = Math.round(view.y + clickY * view.h);
+
+      let nearestIdx = -1, nearestDist = 18;
+      spots.forEach((sp, i) => {
+        const d = Math.hypot(sp.x - worldX, sp.y - worldY);
+        if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
+      });
+
+      if (nearestIdx >= 0) {
+        k = nearestIdx;
+        ui.sound.sfx('blip');
+        show();
+      } else {
+        ui.sound.sfx('select');
+        curAt[1] = worldX; curAt[2] = worldY; place(cur, worldX, worldY);
+        const dist = Math.round(Math.hypot(worldX - p.x, worldY - p.y));
+        const dx = worldX - p.x, dy = worldY - p.y;
+        const dir = (Math.abs(dy) > Math.abs(dx) * 2) ? (dy < 0 ? 'Nord' : 'Sud') : (Math.abs(dx) > Math.abs(dy) * 2) ? (dx < 0 ? 'Ouest' : 'Est') : (dy < 0 ? 'Nord-' : 'Sud-') + (dx < 0 ? 'Ouest' : 'Est');
+        whereEl.textContent = `Point GPS [${worldX}, ${worldY}]`;
+        tagEl.textContent = 'POINT REPÈRE';
+        tagEl.className = 'map-tag waypoint';
+        subEl.innerHTML = `Repère temporaire posé sur la carte <span class="map-sub-dist">· À ~${dist} pas au ${dir}</span>`;
+      }
+    });
+
+    const toggleView = () => {
+      isFullRegion = !isFullRegion;
+      const aspect = c.width > 0 && c.height > 0 ? (c.width / c.height) : (16 / 10);
+      const nextTarget = isFullRegion ? fullRegionView(game, aspect) : exploredView(game, aspect);
+      const startView = { ...view };
+      const t0 = performance.now(), D = 450;
+      const anim = () => {
+        if (!s.isConnected) return;
+        const u = Math.min(1, (performance.now() - t0) / D), e = 1 - Math.pow(1 - u, 3);
+        for (const prop of ['x', 'y', 'w', 'h']) view[prop] = startView[prop] + (nextTarget[prop] - startView[prop]) * e;
+        draw();
+        if (u < 1) requestAnimationFrame(anim);
+      };
+      requestAnimationFrame(anim);
+      const zoomBtn = s.querySelector('[data-act="toggle-view"]');
+      if (zoomBtn) zoomBtn.textContent = isFullRegion ? '🔍 VUE ZOOMÉE' : '🗺️ VUE RÉGION';
+      ui.sound.sfx('blip');
+    };
+
+    const centerOnPlayer = () => {
+      k = 0;
+      ui.sound.sfx('select');
+      show();
+      if (isFullRegion) {
+        toggleView();
+      } else {
+        const aspect = c.width > 0 && c.height > 0 ? (c.width / c.height) : (16 / 10);
+        const nextTarget = exploredView(game, aspect);
+        const startView = { ...view };
+        const t0 = performance.now(), D = 350;
+        const anim = () => {
+          if (!s.isConnected) return;
+          const u = Math.min(1, (performance.now() - t0) / D), e = 1 - Math.pow(1 - u, 3);
+          for (const prop of ['x', 'y', 'w', 'h']) view[prop] = startView[prop] + (nextTarget[prop] - startView[prop]) * e;
+          draw();
+          if (u < 1) requestAnimationFrame(anim);
+        };
+        requestAnimationFrame(anim);
+      }
+    };
+
     const close = () => { pop(); s.remove(); ui.sound.sfx('cancel'); resolve(); };
     s.querySelector('[data-act="close"]')?.addEventListener('click', close);
+    s.querySelector('[data-act="me"]')?.addEventListener('click', centerOnPlayer);
+    s.querySelector('[data-act="toggle-view"]')?.addEventListener('click', toggleView);
     s.querySelector('[data-act="prev"]')?.addEventListener('click', () => {
       k = (k + spots.length - 1) % spots.length;
       ui.sound.sfx('blip');
@@ -1340,25 +1573,497 @@ export function mapScreen(game) {
     const pop = ui.input.push((key) => {
       if (key === 'left' || key === 'up') { k = (k + spots.length - 1) % spots.length; ui.sound.sfx('blip'); show(); return; }
       if (key === 'right' || key === 'down') { k = (k + 1) % spots.length; ui.sound.sfx('blip'); show(); return; }
-      if (key === 'a' || key === 'b' || key === 'map') close();
+      if (key === 'a' || key === 'space') {
+        try { ui.sound?.sfx('select'); } catch (err) {}
+        cur.style.transform = 'translate(-50%, -50%) scale(1.4)';
+        setTimeout(() => { if (cur) cur.style.transform = 'translate(-50%, -50%)'; }, 200);
+        return;
+      }
+      if (key === 'b' || key === 'map') close();
     });
   });
 }
 
-/* ================= CARTE DE DRESSEUR ================= */
-/** fiche d'un dresseur (la sienne, ou celle d'un autre joueur reçue par le réseau : voir trainerCard) */
-export function trainerCard(st) {
-  return { name: st.name, id: st.id, gender: st.gender, money: st.money, dex: st.dex.caught.length, seen: st.dex.seen.length, time: st.time, badges: st.badges.map(Boolean),
-    team: st.party.map((m) => ({ sp: m.sp, lvl: m.lvl, shiny: !!m.shiny, nick: m.nick || null })), champion: !!st.flags?.champion };
+/* ================= CARTE DE DRESSEUR FAÇON 5G (NOIR 2 / BLANC 2) ================= */
+export const BADGE_SPECS = [
+  { id: 1, name: 'Badge Élytre', type: 'bug', leader: 'Hector', town: 'Sylve', reward: 'Autorise Coupe hors combat', cap: 25 },
+  { id: 2, name: 'Badge Écume', type: 'water', leader: 'Marine', town: 'Port-Azur', reward: 'Accès aux Navires & Mers', cap: 35 },
+  { id: 3, name: 'Badge Volt', type: 'electric', leader: 'Volta', town: 'Électro-Ville', reward: 'Autorise Flash & Galeries', cap: 45 },
+  { id: 4, name: 'Badge Pétale', type: 'grass', leader: 'Flora', town: 'Floralia', reward: 'Débloque les Échanges multijoueurs', cap: 55 },
+  { id: 5, name: 'Badge Mirage', type: 'psychic', leader: 'Sibylle', town: 'Cité Mirage', reward: 'Dissipe les Brumes & Illusions', cap: 65 },
+  { id: 6, name: 'Badge Granit', type: 'rock', leader: 'Basalte', town: 'Île Basalte', reward: 'Autorise Éclate-Roc hors combat', cap: 70 },
+  { id: 7, name: 'Badge Braise', type: 'fire', leader: 'Pyros', town: 'Île Pyros', reward: 'Autorise Force hors combat', cap: 75 },
+  { id: 8, name: 'Badge Écaille', type: 'dragon', leader: 'Drakos', town: 'Île Drakos', reward: 'Autorise Vol & Accès Ligue du Nord', cap: 80 },
+  { id: 9, name: 'Badge Pavé', type: 'normal', leader: 'Margot', town: 'Métropole', reward: 'Accès VIP au Casino & Bourse', cap: 82 },
+  { id: 10, name: 'Badge Rafale', type: 'flying', leader: 'Aurèle', town: 'Port-Lisière', reward: 'Courants aériens des Terres du Sud', cap: 85 },
+  { id: 11, name: 'Badge Venin', type: 'poison', leader: 'Morgane', town: 'Marais-Noir', reward: 'Immunité aux bourbiers toxiques', cap: 88 },
+  { id: 12, name: 'Badge Dune', type: 'ground', leader: 'Gaspard', town: 'Dunes d\'Ocre', reward: 'Traversée des tempêtes de sable', cap: 90 },
+  { id: 13, name: 'Badge Rouage', type: 'steel', leader: 'Ferdinand', town: 'Forge-Acier', reward: 'Maîtrise métallurgique & blindages', cap: 92 },
+  { id: 14, name: 'Badge Féérie', type: 'fairy', leader: 'Lilas', town: 'Rosebrume', reward: 'Passage du Sanctuaire Féerique', cap: 95 },
+  { id: 15, name: 'Badge Ombre', type: 'dark', leader: 'Corbin', town: 'Ombreval', reward: 'Accès ultime à la Ligue du Sud', cap: 100 },
+];
+
+export function getCardRank(c) {
+  let stars = 0;
+  const badgesCount = (c.badges || []).filter(Boolean).length;
+  if (c.champion) stars++;
+  if (badgesCount >= 8) stars++;
+  if (badgesCount >= 15) stars++;
+  if ((c.dex || 0) >= 60) stars++;
+  if ((c.trophies || 0) >= 10 || (c.pvpWins || 0) >= 10) stars++;
+
+  let grade = 'NORMAL';
+  let themeCls = 'card-normal';
+  let title = 'Voyageur d\'Odyssée';
+
+  if (stars >= 5) {
+    grade = 'MAÎTRE';
+    themeCls = 'card-master';
+    title = 'Maître Suprême d\'Odyssée';
+  } else if (stars === 4) {
+    grade = 'PLATINE';
+    themeCls = 'card-platinum';
+    title = 'Légende Régionale';
+  } else if (stars === 3) {
+    grade = 'OR';
+    themeCls = 'card-gold';
+    title = 'Champion Émérite';
+  } else if (stars === 2) {
+    grade = 'ARGENT';
+    themeCls = 'card-silver';
+    title = 'Dresseur d\'Élite';
+  } else if (stars === 1) {
+    grade = 'BRONZE';
+    themeCls = 'card-bronze';
+    title = 'Étoile Montante';
+  }
+
+  return { stars, grade, themeCls, title, badgesCount };
 }
+
+/** Fiche d'un dresseur (la sienne, ou reçue par le réseau) */
+export function trainerCard(st) {
+  const pvp = st.pvp || {};
+  const unlockedTrophies = Object.values(pvp.trophies || {}).filter((t) => t.unlocked).length;
+  return {
+    name: st.name,
+    id: st.id,
+    gender: st.gender,
+    money: st.money,
+    dex: st.dex?.caught?.length || 0,
+    seen: st.dex?.seen?.length || 0,
+    time: st.time || 0,
+    badges: (st.badges || []).map(Boolean),
+    team: (st.party || []).map((m) => ({
+      sp: m.sp,
+      lvl: m.lvl,
+      shiny: !!m.shiny,
+      nick: m.nick || null,
+      hp: m.hp,
+      maxHp: m.stats?.[0] || m.hp,
+      ball: m.ball || 'poke-ball',
+    })),
+    champion: !!st.flags?.champion,
+    trophies: unlockedTrophies,
+    pvpWins: pvp.totalWins || 0,
+    pvpLosses: pvp.totalLosses || 0,
+    hof: (st.hof || []).slice(),
+  };
+}
+
 export function cardScreen(game, BADGES, other) {
   const ui = game.ui, c = other || trainerCard(game.state);
   return new Promise((resolve) => {
     const s = screen(ui, 'card-scr');
-    const h = Math.floor((c.time || 0) / 3600), m = Math.floor((c.time || 0) / 60) % 60;
-    const team = (c.team || []).slice(0, 6).map((q) => `<div class="tc-mon" title="${esc(q.nick || SPECIES[q.sp]?.n || '?')}"><img src="${ASSETS.icon(q.sp)}" alt=""><span>N.${q.lvl}</span></div>`).join('');
-    s.innerHTML = `<div class="tcard box"><div class="tc-top"><span>${other ? 'CARTE DE ' + esc(String(c.name).toUpperCase()) : 'CARTE DRESSEUR'}</span><span>ID ${String(c.id || 0).padStart(5, '0')}</span></div><div class="tc-body"><table class="kv"><tr><td>Nom</td><td>${esc(c.name)}${c.champion ? ' ★' : ''}</td></tr>${other ? '' : `<tr><td>Argent</td><td>${(c.money || 0).toLocaleString('fr-FR')} ₽</td></tr>`}<tr><td>Pokédex</td><td>${c.dex}${c.seen != null ? ` (vus : ${c.seen})` : ''}</td></tr><tr><td>Temps de jeu</td><td>${h}:${String(m).padStart(2, '0')}</td></tr></table><div class="tc-photo"><div class="tc-char ${c.gender === 'f' ? 'f' : 'm'}"></div></div></div><div class="badges">${BADGES.map((b, k) => `<div class="badge ${c.badges?.[k] ? 'got' : ''}" style="--bc:${b.color}" title="${esc(b.name)}"><i></i></div>`).join('')}</div>${team ? `<div class="tc-team">${team}</div>` : ''}</div>`;
-    const pop = ui.input.push((k) => { if (k === 'a' || k === 'b') { pop(); s.remove(); ui.sound.sfx('cancel'); resolve(); } });
+    s.classList.add('b2w2-screen');
+
+    let face = 'profile'; // 'profile' | 'badges'
+    let selBadge = Math.max(0, (c.badges || []).findIndex(Boolean));
+    if (selBadge < 0) selBadge = 0;
+
+    const rank = getCardRank(c);
+    const h = Math.floor((c.time || 0) / 3600);
+    const m = Math.floor((c.time || 0) / 60) % 60;
+    const timeStr = `${h}h ${String(m).padStart(2, '0')}`;
+    const idStr = String(c.id || 0).padStart(5, '0');
+    const dexTotal = 150;
+    const dexPct = Math.min(100, Math.round(((c.dex || 0) / dexTotal) * 100));
+
+    const render = () => {
+      const starsHtml = Array.from({ length: 5 })
+        .map((_, i) => `<span class="tc-star${i < rank.stars ? ' on' : ''}">★</span>`)
+        .join('');
+
+      // Face A : Profil
+      const team = (c.team || []).slice(0, 6);
+      const teamHtml = Array.from({ length: 6 }).map((_, slotIdx) => {
+        const q = team[slotIdx];
+        if (!q) {
+          return `
+            <div class="tc-team-slot empty" title="Emplacement libre">
+              <div class="tc-ts-socket"></div>
+              <span class="tc-ts-empty-label">— Libre —</span>
+            </div>
+          `;
+        }
+        const S = SPECIES[q.sp] || {};
+        const hpR = q.hp != null && q.maxHp ? Math.max(0, Math.min(1, q.hp / q.maxHp)) : 1;
+        const isShiny = !!q.shiny;
+        const ballItem = q.ball || 'poke-ball';
+        const ballSrc = ASSETS.item(ballItem);
+        return `
+          <button type="button" class="tc-team-slot${isShiny ? ' shiny' : ''}" data-slotidx="${slotIdx}" title="Clic : Écouter le cri de ${esc(q.nick || S.n || 'Pokémon')}">
+            <div class="tc-ts-top">
+              <img class="tc-ts-ball" src="${ballSrc}" alt="" title="${ballItem}">
+              <span class="tc-ts-name">${esc(q.nick || S.n || 'Pokémon')}</span>
+              ${isShiny ? '<span class="tc-ts-star">★</span>' : ''}
+              <span class="tc-ts-lvl">N.${q.lvl}</span>
+            </div>
+            <div class="tc-ts-mid">
+              <div class="tc-ts-icon-wrap">
+                <img class="tc-ts-icon" src="${ASSETS.icon(q.sp)}" alt="" onerror="this.src='${ASSETS.front(q.sp)}'">
+              </div>
+              <div class="tc-ts-meta">
+                <div class="tc-ts-types">
+                  ${(S.t || ['normal']).map((t) => `<span class="tc-ts-type" style="--tc:${TYPE_COL[t] || '#888'}">${TYPE_FR[t] || t}</span>`).join('')}
+                </div>
+                <div class="tc-ts-hp">
+                  <span class="tc-ts-hp-tag">PV</span>
+                  <div class="tc-ts-hp-track"><u style="width:${(hpR * 100).toFixed(0)}%;background:${hpCol(hpR)}"></u></div>
+                </div>
+              </div>
+            </div>
+          </button>
+        `;
+      }).join('');
+
+      // Face B : Badges Showcase
+      const renderBadgeSlot = (spec, idx) => {
+        const isGot = !!c.badges?.[idx];
+        const isSel = selBadge === idx;
+        const iconSrc = isGot ? ASSETS.badge(spec.id) : ASSETS.badge(spec.id, true);
+        return `
+          <button type="button" class="tc-badge-slot${isGot ? ' got' : ' locked'}${isSel ? ' selected' : ''}" data-bidx="${idx}" title="${esc(spec.name)} (${isGot ? 'Obtenu' : 'Non débloqué'})">
+            <div class="tc-badge-socket">
+              <img class="tc-badge-img${isGot ? ' shine' : ' dim'}" src="${iconSrc}" alt="${esc(spec.name)}">
+            </div>
+            <span class="tc-badge-num">#${spec.id}</span>
+            <span class="tc-badge-label">${esc(spec.name.replace('Badge ', ''))}</span>
+          </button>
+        `;
+      };
+
+      const nordBadgesHtml = BADGE_SPECS.slice(0, 8).map(renderBadgeSlot).join('');
+      const sudBadgesHtml = BADGE_SPECS.slice(8, 15).map((spec, i) => renderBadgeSlot(spec, i + 8)).join('');
+
+      const selSpec = BADGE_SPECS[selBadge] || BADGE_SPECS[0];
+      const selGot = !!c.badges?.[selBadge];
+      const selImgSrc = selGot ? ASSETS.badge(selSpec.id).replace('.png', '_128.png') : ASSETS.badge(selSpec.id, true);
+
+      s.innerHTML = `
+        <div class="b2w2-card-casing ${rank.themeCls}">
+          <!-- Fond Pixel Art 16-bit B2W2 Nanobanana -->
+          <img class="tc-pixelart-bg" src="${face === 'profile' ? ASSETS.cardBg(rank.theme) : ASSETS.cardBack}" alt="Fond Carte B2W2">
+          <div class="tc-pixelart-scanlines"></div>
+
+          <!-- Barre Supérieure B2W2 DS -->
+          <div class="tc-header">
+            <div class="tc-hdr-left">
+              <span class="tc-hdr-title">${other ? 'CARTE DE ' + esc(String(c.name).toUpperCase()) : 'CARTE DE DRESSEUR'}</span>
+              <div class="tc-stars-wrap">${starsHtml}</div>
+              <span class="tc-hdr-grade">${rank.grade}</span>
+            </div>
+            <div class="tc-hdr-right">
+              <span class="tc-id-pill">IDNo. ${idStr}</span>
+              <button type="button" class="tc-btn-flip" data-act="flip" title="Basculer Recto / Verso (Espace ou ◄ / ►)">
+                ${face === 'profile' ? 'Voir les 15 Badges ▶' : '◀ Profil Dresseur'}
+              </button>
+              <button type="button" class="tc-btn-close" data-act="close" title="Fermer (Échap)">✕</button>
+            </div>
+          </div>
+
+          <!-- Corps de la Carte B2W2 (2 faces commutables) -->
+          <div class="tc-body-wrap">
+            <!-- FACE A : Profil Dresseur -->
+            <div class="tc-face tc-face-profile${face === 'profile' ? ' active' : ''}">
+              <div class="tc-profile-grid">
+                <!-- Colonne Gauche : Cadre Photo & Sceau -->
+                <div class="tc-photo-col">
+                  <div class="tc-photo-frame">
+                    <div class="tc-photo-hologram"></div>
+                    <div class="tc-photo-pedestal"></div>
+                    <img class="tc-photo-spr" src="${ASSETS.trainer(c.gender === 'f' ? 'player_f' : 'player_m')}" alt="" onerror="this.style.display='none'">
+                                      </div>
+                  <div class="tc-stamp ${rank.themeCls}">
+                    <div class="tc-stamp-ring">
+                      <span class="tc-stamp-stars">${"★".repeat(rank.stars || 1)}</span>
+                      <span class="tc-stamp-title">LIGUE D'ODYSSÉE</span>
+                      <span class="tc-stamp-sub">RANG ${rank.grade.toUpperCase()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Colonne Droite : Données du Dresseur -->
+                <div class="tc-data-col">
+                  <div class="tc-data-box">
+                    <div class="tc-hero-row">
+                      <div class="tc-hero-cell tc-hero-name-cell">
+                        <span class="tc-lbl-mini">DRESSEUR</span>
+                        <span class="tc-val tc-name-val">${esc(c.name)}${c.champion ? ' <span class="tc-champ-badge">★ CHAMPION</span>' : ''}</span>
+                      </div>
+                      <div class="tc-hero-cell tc-hero-title-cell">
+                        <span class="tc-lbl-mini">TITRE OFFICIEL</span>
+                        <span class="tc-val tc-rank-title">${esc(rank.title)}</span>
+                      </div>
+                    </div>
+                    <div class="tc-stats-grid">
+                      ${other ? '' : `
+                      <div class="tc-stat-card">
+                        <span class="tc-lbl"><i class="tc-ico">₽</i> ARGENT</span>
+                        <span class="tc-val tc-money-val"><b>${(c.money || 0).toLocaleString('fr-FR')}</b> ₽</span>
+                      </div>`}
+                      <div class="tc-stat-card">
+                        <span class="tc-lbl"><i class="tc-ico">⏱</i> TEMPS DE JEU</span>
+                        <span class="tc-val tc-time-val">${timeStr}</span>
+                      </div>
+                      <div class="tc-stat-card tc-stat-card-wide">
+                        <div class="tc-stat-card-top">
+                          <span class="tc-lbl"><i class="tc-ico">📖</i> POKÉDEX</span>
+                          <span class="tc-val"><b>${c.dex || 0}</b> capturés <small>(vus : ${c.seen != null ? c.seen : (c.dex || 0)})</small></span>
+                        </div>
+                        <div class="tc-pdx-bar"><u style="width:${dexPct}%"></u></div>
+                      </div>
+                      <div class="tc-stat-card">
+                        <span class="tc-lbl"><i class="tc-ico">🛡</i> BADGES D'ARÈNE</span>
+                        <div class="tc-badges-val-wrap">
+                          <span class="tc-val tc-badges-val"><b>${rank.badgesCount}</b> / 15 Badges</span>
+                          <div class="tc-badge-pips">
+                            ${Array.from({ length: 15 }).map((_, bi) => `<span class="tc-pip${c.badges?.[bi] ? ' on' : ''}"></span>`).join('')}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="tc-stat-card">
+                        <span class="tc-lbl"><i class="tc-ico">🏅</i> MÉDAILLES B2W2</span>
+                        <span class="tc-val tc-trophies-val"><b>${c.trophies || 0}</b> / 32 🏅</span>
+                      </div>
+                      ${c.champion || (c.hof && c.hof.length) ? `
+                      <div class="tc-stat-card tc-stat-clickable" data-act="open-pantheon" title="Clic : Consulter vos sacres de la Ligue">
+                        <span class="tc-lbl"><i class="tc-ico">🏆</i> PANTHÉON</span>
+                        <span class="tc-val tc-hof-val" style="cursor:pointer;">
+                          <b>${(c.hof || []).length || 1}</b> sacre${(c.hof || []).length > 1 ? 's' : ''} ➔
+                        </span>
+                      </div>` : ''}
+                      ${(c.pvpWins || c.pvpLosses) ? `
+                      <div class="tc-stat-card">
+                        <span class="tc-lbl"><i class="tc-ico">⚔</i> DUELS MULTI</span>
+                        <span class="tc-val tc-pvp-val"><b>${c.pvpWins || 0}</b>V — <b>${c.pvpLosses || 0}</b>D</span>
+                      </div>` : ''}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Plateau Équipe Pokémon (6 Slots) -->
+              <div class="tc-team-tray">
+                <div class="tc-tray-head">
+                  <span class="tc-tray-title">ÉQUIPE EN VOYAGE</span>
+                  <span class="tc-tray-sub">${team.length} / 6 POKÉMON ACTIFS</span>
+                </div>
+                <div class="tc-team-grid">${teamHtml}</div>
+              </div>
+            </div>
+
+            <!-- FACE B : Coffret des 15 Badges -->
+            <div class="tc-face tc-face-badges${face === 'badges' ? ' active' : ''}">
+              <div class="tc-velvet-casing">
+                <div class="tc-velvet-head">
+                  <div class="tc-vh-title">COFFRET D'HONNEUR DES 15 BADGES D'ODYSSÉE</div>
+                  <div class="tc-vh-progress">
+                    <span class="tc-vh-count"><b>${rank.badgesCount}</b> / 15 DÉBLOQUÉS</span>
+                    <div class="tc-vh-bar"><u style="width:${Math.round((rank.badgesCount / 15) * 100)}%"></u></div>
+                  </div>
+                </div>
+
+                <div class="tc-trays-container">
+                  <!-- Plateau 1 : Continent Nord & Archipel (8 Badges) -->
+                  <div class="tc-tray-block">
+                    <div class="tc-tb-title">CONTINENT NORD & ARCHIPEL (8 BADGES)</div>
+                    <div class="tc-badges-grid grid-8">${nordBadgesHtml}</div>
+                  </div>
+
+                  <!-- Plateau 2 : Terres du Sud (7 Badges) -->
+                  <div class="tc-tray-block">
+                    <div class="tc-tb-title">TERRES DU SUD (7 BADGES)</div>
+                    <div class="tc-badges-grid grid-7">${sudBadgesHtml}</div>
+                  </div>
+                </div>
+
+                <!-- Panneau Inspecteur de Badge interactif -->
+                <div class="tc-badge-inspector">
+                  <div class="tc-bi-art-col">
+                    <div class="tc-bi-socket">
+                      <img class="tc-bi-img${selGot ? ' shine' : ' dim'}" src="${selImgSrc}" alt="${esc(selSpec.name)}">
+                    </div>
+                  </div>
+                  <div class="tc-bi-info-col">
+                    <div class="tc-bi-title-row">
+                      <span class="tc-bi-num">#${selSpec.id}</span>
+                      <span class="tc-bi-name">${esc(selSpec.name.toUpperCase())}</span>
+                      <span class="tc-bi-type" style="--tc:${TYPE_COL[selSpec.type] || '#888'}">${TYPE_FR[selSpec.type] || selSpec.type}</span>
+                      <span class="tc-bi-status ${selGot ? 'got' : 'locked'}">${selGot ? '✔ OBTENU' : '🔒 NON DÉBLOQUÉ'}</span>
+                    </div>
+                    <div class="tc-bi-gym-row">
+                      Arène de <b>${esc(selSpec.town)}</b> · Champion${selSpec.leader === 'Marine' || selSpec.leader === 'Volta' || selSpec.leader === 'Flora' || selSpec.leader === 'Sibylle' || selSpec.leader === 'Margot' || selSpec.leader === 'Morgane' || selSpec.leader === 'Lilas' ? 'ne' : ''} <b>${esc(selSpec.leader)}</b>
+                    </div>
+                    <div class="tc-bi-reward-row">
+                      Privilège : <b>${esc(selSpec.reward)}</b> <span class="tc-bi-cap">(Niv. max : N.${selSpec.cap})</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pied de la Carte B2W2 -->
+          <div class="tc-footer">
+            <div class="tc-foot-hints">
+              <span><kbd>ESPACE</kbd> / <kbd>◄</kbd> <kbd>►</kbd> ${face === 'profile' ? 'Voir les Badges' : 'Profil'}</span>
+              <span><kbd>▲</kbd> <kbd>▼</kbd> Sélectionner un badge</span>
+              <span><kbd>ÉCHAP</kbd> Quitter</span>
+            </div>
+            <button type="button" class="tc-foot-btn" data-act="flip">
+              ${face === 'profile' ? 'COFFRET DES 15 BADGES ➔' : '➔ RETOUR AU PROFIL'}
+            </button>
+          </div>
+        </div>
+      `;
+
+      // Attach Event Handlers
+      s.querySelectorAll('[data-act="close"]').forEach((b) => {
+        b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); close(); };
+      });
+
+      s.querySelectorAll('[data-act="open-pantheon"]').forEach((b) => {
+        b.onclick = async (e) => {
+          e.preventDefault(); e.stopPropagation();
+          try { ui.sound?.sfx('blip'); } catch (err) {}
+          await pantheonScreen(game);
+        };
+      });
+
+      s.querySelectorAll('[data-act="flip"]').forEach((b) => {
+        b.onclick = (e) => {
+          e.preventDefault(); e.stopPropagation();
+          face = face === 'profile' ? 'badges' : 'profile';
+          try { ui.sound?.sfx('blip'); } catch (err) {}
+          render();
+        };
+      });
+
+      s.querySelectorAll('.tc-badge-slot').forEach((slot) => {
+        slot.onclick = (e) => {
+          e.preventDefault(); e.stopPropagation();
+          const bidx = parseInt(slot.dataset.bidx, 10);
+          if (!isNaN(bidx) && bidx >= 0 && bidx < BADGE_SPECS.length) {
+            selBadge = bidx;
+            try {
+              if (c.badges?.[bidx] && ui.sound?.badgeChime) {
+                ui.sound.badgeChime(bidx);
+              } else {
+                ui.sound?.sfx('select');
+              }
+            } catch (err) {}
+            render();
+          }
+        };
+      });
+
+      // Interactivité des slots d'équipe : Cri du Pokémon & animation de saut
+      s.querySelectorAll('.tc-team-slot[data-slotidx]').forEach((slot) => {
+        slot.onclick = (e) => {
+          e.preventDefault(); e.stopPropagation();
+          const sidx = parseInt(slot.dataset.slotidx, 10);
+          const mon = team[sidx];
+          if (mon) {
+            try { ui.sound?.cry(ASSETS.cry(mon.sp)); } catch (err) {}
+            slot.classList?.remove?.('tc-ts-bounce');
+            void slot.offsetWidth;
+            slot.classList?.add?.('tc-ts-bounce');
+          }
+        };
+      });
+
+      // Consultation du Panthéon depuis la Carte de Dresseur
+      s.querySelectorAll('.tc-hof-val').forEach((btn) => {
+        btn.onclick = (e) => {
+          e.preventDefault(); e.stopPropagation();
+          try { ui.sound?.sfx('select'); } catch (err) {}
+          pantheonScreen(game);
+        };
+      });
+
+      // Interactivité de la photo du dresseur
+      s.querySelectorAll('.tc-photo-frame').forEach((photo) => {
+        if (photo.style) photo.style.cursor = 'pointer';
+        photo.title = 'Clic : Saluer le dresseur';
+        photo.onclick = (e) => {
+          e.preventDefault(); e.stopPropagation();
+          try { ui.sound?.sfx('blip'); } catch (err) {}
+          photo.classList?.remove?.('tc-photo-pulse');
+          void photo.offsetWidth;
+          photo.classList?.add?.('tc-photo-pulse');
+        };
+      });
+    };
+
+    const close = () => {
+      pop();
+      s.remove();
+      try { ui.sound?.sfx('cancel'); } catch (e) {}
+      resolve();
+    };
+
+    const pop = ui.input.push((k) => {
+      if (k === 'b' || k === 'cancel') {
+        close();
+      } else if (k === 'a' || k === 'space' || k === 'left' || k === 'right') {
+        if (face === 'profile') {
+          face = 'badges';
+          try { ui.sound?.sfx('blip'); } catch (err) {}
+          render();
+        } else if (k === 'left' || k === 'right') {
+          face = 'profile';
+          try { ui.sound?.sfx('blip'); } catch (err) {}
+          render();
+        } else if (k === 'a' || k === 'space') {
+          if (c.badges?.[selBadge] && ui.sound?.badgeChime) {
+            ui.sound.badgeChime(selBadge);
+            const inspImg = s.querySelector('.tc-bi-img');
+            if (inspImg) {
+              inspImg.classList.remove('shine');
+              void inspImg.offsetWidth;
+              inspImg.classList.add('shine');
+            }
+          } else {
+            face = 'profile';
+            try { ui.sound?.sfx('blip'); } catch (err) {}
+            render();
+          }
+        }
+      } else if (face === 'badges' && (k === 'up' || k === 'down')) {
+        selBadge = (selBadge + (k === 'down' ? 1 : -1) + BADGE_SPECS.length) % BADGE_SPECS.length;
+        try {
+          if (c.badges?.[selBadge] && ui.sound?.badgeChime) {
+            ui.sound.badgeChime(selBadge);
+          } else {
+            ui.sound?.sfx('select');
+          }
+        } catch (err) {}
+        render();
+      }
+    });
+
+    render();
   });
 }
 
@@ -1866,7 +2571,7 @@ export async function pcScreen(game) {
         } else {
           if (selSlot < st.party.length - 1) selSlot++;
         }
-      } else if (k === 'a') {
+      } else if (k === 'a' || k === 'space') {
         if (inHand) {
           doDropOrSwap(selArea, selSlot);
           draw();
@@ -2467,5 +3172,804 @@ export function learnMoveScreen(game, m, moveId) {
     });
 
     draw();
+  });
+}
+
+
+/* ================= HALL DE LA RENOMMÉE / PANTHÉON B2W2 ================= */
+
+export function hofScreen(game, entry) {
+  const ui = game.ui, st = game.state;
+  return new Promise((resolve) => {
+    const s = screen(ui, 'hof-ceremony-scr');
+    s.classList.add('b2w2-screen');
+
+    const party = (entry?.team || st.party || []).slice(0, 6);
+    let curMonIdx = 0; // 0..party.length (party.length = récapitulatif final)
+    const totalMons = party.length;
+
+    const render = () => {
+      // 1. Écran récapitulatif final de sacre
+      if (curMonIdx >= totalMons) {
+        const recapListHtml = party.map((m) => {
+          const S = SPECIES[m.sp] || {};
+          const isShiny = !!m.shiny;
+          return `
+            <div class="hof-recap-mon">
+              <div class="hof-rm-socket">
+                <img class="hof-rm-icon" src="${ASSETS.icon(m.sp, m.shadow)}" alt="" onerror="this.src='${ASSETS.front(m.sp)}'">
+              </div>
+              <div class="hof-rm-info">
+                <div class="hof-rm-name">${esc(m.nick || S.n || 'Pokémon')}${isShiny ? ' <span class="tc-star">★</span>' : ''}</div>
+                <div class="hof-rm-lvl">N.${m.lvl}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        s.innerHTML = `
+          <div class="hof-casing final">
+            <div class="hof-header">
+              <span class="hof-hdr-title">LIGUE POKÉMON D'ODYSSÉE</span>
+              <span class="hof-hdr-badge">★ ENTRÉE AU PANTHÉON ★</span>
+            </div>
+            <div class="hof-recap-body">
+              <div class="hof-trainer-col">
+                <div class="hof-photo-frame">
+                  <div class="hof-photo-pedestal"></div>
+                  <img class="hof-trainer-spr" src="${ASSETS.trainer(st.gender === 'f' ? 'player_f' : 'player_m')}" alt="">
+                  <span class="hof-trainer-tag">MAÎTRE DE LA LIGUE</span>
+                </div>
+                <div class="hof-master-seal">
+                  <div class="hof-seal-stars">★★★★★</div>
+                  <div class="hof-seal-title">CERTIFICAT DU PANTHÉON</div>
+                  <div class="hof-seal-id">Dresseur : <b>${esc(st.name)}</b> (ID : ${String(st.id || 0).padStart(5, '0')})</div>
+                </div>
+              </div>
+              <div class="hof-team-col">
+                <div class="hof-team-title">LES COMPAGNONS DU SACRE (#${entry?.id || 1})</div>
+                <div class="hof-recap-grid">${recapListHtml}</div>
+                <div class="hof-recap-meta">
+                  <span>Date : <b>${entry?.date || new Date().toLocaleDateString('fr-FR')}</b></span>
+                  <span>Temps : <b>${Math.floor((entry?.time || st.time || 0) / 3600)}h ${String(Math.floor((entry?.time || st.time || 0) / 60) % 60).padStart(2, '0')}</b></span>
+                  <span>Pokédex : <b>${entry?.dexCount || st.dex?.caught?.length || 0}</b></span>
+                </div>
+              </div>
+            </div>
+            <div class="hof-footer">
+              <button type="button" class="hof-btn-next" data-act="finish">ENREGISTRER ET FERMER (Entrée / Échap) ▶</button>
+            </div>
+          </div>
+        `;
+        s.querySelector('[data-act="finish"]')?.addEventListener('click', close);
+        return;
+      }
+
+      // 2. Présentation d'un Pokémon individuel avec projecteur
+      const m = party[curMonIdx];
+      const S = SPECIES[m.sp] || {};
+      const ab = getAbility(m);
+      const isShiny = !!m.shiny;
+      const movesHtml = (m.moves || []).slice(0, 4).map((mv) => {
+        const moveObj = MOVES[mv.id || mv] || { n: 'Capacité', t: 'normal', c: 'physical' };
+        return `
+          <div class="hof-mon-move" style="--tc:${TYPE_COL[moveObj.t] || '#888'}">
+            <span class="hof-mm-type">${TYPE_FR[moveObj.t] || moveObj.t}</span>
+            <span class="hof-mm-name">${esc(moveObj.n)}</span>
+          </div>
+        `;
+      }).join('');
+
+      s.innerHTML = `
+        <div class="hof-casing solo">
+          <div class="hof-header">
+            <span class="hof-hdr-title">PANTHÉON D'ODYSSÉE · IMMORTALISATION (${curMonIdx + 1} / ${totalMons})</span>
+            <span class="hof-hdr-date">${entry?.title || 'Sacre de la Ligue'}</span>
+          </div>
+          <div class="hof-solo-body">
+            <div class="hof-solo-art-col">
+              <div class="hof-solo-pedestal">
+                <div class="hof-solo-light"></div>
+                <img class="hof-solo-spr${isShiny ? ' shiny' : ''}" src="${ASSETS.front(m.sp, isShiny, m.shadow)}" alt="" onerror="this.src='${ASSETS.icon(m.sp)}'">
+              </div>
+            </div>
+            <div class="hof-solo-info-col">
+              <div class="hof-si-top">
+                <span class="hof-si-slot">POKÉMON #${curMonIdx + 1}</span>
+                <span class="hof-si-name">${esc(m.nick || S.n || 'Pokémon')}</span>
+                ${isShiny ? '<span class="tc-star">★ SHINY</span>' : ''}
+                <span class="hof-si-lvl">N.${m.lvl}</span>
+              </div>
+              <div class="hof-si-types">
+                ${(S.t || ['normal']).map((t) => `<span class="hof-si-type" style="--tc:${TYPE_COL[t] || '#888'}">${TYPE_FR[t] || t}</span>`).join('')}
+              </div>
+              <div class="hof-si-meta">
+                <div>Espèce : <b>${esc(S.n || 'Inconnu')}</b> (N° Pokédex : #${String(S.no || m.sp).padStart(3, '0')})</div>
+                <div>Talent : <b>${esc(ab?.name || 'Aucun')}</b></div>
+                <div>Dresseur d'Origine : <b>${esc(m.ot || st.name)}</b></div>
+              </div>
+              <div class="hof-si-moves-title">CAPACITÉS DU TRIOMPHE</div>
+              <div class="hof-si-moves-grid">${movesHtml}</div>
+            </div>
+          </div>
+          <div class="hof-footer">
+            <span class="hof-foot-hint">Appuyez sur <kbd>ESPACE</kbd> ou cliquez pour continuer</span>
+            <button type="button" class="hof-btn-next" data-act="next">
+              ${curMonIdx + 1 < totalMons ? 'POKÉMON SUIVANT ▶' : 'TABLEAU DE LA LIGUE ➔'}
+            </button>
+          </div>
+        </div>
+      `;
+
+      try { ui.sound?.sfx('select'); ui.sound?.cry(ASSETS.cry(m.sp)); } catch (e) {}
+
+      s.querySelector('[data-act="next"]')?.addEventListener('click', () => {
+        curMonIdx++;
+        render();
+      });
+    };
+
+    const close = () => {
+      pop();
+      s.remove();
+      try { ui.sound?.sfx('cancel'); } catch (e) {}
+      resolve();
+    };
+
+    const pop = ui.input.push((k) => {
+      if (k === 'a' || k === 'space' || k === 'right' || k === 'down') {
+        if (curMonIdx < totalMons) {
+          curMonIdx++;
+          render();
+        } else {
+          close();
+        }
+      } else if (k === 'b' || k === 'cancel') {
+        if (curMonIdx < totalMons) {
+          curMonIdx = totalMons;
+          render();
+        } else {
+          close();
+        }
+      }
+    });
+
+    render();
+  });
+}
+
+export function pantheonScreen(game) {
+  const ui = game.ui, st = game.state;
+  return new Promise((resolve) => {
+    const s = screen(ui, 'pantheon-history-scr');
+    s.classList.add('b2w2-screen');
+
+    const history = (st.hof || []).slice().reverse();
+    let selEntryIdx = 0;
+
+    const render = () => {
+      if (!history.length) {
+        s.innerHTML = `
+          <div class="pantheon-casing empty">
+            <div class="pantheon-hdr">
+              <span class="pantheon-title">HALL DE LA RENOMMÉE D'ODYSSÉE</span>
+              <button type="button" class="tc-btn-close" data-act="close">✕</button>
+            </div>
+            <div class="pantheon-empty-body">
+              <div class="pantheon-empty-pedestal">🏆</div>
+              <div class="pantheon-empty-title">AUCUN SACRE ENREGISTRÉ</div>
+              <div class="pantheon-empty-desc">
+                Le Hall de la Renommée honore les dresseurs ayant triomphé des 4 membres du Conseil des 4 et de la Maîtresse de la Ligue Céleste.<br>
+                Relevez le défi pour inscrire votre équipe dans la légende d'Odyssée !
+              </div>
+            </div>
+            <div class="pantheon-foot">
+              <button type="button" class="pantheon-btn-close" data-act="close">Refermer (Échap)</button>
+            </div>
+          </div>
+        `;
+        s.querySelectorAll('[data-act="close"]').forEach((b) => b.onclick = close);
+        return;
+      }
+
+      const entry = history[selEntryIdx] || history[0];
+      const tabsHtml = history.map((e, idx) => `
+        <button type="button" class="pantheon-tab${idx === selEntryIdx ? ' on' : ''}" data-eidx="${idx}">
+          <b>Sacre #${e.id || (history.length - idx)}</b>
+          <small>${esc(e.date || 'Ligue')}</small>
+        </button>
+      `).join('');
+
+      const teamHtml = (entry.team || []).map((m) => {
+        const S = SPECIES[m.sp] || {};
+        const isShiny = !!m.shiny;
+        const movesHtml = (m.moves || []).slice(0, 4).map((mv) => {
+          const mObj = MOVES[mv.id || mv] || { n: 'Capacité', t: 'normal' };
+          return `<span class="ph-mv" style="--tc:${TYPE_COL[mObj.t] || '#888'}">${esc(mObj.n)}</span>`;
+        }).join('');
+
+        return `
+          <div class="ph-team-slot${isShiny ? ' shiny' : ''}">
+            <div class="ph-slot-art">
+              <img class="ph-slot-spr" src="${ASSETS.front(m.sp, isShiny, m.shadow)}" alt="" onerror="this.src='${ASSETS.icon(m.sp)}'">
+            </div>
+            <div class="ph-slot-info">
+              <div class="ph-slot-name">${esc(m.nick || S.n || 'Pokémon')}${isShiny ? ' <span class="tc-star">★</span>' : ''} <span class="ph-slot-lvl">N.${m.lvl}</span></div>
+              <div class="ph-slot-types">
+                ${(S.t || ['normal']).map((t) => `<span class="ph-type-pill" style="--tc:${TYPE_COL[t] || '#888'}">${TYPE_FR[t] || t}</span>`).join('')}
+              </div>
+              <div class="ph-slot-moves">${movesHtml}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      s.innerHTML = `
+        <div class="pantheon-casing">
+          <div class="pantheon-hdr">
+            <div class="pantheon-hdr-left">
+              <span class="pantheon-title">HALL DE LA RENOMMÉE D'ODYSSÉE</span>
+              <span class="pantheon-subtitle">REGISTRE HISTORIQUE DES MAÎTRES</span>
+            </div>
+            <button type="button" class="tc-btn-close" data-act="close" title="Fermer">✕</button>
+          </div>
+          <div class="pantheon-body">
+            <div class="pantheon-tabs-col">
+              <div class="pantheon-tabs-head">${history.length} SACRE${history.length > 1 ? 'S' : ''}</div>
+              <div class="pantheon-tabs-list">${tabsHtml}</div>
+            </div>
+            <div class="pantheon-content-col">
+              <div class="pantheon-entry-card">
+                <div class="ph-entry-head">
+                  <div class="ph-eh-left">
+                    <span class="ph-eh-title">SACRE OFFICIEL #${entry.id || 1}</span>
+                    <span class="ph-eh-date">Date : <b>${entry.date || '—'}</b> · Temps : <b>${Math.floor((entry.time || 0) / 3600)}h ${String(Math.floor((entry.time || 0) / 60) % 60).padStart(2, '0')}</b></span>
+                  </div>
+                  <div class="ph-eh-dex">Pokédex : <b>${entry.dexCount || 0}</b> capturés</div>
+                </div>
+                <div class="ph-team-grid">${teamHtml}</div>
+              </div>
+            </div>
+          </div>
+          <div class="pantheon-foot">
+            <div class="tc-foot-hints">
+              <span><kbd>▲</kbd> <kbd>▼</kbd> Sélectionner un sacre</span>
+              <span><kbd>ÉCHAP</kbd> Quitter</span>
+            </div>
+            <button type="button" class="pantheon-btn-close" data-act="close">Refermer</button>
+          </div>
+        </div>
+      `;
+
+      s.querySelectorAll('[data-act="close"]').forEach((b) => b.onclick = close);
+      s.querySelectorAll('.pantheon-tab').forEach((tab) => {
+        tab.onclick = () => {
+          const eidx = parseInt(tab.dataset.eidx, 10);
+          if (!isNaN(eidx) && eidx >= 0 && eidx < history.length) {
+            selEntryIdx = eidx;
+            try { ui.sound?.sfx('select'); } catch (err) {}
+            render();
+          }
+        };
+      });
+    };
+
+    const close = () => {
+      pop();
+      s.remove();
+      try { ui.sound?.sfx('cancel'); } catch (e) {}
+      resolve();
+    };
+
+    const pop = ui.input.push((k) => {
+      if (k === 'b' || k === 'cancel') {
+        close();
+      } else if (k === 'up') {
+        if (selEntryIdx > 0) {
+          selEntryIdx--;
+          try { ui.sound?.sfx('select'); } catch (err) {}
+          render();
+        }
+      } else if (k === 'down') {
+        if (selEntryIdx < history.length - 1) {
+          selEntryIdx++;
+          try { ui.sound?.sfx('select'); } catch (err) {}
+          render();
+        }
+      }
+    });
+
+    render();
+  });
+}
+
+
+/* ================= REGISTRE AMI & CONNEXIONS C-GEAR 5G ================= */
+export function friendsScreen(game) {
+  const ui = game.ui;
+  const mgr = getFriendsManager(game);
+
+  return new Promise((resolve) => {
+    const s = screen(ui, 'friends-scr');
+    s.classList.add('b2w2-screen');
+
+    let tab = 'online'; // 'online' | 'friends' | 'add'
+    let notice = { text: '', type: 'info', ts: 0 };
+    let addCodeInput = '';
+
+    const setNotice = (text, type = 'info') => {
+      notice = { text, type, ts: Date.now() };
+      try {
+        if (type === 'ok') ui.sound?.sfx('select');
+        else if (type === 'err') ui.sound?.sfx('bump');
+        else ui.sound?.sfx('blip');
+      } catch (e) {}
+      render();
+    };
+
+    const copyCode = async () => {
+      const code = formatFid(mgr.getMyCode());
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(code);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = code;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        }
+        setNotice(`Code ami ${code} copié dans le presse-papier !`, 'ok');
+      } catch (e) {
+        setNotice(`Code ami : ${code}`, 'info');
+      }
+    };
+
+    const render = () => {
+      const myCode = mgr.getMyCode();
+      const onlinePeers = mgr.getOnlinePeers();
+      const onlineCount = mgr.getOnlineCount();
+      const friendsList = mgr.getFriendsList();
+      const requests = mgr.getRequests();
+
+      // En-tête C-Gear
+      const headerHtml = `
+        <div class="fr-hdr">
+          <div class="fr-hdr-left">
+            <div class="fr-cgear-icon"></div>
+            <div class="fr-hdr-titles">
+              <span class="fr-hdr-main">REGISTRE AMI & CONNEXIONS C-GEAR 5G</span>
+              <span class="fr-hdr-sub">SYSTÈME SANS FIL D\'ODYSSÉE · RADAR MULTIJOUEUR EN DIRECT</span>
+            </div>
+          </div>
+          <div class="fr-hdr-right">
+            <span class="fr-online-pill">
+              <span class="fr-pulse-dot"></span>
+              <b>${onlineCount}</b> DRESSEUR${onlineCount > 1 ? 'S' : ''} CONNECTÉ${onlineCount > 1 ? 'S' : ''}
+            </span>
+            <button type="button" class="fr-close-btn" data-act="close" title="Fermer le Registre Ami (Échap)">FERMER ✕</button>
+          </div>
+        </div>
+      `;
+
+      // Bandeau Mon Code Ami
+      const myCodeHtml = `
+        <div class="fr-mycode-bar">
+          <div class="fr-mycode-left">
+            <span class="fr-mycode-lbl">VOTRE CODE AMI PERSONNEL :</span>
+            <span class="fr-mycode-val">${formatFid(myCode)}</span>
+            <button type="button" class="fr-copy-btn" data-act="copy-code" title="Copier mon code ami dans le presse-papier">📋 COPIER MON CODE</button>
+          </div>
+          <div class="fr-mycode-right">
+            ${notice.text ? `<span class="fr-notice-pill ${notice.type}">${esc(notice.text)}</span>` : '<span class="fr-hint-txt">Partagez ce code pour recevoir des demandes d\'amis !</span>'}
+          </div>
+        </div>
+      `;
+
+      // Onglets
+      const tabsHtml = `
+        <div class="fr-tabs-bar">
+          <button type="button" class="fr-tab${tab === 'online' ? ' active' : ''}" data-act="tab-online">
+            🌐 DRESSEURS EN DIRECT (${onlinePeers.length})
+          </button>
+          <button type="button" class="fr-tab${tab === 'friends' ? ' active' : ''}" data-act="tab-friends">
+            👥 MES AMIS (${friendsList.length})
+          </button>
+          <button type="button" class="fr-tab${tab === 'add' ? ' active' : ''}" data-act="tab-add">
+            ➕ AJOUTER UN AMI ${requests.length > 0 ? `<span class="fr-tab-badge">${requests.length}</span>` : ''}
+          </button>
+        </div>
+      `;
+
+      // Corps selon l'onglet
+      let bodyHtml = '';
+
+      if (tab === 'online') {
+        const othersCount = onlinePeers.filter((p) => !p.isSelf).length;
+        const peersCards = onlinePeers.map((p) => {
+          const isSelf = p.isSelf;
+          const sprSrc = ASSETS.trainer(p.gender === 'f' ? 'player_f' : 'player_m');
+          let statusPill = '';
+          if (isSelf) {
+            statusPill = `<span class="fr-tag fr-tag-self">🟢 VOUS · ACTIF</span>`;
+          } else if (p.pvp) {
+            statusPill = `<span class="fr-tag fr-tag-pvp">⚔️ EN COMBAT PVP</span>`;
+          } else if (p.busy) {
+            statusPill = `<span class="fr-tag fr-tag-busy">⏳ OCCUPÉ</span>`;
+          } else {
+            statusPill = `<span class="fr-tag fr-tag-ready">🟢 DISPONIBLE</span>`;
+          }
+
+          return `
+            <div class="fr-card${isSelf ? ' is-me' : ''}">
+              <div class="fr-card-avatar-wrap">
+                <img class="fr-card-avatar" src="${sprSrc}" alt="" onerror="this.style.display='none'">
+                ${isSelf ? '<span class="fr-card-me-tag">MOI</span>' : ''}
+              </div>
+              <div class="fr-card-info">
+                <div class="fr-card-head">
+                  <span class="fr-card-name">${esc(p.name)}</span>
+                  <span class="fr-card-gender ${p.gender || 'm'}">${p.gender === 'f' ? '♀' : '♂'}</span>
+                  ${statusPill}
+                  ${p.isFriend ? '<span class="fr-friend-badge">✓ AMI</span>' : ''}
+                </div>
+                <div class="fr-card-meta">
+                  <span class="fr-card-loc">📍 <b>${esc(p.locName || 'Odyssée')}</b></span>
+                  <span class="fr-card-coords">[LOC: ${p.x}, ${p.y}]</span>
+                </div>
+              </div>
+              <div class="fr-card-actions">
+                ${isSelf ? `
+                  <button type="button" class="fr-act-btn" data-act="my-card" title="Voir ma Carte de Dresseur">👁 MA FICHE</button>
+                ` : `
+                  <button type="button" class="fr-act-btn fr-btn-card" data-act="peer-card" data-peerid="${p.id}" title="Consulter la Carte de Dresseur de ${esc(p.name)}">👁 CARTE</button>
+                  <button type="button" class="fr-act-btn fr-btn-battle" data-act="peer-battle" data-peerid="${p.id}" title="Défier ${esc(p.name)} en duel 1v1">⚔️ COMBAT</button>
+                  <button type="button" class="fr-act-btn fr-btn-trade" data-act="peer-trade" data-peerid="${p.id}" title="Proposer un échange Pokémon à ${esc(p.name)}">🔄 ÉCHANGE</button>
+                  ${p.isFriend ? '' : `
+                    <button type="button" class="fr-act-btn fr-btn-add" data-act="peer-quick-add" data-peerid="${p.id}" title="Ajouter ${esc(p.name)} en ami">+ AMI</button>
+                  `}
+                `}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        bodyHtml = `
+          <div class="fr-tab-pane fr-pane-online">
+            <div class="fr-pane-hdr">
+              <span class="fr-pane-title">DRESSEURS ACTIFS DANS CETTE SESSION D\'ODYSSÉE (${onlinePeers.length})</span>
+              <span class="fr-pane-sub">Les dresseurs connectés au même salon se déplacent avec vous dans la région.</span>
+            </div>
+            <div class="fr-cards-grid">
+              ${peersCards}
+            </div>
+            ${othersCount === 0 ? `
+              <div class="fr-empty-callout">
+                <div class="fr-empty-icon">📡</div>
+                <div class="fr-empty-msg">
+                  <b>Aucun autre dresseur dans ce salon pour le moment.</b>
+                  <p>Partagez le lien de votre salon ou votre Code Ami (${formatFid(myCode)}) pour vous retrouver et explorer la région d\'Odyssée ensemble !</p>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      } else if (tab === 'friends') {
+        const friendsCards = friendsList.map((f) => {
+          const isOnline = f.isOnline;
+          return `
+            <div class="fr-card${isOnline ? ' is-online' : ' is-offline'}">
+              <div class="fr-friend-avatar" style="--fc: ${f.color || '#3b82f6'};">
+                <span>${esc((f.name || 'A')[0].toUpperCase())}</span>
+              </div>
+              <div class="fr-card-info">
+                <div class="fr-card-head">
+                  <span class="fr-card-name">${esc(f.name)}</span>
+                  <span class="fr-friend-fid">${formatFid(f.fid)}</span>
+                  <span class="fr-tag ${isOnline ? 'fr-tag-ready' : 'fr-tag-busy'}">
+                    ${isOnline ? '🟢 EN LIGNE' : '⚪ HORS LIGNE'}
+                  </span>
+                </div>
+                <div class="fr-card-meta">
+                  <span class="fr-card-loc">
+                    ${isOnline ? (f.roomCode ? `Connecté dans Odyssée · Salon #${esc(f.roomCode)}` : 'En ligne dans le Hub Arcadia') : 'Non connecté actuellement'}
+                  </span>
+                </div>
+              </div>
+              <div class="fr-card-actions">
+                ${isOnline && f.roomCode ? `
+                  <button type="button" class="fr-act-btn fr-btn-join" data-act="join-room" data-code="${esc(f.roomCode)}" title="Rejoindre le salon de ${esc(f.name)}">🚀 REJOINDRE</button>
+                ` : ''}
+                <button type="button" class="fr-act-btn fr-btn-invite" data-act="invite-friend" data-fid="${esc(f.fid)}" title="Envoyer une invitation de salon à ${esc(f.name)}">✉️ INVITER</button>
+                <button type="button" class="fr-act-btn fr-btn-del" data-act="remove-friend" data-fid="${esc(f.fid)}" title="Supprimer ${esc(f.name)} de mes amis">🗑 RETIRER</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        bodyHtml = `
+          <div class="fr-tab-pane fr-pane-friends">
+            <div class="fr-pane-hdr">
+              <span class="fr-pane-title">MES AMIS ENREGISTRÉS (${friendsList.length})</span>
+              <span class="fr-pane-sub">Voyez qui est connecté et rejoignez leur salon en un clic sans chercher de code.</span>
+            </div>
+            ${friendsList.length > 0 ? `
+              <div class="fr-cards-grid">
+                ${friendsCards}
+              </div>
+            ` : `
+              <div class="fr-empty-callout">
+                <div class="fr-empty-icon">👥</div>
+                <div class="fr-empty-msg">
+                  <b>Aucun ami enregistré pour le moment.</b>
+                  <p>Allez dans l\'onglet <b>"AJOUTER UN AMI"</b> pour enregistrer le code ami de vos proches !</p>
+                </div>
+              </div>
+            `}
+          </div>
+        `;
+      } else if (tab === 'add') {
+        const reqHtml = requests.map((r) => `
+          <div class="fr-card is-req">
+            <div class="fr-friend-avatar" style="--fc: ${r.color || '#eab308'};">
+              <span>${esc((r.name || 'D')[0].toUpperCase())}</span>
+            </div>
+            <div class="fr-card-info">
+              <div class="fr-card-head">
+                <span class="fr-card-name">${esc(r.name)}</span>
+                <span class="fr-friend-fid">${formatFid(r.fid)}</span>
+                <span class="fr-tag fr-tag-pvp">DEMANDE REÇUE</span>
+              </div>
+              <div class="fr-card-meta">
+                <span class="fr-card-loc">Ce dresseur vous a envoyé une demande d\'amitié !</span>
+              </div>
+            </div>
+            <div class="fr-card-actions">
+              <button type="button" class="fr-act-btn fr-btn-accept" data-act="accept-req" data-fid="${esc(r.fid)}" title="Accepter la demande">✓ ACCEPTER</button>
+              <button type="button" class="fr-act-btn fr-btn-del" data-act="decline-req" data-fid="${esc(r.fid)}" title="Refuser la demande">✕ REFUSER</button>
+            </div>
+          </div>
+        `).join('');
+
+        bodyHtml = `
+          <div class="fr-tab-pane fr-pane-add">
+            <div class="fr-add-box">
+              <div class="fr-pane-title">AJOUTER UN AMI PAR CODE</div>
+              <div class="fr-pane-sub">Entrez le Code Ami à 8 caractères fourni par l\'autre joueur (ex: ABCD-1234).</div>
+              <div class="fr-add-form">
+                <input type="text" class="fr-code-input" placeholder="EX: A1B2-C3D4" maxlength="9" value="${esc(addCodeInput)}" autofocus>
+                <button type="button" class="fr-submit-btn" data-act="submit-add">➕ ENVOYER LA DEMANDE</button>
+              </div>
+            </div>
+
+            ${requests.length > 0 ? `
+              <div class="fr-req-section">
+                <div class="fr-pane-title">DEMANDES D\'AMIS EN ATTENTE (${requests.length})</div>
+                <div class="fr-cards-grid">
+                  ${reqHtml}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      // Pied de page
+      const footHtml = `
+        <div class="fr-foot">
+          <div class="fr-foot-hints">
+            <span class="fr-key-pill"><kbd>◄</kbd> <kbd>►</kbd> Changer d\'onglet</span>
+            <span class="fr-key-pill"><kbd>▲</kbd> <kbd>▼</kbd> Naviguer</span>
+            <span class="fr-key-pill"><kbd>Espace</kbd> / <kbd>Entrée</kbd> Valider l\'action</span>
+            <span class="fr-key-pill"><kbd>Échap</kbd> Fermer</span>
+          </div>
+          <button type="button" class="fr-foot-close" data-act="close">Fermer</button>
+        </div>
+      `;
+
+      s.innerHTML = `
+        <div class="b2w2-friends-casing">
+          <img class="fr-pixelart-bg" src="${ASSETS.carteBg}" alt="">
+          <div class="fr-scanlines"></div>
+          ${headerHtml}
+          ${myCodeHtml}
+          ${tabsHtml}
+          <div class="fr-body-container">
+            ${bodyHtml}
+          </div>
+          ${footHtml}
+        </div>
+      `;
+
+      // Brancher événements souris / clics
+      s.querySelectorAll('[data-act="close"]').forEach((b) => (b.onclick = close));
+
+      s.querySelectorAll('[data-act="copy-code"]').forEach((b) => (b.onclick = copyCode));
+
+      s.querySelector('[data-act="tab-online"]')?.addEventListener('click', () => {
+        tab = 'online';
+        try { ui.sound?.sfx('select'); } catch (e) {}
+        render();
+      });
+      s.querySelector('[data-act="tab-friends"]')?.addEventListener('click', () => {
+        tab = 'friends';
+        try { ui.sound?.sfx('select'); } catch (e) {}
+        render();
+      });
+      s.querySelector('[data-act="tab-add"]')?.addEventListener('click', () => {
+        tab = 'add';
+        try { ui.sound?.sfx('select'); } catch (e) {}
+        render();
+      });
+
+      // Actions sur les pairs
+      s.querySelectorAll('[data-act="my-card"]').forEach((b) => {
+        b.onclick = async () => {
+          try {
+            await cardScreen(game, BADGES);
+          } catch (e) {}
+        };
+      });
+
+      s.querySelectorAll('[data-act="peer-card"]').forEach((b) => {
+        b.onclick = async () => {
+          const pid = b.dataset.peerid;
+          const peer = onlinePeers.find((q) => String(q.id) === String(pid));
+          if (!peer || !peer.peerObj) {
+            setNotice('Dresseur introuvable ou déconnecté.', 'err');
+            return;
+          }
+          try {
+            if (game.showPeerCard) await game.showPeerCard(peer.peerObj);
+            else setNotice(`Fiche de ${peer.name} inaccessible.`, 'err');
+          } catch (e) {
+            setNotice(`Erreur : ${e.message || e}`, 'err');
+          }
+        };
+      });
+
+      s.querySelectorAll('[data-act="peer-battle"], [data-act="peer-trade"]').forEach((b) => {
+        b.onclick = async () => {
+          const pid = b.dataset.peerid;
+          const peer = onlinePeers.find((q) => String(q.id) === String(pid));
+          if (!peer || !peer.peerObj) {
+            setNotice('Dresseur introuvable ou déconnecté.', 'err');
+            return;
+          }
+          if (game.talkToPeer) {
+            close();
+            await game.talkToPeer(peer.peerObj);
+          } else {
+            setNotice('Fonctionnalité réseau inactive dans ce mode.', 'err');
+          }
+        };
+      });
+
+      s.querySelectorAll('[data-act="peer-quick-add"]').forEach((b) => {
+        b.onclick = async () => {
+          const pid = b.dataset.peerid;
+          const peer = onlinePeers.find((q) => String(q.id) === String(pid));
+          if (!peer) return;
+          try {
+            const targetCode = peer.fid || peer.name;
+            await mgr.addFriend(targetCode);
+            setNotice(`Demande d\'ami envoyée à ${peer.name} !`, 'ok');
+          } catch (e) {
+            setNotice(`Erreur : ${e.message}`, 'err');
+          }
+        };
+      });
+
+      // Formulaire ajout
+      const inputEl = s.querySelector('.fr-code-input');
+      if (inputEl) {
+        inputEl.oninput = (e) => {
+          addCodeInput = e.target.value.toUpperCase();
+        };
+        inputEl.onkeydown = (e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') {
+            s.querySelector('[data-act="submit-add"]')?.click();
+          } else if (e.key === 'Escape') {
+            close();
+          }
+        };
+      }
+
+      s.querySelector('[data-act="submit-add"]')?.addEventListener('click', async () => {
+        if (!addCodeInput.trim()) {
+          setNotice('Veuillez entrer un code ami.', 'err');
+          return;
+        }
+        try {
+          await mgr.addFriend(addCodeInput);
+          setNotice(`Demande envoyée pour le code ${formatFid(addCodeInput)} !`, 'ok');
+          addCodeInput = '';
+          render();
+        } catch (e) {
+          setNotice(`Erreur : ${e.message}`, 'err');
+        }
+      });
+
+      // Actions demandes reçues
+      s.querySelectorAll('[data-act="accept-req"]').forEach((b) => {
+        b.onclick = async () => {
+          const fid = b.dataset.fid;
+          await mgr.acceptRequest(fid);
+          setNotice('Ami accepté avec succès !', 'ok');
+        };
+      });
+      s.querySelectorAll('[data-act="decline-req"]').forEach((b) => {
+        b.onclick = async () => {
+          const fid = b.dataset.fid;
+          await mgr.declineRequest(fid);
+          setNotice('Demande d\'ami refusée.', 'info');
+        };
+      });
+
+      // Actions liste amis
+      s.querySelectorAll('[data-act="remove-friend"]').forEach((b) => {
+        b.onclick = async () => {
+          const fid = b.dataset.fid;
+          await mgr.removeFriend(fid);
+          setNotice('Ami retiré de votre liste.', 'info');
+        };
+      });
+      s.querySelectorAll('[data-act="invite-friend"]').forEach((b) => {
+        b.onclick = async () => {
+          const fid = b.dataset.fid;
+          const ok = await mgr.inviteFriend(fid);
+          if (ok) setNotice('Invitation de salon envoyée !', 'ok');
+          else setNotice('Impossible d\'envoyer l\'invitation.', 'err');
+        };
+      });
+      s.querySelectorAll('[data-act="join-room"]').forEach((b) => {
+        b.onclick = () => {
+          const code = b.dataset.code;
+          if (code) {
+            close();
+            mgr.joinRoom(code);
+          }
+        };
+      });
+    };
+
+    const close = () => {
+      clearInterval(heartbeatTimer);
+      mgr.off('change', onMgrChange);
+      pop();
+      s.remove();
+      try { ui.sound?.sfx('cancel'); } catch (e) {}
+      resolve();
+    };
+
+    const onMgrChange = () => render();
+    mgr.on('change', onMgrChange);
+    const heartbeatTimer = setInterval(() => render(), 3000);
+
+    const pop = ui.input.push((k) => {
+      if (k === 'b' || k === 'cancel') {
+        close();
+      } else if (k === 'left') {
+        if (tab === 'add') tab = 'friends';
+        else if (tab === 'friends') tab = 'online';
+        try { ui.sound?.sfx('select'); } catch (e) {}
+        render();
+      } else if (k === 'right') {
+        if (tab === 'online') tab = 'friends';
+        else if (tab === 'friends') tab = 'add';
+        try { ui.sound?.sfx('select'); } catch (e) {}
+        render();
+      } else if (k === 'a' || k === 'space' || k === 'enter') {
+        // NON-DESTRUCTIF : Espace / Entrée ne ferme pas l'écran
+        const activeBtn = s.querySelector('.fr-tab.active') || s.querySelector('.fr-act-btn');
+        if (activeBtn) {
+          try { ui.sound?.sfx('select'); } catch (e) {}
+        }
+      }
+    });
+
+    render();
   });
 }

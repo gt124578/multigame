@@ -6,8 +6,9 @@ import { Sound } from '../odyssee/js/audio.js';
 console.log('=== Test Intégration Cinématique Lugia Obscur ===');
 
 // 1. Vérification des fichiers vidéo
-assert.ok(fs.existsSync('arcadia/odyssee/video/lugia_dark.mp4'), 'Le fichier video/lugia_dark.mp4 doit exister');
-const vidStat = fs.statSync('arcadia/odyssee/video/lugia_dark.mp4');
+const vidPath = fs.existsSync('odyssee/video/lugia_dark.mp4') ? 'odyssee/video/lugia_dark.mp4' : 'arcadia/odyssee/video/lugia_dark.mp4';
+assert.ok(fs.existsSync(vidPath), 'Le fichier video/lugia_dark.mp4 doit exister');
+const vidStat = fs.statSync(vidPath);
 assert.ok(vidStat.size > 1000000, 'La vidéo doit faire une taille significative (> 1 Mo)');
 console.log(`✓ Fichier vidéo présent et valide (${(vidStat.size / 1024 / 1024).toFixed(2)} Mo)`);
 
@@ -23,7 +24,8 @@ assert.ok(audioCtrl && typeof audioCtrl.stop === 'function', 'Le contrôleur aud
 console.log('✓ Le synthétiseur audio cinématique est fonctionnel');
 
 // 4. Vérification de l\'appel dans story.js
-const storySrc = fs.readFileSync('arcadia/odyssee/js/story.js', 'utf8');
+const storyPath = fs.existsSync('odyssee/js/story.js') ? 'odyssee/js/story.js' : 'arcadia/odyssee/js/story.js';
+const storySrc = fs.readFileSync(storyPath, 'utf8');
 assert.ok(storySrc.includes('playLugiaCinematic'), 'story.js doit importer et appeler playLugiaCinematic');
 assert.ok(storySrc.includes('lugiaWakes'), 'lugiaWakes doit déclencher la cinématique');
 console.log('✓ story.js intègre parfaitement le déclenchement de la cinématique');

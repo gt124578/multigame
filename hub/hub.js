@@ -1,11 +1,12 @@
 /* Hub : profil, salon commun et lancement des jeux dans une iframe.
    Le salon (DDRoom) vit ici pendant toute la session : changer de jeu ne coupe pas la connexion. */
 (function () {
-  const VERSION = '3.89';
+  const VERSION = '4.11';
   const $ = (s) => document.querySelector(s);
   const ORIGIN = location.origin === 'null' ? '*' : location.origin;
   const GAMES = window.HUB_GAMES;
-  const gameDef = (id) => GAMES.find((g) => g.id === id);
+  // jeux visibles par ce joueur (les jeux VIP en sont retirés pour les autres : hub/vip.js) ; un VIP peut quand même en lancer un dans son salon
+  const gameDef = (id) => GAMES.find((g) => g.id === id) || (window.HUB_GAMES_ALL || []).find((g) => g.id === id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const QS = new URLSearchParams(location.search);
   const FR = window.HubFriends;
@@ -20,7 +21,8 @@
   const pick = { game: GAMES[0].id, settings: {} };
   for (const g of GAMES) {
     pick.settings[g.id] = {};
-    for (const s of g.settings || []) pick.settings[g.id][s.key] = DDProfile.get('hub_set_' + g.id + '_' + s.key, s.def);
+    // un réglage retenu qui n'existe plus pour ce joueur (option VIP, option retirée) revient à sa valeur par défaut
+    for (const s of g.settings || []) { const v = DDProfile.get('hub_set_' + g.id + '_' + s.key, s.def); pick.settings[g.id][s.key] = (s.options || []).some(([o]) => String(o) === String(v)) ? v : s.def; }
   }
 
   function showScreen(id) { for (const s of document.querySelectorAll('.screen')) s.classList.toggle('on', s.id === id); document.dispatchEvent(new CustomEvent('hub:screen', { detail: id })); }
@@ -70,7 +72,7 @@
     $('#profileEdit').hidden = registered && !editing; $('#acctTools').hidden = !registered;
     const sess = HubAccount.session();
     $('#pwBox').hidden = registered; $('#btnCloud').hidden = !!sess;
-    $('#acctSub').textContent = sess ? `Compte en ligne · ${sess.user}` : 'Compte enregistré sur ce navigateur';
+    $('#acctSub').textContent = sess ? `Compte en ligne · ${sess.user}${window.HubVIP && window.HubVIP.is() ? ' · ⭐ VIP' : ''}` : 'Compte enregistré sur ce navigateur';
     $('#acctName').textContent = DDRoom.cleanName(me.name); $('#acctDot').style.background = me.color;
     $('#btnProfile').textContent = editing ? 'OK' : 'Modifier'; $('#btnProfile').setAttribute('aria-expanded', String(editing));
   }
@@ -693,7 +695,7 @@ const watchdog = setTimeout(() => {
         frame.el.contentWindow.postMessage({ dd: 'hub', k: 'init', info: {
           role: room.mode === 'solo' ? 'solo' : room.isHost ? 'host' : 'guest',
           myId: room.myId, hostId: room.hostId, code: room.code, game: frame.game,
-          settings: room.game ? room.game.settings : {},
+          settings: room.game ? room.game.settings : {}, vip: !!(window.HubVIP && window.HubVIP.is()),
           players: room.players.map(({ cid, ...p }) => p), ready: room.ready, pings: room.pings,
         } }, ORIGIN);
         break;

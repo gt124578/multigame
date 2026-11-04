@@ -93,6 +93,9 @@ export const ITEMS = {
   'chambre-air': { pocket: 'cles', price: 0, key: true, name: 'Chambre à Air', desc: 'Une chambre à air robuste pour assembler le vélo.' },
   derailleur: { pocket: 'cles', price: 0, key: true, name: 'Dérailleur', desc: 'Un dérailleur forgé avec soin pour assembler le vélo.' },
   'permis-bateau': { pocket: 'cles', price: 0, key: true, name: 'Permis Bateau', desc: 'Un permis officiel autorisant la navigation vers les îles.' },
+  'secateur-sylvestre': { pocket: 'cles', price: 0, key: true, field: 'coupe', icon: 'secateur-sylvestre', name: 'Sécateur Sylvestre', desc: 'Des cisailles horticoles ouvragées en acier ciselé et or. Elles tranchent net les arbustes épineux. Place-toi face au buisson et appuie sur F.' },
+  'harnais-flottant': { pocket: 'cles', price: 0, key: true, field: 'surf', icon: 'harnais-flottant', name: 'Harnais Flottant', desc: 'Une selle nautique étanche avec flotteurs profilés. Permet de glisser sur l\'eau et la mer. Place-toi face à l\'eau et appuie sur F.' },
+  'sifflet-celeste': { pocket: 'cles', price: 0, key: true, field: 'vol', icon: 'sifflet-celeste', name: 'Sifflet Céleste', desc: 'Un sifflet ouvragé en argent et ruban saphir. Il appelle un grand oiseau pour voyager en un instant vers une ville déjà visitée (depuis le menu ou le sac).' },
 };
 export const itemName = (k) => ITEMS[k]?.name || ITEM_NAMES[k] || k;
 export const POCKETS = [['objets', 'Objets'], ['soin', 'Soins'], ['balls', 'Poké Balls'], ['ct', 'CT & CS'], ['baies', 'Baies'], ['cles', 'Objets Rares']];
@@ -142,12 +145,15 @@ export function itemPluralName(k, qty = 1) {
  * Conforme à la syntaxe officielle Pokémon Noir 2 / Blanc 2 (B2W2)
  */
 export function formatFindItem(playerName, itemKey, qty = 1, csInfo = null) {
-  const cs = csInfo || (ITEMS[itemKey]?.field && ITEMS[itemKey].name ? {
+  const isActualCS = (csInfo && typeof csInfo.cs === 'string' && csInfo.cs.startsWith('CS')) ||
+                     (typeof itemKey === 'string' && itemKey.startsWith('cs-')) ||
+                     (ITEMS[itemKey]?.name && ITEMS[itemKey].name.startsWith('CS'));
+  const cs = csInfo || (isActualCS && ITEMS[itemKey]?.field && ITEMS[itemKey].name ? {
     cs: ITEMS[itemKey].name.split(' ')[0],
     name: ITEMS[itemKey].name.split(' ').slice(1).join(' ')
   } : null);
 
-  if (cs && cs.cs && cs.name) {
+  if (cs && cs.cs && cs.name && isActualCS) {
     return `${playerName} trouve la ${cs.cs} ${cs.name} !\n${playerName} met la ${cs.cs} dans la Poche CT & CS.`;
   }
   if (typeof itemKey === 'string' && itemKey.startsWith('ct-')) {
@@ -168,12 +174,15 @@ export function formatFindItem(playerName, itemKey, qty = 1, csInfo = null) {
  * Conforme à la syntaxe officielle Pokémon Noir 2 / Blanc 2 (B2W2)
  */
 export function formatObtainItem(playerName, itemKey, qty = 1, csInfo = null) {
-  const cs = csInfo || (ITEMS[itemKey]?.field && ITEMS[itemKey].name ? {
+  const isActualCS = (csInfo && typeof csInfo.cs === 'string' && csInfo.cs.startsWith('CS')) ||
+                     (typeof itemKey === 'string' && itemKey.startsWith('cs-')) ||
+                     (ITEMS[itemKey]?.name && ITEMS[itemKey].name.startsWith('CS'));
+  const cs = csInfo || (isActualCS && ITEMS[itemKey]?.field && ITEMS[itemKey].name ? {
     cs: ITEMS[itemKey].name.split(' ')[0],
     name: ITEMS[itemKey].name.split(' ').slice(1).join(' ')
   } : null);
 
-  if (cs && cs.cs && cs.name) {
+  if (cs && cs.cs && cs.name && isActualCS) {
     return `${playerName} obtient la ${cs.cs} ${cs.name} !\n${playerName} met la ${cs.cs} dans la Poche CT & CS.`;
   }
   if (typeof itemKey === 'string' && itemKey.startsWith('ct-')) {

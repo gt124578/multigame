@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aperçu — Registre Ami & Joueurs en Ligne C-Gear 5G (v4.07)</title>
+  <link rel="stylesheet" href="odyssee.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #020617;
+      color: #f8fafc;
+      font-family: system-ui, -apple-system, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      background: #0f172a;
+      border-bottom: 1px solid #1e293b;
+      z-index: 100;
+    }
+    #top-bar h1 {
+      margin: 0;
+      font-size: 16px;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #top-bar .btn-reopen {
+      background: #0284c7;
+      color: #fff;
+      border: 1px solid #38bdf8;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    #game-container {
+      flex: 1;
+      position: relative;
+      background: #000;
+    }
+  </style>
+</head>
+<body>
+  <div id="top-bar">
+    <h1><span>🎮</span> Odyssée Pokémon — Aperçu Registre Ami & Joueurs Connectés C-Gear 5G</h1>
+    <button class="btn-reopen" onclick="openFriends()">Ouvrir l'Écran des Amis (Touche O / F)</button>
+  </div>
+  <div id="game-container"></div>
+
+  <script type="module">
+    import { friendsScreen } from './js/ui/screens.js';
+
+    const root = document.getElementById('game-container');
+
+    // Mocks
+    const mockGame = {
+      state: {
+        name: 'Amiel',
+        gender: 'm',
+        badges: [true, true, true, false, false, false, false, false],
+        party: [
+          { sp: 152, lvl: 18, nick: 'Germignon', hp: 45, maxHp: 45, stats: [45] }
+        ],
+        money: 4850,
+      },
+      player: { x: 31, y: 219 },
+      mapObj: { id: 'monde' },
+      locationName: () => 'Port-Écume',
+      levelCap: () => 24,
+      link: {
+        others: new Map([
+          ['peer-sacha', {
+            id: 'peer-sacha',
+            name: 'Sacha',
+            gender: 'm',
+            map: 'monde',
+            x: 28,
+            y: 215,
+            busy: false,
+            pvp: null,
+          }],
+          ['peer-aurore', {
+            id: 'peer-aurore',
+            name: 'Aurore',
+            gender: 'f',
+            map: 'monde',
+            x: 45,
+            y: 180,
+            busy: true,
+            pvp: null,
+          }],
+          ['peer-cynthia', {
+            id: 'peer-cynthia',
+            name: 'Cynthia',
+            gender: 'f',
+            map: 'monde',
+            x: 50,
+            y: 50,
+            busy: false,
+            pvp: { foeName: 'Red' },
+          }],
+        ]),
+      },
+      ui: {
+        root,
+        sound: {
+          sfx(k) { console.log('SFX:', k); }
+        },
+        input: {
+          handlers: [],
+          push(fn) {
+            this.handlers.push(fn);
+            return () => {
+              const idx = this.handlers.indexOf(fn);
+              if (idx >= 0) this.handlers.splice(idx, 1);
+            };
+          }
+        }
+      }
+    };
+
+    window.openFriends = async () => {
+      await friendsScreen(mockGame);
+    };
+
+    // Auto open
+    window.openFriends();
+
+    // Key listening
+    window.addEventListener('keydown', (e) => {
+      const h = mockGame.ui.input.handlers[mockGame.ui.input.handlers.length - 1];
+      if (h) {
+        if (e.key === 'Escape') h('b');
+        else if (e.key === 'ArrowLeft') h('left');
+        else if (e.key === 'ArrowRight') h('right');
+        else if (e.key === ' ' || e.key === 'Enter') h('space');
+      } else if (e.key === 'o' || e.key === 'O' || e.key === 'f' || e.key === 'F') {
+        window.openFriends();
+      }
+    });
+  </script>
+</body>
+</html>

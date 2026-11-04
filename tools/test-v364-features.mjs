@@ -37,12 +37,12 @@ const dracaufeu = createMon(6, 36);
 assert.equal(getAbility(dracaufeu).id, 'blaze');
 assert.equal(abilityName(getAbility(dracaufeu)), 'Brasier');
 
-const leviator = createMon(130, 30);
+const leviator = createMon(130, 30, { ability: 'intimidate' });
 assert.equal(getAbility(leviator).id, 'intimidate');
 assert.equal(abilityName(getAbility(leviator)), 'Intimidation');
 
 const ectoplasma = createMon(94, 35);
-assert.equal(getAbility(ectoplasma).id, 'levitate');
+assert.equal(getAbility(ectoplasma).id, 'cursed-body');
 console.log('✓ Attribution et lecture des talents passifs validées');
 
 console.log('--- Test v3.64 : Évolution Jour / Nuit d\'Évoli ---');

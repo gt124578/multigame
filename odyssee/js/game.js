@@ -11,7 +11,9 @@ import { SAUVAGE, R } from './data/remplacants.js';
 import { STARTERS, STARTER_CHOICES, STARTER_TABLE, starterSlot, RIVAL_NAME, BADGES, LEADERS, FIELD } from './world/region.js';
 import { BattleView } from './ui/battleView.js';
 import { Hud } from './ui/hud.js';
-import { partyScreen, bagScreen, dexScreen, mapScreen, cardScreen, shopScreen, pcScreen, naturePcScreen, moveRelearnerScreen, optionsScreen, pokedexRegisterScene, TYPE_FR, questsScreen } from './ui/screens.js';
+import { partyScreen, bagScreen, dexScreen, mapScreen, cardScreen, shopScreen, pcScreen, naturePcScreen, moveRelearnerScreen, optionsScreen, pokedexRegisterScene, TYPE_FR, questsScreen, trophiesScreen, showTrophyToast, hofScreen, pantheonScreen, friendsScreen } from './ui/screens.js';
+import { getFriendsManager } from './net/friends.js';
+import { recordPvpMatch, ensurePvpState, checkAllTrophies } from './core/trophies.js';
 import { el, esc, wait } from './ui/ui.js';
 import { ASSETS, loadImg } from './assets.js';
 import { HPX, CHAR_ROWS } from './render/world3d.js';
@@ -171,11 +173,13 @@ export class Game {
       v: 2, name, gender, id: Math.floor(Math.random() * 65536), money: 3000, badges: Array(BADGES.length).fill(false), flags: {},
       party: [], box: [], bag: { potion: 1 }, dex: { seen: [], caught: [], seenCount: {} }, time: 0, visited: ['aube'], repel: 0,
       cleared: {}, surf: false, explored: [], journal: {},
+      pvp: { totalWins: 0, totalLosses: 0, totalDraws: 0, currentStreak: 0, bestStreak: 0, players: {}, trophies: {} },
       lastCenter: { map: 'aube:maison', x: 4, y: 5, dir: 'up' }, ...this.world.start,
     };
   }
   save(silent = false) {
     const s = this.state; const p = this.player;
+    if (s && !silent) { try { this.checkTrophies(true); } catch (e) {} }
     s.map = this.mapObj.id; s.x = p.x; s.y = p.y; s.dir = p.dir; s.surf = !!p.surf;
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); if (!silent) this.sound.sfx('save'); } catch (e) { return false; }
     this.onSaved?.(silent);
@@ -191,6 +195,7 @@ export class Game {
     // Pokémon d'avant les natures : chacun reçoit la sienne (toujours la même), ses stats sont recalculées
     while (s.badges.length < BADGES.length) s.badges.push(false);   // anciennes parties : 8 badges → 15
     for (const m of s.party.concat(s.box)) ensureNature(m);
+    ensurePvpState(s);
     return s;
   }
 
@@ -283,7 +288,8 @@ export class Game {
     if (!f || f.hidden || !sp) { if (v.actors.has('follower')) v.removeActor('follower'); return; }
     let x = f.x, y = f.y, hop = 0, sf = 0;
     if (f.move) { const u = Math.min(1, f.move.t); x = f.move.fx + (f.move.tx - f.move.fx) * u; y = f.move.fy + (f.move.ty - f.move.fy) * u; sf = u < 0.5 ? (f.step % 2 ? 1 : 2) : 0; if (f.move.jump) hop = Math.sin(u * Math.PI) * 0.45; }
-    else sf = Math.floor(performance.now() / 420) % 2 ? 1 : 0;   // il piétine sur place, comme dans HGSS
+    else sf = Math.floor(performance.now() / 420) % 2 ? 1 : 0;
+    if (f.flyElevation) hop += f.flyElevation;   // il piétine sur place, comme dans HGSS
     const a = v.actor('follower', {});
     a.mesh.scale.setScalar(SUIVEUR);   // un peu plus petit que le dresseur
     v.setFrame(a, 'poke:' + sp, f.dir, sf);
@@ -381,6 +387,7 @@ export class Game {
     this.view.ombreCible = (m.outdoor && z?.ombre) || 1;   // sous-bois : l'image s'assombrit doucement
     if (!this.musicLock) this.sound.play(p.surf && m.outdoor ? 'route2' : (z && z.music) || m.music);
     this.zone = z;
+    try { this.view?.setWeather(this.getMapWeather()); } catch (e) {}
   }
 
   async warp(to, sfx = 'door') {
@@ -502,6 +509,7 @@ export class Game {
       if (p.move.jump) hop = Math.sin(u * Math.PI) * 0.55;
       stepFrame = p.surf ? 0 : u < 0.5 ? (p.step % 2 ? 1 : 2) : 0;
     } else if (p.bumpT > 0) stepFrame = p.bumpT > 0.15 ? (p.step % 2 ? 1 : 2) : 0;
+    if (p.flyElevation) hop += p.flyElevation;
     const a = v.actor('player', {});
     const bike = this.onBike();
     if (bike) { stepFrame = 0; hop += 6 * HPX; }   // assis sur la selle
@@ -792,6 +800,8 @@ export class Game {
     else if (k === 'map') { this.busy = true; await mapScreen(this); this.busy = false; }
     else if (k === 'velo') { this.busy = true; try { await this.toggleVelo(); } finally { this.busy = false; } }
     else if (k === 'quests') { this.busy = true; await questsScreen(this); this.busy = false; }
+    else if (k === 'trophies') { this.busy = true; await trophiesScreen(this); this.busy = false; }
+    else if (k === 'friends') { this.busy = true; await friendsScreen(this); this.busy = false; }
     else if (k === 'hud') this.hud?.toggle();
   }
   async interact() {
@@ -965,8 +975,154 @@ export class Game {
     this.ui.banner(d.name);
   }
 
+  /* ================= animations de terrain authentiques ================= */
+  async animateCut(x, y) {
+    const pt = this.view.tileToScreen ? this.view.tileToScreen(x, y, 0.3) : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    const fx = document.createElement('div');
+    fx.className = 'field-cut-fx';
+    fx.style.left = `${pt.x}px`;
+    fx.style.top = `${pt.y}px`;
+
+    const s1 = document.createElement('div'); s1.className = 'cut-slash slash-1';
+    const s2 = document.createElement('div'); s2.className = 'cut-slash slash-2';
+    fx.append(s1, s2);
+
+    for (let i = 0; i < 12; i++) {
+      const leaf = document.createElement('div');
+      leaf.className = 'cut-leaf';
+      const angle = (i / 12) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+      const dist = 32 + Math.random() * 30;
+      leaf.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+      leaf.style.setProperty('--dy', `${Math.sin(angle) * dist * 0.75 + 10}px`);
+      leaf.style.setProperty('--rot', `${Math.round((Math.random() - 0.5) * 720)}deg`);
+      leaf.style.animationDelay = `${(i % 3) * 0.03}s`;
+      fx.appendChild(leaf);
+    }
+    this.ui.root.appendChild(fx);
+
+    this.sound.sfx('cut');
+    this.view.shake = 0.3;
+    await wait(80);
+    this.sound.sfx('hitweak');
+    await this.ui.flash(1, '#ffffff', 50);
+    await wait(280);
+    fx.remove();
+  }
+
+  animateSurfSplash(x, y) {
+    const pt = this.view.tileToScreen ? this.view.tileToScreen(x, y, 0) : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    const fx = document.createElement('div');
+    fx.className = 'field-surf-splash';
+    fx.style.left = `${pt.x}px`;
+    fx.style.top = `${pt.y}px`;
+
+    for (let i = 0; i < 3; i++) {
+      const r = document.createElement('div');
+      r.className = 'surf-ripple';
+      fx.appendChild(r);
+    }
+
+    for (let i = 0; i < 8; i++) {
+      const d = document.createElement('div');
+      d.className = 'surf-droplet';
+      const angle = (i / 8) * Math.PI * 2;
+      const dist = 18 + Math.random() * 22;
+      d.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+      d.style.setProperty('--dy', `${Math.sin(angle) * dist * 0.6}px`);
+      d.style.animationDelay = `${i * 0.02}s`;
+      fx.appendChild(d);
+    }
+
+    this.ui.root.appendChild(fx);
+    setTimeout(() => fx.remove(), 600);
+  }
+
+  async animateFlyDeparture() {
+    const pt = this.view.tileToScreen ? this.view.tileToScreen(this.player.x, this.player.y, 0.4) : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    const fx = document.createElement('div');
+    fx.className = 'field-fly-fx';
+    fx.style.left = `${pt.x}px`;
+    fx.style.top = `${pt.y}px`;
+
+    const notes = ['♪', '♫', '♬', '✦', '♪', '♫'];
+    notes.forEach((glyph, i) => {
+      const n = document.createElement('div');
+      n.className = 'fly-musical-note';
+      n.textContent = glyph;
+      n.style.setProperty('--angle', `${i * 60}deg`);
+      n.style.setProperty('--rad', `${36 + (i % 2) * 16}px`);
+      n.style.animationDelay = `${i * 0.08}s`;
+      fx.appendChild(n);
+    });
+
+    for (let i = 0; i < 10; i++) {
+      const sp = document.createElement('div');
+      sp.className = 'fly-sparkle';
+      const a = (i / 10) * Math.PI * 2;
+      sp.style.setProperty('--dx', `${Math.cos(a) * (24 + Math.random() * 24)}px`);
+      sp.style.setProperty('--dy', `${-18 - Math.random() * 36}px`);
+      sp.style.animationDelay = `${i * 0.05}s`;
+      fx.appendChild(sp);
+    }
+
+    this.ui.root.appendChild(fx);
+    await wait(750);
+    fx.remove();
+  }
+
+  async animateFlyAscent() {
+    const p = this.player;
+    const dur = 0.55;
+    const t0 = performance.now();
+    while (performance.now() - t0 < dur * 1000) {
+      const u = (performance.now() - t0) / (dur * 1000);
+      p.flyElevation = u * u * 4.5;
+      if (this.fol) this.fol.flyElevation = p.flyElevation;
+      await wait(16);
+    }
+    p.flyElevation = 4.5;
+    if (this.fol) this.fol.flyElevation = 4.5;
+  }
+
+  async animateFlyDescent() {
+    const p = this.player;
+    const dur = 0.65;
+    const t0 = performance.now();
+    while (performance.now() - t0 < dur * 1000) {
+      const u = (performance.now() - t0) / (dur * 1000);
+      const ease = 1 - Math.pow(1 - u, 3);
+      p.flyElevation = (1 - ease) * 4.5;
+      if (this.fol) this.fol.flyElevation = p.flyElevation;
+      await wait(16);
+    }
+    p.flyElevation = 0;
+    if (this.fol) this.fol.flyElevation = 0;
+
+    this.sound.sfx('bump');
+    this.view.shake = 0.15;
+    this.animateLandingDust(p.x, p.y);
+  }
+
+  animateLandingDust(x, y) {
+    const pt = this.view.tileToScreen ? this.view.tileToScreen(x, y, 0) : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    const fx = document.createElement('div');
+    fx.className = 'field-fly-fx';
+    fx.style.left = `${pt.x}px`;
+    fx.style.top = `${pt.y}px`;
+
+    [-18, -10, 10, 18].forEach((dx) => {
+      const dust = document.createElement('div');
+      dust.className = 'fly-landing-dust';
+      dust.style.setProperty('--dx', `${dx}px`);
+      fx.appendChild(dust);
+    });
+
+    this.ui.root.appendChild(fx);
+    setTimeout(() => fx.remove(), 400);
+  }
+
   /* ================= capacités de terrain ================= */
-  hasField(k) { return !!this.state.bag['cs-' + k]; }
+  hasField(k) { const f = FIELD[k]; return !!(this.state.bag['cs-' + k] || (f?.item && this.state.bag[f.item])); }
   canField(k) { return this.hasField(k) && this.badgeCount() >= FIELD[k].badge; }
   /** la créature de l'équipe qui utilise la capacité (la première en forme) */
   fieldUser() { return this.state.party.find((m) => m.hp > 0) || this.state.party[0]; }
@@ -977,8 +1133,14 @@ export class Game {
     if (!(await this.ui.yesNo(`${look}\nUtiliser ${F.name} ?`))) return;
     const mon = this.fieldUser();
     this.sound.cry(ASSETS.cry(mon.sp));
-    await this.ui.say(`${monName(mon)} utilise ${F.name} !`, { auto: 500 });
-    this.sound.sfx(k === 'coupe' ? 'hitweak' : 'hitstrong'); await this.ui.flash(1, '#ffffff', 60);
+    if (k === 'coupe') {
+      await this.ui.say(`${st.name} utilise le Sécateur Sylvestre pour trancher le buisson !`, { auto: 600 });
+      await this.animateCut(x, y);
+    } else {
+      await this.ui.say(`${monName(mon)} utilise ${F.name} !`, { auto: 500 });
+      this.sound.sfx('hitstrong');
+      await this.ui.flash(1, '#ffffff', 60);
+    }
     const m = this.mapObj;
     m.set(x, y, m.outdoor ? T.GRASS : T.CAVE);
     (st.cleared[m.id] ||= []).push(key(x, y));
@@ -1000,25 +1162,39 @@ export class Game {
     const st = this.state;
     if (!this.canField('surf')) { await this.ui.say(this.hasField('surf') ? ['L\'eau est d\'un bleu profond...', 'Il faut le Badge Mirage pour surfer.'] : 'L\'eau est d\'un bleu profond...'); return; }
     if (!st.party.some((m) => m.hp > 0)) return;
-    if (!(await this.ui.yesNo('L\'eau est d\'un bleu profond...\nUtiliser Surf ?'))) return;
-    const mon = this.fieldUser();
-    this.sound.cry(ASSETS.cry(mon.sp));
-    await this.ui.say(`${st.name} monte sur le dos de ${monName(mon)} !`, { auto: 500 });
+    if (!(await this.ui.yesNo('L\'eau est d\'un bleu profond...\nUtiliser le Harnais Flottant ?'))) return;
+    await this.ui.say(`${st.name} déploie le Harnais Flottant et s'élance sur l'eau !`, { auto: 600 });
     const p = this.player;
-    p.surf = true; p.move = { fx: p.x, fy: p.y, tx: x, ty: y, t: 0, dur: 0.3, jump: true, scripted: true };
+    this.sound.sfx('ledge');
+    p.move = { fx: p.x, fy: p.y, tx: x, ty: y, t: 0, dur: 0.35, jump: true, scripted: true };
+    while (p.move && p.move.t < 0.85) await wait(16);
+    this.sound.sfx('splash');
+    this.animateSurfSplash(x, y);
+    p.surf = true;
     while (p.move) await wait(16);
     this.updateZone();
   }
   /** Vol : retour dans une ville déjà visitée (devant son Centre de soins) */
   async fly() {
+    const st = this.state;
     const towns = Object.values(this.world.towns).filter((t) => this.state.visited.includes(t.id) && (t.centerDoor || t.homeDoor));
     const k = await this.ui.list({ title: 'Voler vers...', items: towns.map((t) => ({ label: t.name })).concat([{ label: 'Annuler' }]), cls: 'shop', cancel: towns.length });
     if (k < 0 || k >= towns.length) return false;
     const t = towns[k], mon = this.fieldUser();
     this.sound.cry(ASSETS.cry(mon.sp));
-    await this.ui.say(`${monName(mon)} utilise Vol !`, { auto: 500 });
+    this.sound.sfx('whistle');
+    await this.animateFlyDeparture();
+    await this.ui.say(`${st.name} souffle dans le Sifflet Céleste !\nUne mélodie dorée résonne et vous emporte dans les cieux.`, { auto: 700 });
+    await this.animateFlyAscent();
+    await this.ui.doorTransition(true, 280);
     const [x, y] = t.centerDoor || t.homeDoor;
-    await this.warp({ map: 'monde', x, y, dir: 'down' }, 'exit');
+    this.player.x = x; this.player.y = y + 1; this.player.dir = 'down'; this.player.move = null; this.player.surf = false;
+    this.setMap('monde');
+    this.view.update(0, this.player.x, this.player.y);
+    this.save(true);
+    await this.ui.doorTransition(false, 250);
+    await this.animateFlyDescent();
+    await this.ui.say(`Vous atterrissez en douceur devant le Centre de soins de ${t.name}.`, { auto: 650 });
     return true;
   }
 
@@ -1029,10 +1205,15 @@ export class Game {
     const opts = [];
     if (st.flags.dex) opts.push(['POKéDEX', 'dex']);
     if (st.party.length) opts.push(['ÉQUIPE', 'party']);
+    if (st.party.length) opts.push(['BOÎTES PC', 'pc']);
     opts.push(['SAC', 'bag']);
     if (this.canField('vol')) opts.push(['VOL', 'fly']);
     opts.push(['QUÊTES', 'quests']);
+    opts.push(['TROPHÉES', 'trophies']);
     if (st.domaine) opts.push([this.mapObj.id === 'domaine' ? 'REVENIR' : 'DOMAINE', 'domaine']);
+    const friendsMgr = getFriendsManager(this);
+    const onlineCount = friendsMgr.getOnlineCount();
+    opts.push([`AMIS & EN LIGNE (${onlineCount} 🟢)`, 'friends']);
     opts.push([st.name.toUpperCase(), 'card'], ['CARTE', 'map'], ['CODE', 'code'], ['OPTIONS', 'opt'], ['FERMER', 'close']);
     let idx = Math.min(this._menuIdx || 0, opts.length - 1);
     for (;;) {
@@ -1042,11 +1223,14 @@ export class Game {
       const k = opts[r][1];
       if (k === 'dex') await dexScreen(this);
       else if (k === 'party') await partyScreen(this, { mode: 'menu' });
+      else if (k === 'pc') await pcScreen(this);
       else if (k === 'bag') { if (await this.fieldBag()) break; }
       else if (k === 'fly') { if (this.player.surf || !this.mapObj.outdoor) { await this.ui.say('On ne peut pas s\'envoler d\'ici.'); continue; } if (await this.fly()) break; }
+      else if (k === 'friends') await friendsScreen(this);
       else if (k === 'card') await cardScreen(this, BADGES);
       else if (k === 'map') await mapScreen(this);
       else if (k === 'quests') await questsScreen(this);
+      else if (k === 'trophies') await trophiesScreen(this);
       else if (k === 'domaine') { this.busy = false; if (await allerDomaine(this)) break; this.busy = true; }
       else if (k === 'opt') await optionsScreen(this);
       else if (k === 'code') {
@@ -1071,6 +1255,39 @@ export class Game {
     this.busy = false;
   }
   /** le sprite du joueur : sa tenue composée s'il en a une, sinon le dresseur ou la dresseuse de base */
+  recordPvpResult(foeName, result) {
+    if (!this.state) return null;
+    const outcome = recordPvpMatch(this.state, foeName, result);
+    if (outcome.newlyUnlocked && outcome.newlyUnlocked.length > 0) {
+      for (const trophy of outcome.newlyUnlocked) {
+        showTrophyToast(this, trophy);
+      }
+    }
+    this.save(true);
+    return outcome;
+  }
+
+  checkTrophies(notify = true) {
+    if (!this.state) return [];
+    const newly = checkAllTrophies(this.state);
+    if (notify && newly && newly.length > 0) {
+      for (const trophy of newly) {
+        showTrophyToast(this, trophy);
+      }
+    }
+    return newly;
+  }
+
+  async openTrophies() {
+    this.busy = true;
+    try {
+      this.checkTrophies(false);
+      await trophiesScreen(this);
+    } finally {
+      this.busy = false;
+    }
+  }
+
   playerSprite() { return this.state.tenue && this._tenueOk ? 'joueur' : this.state.gender === 'f' ? 'player_f' : 'player_m'; }
   /** compose la tenue du joueur dans la planche des personnages */
   appliquerTenue() {
@@ -1122,7 +1339,18 @@ export class Game {
       if (r.item === 'town-map') { await mapScreen(this); continue; }
       if (r.item === 'velo') { if (await this.toggleVelo()) return true; continue; }
       if (it.field) {
-        if (it.field === 'vol' && this.canField('vol') && this.mapObj.outdoor && !this.player.surf) { if (await this.fly()) return true; continue; }
+        if (it.field === 'vol') {
+          if (this.canField('vol')) {
+            if (this.player.surf || !this.mapObj.outdoor) {
+              await this.ui.say('On ne peut pas s\'envoler d\'ici.');
+              continue;
+            }
+            if (await this.fly()) return true;
+            continue;
+          }
+          await this.ui.say([`${FIELD.vol.itemName} : ${FIELD.vol.desc}`, `Il faut le ${BADGES[FIELD.vol.badge - 1].name} pour l'utiliser hors combat.`]);
+          continue;
+        }
         await this.ui.say([`${FIELD[it.field].name} : ${FIELD[it.field].desc}`, this.canField(it.field) ? 'Place-toi face à l\'obstacle et appuie sur F pour l\'utiliser.' : `Il faut le ${BADGES[FIELD[it.field].badge - 1].name} pour l'utiliser hors combat.`]);
         continue;
       }
@@ -1308,23 +1536,36 @@ export class Game {
   async badgeScene(g, name) {
     const st = this.state, ui = this.ui;
     st.badges[g] = true;
+    try { this.checkTrophies(true); } catch (e) {}
     this.sound.sfx('badge');
     await ui.say(`${st.name} reçoit le ${BADGES[g].name} de la part de ${name} !`);
     const lines = {
       0: ['Avec ce badge, tu prouves ta valeur de dresseur.', 'Le garde au nord de la ville te laissera passer vers le Bois Murmure.'],
       1: ['La route 4, à l\'est, t\'est désormais ouverte.', 'Voltacité t\'attend au bout de la côte.'],
       2: ['Le garde de la route 5 te laissera passer.', 'Floralia et sa Championne sont au sud-ouest.'],
-      3: ['Et prends aussi ceci : la CS01, Coupe !', 'Avec mon badge, tu peux trancher les petits arbres qui barrent la route de Mirage, à l\'est.'],
-      4: ['J\'ai vu ton avenir : il est sur la mer. Prends la CS02, Surf.', 'Au sud, le Cap Mirage fait face aux îles des trois frères.', 'Méfie-toi de Drakos. Il a autrefois défié Célestine... et ne s\'en est jamais remis.'],
+      3: [
+        'Et prends aussi ceci : le Sécateur Sylvestre !',
+        'Ciselé par les maîtres arboristes de Floralia, il tranche net les ronces et buissons épineux.',
+        'Avec mon Badge Pétale, tu peux désormais ouvrir le passage de la Route 6 vers Mirage, à l\'est. Prends bien soin de nos forêts !'
+      ],
+      4: [
+        'J\'ai vu ton avenir : ta destinée t\'attend au-delà des flots. Prends ce Harnais Flottant !',
+        'Cette selle nautique profilée épouse la surface des eaux et te permettra de surfer sur la mer.',
+        'Au sud, le Cap Mirage fait face au Sanctuaire des Marées et aux îles des trois frères.',
+        'Méfie-toi de Drakos. Il a autrefois défié Célestine... et ne s\'en est jamais remis.'
+      ],
       5: ['Tiens, la CS03 : Éclate-Roc. Elle brise les rochers fissurés.', 'Tu en auras besoin sur la Grande Île.', 'Drakos est notre frère aîné. Il a perdu la finale de la Ligue contre Célestine, il y a dix ans.', 'Depuis, il a juré qu\'aucun Maître ne dicterait sa loi aux îles. Pyros et moi... nous l\'avons suivi.'],
-      6: ['Prends la CS04 : Vol. Elle te ramènera chez toi en un instant.', 'Drakos t\'attend à Fort-Écaille, sur la Grande Île, à l\'ouest.', 'Mon frère a besoin qu\'on le batte. Peut-être qu\'il ouvrira enfin les yeux.'],
+      6: this.hasField('vol')
+        ? ['Drakos t\'attend à Fort-Écaille, sur la Grande Île, à l\'ouest.', 'Je vois que tu portes déjà le Sifflet Céleste des Sages de la Tour Dorée ! Les vents te porteront sans peine jusqu\'à lui.', 'Mon frère a besoin qu\'on le batte. Peut-être qu\'il ouvrira enfin les yeux.']
+        : ['Drakos t\'attend à Fort-Écaille, sur la Grande Île, à l\'ouest.', 'Tiens, prends ce Sifflet Céleste qu\'un pèlerin de la Tour Dorée m\'a confié. Il appellera un oiseau pour te transporter d\'une ville à l\'autre en un instant !', 'Mon frère a besoin qu\'on le batte. Peut-être qu\'il ouvrira enfin les yeux.'],
       7: ['...Tu te bats comme Célestine. Avec tes créatures, pas contre elles.', 'Les îles resteront libres. Mais j\'arrête de prélever les pêches et de fermer les ports.', 'Va à la Ligue. Et dis à Célestine que le vieux Drakos attend sa revanche.', 'Ah, et le Cap des Étoiles, au nord de la ville, t\'est ouvert. Odyssor y passe parfois...'],
     }[g];
     if (lines) await ui.say(lines, { speaker: name });
     const gift = GYM_GIFT[g];
     if (gift && !this.hasField(gift)) {
-      this.give('cs-' + gift); this.sound.sfx('item');
-      await ui.say(formatObtainItem(st.name, 'cs-' + gift, 1, FIELD[gift]));
+      const itk = FIELD[gift]?.item || ('cs-' + gift);
+      this.give(itk); this.sound.sfx('item');
+      await ui.say(formatObtainItem(st.name, itk, 1, FIELD[gift]));
     }
     if (g === 7) { st.flags.drakos = true; this.give('town-map'); }
     this.refreshGates();
@@ -1729,7 +1970,7 @@ export class Game {
     } else if (name === 'doyenne') {
       const sp = 'Doyenne Amaya', f = st.flags;
       if (f['L:hooh'] === 'caught') { await ui.say(['Ho-Oh t\'a choisi... Après tant d\'années.', 'Les trois bêtes errent toujours dans les îles. Raikou sur l\'Île Orageuse, Entei sur le Chemin du Brasier, Suicune près de Givrebourg.', 'Elles ne se laisseront approcher que par un dresseur aguerri (5 badges).'], { speaker: sp }); return; }
-      if (f.plume) { await ui.say(['La Plume Arc-en-ciel ! Le Grand Sage t\'a jugé digne.', 'Monte sur le toit de la Tour Dorée. Si Ho-Oh le veut, il descendra vers toi.'], { speaker: sp }); return; }
+      if (f.plume) { await ui.say(['La Plume Arc-en-ciel et le Sifflet Céleste ! Le Grand Sage t\'a jugé digne de la lignée des gardiens du ciel.', 'Monte sur le toit de la Tour Dorée. Si Ho-Oh le veut, il descendra vers toi. Et le chant de ton sifflet appellera les oiseaux du ciel où que tu sois.'], { speaker: sp }); return; }
       if (!f.grueQuest) {
         f.grueQuest = true;
         await ui.say(['Tu viens du continent ? Assieds-toi, que je te raconte.', 'Là-bas, dans la Forêt des Torii, au sud-ouest de Mirage, deux tours se dressent côte à côte.', 'L\'une a brûlé, et trois créatures ont péri dans les flammes. Ho-Oh, l\'oiseau arc-en-ciel, les a ramenées à la vie : ce sont Raikou, Entei et Suicune.', 'Depuis, Ho-Oh ne se pose plus que sur l\'autre, la Tour Dorée... Nos anciens l\'appelaient la Tour de la Grue, comme notre village.', 'Il ne se pose que devant celui qui porte la Plume Arc-en-ciel. Le Grand Sage la garde, au sommet de la tour. Gagne le respect des Sages, et peut-être te la confiera-t-il.'], { speaker: sp });
@@ -1739,8 +1980,16 @@ export class Game {
     } else if (name === 'grandSage') {
       if (st.flags.plume) return;
       st.flags.plume = true; this.give('plume-arc'); this.give('great-ball', 5); this.sound.sfx('item');
-      await ui.say(['Ton cœur et celui de tes créatures battent ensemble.', 'Cette plume t\'appartient désormais.'], { speaker: 'Grand Sage Hoël' });
+      const hadVol = this.hasField('vol');
+      if (!hadVol) this.give('sifflet-celeste');
+      await ui.say([
+        'Ton cœur et celui de tes créatures battent à l\'unisson.',
+        'Cette Plume Arc-en-ciel t\'appartient désormais pour éveiller Ho-Oh sur le toit de la tour.',
+        'Et reçois également ce trésor des cieux : le Sifflet Céleste !',
+        'Sculpté dans le bois sacré de la tour et orné d\'un ruban céleste, son chant appelle les grands oiseaux du ciel pour te transporter d\'une ville à l\'autre en un instant.'
+      ], { speaker: 'Grand Sage Hoël' });
       await ui.say(formatObtainItem(st.name, 'plume-arc', 1));
+      if (!hadVol) await ui.say(formatObtainItem(st.name, 'sifflet-celeste', 1));
       await ui.say(formatObtainItem(st.name, 'great-ball', 5));
       await ui.say('Monte sur le toit. Le novice te laissera passer.', { speaker: 'Grand Sage Hoël' });
       this.refreshGates();
@@ -1911,10 +2160,28 @@ export class Game {
     await ui.say(['Félicitations !', `${st.name}, tu es le nouveau Maître de la Ligue Céleste !`, 'Drakos m\'a fait passer un message, tu sais. « Le vieux Drakos attend sa revanche. »', st.flags.rivalB3 ? `Et ${B.name} m'a écrit aussi. ${B.il === 'il' ? 'Il' : 'Elle'} veut ouvrir une arène à Port-Granit, ouverte à tous.` : 'Drakos a rouvert les ports de l\'archipel.', 'Grâce à toi, les îles et le continent se reparlent.', 'Et sans toi, la nuit de la Team Éclipse recouvrirait encore la région. Lugia veille de nouveau sur les marées.', 'Ton équipe et toi entrez au Panthéon des dresseurs.'], { speaker: 'Célestine' });
     await ui.say([`Bravo, ${st.name}. Tu as tenu ta promesse.`, 'Mais la prochaine fois, c\'est moi qui serai Maître !'], { speaker: RIVAL_NAME });
     if (st.flags.rivalB4) await ui.say(['Félicitations. Je suis venu' + B.e + ' avec mon grand-père pour voir ça.', 'On se reverra sur les îles. Elles t\'attendront toujours.'], { speaker: B.name });
-    const s = el('div', 'screen hof-scr'); s.innerHTML = `<div class="scr-title">PANTHÉON</div><div class="hof">${st.party.map((m) => `<div class="hof-m box"><img src="${ASSETS.front(m.sp, m.shiny)}" alt=""><div>${esc(monName(m))}</div><div>N.${m.lvl}</div></div>`).join('')}</div><div class="box hof-txt">${esc(st.name)} — Maître de la Ligue · ${st.dex.caught.length} créatures capturées<br>Merci d'avoir joué à ce prototype d'Odyssée !</div>`;
-    ui.root.appendChild(s);
-    await new Promise((res) => { const pop = this.input.push((k) => { if (k === 'a' || k === 'b') { pop(); res(); } }); });
-    s.remove();
+    if (!st.hof) st.hof = [];
+    const entry = {
+      id: st.hof.length + 1,
+      date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      time: st.time || 0,
+      title: st.hof.length === 0 ? 'Nouveau Maître' : `Sacre #${st.hof.length + 1}`,
+      team: st.party.map((m) => ({
+        sp: m.sp,
+        nick: m.nick || null,
+        lvl: m.lvl,
+        shiny: !!m.shiny,
+        shadow: !!m.shadow,
+        g: m.g,
+        moves: (m.moves || []).map((x) => ({ id: x.id, pp: x.pp })),
+        stats: [...m.stats],
+        ball: m.ball || 'poke-ball',
+        ot: m.ot || st.name,
+      })),
+      dexCount: st.dex?.caught?.length || 0,
+    };
+    st.hof.push(entry);
+    await hofScreen(this, entry);
     for (const m of st.party) healFull(m);
     this.save(true);
   }
