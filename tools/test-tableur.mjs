@@ -21,6 +21,7 @@ import { champsSource, calculerTCD, ecrireTCD, tcdA, actualiserTout, typeChamp }
 import { solveur, lireContrainte, calculerTableDonnees, remplissageInstantane, antecedents, dependants, etapesEvaluation, verifierErreurs } from '../tableur/js/analyse.js';
 import { paginer, htmlPages, zonesImpression, mp, versExcel, depuisExcel } from '../tableur/js/impression.js';
 import { hacherMotDePasse, verifierShaMotDePasse } from '../tableur/js/page-xlsx.js';
+import { versOpenFormula, depuisOpenFormula } from '../tableur/js/ods.js';
 import crypto from 'node:crypto';
 
 const require = createRequire(import.meta.url);
@@ -1210,6 +1211,20 @@ test('xlsx : polices, bordures colorées et pointillées, texte riche', () => {
   egal(f.get(1, 0).s, { taille: 16, police: 'Times New Roman', bordures: { h: 'double', b: 'dashed', g: 'dotted' }, bordCouleur: '#2563eb' });
   // Une saisie remplace le texte riche
   e.saisir(0, 0, 0, 'autre'); egal(f.get(0, 0).riche, undefined);
+});
+
+test('ods : écriture et relecture (valeurs, formules, formats, styles, fusions)', () => {
+  egal(versOpenFormula('=SOMME(B2:B3)+Données!A1*2'), 'of:=SUM([.B2:.B3])+[$Données.A1]*2');
+  egal(versOpenFormula('=SI(A1>0;"a;b";1,5)'), 'of:=IF([.A1]>0;"a;b";1.5)');
+  egal(depuisOpenFormula('of:=SUM([.A1:.A9];[$\'Ma feuille\'.B2])+[$Feuil1.C3]', 'Feuil1'), "=SUM(A1:A9,'Ma feuille'!B2)+C3");
+  const c = Classeur.nouveau(); c.ajouterFeuille('Données');
+  c.saisir(0, 0, 0, 'Nom'); c.saisir(0, 1, 1, '120,5'); c.saisir(0, 2, 1, '340'); c.saisir(0, 3, 1, '=SOMME(B2:B3)'); c.saisir(0, 4, 1, '=Données!A1*2'); c.saisir(1, 0, 0, '7');
+  c.saisir(0, 5, 1, '12/03/2024'); c.saisir(0, 6, 1, '15%'); c.saisir(0, 7, 1, '=SI(B4>400;"oui";"non")');
+  c.style(0, 0, 0, { gras: true, fond: '#fff2cc', bordures: { b: 'thin' } }); c.format(0, 1, 1, '#,##0.00 €'); c.feuilles[0].largeurs[0] = 150; c.feuilles[0].fusions.push({ r1: 9, c1: 0, r2: 9, c2: 2 }); c.saisir(0, 9, 0, 'Fusion');
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c, { bookType: 'ods' }), 'x.ods'), f = e.feuilles[0];
+  egal([1, 2, 3, 4, 5, 6, 7].map((r) => e.texte(0, r, 1)), ['120,50 €', '340', '460,5', '14', '12/03/2024', '15%', 'oui']);
+  egal([f.get(3, 1).f, f.get(4, 1).f], ['=SOMME(B2:B3)', "='Données'!A1*2"]);
+  egal([f.get(0, 0).s, f.largeurs[0], f.fusions], [{ fond: '#fff2cc', bordures: { b: 'thin' }, gras: true }, 150, [{ r1: 9, c1: 0, r2: 9, c2: 2 }]]);
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);
