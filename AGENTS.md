@@ -135,6 +135,9 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   `reliefDehors` de `world3d.js`, pièces dessinées par `odyssee/js/render/relief-tex.js` ; sols générés : feuilles mortes (zone
   `theme: 'automne'`), gravier ratissé, mousse, désert, sol ocre des canyons ; zone `ombre` : sous-bois plus sombre.
   L'archipel et les îles de l'Est ne s'atteignent qu'en bateau (passeur du Cap Mirage, quais `docks`) ; les tests suivent le bateau.
+  Forêt des Torii agrandie et Tour Cendrée (pagode brûlée, modèle `tourCendree` de `batiments3d.js` ; rez-de-chaussée en ruine et sous-sol
+  où se joue l'évènement des trois bêtes, `m.betes` lu par `reveilBetes` de `game.js`) : `odyssee/js/world/cendree.js` ; son décor
+  (souches, piliers, poutres, gravats) : `python3 tools/odyssee-cendree.py`.
   Mine de Pierrefort (trois niveaux, échelles, rails) : `odyssee/js/world/mine.js`. Villes agrandies : `fermer`, emprises `GRAND`,
   `lotir: { n }` pose des maisons habitées dans l'herbe libre sans couper de passage ; un garde se tient dans le couloir de sortie.
   Décor ajouté hors planches (`odyssee/js/data/decor-plus.js`) : `python3 tools/odyssee-automne.py` (arbres d'automne),
