@@ -294,7 +294,7 @@ export function addStory({ W, maps, towns, routes, legends, trainerNpc }) {
       item: 'medaillon', flag: 'qMedaillon', who: 'Margaux', reward: [['rare-candy', 1], ['super-potion', 3]],
       ask: ['Snif... J\'ai perdu le médaillon de ma grand-mère en jouant dans le Bois Murmure.', 'Il est sûrement tombé derrière un petit arbre... Je n\'arrive pas à passer !'],
       thanks: ['Mon médaillon ! Tu l\'as retrouvé ! Merci, merci, merci !', 'Tiens, c\'est tout ce que j\'ai. Grand-mère dit que ça rend les Pokémon plus forts.'], done: ['Je ne le quitterai plus jamais !'] } });
-    tn(C, 8, 13, { id: 'geologue', sprite: 'montagnard', dir: 'down', script: 'show', show: {
+    tn(C, 48, 13, { id: 'geologue', sprite: 'montagnard', dir: 'down', script: 'show', show: {
       flag: 'qRoche', who: 'Géologue', test: (m) => SPECIES[m.sp].t.includes('rock'), reward: [['great-ball', 4]],
       ask: ['Je collectionne les observations de Pokémon Roche.', 'Montre-m\'en un, n\'importe lequel, et je te récompenserai !'],
       thanks: ['Magnifique ! Regarde-moi cette carapace minérale...', 'Voilà pour toi, comme promis.'], done: ['La Grotte Lunaire regorge de Pokémon Roche. Et de Pierres Lune !'] } });

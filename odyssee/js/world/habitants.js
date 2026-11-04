@@ -238,11 +238,11 @@ export function addHabitants({ W, maps, towns, routes }) {
   W.missionTrainers = trainersOn;
   for (const M of MISSIONS) {
     const t = towns[M.town]; if (!t) continue;
-    const [x, y] = free(W, t.x + M.at[0], t.y + M.at[1]);
+    const [x, y] = free(W, t.x + (t.decal?.[0] || 0) + M.at[0], t.y + (t.decal?.[1] || 0) + M.at[1]);   // decal : déplacement de l'ancien centre d'une ville agrandie
     W.npc({ id: `${t.id}:${M.id}`, x, y, sprite: M.sprite, dir: 'down', move: M.kind === 'duel' ? 'static' : 'turn', script: 'mission', mission: M, showIf: M.showIf });
     if (M.to) {
       const t2 = towns[M.to.town];
-      const [x2, y2] = free(W, t2.x + M.to.at[0], t2.y + M.to.at[1]);
+      const [x2, y2] = free(W, t2.x + (t2.decal?.[0] || 0) + M.to.at[0], t2.y + (t2.decal?.[1] || 0) + M.to.at[1]);
       W.npc({ id: `${t2.id}:${M.id}-dest`, x: x2, y: y2, sprite: M.to.sprite, dir: 'down', move: 'turn', script: 'mission', mission: { ...M, role: 'receiver' } });
     }
     if (M.place) for (const p of [].concat(M.place)) placeItem(p, M.item);

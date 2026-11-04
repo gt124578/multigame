@@ -57,7 +57,7 @@ export function addVehicules({ W, towns }) {
     } });
   }
   {
-    const [x, y] = at(C, 24, 12);
+    const [x, y] = at(C, 52, 12);
     W.npc({ id: 'velo:mineur', x, y, dir: 'down', sprite: 'montagnard', talk: async (A) => {
       const who = 'Gustave, mineur';
       if (step(A, 'velo') && step(A, 'velo') !== 'fin' && !A.has('derailleur') && !A.f.velo_derailleur) {

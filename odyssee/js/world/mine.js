@@ -29,12 +29,12 @@ function echelle(m, x, y, to, jour = false) { m.deco.push({ k: jour ? 'echelle_j
 export function addMine({ W, maps, towns, trainerNpc, ENC }) {
   const C = towns.C, enc = ENC.grotte;
   /* ---------------- dehors : le chemin de la mine, au nord de Pierrefort ---------------- */
-  const px = C.x + 16, py = C.y;   // colonne du chemin (entre la boutique et la Maison des Mineurs)
+  const px = C.x + 45;   // colonne du chemin : la sortie nord de la ville, entre le Centre et la Maison des Mineurs
   W.rect(px, C.y - 6, px + 1, C.y + 9, T.PATH, [T.TREE, T.PINE, T.GRASS, T.FLOWER, T.TALL]);
   W.rect(px - 3, C.y - 7, px + 4, C.y - 4, T.GRASS, [T.TREE, T.PINE]); W.rect(px, C.y - 7, px + 1, C.y - 4, T.PATH);
   const porte = W.building('cave', px - 2, C.y - 10);
-  massif(W, polygone([[C.x + 4, C.y - 24], [C.x + 30, C.y - 26], [C.x + 33, C.y - 14], [C.x + 26, C.y - 5], [C.x + 20, C.y - 8], [C.x + 12, C.y - 8], [C.x + 5, C.y - 4], [C.x + 1, C.y - 14]]));
-  W.zone(C.x + 1, C.y - 26, C.x + 33, C.y - 4, { name: 'Mine de Pierrefort', music: 'route', theme: 'canyon', roche: 'terre', prio: 0 });
+  massif(W, polygone([[px - 12, C.y - 24], [px + 14, C.y - 26], [px + 17, C.y - 14], [px + 10, C.y - 5], [px + 4, C.y - 8], [px - 4, C.y - 8], [px - 11, C.y - 4], [px - 15, C.y - 14]]));
+  W.zone(px - 15, C.y - 26, px + 17, C.y - 4, { name: 'Mine de Pierrefort', music: 'route', theme: 'canyon', roche: 'terre', prio: 0 });
   W.sign(px + 3, C.y - 5, 'MINE DE PIERREFORT\nGaleries fermées au fond : éboulement.');
   W.prop('wagonnet', px - 3, C.y - 5); W.prop('lampe_mine', px - 1, C.y - 7); W.prop('caisses', px + 4, C.y - 6);
 

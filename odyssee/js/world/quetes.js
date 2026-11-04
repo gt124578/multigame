@@ -184,7 +184,7 @@ export function buildQuests(ctx) {
         await A.give('insigne-brume'); await A.set('ponyta', 3);
       },
     });
-    const c = clairiere('bois', [0.62, 0.55, 0.7, 0.45, 0.78], [1, -1], 4, 7, 5);
+    const c = clairiere('bois', [0.62, 0.55, 0.7, 0.45, 0.78, 0.35, 0.85, 0.25, 0.9, 0.15], [1, -1], 4, 7, 5);
     W.zone(c.x0 - 1, c.y0 - 1, c.x0 + c.w, c.y0 + c.h, { name: 'Clairière cachée', music: 'forest', prio: 2 });
     W.prop('caisse', c.x0 + 1, c.y0 + 1); W.prop('caisses', c.x0 + c.w - 2, c.y0 + 1); W.prop('tonneau', c.x0 + c.w - 2, c.y0 + c.h - 2);
     const g1 = sbire(W, 'q:brume1', c.cx - 1, c.cy, 'down', 'Sbire de la Brume', 'Sbire', [[261, 13], [19, 14]], { sight: 3, when: (f) => st(f, 'ponyta') >= 3, intro: 'Halte ! Cette clairière appartient à la Brume !', lose: 'Je vais me faire gronder...', after: 'La Brume est partout, tu sais.' });
@@ -492,12 +492,12 @@ export function buildQuests(ctx) {
   {
     const m = W;
     // la forêt : des érables partout (les arbres de la zone prennent leurs couleurs d'automne)
-    m.zone(204, 152, 281, 197, { name: 'Forêt des Torii', music: 'forest', enc: ENC.torii, theme: 'automne', route: 'torii', prio: 0 });
+    m.zone(204, 152, 275, 197, { name: 'Forêt des Torii', music: 'forest', enc: ENC.torii, theme: 'automne', route: 'torii', prio: 0 });
     // le sentier, depuis la route 7 : il serpente vers le sud-ouest, longe la côte et rejoint l'allée des torii
-    const path = sinueuse([[284, 168.5], [276, 171], [268, 167], [259, 171], [252, 179], [244, 184], [236, 189.5], [229, 191.5], [222.5, 191.5]], 2.5);
+    const path = sinueuse([[276, 164.5], [271, 168], [266, 167.5], [259, 171], [252, 179], [244, 184], [236, 189.5], [229, 191.5], [222.5, 191.5]], 2.5);
     carveRoute(m, path, { seed: 4242, w: 9, grass: 1.0, tall: T.TALL, trees: 0.06, flowers: 0.01, taperStart: true, taperEnd: false });
     routes.push({ id: 'torii', name: 'Forêt des Torii', pts: path });
-    m.sign(282, 166, 'FORÊT DES TORII ←\nTemple Kagura.');
+    m.sign(280, 162, 'FORÊT DES TORII ←\nTemple Kagura.');
     // l'allée des torii : du bout du sentier jusqu'au pied de l'escalier du temple, un portique toutes les deux rangées
     m.rect(219, 183, 224, 193, T.GRASS, [T.TREE, T.TALL, T.FLOWER]); m.rect(221, 183, 222, 193, T.PATH);
     for (const y of [184, 186, 188, 190, 192]) {
