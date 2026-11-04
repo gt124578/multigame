@@ -209,6 +209,24 @@ function echelle(jour) {
     }
   });
 }
+/** trou dans un plancher brûlé (Tour Cendrée) : bord déchiqueté, bouts de planches carbonisées, noir au fond ;
+ *  autour, transparent (le plancher de la salle se voit) */
+function trouPlancher() {
+  return toile((p) => {
+    const R = (a) => 10.5 + Math.sin(a * 3 + 1) * 1.6 + Math.sin(a * 7 + 2) * 1.1 + Math.sin(a * 13) * 0.6;
+    for (let j = 0; j < C; j++) for (let i = 0; i < C; i++) {
+      const dx = i + 0.5 - 16, dy = (j + 0.5 - 16.5) * 1.25, d = Math.hypot(dx, dy), a = Math.atan2(dy, dx), r = R(a);
+      // bouts de planches qui dépassent dans le vide (planches horizontales de 4 px)
+      const planche = Math.floor(j / 4), bout = hash(planche, 3, 41) * 5 - 1.5, lame = j % 4;
+      if (d < r - 1.5 + (Math.abs(dx) > 4 && lame !== 3 ? bout : 0)) {
+        const f = d / r;
+        p(i, j, f > 0.82 ? '#1e140e' : dy < -2 && f > 0.55 ? '#140e0a' : '#070504');
+        if (f < 0.6 && hash(i, j, 43) < 0.025) p(i, j, '#3a1a0c');   // une braise éteinte au fond
+      } else if (d < r + 1.8) p(i, j, lame === 3 ? '#120c08' : hash(i, j, 44) < 0.4 ? '#2a1c14' : '#1a120d');   // bord carbonisé
+      else if (d < r + 3.2 && hash(i, j, 45) < 0.45) p(i, j, hash(i, j, 46) < 0.5 ? '#5e5450' : '#3a2e28');   // suie et cendre
+    }
+  });
+}
 /** copie recolorée d'une case de roche (terre → ocre des canyons) */
 function ocre(src) {
   const c = mk(), x = c.getContext('2d'); x.drawImage(src, 0, 0);
@@ -238,4 +256,5 @@ export function texturesRelief(putImg, img) {
     for (const c of ['e', 'w']) putImg(`fal_flanc_${c}_${bio}`, flanc(c, R, c === 'e' ? 3 : 5));
     for (const d of ['s', 'n', 'e', 'w']) putImg(`marches_${d}_${bio}`, marches(d, R));
   }
+  putImg('trou', trouPlancher());
 }

@@ -632,6 +632,158 @@ export function atelier(D) {
   };
 
 
+  /* -------------------------------------------------------------- Tour Cendrée ---------------------------------------- */
+  /** bois carbonisé : planches verticales, craquelures en écailles (« peau de crocodile »), suie plus noire en haut */
+  TX.murCendre = () => tex('murCendre', D, D, (g, px, w, h) => {
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const lx = x % (8 * S), cx = Math.floor(x / (3 * S)), cy = Math.floor((y + (cx % 2) * 2 * S) / (3 * S));
+      let c = hash(cx, cy, 71) < 0.5 ? '#2c211b' : '#3a2b22';
+      if ((x % (3 * S)) < S * 0.6 || ((y + (cx % 2) * 2 * S) % (3 * S)) < S * 0.6) c = '#160f0c';   // craquelures
+      if (lx < S) c = '#0e0a08';                                                                   // joints de planches
+      if (hash(x >> 1, y >> 1, 72) < 0.025) c = '#7a3a1c';                                          // braise éteinte
+      if (hash(x >> 2, y >> 2, 73) < 0.03) c = '#5e5450';                                           // cendre
+      px(x, y, c);
+    }
+  });
+  /** tuiles rondes noircies, quelques-unes moussues */
+  TX.tuileCendre = (mousse) => tex('tuileCendre' + (mousse ? 'm' : ''), D, D, (g, px, w, h) => {
+    const tw = 5 * S;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const lx = x % tw, ly = y % (8 * S), id = hash(Math.floor(x / tw), Math.floor(y / (8 * S)), 74);
+      let base = mousse && id < 0.55 ? '#4a6236' : id < 0.2 ? '#2a2624' : '#3e3734';
+      let f = lx < S ? -0.45 : lx < 2 * S ? 0.2 : lx > tw - 1.5 * S ? -0.2 : 0.03; if (ly === 0) f -= 0.3;
+      px(x, y, mix(base, f));
+    }
+  });
+  /** Tour Cendrée (Forêt des Torii) : la sœur de la Tour de la Grue, en bois, qui a brûlé. Terrasse de pierre noircie
+   *  et fendue, rez-de-chaussée carbonisé (panneaux tombés, porte béante, suie), premier toit en anneau percé (on voit
+   *  les chevrons par les trous), étage à moitié écroulé (murs en dents de scie, poutres tombées en travers), plus de
+   *  toit en haut : la charpente nue autour du mât central cassé. La végétation repousse : buissons, mousse, lierre,
+   *  un jeune érable. Porte d'une case au milieu de la façade. Emprise 11 × 11 */
+  B.tourCendree = () => {
+    const G = new THREE.Group(), w = 11, cx = 5.5, cz = 5.5;
+    const CH = M({ map: TX.murCendre() }), NOIR = COL('#0c0907'), POUTRE = M({ map: TX.bois('#2a1d16') }), PIERRE = M({ map: TX.pierre('#6c665f') });
+    const FEUILLE = COL('#3f6e2a'), FEUILLE2 = COL('#5a8c38'), ROUILLE = COL('#a84a22');
+    const h = (i, s = 0) => hash(i, s, 91);
+    const poutre = (x, y, z, L, rx = 0, ry = 0, rz = 0, e = 0.18) => { const b = boite(e, e, L, POUTRE); b.rotation.set(rx, ry, rz); G.add(at(b, x, y, z)); return b; };
+    const buisson = (x, y, z, r = 0.4, mat = FEUILLE) => { for (const [dx, dz, k] of [[0, 0, 1], [r * 0.7, 0.1, 0.7], [-r * 0.6, -0.1, 0.65]]) { const q = new THREE.Mesh(new THREE.SphereGeometry(r * k, 7, 5), mat); q.scale.set(1, 0.75, 1); q.castShadow = true; G.add(at(q, x + dx, y + r * k * 0.55, z + dz)); } };
+    // terrasse : deux gradins de pierre noircie, des dalles fendues, un bloc tombé, l'escalier au sud
+    G.add(at(boite(w, 0.45, w, PIERRE), cx, 0.225, cz));
+    G.add(at(boite(w - 1.4, 0.4, w - 1.4, M({ map: TX.pierre('#78726a') })), cx, 0.65, cz));
+    for (let i = 0; i < 16; i++) G.add(at(boite(0.6 + h(i) * 1.2, 0.02, 0.4 + h(i, 1) * 0.9, COL(h(i, 2) < 0.5 ? '#2a2624' : '#45403c')), 1.2 + h(i, 3) * 8.6, 0.86, 1.2 + h(i, 4) * 8.6));   // suie
+    for (let k = 0; k < 5; k++) G.add(at(boite(2.8, 0.17, 0.3, PIERRE), cx, 0.085 + (4 - k) * 0.17, w + 0.15 + k * 0.3 - 0.3));
+    { const b = boite(0.7, 0.4, 0.5, PIERRE); b.rotation.set(0.2, 0.6, 0.15); G.add(at(b, 9.9, 1.05, 9.7)); }
+    { const b = boite(0.5, 0.35, 0.6, PIERRE); b.rotation.set(-0.1, 0.3, 0.3); G.add(at(b, 1.2, 1.0, 2.0)); }
+    // rez-de-chaussée : murs carbonisés, panneaux tombés (trous noirs), traînées de suie, porte béante
+    const y0 = 0.85, H0 = 2.6, c = 3.4, b = c + 0.6;
+    G.add(at(boite(2 * c, H0, 2 * c, CH), cx, y0 + H0 / 2, cz));
+    for (const [s, u, yy, ww, hh] of [[1, -2.2, 1.2, 0.8, 1.0], [1, 2.3, 1.5, 0.6, 0.7], [-1, 0.8, 1.0, 1.1, 1.3], [0, -1.5, 1.4, 0.9, 0.9]]) {
+      // s : 1 sud, -1 nord, 0 est ; un pan de mur arraché laisse voir le noir de l'intérieur
+      if (s) G.add(at(boite(ww, hh, 0.04, NOIR), cx + u, y0 + yy, cz + s * (c + 0.01))); else G.add(at(boite(0.04, hh, ww, NOIR), cx + c + 0.01, y0 + yy, cz + u));
+    }
+    for (const [u, L] of [[-2.9, 1.5], [-0.9, 0.9], [1.4, 1.4], [2.7, 1.1]]) G.add(at(boite(0.35, L, 0.03, COL('#120d0a')), cx + u, y0 + H0 - L / 2, cz + c + 0.03));   // suie au-dessus des ouvertures
+    G.add(at(boite(1.4, 2.0, 0.05, NOIR), cx, y0 + 1.0, cz + c + 0.02));                    // porte béante
+    { const v = boite(0.7, 1.9, 0.08, M({ map: TX.bois('#3a2418') })); v.rotation.set(0, 0.9, 0.12); G.add(at(v, cx + 1.05, y0 + 0.95, cz + c + 0.35)); }   // battant arraché
+    for (const s of [-1, 1]) G.add(at(boite(0.14, 2.2, 0.14, POUTRE), cx + s * 0.78, y0 + 1.1, cz + c + 0.06));
+    G.add(at(boite(1.8, 0.16, 0.16, POUTRE), cx, y0 + 2.18, cz + c + 0.06));
+    G.add(at(boite(2 * b, 0.16, 2 * b, COL('#241a14')), cx, y0 - 0.02, cz));                // plancher du balcon, noirci
+    // piliers du balcon : carbonisés, certains cassés à mi-hauteur
+    let i = 0;
+    for (const s of [-1, 1]) for (let k = 0; k <= 4; k++) for (const ax of [0, 1]) {
+      const u = -b + 2 * b * k / 4, x = cx + (ax ? s * b : u), z = cz + (ax ? u : s * b); i++;
+      if (ax && (k === 0 || k === 4)) continue;
+      const casse = h(i, 5) < 0.35, hh = casse ? 0.6 + h(i, 6) * 1.2 : H0;
+      G.add(at(cyl(0.12, 0.13, hh, POUTRE, 7), x, y0 + hh / 2, z));
+      if (casse) { const e = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.3, 5), POUTRE); G.add(at(e, x + 0.03, y0 + hh + 0.12, z)); }
+    }
+    // garde-corps : il n'en reste que des tronçons
+    for (const [x0, x1, z, rz] of [[-b, -1.6, 1, 0], [1.9, b, 1, 0.05], [-b, b * 0.2, -1, 0], [2.5, b, -1, -0.08]]) G.add(at(boite(x1 - x0, 0.07, 0.07, POUTRE), cx + (x0 + x1) / 2, y0 + 0.55 + rz, cz + z * b));
+    // poutre peinte du haut, roussie (des restes de vert d'origine)
+    for (const s of [-1, 1]) { G.add(at(boite(2 * b, 0.18, 0.08, COL('#2a2420')), cx, y0 + H0 - 0.1, cz + s * b)); G.add(at(boite(0.08, 0.18, 2 * b, COL('#2a2420')), cx + s * b, y0 + H0 - 0.1, cz)); }
+    for (const u of [-2.6, 0.4, 2.9]) G.add(at(boite(0.5, 0.12, 0.09, COL('#2f5a50')), cx + u, y0 + H0 - 0.1, cz + b));
+    // lierre qui remonte le long des murs
+    for (const [u, L] of [[-3.0, 1.6], [-2.7, 1.1], [3.1, 1.9], [2.8, 0.9]]) {
+      G.add(at(boite(0.08, L, 0.04, FEUILLE), cx + u, y0 + L / 2, cz + c + 0.04));
+      for (let k = 0; k < L / 0.3; k++) G.add(at(boite(0.16, 0.1, 0.05, k % 2 ? FEUILLE2 : FEUILLE), cx + u + (k % 2 ? 0.08 : -0.08), y0 + 0.15 + k * 0.3, cz + c + 0.05));
+    }
+    // premier toit en anneau : tuiles en bandes le long de la pente, beaucoup de bandes tombées (trous où l'on voit
+    // les chevrons), bords cassés ; un peu de mousse
+    const y1 = y0 + H0, rIn = c * 0.86, rOut = b + 0.75, hr = 0.85, d = rOut - rIn, Lf = Math.hypot(d, hr), a = Math.atan2(hr, d);
+    const TUILE = M({ map: TX.tuileCendre(false) }), TUILEM = M({ map: TX.tuileCendre(true) });
+    // dessous du toit, noir : par les trous, on voit le vide (et les chevrons)
+    G.add(at(boite(2 * rOut - 0.1, 0.02, 2 * rOut - 0.1, NOIR), cx, y1 + 0.01, cz));
+    // par côté, les trous : [centre (u / rOut), largeur, bas du trou (0 : la rive, 1 : le haut), haut du trou]
+    const trous = [[[-0.45, 0.5, 0.15, 0.95], [0.5, 0.35, 0.35, 0.8]], [[0.1, 0.8, 0.0, 1.0]], [[-0.2, 0.5, 0.3, 1.0], [0.62, 0.25, 0.1, 0.6]], [[0.45, 0.45, 0.2, 0.9], [-0.55, 0.3, 0.45, 1.0]]];
+    [0, Math.PI / 2, Math.PI, -Math.PI / 2].forEach((ry, side) => {
+      const S2 = new THREE.Group(); S2.rotation.y = ry; S2.position.set(cx, y1, cz); G.add(S2);
+      const sw = 0.42;
+      for (let u = -rOut + sw / 2; u < rOut; u += sw) {
+        const f = Math.min(1, (rOut - Math.abs(u)) / d), ku = Math.round(u * 10);   // arêtier : les coins s'arrêtent sur la diagonale
+        // rive cassée par endroits ; dans un trou, la bande s'interrompt (bords du trou en dents de scie)
+        const g0 = h(ku, side + 40) < 0.3 ? h(ku, side + 41) * 0.18 : 0;
+        let segs = [[g0, f]];
+        for (const [tc, tl, t0, t1] of trous[side]) {
+          const dt = Math.abs(u / rOut - tc); if (dt >= tl / 2) continue;
+          const e = (1 - dt / (tl / 2)) * 0.12 + h(ku, side + 50) * 0.1, b0 = Math.max(0, t0 - e), b1 = Math.min(1, t1 + e);
+          segs = segs.flatMap(([a0, a1]) => [[a0, Math.min(a1, b0)], [Math.max(a0, b1), a1]]);
+        }
+        for (const [a0, a1] of segs) {
+          if (a1 - a0 < 0.05) continue;
+          const L = (a1 - a0) * Lf, m = (a0 + a1) / 2, st = boite(sw - 0.02, 0.07, L, h(Math.round(u * 13), side + 3) < 0.06 ? TUILEM : TUILE);
+          st.rotation.x = a; S2.add(at(st, u, hr * m, rOut - d * m));
+        }
+      }
+      // arêtier (cendre claire) : il dessine la forme du toit
+      { const Lh = Math.hypot(d * Math.SQRT2, hr), ah = boite(0.14, 0.12, Lh, COL('#77706a')); ah.rotation.set(Math.atan2(hr, d * Math.SQRT2), Math.PI / 4, 0, 'YXZ'); S2.add(at(ah, (rOut + rIn) / 2, hr / 2 + 0.05, (rOut + rIn) / 2)); }
+      // chevrons (visibles par les trous) et rive basse noircie
+      for (let u = -rOut + 0.5; u < rOut; u += 0.9) { const f = Math.min(1, (rOut - Math.abs(u)) / d); const ch = boite(0.1, 0.1, f * Lf, POUTRE); ch.rotation.x = a; S2.add(at(ch, u, hr * f / 2 - 0.06, rOut - d * f / 2)); }
+      S2.add(at(boite(2 * rOut * 0.75, 0.1, 0.12, POUTRE), -rOut * 0.12, 0.03, rOut));
+    });
+    // étage à moitié écroulé : murs en dents de scie (planches de hauteurs inégales), intérieur noir, poutres en travers
+    const y2 = y1 + hr - 0.05, c2 = rIn - 0.15, H1 = 2.0;
+    G.add(at(boite(2 * c2, 0.12, 2 * c2, COL('#16100c')), cx, y2 + 0.06, cz));
+    [[0, 1.0, 0.85], [Math.PI / 2, 0.3, 0.45], [Math.PI, 0.95, 0.9], [-Math.PI / 2, 0.85, 0.6]].forEach(([ry, haut, bas], side) => {
+      const S2 = new THREE.Group(); S2.rotation.y = ry; S2.position.set(cx, y2, cz); G.add(S2);
+      const n = Math.round(2 * c2 / 0.34);
+      for (let k = 0; k < n; k++) {
+        const u = -c2 + (k + 0.5) * 2 * c2 / n, t = k / (n - 1);
+        // profil : haut d'un côté, effondré de l'autre, et des dents de scie
+        const p = Math.max(0.08, haut + (bas - haut) * t - h(k, side + 20) * 0.35 - (side === 1 && t > 0.3 && t < 0.8 ? 0.25 : 0));
+        S2.add(at(boite(0.32, H1 * p, 0.1, CH), u, H1 * p / 2, c2));
+        if (h(k, side + 30) < 0.25) S2.add(at(boite(0.12, 0.25, 0.11, COL('#5a2a14')), u, H1 * p, c2));   // bout roussi
+      }
+      for (const s of [-1, 1]) S2.add(at(cyl(0.12, 0.12, H1 * (side % 2 ? 0.7 : 1.05), POUTRE, 7), s * c2, H1 * (side % 2 ? 0.35 : 0.52), c2));
+    });
+    // poutres tombées : l'une en travers de l'étage, l'autre qui pend par-dessus le toit, à l'est
+    poutre(cx - 0.3, y2 + 0.7, cz + 0.4, 2 * c2 + 0.6, 0.35, 0.7, 0.1);
+    poutre(cx + c2 + 0.4, y2 + 0.3, cz + 1.2, 2.6, -0.55, 0.0, 0.5);
+    poutre(cx + 0.8, y2 + 1.1, cz - 1.0, 2.4, 0.9, -0.4, 0.0, 0.14);
+    // plus de toit en haut : la charpente nue, des chevrons qui montent vers le mât central cassé, un lambeau de toit
+    const ym = y2 + H1 * 1.02, top = ym + 1.6;
+    G.add(at(cyl(0.2, 0.24, top - y2, POUTRE, 8), cx, (top + y2) / 2, cz));
+    { const e = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.5, 5), POUTRE); e.rotation.z = 0.3; G.add(at(e, cx + 0.05, top + 0.2, cz)); }
+    for (const [sx, sz, f] of [[-1, -1, 1], [-1, 1, 0.55], [1, -1, 0.8], [1, 1, 0.35]]) {
+      const x0 = cx + sx * c2, z0 = cz + sz * c2, L = Math.hypot(c2 * Math.SQRT2, top - ym) * f;
+      const dx = cx - x0, dz = cz - z0, dy = top - 0.2 - ym, n = Math.hypot(dx, dy, dz), r = boite(0.16, 0.16, L, POUTRE);
+      r.lookAt(dx, dy, dz); r.position.set(x0 + dx / n * L / 2, ym + dy / n * L / 2, z0 + dz / n * L / 2); G.add(r);
+    }
+    { // lambeau du toit du haut, resté accroché au nord-ouest
+      const R = new THREE.Group(); R.position.set(cx - 1.0, ym + 0.35, cz - 1.0); R.rotation.set(-0.45, Math.PI * 0.75, 0.12); G.add(R);
+      for (let k = 0; k < 5; k++) R.add(at(boite(0.42, 0.07, 1.4 - k * 0.18, k === 2 ? TUILEM : TUILE), -0.85 + k * 0.42, 0, (k * 0.18) / 2));
+    }
+    G.add(at(boite(2 * c2 + 0.3, 0.12, 0.14, POUTRE), cx, ym, cz - c2));                       // sablière du nord, encore debout
+    // la végétation reprend : buissons au pied, mousse sur la terrasse, un jeune érable, herbes dans l'étage effondré
+    for (const [x, z, r] of [[0.8, 1.0, 0.45], [10.2, 1.4, 0.5], [0.9, 9.6, 0.4], [10.1, 8.6, 0.35], [2.0, 10.3, 0.3], [9.0, 10.4, 0.32]]) buisson(x, 0.88, z, r, r > 0.4 ? FEUILLE : FEUILLE2);
+    for (const [x, z] of [[cx + c2 - 0.6, cz + c2 - 0.5], [cx - c2 + 0.5, cz + 0.6], [cx + 0.9, cz + c2 - 0.4]]) buisson(x, y2 + 0.1, z, 0.28, FEUILLE2);
+    { const tx = 9.6, tz = 9.5; G.add(at(cyl(0.06, 0.09, 1.1, COL('#4a3020'), 6), tx, 1.4, tz)); for (const [dx, dy, dz, r] of [[0, 1.2, 0, 0.45], [0.3, 1.0, 0.1, 0.32], [-0.25, 1.05, -0.1, 0.3]]) buisson(tx + dx, 0.85 + dy, tz + dz, r, ROUILLE); }
+    // tas de cendre et de planches au pied des murs
+    for (const [x, z, s] of [[cx - c - 0.3, cz + 1.5, 1], [cx + c + 0.3, cz - 1.8, 0.8], [cx + 2.2, cz - c - 0.4, 0.9]]) {
+      const t = new THREE.Mesh(new THREE.SphereGeometry(0.5 * s, 7, 5), COL('#4c4642')); t.scale.set(1.3, 0.35, 1); G.add(at(t, x, y0 + 0.02, z));
+      poutre(x + 0.1, y0 + 0.18, z, 1.0 * s, 0.1, 0.8, 0.2, 0.12);
+    }
+    return G;
+  };
+
   /* ============================================================== version 4 : village, ville, Ligue ================= */
   /** bardeaux (petites planchettes de bois en rangs décalés) */
   TX.bardeaux = (col) => tex('bx' + col, D, D, (g, px, w, h) => {
@@ -2382,6 +2534,6 @@ export const EMPRISES = {
   cabaneChasseur: [4, 3], cabanePecheur: [5, 4], grange: [6, 5], moulin: [4, 4], phare: [3, 3], auberge: [6, 5], chapelle: [4, 7],
   boulangerie: [4, 4], maisonThe: [5, 5], gare: [8, 4], kiosque: [4, 5], puits: [2, 2], etal: [2, 2],
   mairie: [9, 5], fontaine: [3, 3], centre: [7, 5], boutique: [5, 4], arene: [12, 11], areneFeu: [12, 11], pavillonFeu: [12, 11], areneCour: [18, 14], labo: [10, 7],
-  pagode: [11, 11], pavillon: [8, 7], tour: [8, 5], tourVerre: [10, 7], tourDeco: [8, 8], bourse: [12, 8], casino: [14, 8], ligue: [30, 14], usinePokeball: [32, 10],
+  pagode: [11, 11], tourCendree: [11, 11], pavillon: [8, 7], tour: [8, 5], tourVerre: [10, 7], tourDeco: [8, 8], bourse: [12, 8], casino: [14, 8], ligue: [30, 14], usinePokeball: [32, 10],
   escalierMontant: [1, 2], escalierDescendant: [1, 2],
 };

@@ -20,7 +20,7 @@ import { buildArena } from './arenes.js';
 import { buildSud, BADGES_SUD, LEADERS_SUD, GYM_TRAINERS_SUD } from './sud.js';
 import { addVehicules } from './vehicules.js';
 import { addMine } from './mine.js';
-import { tourbillons, plateau, polygone, sinueuse, boucher, massif } from './relief.js';
+import { tourbillons, plateau, polygone, rectangle, sinueuse, boucher, massif, bande } from './relief.js';
 
 // toutes les lignées connues : la créature d'Odyssée (plus proposée, mais les parties déjà commencées avec elle restent valables),
 // le Pokémon de Rouge / Bleu et celui d'Or / Argent, avec leurs évolutions
@@ -619,6 +619,8 @@ export function buildWorld() {
   routeItem(W, r1, 0.5, -1, 5, 'potion'); routeItem(W, r1, 0.9, 1, 5, 'poke-ball', 2);
 
   const r2 = R('r2', 'Route 2', [[34.5, 138], [34.5, 120], [37.5, 104], [52.5, 96.5], [75.5, 94.5], [99.5, 92.5]], { w: 11, grass: 0.7, trees: 0.05, flowers: 0.03, taperEnd: false }, 'r2');
+  // la route grimpe sur une butte boisée (marches au sud, redescente au nord) avant de tourner vers l'est
+  plateau(W, polygone([[27.5, 111.5], [44.5, 110.5], [45.5, 124.5], [27.5, 125.5]]), 1); relief(r2);
   routeTrainer(W, r2, 0.2, -1, 3, 'Insectomane', 'Noé', [[1017, 6], [1018, 6], [10, 7]]);
   routeTrainer(W, r2, 0.45, 1, 3, 'Fillette', 'Jade', [[1039, 7], [29, 7]]);
   routeTrainer(W, r2, 0.7, -1, 4, 'Gamin', 'Sacha', [[21, 8], [1034, 7]]);
@@ -686,6 +688,14 @@ export function buildWorld() {
 
   const r5 = R('r5', 'Route 5', sinueuse([[283.5, 94], [281, 100], [266, 101], [248, 97], [230, 100.5], [212, 97.5], [196, 101], [182.5, 104], [182.5, 112]]), { w: 12, grass: 0.75, trees: 0.05, rocks: 0.01 }, 'r5');
   ledges(W, r5, [0.08], { reach: 6 });
+  // au milieu de la route, un plateau : on y monte par l'ouest, on en redescend à l'est
+  // et sur le plateau, un tertre plus haut (un escalier taillé y grimpe) dont la falaise domine le sentier
+  W.rect(219, 91, 233, 95, T.GRASS, [T.TREE, T.TALL]); W.rect(226, 93, 227, 97, T.PATH, [T.GRASS, T.TALL, T.FLOWER, T.TREE]);
+  plateau(W, polygone([[213.5, 90.5], [237.5, 90.5], [237.5, 106.5], [213.5, 106.5]]), 1);
+  plateau(W, polygone([[218.5, 90.5], [234.5, 90.5], [234.5, 95.5], [218.5, 95.5]]), 2);
+  for (const [x, y] of [[222, 92], [230, 93]]) W.prop('rocher_grand', x, y);
+  W.rect(219, 91, 220, 92, T.TREE); W.rect(232, 91, 233, 92, T.TREE); W.set(224, 91, T.TREE); W.item(229, 91, 'ether', 2);
+  relief(r5);
   routeTrainer(W, r5, 0.12, 1, 4, 'Scientifique', 'Pierre', [[1036, 19], [100, 19], [81, 20]]);
   routeTrainer(W, r5, 0.3, -1, 4, 'Randonneuse', 'Élise', [[77, 20], [1014, 20]]);
   routeTrainer(W, r5, 0.46, 1, 4, 'Karatéka', 'Kenji', [[66, 21], [1033, 22]]);
@@ -694,6 +704,14 @@ export function buildWorld() {
   routeItem(W, r5, 0.22, -1, 5, 'super-potion', 2); routeItem(W, r5, 0.5, 1, 5, 'thunder-stone'); routeItem(W, r5, 0.7, -1, 5, 'full-heal'); routeItem(W, r5, 0.9, 1, 5, 'rare-candy');
 
   const r6 = R('r6', 'Route 6', sinueuse([[214.5, 131.5], [226, 133], [236, 138], [246, 140.5], [256, 144.5], [266, 146.5], [278, 146.5]]), { w: 12, grass: 0.8, trees: 0.06, flowers: 0.04 }, 'r6', 'route2');
+  // une falaise boisée longe la route par le nord avant Mirage ; un escalier taillé monte à un petit belvédère
+  {
+    W.rect(264, 138, 265, 145, T.PATH, [T.TREE, T.GRASS, T.TALL, T.FLOWER]);
+    plateau(W, rectangle(254, 134, 269, 142), 1);
+    for (let y = 136; y <= 140; y++) for (let x = 259; x <= 268; x++) if (W.height(x, y) === 1 && [T.TREE, T.TALL].includes(W.get(x, y))) W.set(x, y, T.GRASS);
+    W.prop('rocher_grand', 260, 137); W.prop('rocher_grand', 268, 137);
+    relief(r6); W.item(267, 138, 'elixir');
+  }
   routeTrainer(W, r6, 0.15, 1, 4, 'Randonneuse', 'Nina', [[1038, 24], [70, 24]]);
   routeTrainer(W, r6, 0.35, -1, 4, 'Insectomane', 'Hugo', [[1019, 25], [127, 25]]);
   routeTrainer(W, r6, 0.55, 1, 3, 'Médium', 'Morgane', [[1023, 25], [92, 24], [1039, 26]]);
@@ -719,6 +737,10 @@ export function buildWorld() {
   W.rect(255, 236, 259, 241, T.SAND);
   // la passe : des rochers fissurés barrent la route sur toute sa largeur (Éclate-Roc)
   { const p = along(r11, 0.55); for (let k = -6; k <= 6; k++) { const x = Math.round(p.x + p.nx * k), y = Math.round(p.y + p.ny * k); for (const [xx, yy] of [[x, y], [x + 1, y]]) { const t = W.get(xx, yy); if (t !== T.TREE && t !== T.WATER) W.set(xx, yy, T.SMASH); } } }
+  // la passe est une gorge : deux murailles de roche l'enserrent, de part et d'autre du sentier (on y passe à trois de front)
+  { const g = [...bande(r11, 2.6, 10, 1, 0.3, 0.72), ...bande(r11, 2.6, 10, -1, 0.3, 0.72)];
+    for (const [x, y] of g) if ([T.GRASS, T.TALL, T.FLOWER, T.ROCK].includes(W.get(x, y))) W.set(x, y, T.TREE);
+    massif(W, g, { pas: 2, max: 2 }); relief(r11); }
   routeTrainer(W, r11, 0.25, 1, 3, 'Garde d\'Écaille', 'Ronan', [[1044, 44], [1025, 44], [1048, 45]], { intro: 'Halte ! La Grande Île appartient à Drakos !', lose: 'Tch... Passe, alors.' });
   routeTrainer(W, r11, 0.8, -1, 3, 'Garde d\'Écaille', 'Solène', [[1050, 46], [1012, 45], [1035, 45]], { intro: 'Tu veux voir Drakos ? Montre-moi d\'abord ce que tu vaux !', lose: 'Drakos va enfin avoir un vrai adversaire...' });
   routeItem(W, r11, 0.4, 1, 4, 'max-potion');
@@ -833,7 +855,7 @@ export function buildWorld() {
   W.prop('statue', 415, 159); W.prop('statue', 424, 159);
   W.zone(406, 156, 430, 175, { name: 'Pic Tonnerre', music: 'mystic' });
   legend({ id: 'zapdos', sp: 145, lvl: 30, x: 419, y: 160, cond: 'pylons', intro: ['Le ciel se zèbre d\'éclairs...', 'Électhor, l\'oiseau de foudre, déploie ses ailes !'] });
-  legend({ id: 'raikou', sp: 243, lvl: 40, ...xy(offRoute(so, 0.55, 1, 2)), cond: 'beasts', intro: ['Un rugissement fait trembler l\'herbe...', 'C\'est Raikou, la bête du tonnerre, échappée de la Tour de la Grue !'] });
+  legend({ id: 'raikou', sp: 243, lvl: 40, ...xy(offRoute(so, 0.55, 1, 2)), cond: 'beasts', intro: ['Un rugissement fait trembler l\'herbe...', 'C\'est Raikou, la bête du tonnerre, échappée de la Tour Cendrée !'] });
   // Côte des Ruines : trois stèles, l'autel de Mew, et le sanctuaire scellé de Mewtwo
   const cr = R('orage2', 'Côte des Ruines', [[379.5, 215.5], [394, 221], [410, 225], [424, 225]], { w: 10, grass: 0.8, trees: 0.04, flowers: 0.03 }, 'orage', 'island');
   routeTrainer(W, cr, 0.3, 1, 3, 'Médium', 'Céleste', [[1039, 26], [1023, 27]]);
@@ -884,7 +906,7 @@ export function buildWorld() {
       { kind: 'center', x: 5, y: 4 }, { kind: 'mart', x: 10, y: 4 },
       { kind: 'tower', ...GRAND.pagode, x: 21, y: 14, roof: 'brown', id: 'tour', name: 'Tour de la Grue', interior: tower, more: towerMore },
       { kind: 'house', x: 4, y: 16, roof: 'brown', id: 'doyenne', name: 'Maison de la Doyenne', npcs: [{ id: 'doyenne', x: 4, y: 4, sprite: 'vieil_homme', script: 'doyenne' }] },
-      { kind: 'house', x: 22, y: 4, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'habitante', text: ['Il y a longtemps, trois créatures ont péri dans l\'incendie de l\'ancienne tour.', 'On raconte que Ho-Oh les a ramenées à la vie : Raikou, Entei et Suicune.'] }] },
+      { kind: 'house', x: 22, y: 4, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'habitante', text: ['Il y a longtemps, trois créatures ont péri dans l\'incendie de l\'ancienne tour, la sœur de la nôtre :', 'la Tour Cendrée, là-bas, dans la Forêt des Torii.', 'On raconte que Ho-Oh les a ramenées à la vie : Raikou, Entei et Suicune.'] }] },
       { kind: 'house', x: 10, y: 17, roof: 'teal', npcs: [{ x: 2, y: 4, sprite: 'montagnard', text: ['À l\'est, le chemin du Mont Brasier est barré par des arbustes.', 'Avec Coupe, tu pourrais aller voir le cratère... on dit qu\'un oiseau de feu y niche.'] }] },
     ],
     npcs: [{ id: 'enfant', x: 12, y: 15, sprite: 'enfant', move: 'wander', text: ['Mamie dit que la Tour de la Grue touche presque les nuages !'] }],

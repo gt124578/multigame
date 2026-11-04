@@ -9,6 +9,7 @@ import { room, caveMap } from './interiors.js';
 import { plateau, rectangle, sinueuse } from './relief.js';
 import { ITEMS } from '../core/items.js';
 import { enrichirTout } from './rencontres.js';
+import { addCendree } from './cendree.js';
 
 /* ---------------- objets de quête ---------------- */
 Object.assign(ITEMS, {
@@ -514,7 +515,7 @@ export function buildQuests(ctx) {
     for (const [x, y] of [[258, 182], [268, 183], [261, 178]]) if (m.get(x, y) === T.TREE) m.prop('rocher_grand', x, y);
     // l'enceinte du temple, sur sa butte
     const K = { id: 'kagura', name: 'Temple Kagura', x: KX, y: KY, w: 34, h: 26, exits: [['s', 16]], stock: 6, music: 'mystic', theme: 'automne',
-      roads: [[16, 6, 17, 25, T.PAVE], [18, 21, 26, 21, T.PAVE]],
+      roads: [[16, 9, 17, 25, T.PAVE], [18, 21, 26, 21, T.PAVE]],
       deco: [
         // lanternes de pierre le long de l'allée
         ['lanterne', 14, 9], ['lanterne', 19, 9], ['lanterne', 14, 13], ['lanterne', 19, 13], ['lanterne', 14, 18], ['lanterne', 19, 18], ['lanterne', 14, 22], ['lanterne', 19, 22],
@@ -528,7 +529,7 @@ export function buildQuests(ctx) {
         ['erable', 11, 6], ['erable', 4, 15], ['arbre_automne', 12, 19], ['erable', 22, 18], ['arbre_automne', 7, 22], ['cerisier', 27, 23],
         ['sign', 15, 23, 'TEMPLE KAGURA\nOn y prie pour les rêves paisibles.']],
       buildings: [
-        { kind: 'tower', x: 13, y: 2, w: 7, d: 4, h: 4, door: 3, roof: 'red', name: 'Temple Kagura', interior: (id) => templeInterior(id) },
+        { kind: 'tower', x: 13, y: 5, w: 7, d: 4, h: 4, door: 3, roof: 'red', name: 'Temple Kagura', interior: (id) => templeInterior(id) },
         { kind: 'center', x: 24, y: 17 },
       ],
       npcs: [{ id: 'moine', x: 11, y: 16, sprite: 'pretre', move: 'turn', text: ['Le temple garde la mémoire des rêves de la région.', 'Au fond, derrière l\'autel, se trouve le sanctuaire. Seul le Grand Prêtre peut l\'ouvrir.'] }],
@@ -552,6 +553,8 @@ export function buildQuests(ctx) {
     trainerNpc(m, ...spot(m, 251, 183), 'right', 'Moine', 'Jōkan', [[163, 36], [177, 36], [302, 37]], { sight: 4, intro: 'La forêt éprouve ceux qui marchent vers le temple.' });
     trainerNpc(m, ...spot(m, 224, 189), 'left', 'Dame Kimono', 'Sakura', [[196, 37], [197, 37]], { sight: 2, intro: 'Je danse pour les esprits de la forêt. Danse avec moi !' });
   }
+  // la forêt agrandie vers l'ouest, ses sentiers, son relief, et la Tour Cendrée (world/cendree.js)
+  addCendree({ W, maps, trainerNpc, spot, enc: ENC.torii });
   function templeInterior(id) {
     const m = room(id, 13, 10, { floor: 'temple', music: 'mystic', name: 'Temple Kagura', wall: 'wall_league' });
     m.prop('brasero', 2, 2); m.prop('brasero', 10, 2); m.prop('statue_dragon', 1, 5); m.prop('statue_dragon', 11, 5);

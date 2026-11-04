@@ -813,7 +813,7 @@ export class WorldView {
         const k = (n || so) && !(e || w) ? 'ns' : (e || w) && !(n || so) ? 'ew' : n && e ? 'ne' : e && so ? 'es' : so && w ? 'sw' : n && w ? 'nw' : 'ew';
         if (A['rail_' + k]) flat(O0, x, y, x + 1, y + 1, 0.0052, A['rail_' + k]);
       }
-      if ((d?.k === 'echelle' || d?.k === 'echelle_jour') && A[d.k]) flat(O0, x, y, x + 1, y + 1, 0.0053, A[d.k]);
+      if ((d?.k === 'echelle' || d?.k === 'echelle_jour' || d?.k === 'trou') && A[d.k]) flat(O0, x, y, x + 1, y + 1, 0.0053, A[d.k]);
       if (d && DECALS.has(d.k)) { const k = 'dec_' + d.k + (d.dir ? '_' + d.dir : d.g ? '_' + d.g : ''); if (A[k]) flat(O0, x, y, x + 1, y + 1, 0.005, A[k]); }
       if (d) {
         if (d.k === 'counter') {
