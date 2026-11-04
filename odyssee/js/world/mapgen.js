@@ -23,6 +23,9 @@ export const GRAND = {
   // la Ligue : bâtiment 30 × 14, puis une allée de 32 cases plein sud (x 11 → 18) bordée de colonnes, à laisser libre
   league: { w: 30, d: 14, h: 12, door: 14, door2: 15, blocs: [[11, 19], [18, 19], [11, 21], [18, 21], [11, 24], [18, 24], [11, 26], [18, 26], [11, 29], [18, 29], [11, 31], [18, 31], [11, 34], [18, 34], [11, 36], [18, 36], [11, 39], [18, 39], [11, 41], [18, 41], [11, 44], [18, 44], [11, 46], [18, 46], [9, 14], [10, 14], [9, 15], [10, 15], [19, 14], [20, 14], [19, 15], [20, 15], [12, 15], [17, 15], [10, 47], [19, 47]] },
   pagode: { w: 11, d: 11, h: 15, door: 5, modele: 'pagode' },
+  // pavillon de temple (Temple Kagura) : estrade, colonnade rouge, double toit ; la rangée du bas porte l'escalier
+  // (porte de 2 cases au milieu), ses coins restent libres
+  pavillon: { w: 8, d: 7, h: 4, door: 3, door2: 4, libres: [[0, 6], [1, 6], [6, 6], [7, 6]], modele: 'pavillon' },
   // la Tour Cendrée (Forêt des Torii) : pagode de bois brûlée, étages effondrés
   tourCendree: { w: 11, d: 11, h: 8, door: 5, modele: 'tourCendree' },
   casino: { w: 14, d: 8, h: 6, door: 6, door2: 7, blocs: [[2, 8], [5, 8], [8, 8], [11, 8], [0, 8], [13, 8]], modele: 'casino' },

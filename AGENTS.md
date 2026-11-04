@@ -141,6 +141,9 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   Forêt des Torii agrandie et Tour Cendrée (pagode brûlée, modèle `tourCendree` de `batiments3d.js` ; rez-de-chaussée en ruine et sous-sol
   où se joue l'évènement des trois bêtes, `m.betes` lu par `reveilBetes` de `game.js`) : `odyssee/js/world/cendree.js` ; son décor
   (souches, piliers, poutres, gravats) : `python3 tools/odyssee-cendree.py`.
+  Tour Dorée (l'ancienne Tour de la Grue, modèle `pagode`, toits dorés ; Sages, Grand Sage et Plume Arc-en-ciel, Ho-Oh sur le toit) :
+  `odyssee/js/world/tourdoree.js`, posée dans le parc du Temple Kagura (`quetes.js`, le temple est dans un `pavillon`) ; ses cartes
+  et ses dresseurs gardent leurs anciens identifiants (`grue:tour…`, `mapId` de `buildTown`) : un bâtiment déplacé garde ainsi son intérieur.
   Mine de Pierrefort (trois niveaux, échelles, rails) : `odyssee/js/world/mine.js`. Villes agrandies : `fermer`, emprises `GRAND`,
   `lotir: { n }` pose des maisons habitées dans l'herbe libre sans couper de passage ; un garde se tient dans le couloir de sortie.
   Décor ajouté hors planches (`odyssee/js/data/decor-plus.js`) : `python3 tools/odyssee-automne.py` (arbres d'automne),

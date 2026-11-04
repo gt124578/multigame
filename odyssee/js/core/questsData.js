@@ -186,7 +186,7 @@ const QUESTS = [
     notes: [
       [(f) => f.grueQuest, 'La doyenne de Hautegrue m\'a raconté la légende de Ho-Oh et de la Plume Arc-en-ciel.'],
       [(f) => f.plume, 'Le Grand Sage Hoël m\'a confié la Plume Arc-en-ciel.'],
-      [(f) => f['L:hooh'], 'Ho-Oh s\'est posé sur la Tour de la Grue.'],
+      [(f) => f['L:hooh'], 'Ho-Oh s\'est posé sur la Tour Dorée.'],
     ] },
   { id: 'betes', cat: 'legend', name: 'Les trois bêtes', giver: 'La Tour Cendrée', started: (f) => !!f.beasts, done: (f) => !!(f['L:raikou'] && f['L:entei'] && f['L:suicune']),
     notes: [

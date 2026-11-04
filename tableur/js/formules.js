@@ -1476,7 +1476,8 @@ export class Evaluateur {
       case 'un': return -N(this.evaluer(n.a));
       case 'bin': return this.binaire(n);
       case 'fn': {
-        const def = fonction(n.nom);
+        let def = fonction(n.nom);
+        if (!def && this.classeur.udf) { const u = this.classeur.udf(n.nom); if (u) def = { nom: n.nom, fn: u }; }
         if (!def) throw err(ERR.NOM, n.nom);
         // Dans les arguments d'une fonction, les plages s'évaluent en tableau (pas d'intersection implicite).
         this.profondeurFn = (this.profondeurFn || 0) + 1;

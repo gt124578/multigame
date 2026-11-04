@@ -158,8 +158,11 @@ const fromDock = (k, badges, abil = new Set()) => W.reach(docks[k].x, docks[k].y
 { const s2 = fromDock('orage', 2); ok(near(s2, W, L.zapdos.x, L.zapdos.y) && near(s2, W, L.mew.x, L.mew.y), 'Île Orageuse : Électhor et Mew accessibles avec 2 badges');
   ok(!near(s2, W, L.mewtwo.x, L.mewtwo.y), 'Île Orageuse : le sanctuaire de Mewtwo reste scellé');
   const s1 = fromDock('orage', 1); ok(!near(s1, W, L.zapdos.x, L.zapdos.y), 'Île Orageuse : Pic Tonnerre fermé tant que les relais sont coupés'); }
-{ const s3 = fromDock('grue', 3), door = [...W.warps].find(([, w]) => w.map === 'grue:tour')[0].split(',').map(Number);
-  ok(near(s3, W, door[0], door[1] + 1), 'Île de la Grue : la tour est accessible avec 3 badges');
+{ const s3 = fromDock('grue', 3), Q = towns.Q;
+  ok(near(s3, W, Q.centerDoor[0], Q.centerDoor[1]), 'Île de la Grue : Hautegrue est accessible avec 3 badges');
+  // la tour des Sages n'est plus à Hautegrue : à sa place, le Jardin de la Grue
+  const dansQ = (x, y) => x >= Q.x && x < Q.x + Q.w && y >= Q.y && y < Q.y + Q.h;
+  ok(!W.buildings.some((b) => dansQ(b.x, b.y) && (b.kind === 'tower' || b.modele === 'pagode')) && ![...W.warps].some(([k, w]) => w.map.startsWith('grue:tour') && dansQ(...k.split(',').map(Number))), 'Hautegrue : plus de tour au village');
   ok(!near(s3, W, L.moltres.x, L.moltres.y), 'Île de la Grue : le cratère de Sulfura demande Coupe');
   ok(near(fromDock('grue', 4, new Set([T.CUT])), W, L.moltres.x, L.moltres.y), 'Île de la Grue : Sulfura accessible avec Coupe'); }
 { const s5 = fromDock('givre', 5, new Set([T.CUT, T.WATER])); ok(near(s5, W, L.articuno.x, L.articuno.y), 'Île Givrée : Artikodin accessible avec 5 badges'); }
@@ -187,6 +190,53 @@ for (const q of legends) {
   ok(Object.values(maps).filter((q) => q.betes).length === 1 && !maps['grue:tour']?.betes, 'l\'évènement des bêtes ne se joue qu\'au sous-sol de la Tour Cendrée');
   const src = (await import('fs')).readFileSync(new URL('../odyssee/js/game.js', import.meta.url), 'utf8');
   ok(/this\.mapObj\.betes && !st\.flags\.beasts/.test(src) && !/'grue:tour' && !st\.flags\.beasts/.test(src), 'game.js : l\'évènement des bêtes suit m.betes'); }
+// la Tour Dorée (l'ancienne Tour de la Grue) : dans le parc du Temple Kagura, au cœur de la Forêt des Torii, à côté de la
+// Tour Cendrée ; atteignable dès que la forêt l'est (pas avant) ; Ho-Oh se pose sur son toit, l'escalier du toit gardé par
+// le novice tant qu'on n'a pas la Plume Arc-en-ciel ; le Temple Kagura garde son intérieur, dans un pavillon en 3D
+{ const porte = [...W.warps].find(([, w]) => w.map === 'grue:tour'); ok(!!porte, 'Tour Dorée posée sur la carte du monde');
+  const [x, y] = porte[0].split(',').map(Number), bat = W.buildings.find((b) => b.name === 'Tour Dorée'), cen = W.buildings.find((b) => b.name === 'Tour Cendrée');
+  ok(bat && bat.modele === 'pagode' && bat.w === 11 && bat.d === 11 && bat.doorX === bat.x + 5 && x === bat.doorX && y === bat.doorY, 'Tour Dorée : pagode 11 × 11, porte au milieu');
+  ok(W.zoneAt(x, y + 1)?.theme === 'automne' && x >= 166 && x <= 275 && y >= 152 && y <= 197, 'Tour Dorée : dans la Forêt des Torii');
+  ok(cen && Math.abs((bat.x + 5) - (cen.x + 5)) <= 45 && Math.abs(bat.y - cen.y) <= 6, 'Tour Dorée : à côté de la Tour Cendrée');
+  const abilK = (k) => new Set(Object.entries(FIELD).filter(([f, d]) => d.badge <= k && FIELD_T[f] != null).map(([f]) => FIELD_T[f]));
+  const [cx, cy] = [cen.doorX, cen.doorY];
+  const kMin = [...Array(NB + 1).keys()].find((k) => !!explore(k, abilK(k))[at(W, cx, cy + 1)]);
+  const s = explore(kMin, abilK(kMin)), avant = explore(kMin - 1, abilK(kMin - 1));
+  ok(kMin <= 5 && !!s[at(W, x, y + 1)] && !avant[at(W, x, y + 1)], `Tour Dorée atteignable avec ${kMin} badges, comme la Forêt des Torii (et pas avant)`);
+  const f1 = maps['grue:tour'], f2 = maps['grue:tour2'], f3 = maps['grue:tour3'], toit = maps['grue:tour-toit'];
+  ok(f1 && f2 && f3 && toit && f1.outside?.x === x && f1.outside?.y === y + 1, 'Tour Dorée : quatre niveaux, la sortie ramène au pied de la tour');
+  ok(L.hooh && L.hooh.map === 'grue:tour-toit' && L.hooh.cond === 'plume' && walkable(toit.get(L.hooh.x, L.hooh.y)), 'Ho-Oh se pose sur le toit de la Tour Dorée');
+  const nov = f3.gates.find((g) => g.flag === 'plume'); ok(nov && nov.badges <= kMin, 'Tour Dorée : le novice garde le toit tant qu\'on n\'a pas la Plume');
+  const sage = f3.npcs.find((n) => n.trainer?.name === 'Hoël'); ok(sage && sage.onWin === 'grandSage', 'Tour Dorée : le Grand Sage Hoël confie la Plume');
+  // de l'entrée au toit, d'escalier en escalier : sans la plume, le novice barre le dernier ; avec, on monte jusqu'à Ho-Oh
+  const monte = (plume) => {
+    let m = f1, sx = f1.exitX, sy = f1.exitY;
+    for (const nx of [f2, f3, toit]) {
+      const r = m.reach(sx, sy, plume ? true : false), up = [...m.warps].find(([, w]) => w.map === nx.id);
+      if (!up) return false;
+      const [ux, uy] = up[0].split(',').map(Number); if (!reachable(m, r, ux, uy)) return false;
+      const w = m.warpAt(ux, uy); m = nx; sx = w.x; sy = w.y;
+    }
+    return near(toit.reach(sx, sy, true), toit, L.hooh.x, L.hooh.y);
+  };
+  // les parties en cours gardent leurs drapeaux : mêmes cartes, mêmes identifiants de dresseurs qu'avant le déménagement
+  ok(['grue:tour:t47', 'grue:tour:t48', 'grue:tour2:t49', 'grue:tour2:t50', 'grue:tour3:t51'].every((id) => [f1, f2, f3].some((m) => m.npcs.some((n) => n.id === id && n.trainer))), 'Tour Dorée : les Sages gardent leurs identifiants');
+  ok(monte(true) && !monte(false), 'Tour Dorée : on monte de l\'entrée jusqu\'à Ho-Oh, avec la Plume seulement');
+  const temple = W.buildings.find((b) => b.name === 'Temple Kagura'); ok(temple && temple.modele === 'pavillon' && maps['kagura:tower13'] && [...W.warps].some(([, w]) => w.map === 'kagura:tower13'), 'Temple Kagura : pavillon en 3D, même intérieur');
+}
+// dans la Forêt des Torii, à Hautegrue et dans les villes des îles, aucun bâtiment n'a gardé l'ancien dessin (façade plate) :
+// chacun a un modèle 3D explicite, ou l'emprise exacte du modèle de sa sorte (render/bati-jeu.js, choisirModele)
+{ const { GRAND } = await import('../odyssee/js/world/mapgen.js');
+  const TAILLE = { house: [4, 3], house2: [5, 3], bighouse: [6, 4], center: [GRAND.center.w, GRAND.center.d], mart: [GRAND.mart.w, GRAND.mart.d], gym: [GRAND.gym.w, GRAND.gym.d] };
+  const en3d = (b) => !!b.modele || (TAILLE[b.kind] && TAILLE[b.kind][0] === b.w && TAILLE[b.kind][1] === b.d);
+  const zones = [['Forêt des Torii', 160, 150, 280, 198], ...['Q', 'K', 'H', 'L'].map((k) => [towns[k].name, towns[k].x, towns[k].y, towns[k].x + towns[k].w, towns[k].y + towns[k].h])];
+  for (const [nom, x0, y0, x1, y1] of zones) for (const b of W.buildings.filter((b) => b.x >= x0 && b.x < x1 && b.y >= y0 && b.y < y1 && b.kind !== 'cave')) ok(en3d(b), `${nom} : ${b.name || b.kind} (${b.x},${b.y}) a un modèle 3D`); }
+// les arènes des îles (Port-Granit, Cendrelune, Fort-Écaille) ont la grande emprise (GRAND.gym, modèle areneCour)
+{ const { GRAND } = await import('../odyssee/js/world/mapgen.js');
+  for (const k of ['K', 'H', 'L']) { const t = towns[k], b = W.buildings.find((q) => q.kind === 'gym' && q.doorX === t.gymDoor[0] && q.doorY === t.gymDoor[1]);
+    ok(b && b.w === GRAND.gym.w && b.d === GRAND.gym.d, `${t.name} : arène à l'emprise GRAND.gym`);
+    ok(t.gymMap.id === { K: 'granit:gym3', H: 'cendre:gym12', L: 'ecaille:gym13' }[k], `${t.name} : l'arène garde l'identifiant de son intérieur`);
+    ok(b && b.x >= t.x + 2 && b.x + b.w <= t.x + t.w - 2 && b.y >= t.y + 2 && b.y + b.d <= t.y + t.h - 2, `${t.name} : l'arène tient dans la ville`); } }
 // aucun bâtiment de la carte du monde n'en chevauche un autre
 { const B = W.buildings, croise = [];
   for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) { const a = B[i], b = B[j]; if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.d && b.y < a.y + a.d) croise.push(`${a.name || a.kind}@${a.x},${a.y} × ${b.name || b.kind}@${b.x},${b.y}`); }

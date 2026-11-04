@@ -8,7 +8,7 @@
 // Noms de lieux et personnages originaux ; les créatures du jeu côtoient les Pokémon du prototype.
 import { T, DIRS, walkable, isGrassEnc } from './tiles.js';
 import { GameMap, carveRoute, carveTown, ledges, along, nearestWalkable, rng, GRAND } from './mapgen.js';
-import { centerInterior, martInterior, houseInterior, labInterior, gymInterior, leagueInterior, caveMap, towerFloor, TOWER_UP, TOWER_DOWN } from './interiors.js';
+import { centerInterior, martInterior, houseInterior, labInterior, gymInterior, leagueInterior, caveMap } from './interiors.js';
 import { NEW_STARTERS } from '../data/creatures.js';
 import { R } from '../data/remplacants.js';
 import { buildQuests } from './quetes.js';
@@ -142,10 +142,10 @@ function routeTrainer(map, pts, t, side, off, cls, name, team, o = {}) {
   const dir = o.dir || (Math.abs(vx) > Math.abs(vy) ? (vx > 0 ? 'right' : 'left') : (vy > 0 ? 'down' : 'up'));
   return trainerNpc(map, x, y, dir, cls, name, team, o);
 }
-function routeItem(map, pts, t, side, off, item, qty = 1) {
+function routeItem(map, pts, t, side, off, item, qty = 1, id) {
   const p = along(pts, t);
   const [x, y] = nearestWalkable(map, p.x + 0.5 + p.nx * side * off, p.y + 0.5 + p.ny * side * off);
-  map.item(x, y, item, qty);
+  map.item(x, y, item, qty, id);
 }
 
 /* ---------------- villes ---------------- */
@@ -170,8 +170,9 @@ export function buildTown(W, maps, def) {
   }
   const poser = (b) => {
     const B = W.building(b.kind, ox + b.x, oy + b.y, { roof: b.roof, style: b.style, label: b.label, name: b.name, w: b.w, d: b.d, h: b.h, door: b.door, kit: b.kit, flat: b.flat, door2: b.door2, blocs: b.blocs, libres: b.libres, porteY: b.porteY, modele: b.modele, opts: b.opts });
-    let id = `${def.id}:${b.id || b.kind + b.x}`;
-    if (maps[id]) id += 'y' + b.y;   // deux bâtiments dans la même colonne : chacun garde son intérieur
+    // mapId : identifiant imposé (bâtiment déménagé : les parties arrêtées à l'intérieur reprennent au même endroit)
+    let id = b.mapId || `${def.id}:${b.id || b.kind + b.x}`;
+    if (maps[id] && !b.mapId) id += 'y' + b.y;   // deux bâtiments dans la même colonne : chacun garde son intérieur
     let inside;
     if (b.interior) inside = b.interior(id);
     else if (b.kind === 'center') inside = centerInterior(id, 'Centre de soins');
@@ -335,8 +336,8 @@ export function buildWorld() {
   W.rect(185, 196, 339, 279, T.WATER);
   W.rect(250, 189, 321, 195, T.WATER);   // la mer s'avance jusqu'au Cap Mirage
   // l'archipel : Île de Granit (petite), Cendrelune (volcan), Grande Île de l'Écaille
-  W.rect(302, 197, 331, 218, T.TREE);
-  W.rect(266, 221, 309, 254, T.TREE);
+  W.rect(302, 197, 331, 227, T.TREE);   // Granit, agrandie vers le sud (Port-Granit et son arène)
+  W.rect(266, 221, 298, 230, T.TREE); W.rect(266, 231, 309, 265, T.TREE);   // Cendrelune (au large de Granit, puis plus au sud)
   W.rect(190, 201, 259, 271, T.TREE);
 
   /* ---------- A · Bourg-Aube ---------- */
@@ -501,63 +502,81 @@ export function buildWorld() {
   W.zone(G.x, G.y + 9, G.x + 3, G.y + 12, { name: 'Mirage', music: 'mystic', town: 'mirage', trigger: 'rivalB1' });
 
   /* ---------- K · Port-Granit, Île de Granit (Basalte, Roche) ---------- */
+  // ville agrandie vers le sud (l'île aussi) : l'arène (emprise GRAND.gym) au nord-ouest, adossée à la côte (rien
+  // d'important ne se cache derrière elle) ; à droite, le chemin du ponton, la Boutique et les maisons des pêcheurs ;
+  // au sud, le Centre de soins
   const K = towns.K = {
-    id: 'granit', name: 'Port-Granit', x: 304, y: 198, w: 26, h: 19, exits: [['n', 11]], gym: 5, stock: 6, music: 'port', island: true,
-    roads: [[11, 0, 12, 16, T.PATH], [2, 9, 23, 10, T.PATH]],
-    deco: [['rock', 3, 3], ['rock', 21, 3], ['rock', 22, 14], ['lamp', 10, 8], ['lamp', 13, 8],
-      ['sign', 14, 3, 'PORT-GRANIT\nÎle de Granit — sous la protection de Drakos.'], ['sign', 9, 11, 'ARÈNE DE GRANIT\nChampion : Basalte\nLe frère cadet.']],
+    id: 'granit', name: 'Port-Granit', x: 302, y: 198, w: 30, h: 30, exits: [['n', 20]], gym: 5, stock: 6, music: 'port', island: true,
+    roads: [[20, 0, 21, 26, T.PATH], [2, 18, 27, 18, T.PATH], [2, 26, 27, 26, T.PATH]],
+    deco: [['rock', 26, 13], ['rock', 27, 17], ['rock', 2, 27], ['rock', 17, 21], ['rock', 25, 24], ['lamp', 22, 12], ['lamp', 22, 17], ['lamp', 19, 19], ['lamp', 22, 25],
+      ['flowers', 23, 20, 27, 23], ['flowers', 25, 15, 27, 16], ['flowers', 11, 19, 16, 20],
+      ['sign', 22, 5, 'PORT-GRANIT\nÎle de Granit — sous la protection de Drakos.'], ['sign', 12, 17, 'ARÈNE DE GRANIT\nChampion : Basalte\nLe frère cadet.']],
     buildings: [
-      { kind: 'center', x: 2, y: 4 }, { kind: 'mart', x: 18, y: 4 },
-      { kind: 'gym', x: 3, y: 11, roof: 'brown' },
-      { kind: 'house', x: 15, y: 12, roof: 'gray', npcs: [{ x: 4, y: 4, sprite: 'pecheur', text: ['Drakos nous prend la moitié de chaque pêche.', '« Pour protéger les îles », qu\'il dit.', 'Basalte ferme les yeux... c\'est son frère, après tout.'] }] },
-      { kind: 'house', x: 20, y: 12, roof: 'brown', npcs: [{ x: 2, y: 4, sprite: 'habitante', text: ['Les trois frères sont nés ici, sur Granit.', 'Basalte est le plus jeune. Pyros garde le volcan, et Drakos... la Grande Île.'] }] },
+      // mapId : les identifiants des intérieurs d'avant l'agrandissement (parties arrêtées dedans, dresseurs de l'arène)
+      { kind: 'gym', ...GRAND.gym, x: 2, y: 2, roof: 'brown', mapId: 'granit:gym3' },
+      { kind: 'mart', ...GRAND.mart, x: 23, y: 3, mapId: 'granit:mart18' },
+      { kind: 'house', x: 23, y: 9, roof: 'gray', mapId: 'granit:house15', npcs: [{ x: 4, y: 4, sprite: 'pecheur', text: ['Drakos nous prend la moitié de chaque pêche.', '« Pour protéger les îles », qu\'il dit.', 'Basalte ferme les yeux... c\'est son frère, après tout.'] }] },
+      { kind: 'center', ...GRAND.center, x: 3, y: 21, mapId: 'granit:center2' },
+      { kind: 'house', x: 12, y: 23, roof: 'brown', mapId: 'granit:house20', npcs: [{ x: 2, y: 4, sprite: 'habitante', text: ['Les trois frères sont nés ici, sur Granit.', 'Basalte est le plus jeune. Pyros garde le volcan, et Drakos... la Grande Île.'] }] },
     ],
     npcs: [
-      { id: 'garde-quai', x: 13, y: 2, sprite: 'garde', dir: 'down', script: 'granitDock', text: ['Port-Granit. Ici, c\'est Drakos qui fait la loi, pas la Ligue.'] },
-      { id: 'marin', x: 7, y: 8, sprite: 'marin', move: 'wander', text: ['Avec Surf, tu peux rejoindre Cendrelune, au sud-ouest.', 'Mais les gardes de Pyros ne laissent entrer que ceux qui ont battu Basalte.'] },
+      { id: 'garde-quai', x: 22, y: 2, sprite: 'garde', dir: 'down', script: 'granitDock', text: ['Port-Granit. Ici, c\'est Drakos qui fait la loi, pas la Ligue.'] },
+      { id: 'marin', x: 15, y: 22, sprite: 'marin', move: 'wander', text: ['Avec Surf, tu peux rejoindre Cendrelune, au sud-ouest.', 'Mais les gardes de Pyros ne laissent entrer que ceux qui ont battu Basalte.'] },
     ],
   };
   buildTown(W, maps, K);
-  W.zone(K.x + 9, K.y, K.x + 14, K.y + 3, { name: 'Port-Granit', music: 'port', town: 'granit', trigger: 'rivalB2' });
+  W.zone(K.x + 18, K.y, K.x + 23, K.y + 3, { name: 'Port-Granit', music: 'port', town: 'granit', trigger: 'rivalB2' });
   // ponton de Port-Granit, face au Cap Mirage
-  W.rect(314, 196, 317, 198, T.SAND);
+  W.rect(321, 196, 324, 198, T.SAND);
 
   /* ---------- H · Cendrelune (Pyros, Feu) ---------- */
+  // ville agrandie vers le sud (l'île aussi) : le Centre et la Boutique en haut (de part et d'autre de l'arène, qui ne
+  // les cache pas), l'arène (emprise GRAND.gym) au milieu, des maisons à gauche, les sources chaudes à droite ;
+  // un sentier monte vers la plage du nord (face à Granit), la sortie ouest mène à la plage face à la Grande Île
   const H = towns.H = {
-    id: 'cendre', name: 'Cendrelune', x: 272, y: 226, w: 32, h: 24, exits: [['n', 19], ['w', 12]], gym: 6, stock: 7, ground: T.ASH, music: 'volcano', theme: 'volcanic', island: true,
-    roads: [[19, 0, 20, 13, T.PATH], [0, 12, 29, 13, T.PATH], [2, 20, 29, 21, T.PATH], [9, 12, 10, 21, T.PATH]],
-    deco: [['rock', 26, 4], ['rock', 28, 7], ['rock', 3, 3], ['lamp', 18, 14], ['lamp', 21, 14],
-      ['sign', 22, 10, 'CENDRELUNE\nL\'île où dort le volcan.'], ['sign', 11, 19, 'ARÈNE DE CENDRELUNE\nChampion : Pyros\nLe frère du milieu.']],
+    id: 'cendre', name: 'Cendrelune', x: 268, y: 231, w: 36, h: 31, exits: [['n', 23], ['w', 7]], gym: 6, stock: 7, ground: T.ASH, music: 'volcano', theme: 'volcanic', island: true,
+    roads: [[23, 0, 24, 8, T.PATH], [0, 7, 33, 8, T.PATH], [6, 9, 6, 27, T.PATH], [28, 9, 28, 27, T.PATH], [2, 27, 33, 27, T.PATH]],
+    deco: [['rock', 32, 2], ['rock', 9, 10], ['rock', 5, 25], ['rock', 32, 25], ['rock', 25, 28], ['rock', 8, 28], ['rock', 15, 3], ['rock', 20, 4], ['lamp', 22, 9], ['lamp', 25, 9],
+      // les sources chaudes, entre les rochers
+      ['water', 31, 20, 2.2, 1.6], ['rock', 29, 18], ['rock', 33, 22],
+      ['sign', 25, 5, 'CENDRELUNE\nL\'île où dort le volcan.'], ['sign', 14, 26, 'ARÈNE DE CENDRELUNE\nChampion : Pyros\nLe frère du milieu.'],
+      ['sign', 29, 23, 'SOURCES CHAUDES\nPour les Pokémon aguerris.']],
     buildings: [
-      { kind: 'center', x: 3, y: 7 }, { kind: 'mart', x: 11, y: 7 },
-      { kind: 'house', x: 23, y: 8, roof: 'orange', npcs: [{ x: 4, y: 4, sprite: 'montagnard', text: ['L\'Eau, la Roche et le Sol éteignent le Feu.', 'Pyros a beau être ardent, il a ses faiblesses.'] }] },
-      { kind: 'gym', x: 12, y: 15, roof: 'red' },
-      { kind: 'house', x: 3, y: 17, roof: 'brown', npcs: [{ x: 2, y: 4, sprite: 'habitante', text: ['Le pont qui nous reliait au continent a été coupé sur ordre de Drakos.', 'Il voulait que les îles se débrouillent sans la Ligue.'] }] },
-      { kind: 'house', x: 22, y: 17, roof: 'gray', npcs: [{ x: 4, y: 4, sprite: 'vieil_homme', text: ['Pyros n\'est pas méchant. Il croit que son frère protège les îles.', 'Mais protéger, ce n\'est pas tout prendre...'] }] },
+      // mapId : les identifiants des intérieurs d'avant l'agrandissement (parties arrêtées dedans, dresseurs de l'arène)
+      { kind: 'center', ...GRAND.center, x: 2, y: 2, mapId: 'cendre:center3' }, { kind: 'mart', ...GRAND.mart, x: 27, y: 2, mapId: 'cendre:mart11' },
+      { kind: 'house', x: 2, y: 19, roof: 'orange', mapId: 'cendre:house23', npcs: [{ x: 4, y: 4, sprite: 'montagnard', text: ['L\'Eau, la Roche et le Sol éteignent le Feu.', 'Pyros a beau être ardent, il a ses faiblesses.'] }] },
+      { kind: 'gym', ...GRAND.gym, x: 8, y: 11, roof: 'red', mapId: 'cendre:gym12' },
+      { kind: 'house', x: 2, y: 12, roof: 'brown', mapId: 'cendre:house3', npcs: [{ x: 2, y: 4, sprite: 'habitante', text: ['Le pont qui nous reliait au continent a été coupé sur ordre de Drakos.', 'Il voulait que les îles se débrouillent sans la Ligue.'] }] },
+      { kind: 'house', x: 30, y: 12, roof: 'gray', mapId: 'cendre:house22', npcs: [{ x: 4, y: 4, sprite: 'vieil_homme', text: ['Pyros n\'est pas méchant. Il croit que son frère protège les îles.', 'Mais protéger, ce n\'est pas tout prendre...'] }] },
     ],
     npcs: [],
   };
   buildTown(W, maps, H);
-  // plages de Cendrelune : au nord (vers Granit) et à l'ouest (vers la Grande Île)
-  W.rect(290, 221, 293, 225, T.SAND); W.rect(266, 237, 271, 239, T.SAND);
+  // plages de Cendrelune : au nord (vers Granit, un sentier y descend) et à l'ouest (vers la Grande Île)
+  W.rect(290, 221, 293, 225, T.SAND); W.rect(291, 226, 292, 230, T.PATH); W.rect(266, 237, 269, 240, T.SAND);
   gymGuard(W, H, 6, ['Halte ! L\'arène de Pyros n\'accueille que ceux qui ont vaincu Basalte.', 'Reviens avec le Badge Granit.']);
 
   /* ---------- L · Fort-Écaille, Grande Île (Drakos, Dragon) ---------- */
+  // ville agrandie vers l'ouest et le sud : l'avenue nord-sud relie le Cap des Étoiles à la sortie sud ; à l'ouest,
+  // l'arène (emprise GRAND.gym), la Tour de Drakos, devant un bois de pins (rien d'important derrière elle) ; à l'est,
+  // le Centre, la Boutique, la Caserne et les maisons, le long de la route de l'est
   const L = towns.L = {
-    id: 'ecaille', name: 'Fort-Écaille', x: 196, y: 207, w: 34, h: 24, exits: [['e', 11], ['n', 16], ['s', 16]], gym: 7, stock: 7, music: 'mystic', island: true,
-    roads: [[2, 11, 33, 12], [16, 0, 17, 23], [2, 18, 30, 19]],
-    deco: [['statue', 14, 9], ['statue', 19, 9], ['lamp', 12, 13], ['lamp', 21, 13], ['lamp', 12, 20], ['lamp', 21, 20], ['trees', 2, 2, 5, 5, T.PINE], ['trees', 28, 2, 31, 5, T.PINE],
-      ['sign', 22, 10, 'FORT-ÉCAILLE\nCapitale de l\'archipel. Par ordre de Drakos.'], ['sign', 13, 17, 'TOUR DE DRAKOS\nChampion : Drakos\nL\'aîné des trois frères.']],
+    id: 'ecaille', name: 'Fort-Écaille', x: 192, y: 207, w: 38, h: 34, exits: [['e', 11], ['n', 20], ['s', 20]], gym: 7, stock: 7, music: 'mystic', island: true,
+    roads: [[20, 0, 21, 33], [22, 11, 37, 12], [2, 30, 35, 30]],
+    deco: [['trees', 2, 2, 19, 9, T.PINE], ['flowers', 3, 10, 17, 12], ['statue', 18, 11], ['statue', 23, 13], ['statue', 18, 2], ['lamp', 22, 2], ['lamp', 19, 14], ['lamp', 22, 22], ['lamp', 19, 29], ['lamp', 22, 29],
+      ['trees', 34, 2, 35, 3, T.PINE], ['trees', 34, 18, 35, 23, T.PINE], ['flowers', 29, 25, 35, 28], ['flowers', 29, 20, 31, 22], ['flowers', 23, 26, 27, 28],
+      ['sign', 22, 10, 'FORT-ÉCAILLE\nCapitale de l\'archipel. Par ordre de Drakos.'], ['sign', 12, 29, 'TOUR DE DRAKOS\nChampion : Drakos\nL\'aîné des trois frères.']],
     buildings: [
-      { kind: 'center', x: 3, y: 6 }, { kind: 'mart', x: 9, y: 6 },
-      { kind: 'gym', x: 13, y: 13, roof: 'purple' },
-      { kind: 'bighouse', x: 23, y: 4, roof: 'purple', name: 'Caserne d\'Écaille', npcs: [{ x: 4, y: 4, sprite: 'garde', text: ['Nous, les Gardes d\'Écaille, servons Drakos.', 'Il a juré qu\'aucun Maître de la Ligue ne dicterait jamais sa loi aux îles.'] }, { x: 7, y: 5, sprite: 'garde', text: ['Entre nous... ça fait longtemps que je ne sais plus contre qui on se bat.'] }] },
-      { kind: 'house', x: 4, y: 15, roof: 'teal', npcs: [{ x: 4, y: 4, sprite: 'habitante', text: ['Drakos a perdu contre Célestine, il y a dix ans, en finale de la Ligue.', 'Depuis, il refuse toute autorité. Même celle de la Ligue.'] }] },
-      { kind: 'house', x: 25, y: 15, roof: 'red', npcs: [{ x: 2, y: 4, sprite: 'vieil_homme', text: ['Au nord de la ville, il y a le Cap des Étoiles.', 'On raconte que Odyssor, le géant des océans, y passe quand la mer est calme...', 'Mais Drakos en interdit l\'accès.'] }] },
+      // mapId : les identifiants des intérieurs d'avant l'agrandissement (parties arrêtées dedans, dresseurs de l'arène)
+      { kind: 'gym', ...GRAND.gym, x: 2, y: 14, roof: 'purple', mapId: 'ecaille:gym13' },
+      { kind: 'center', ...GRAND.center, x: 23, y: 3, mapId: 'ecaille:center3' }, { kind: 'mart', ...GRAND.mart, x: 31, y: 4, mapId: 'ecaille:mart9' },
+      { kind: 'bighouse', x: 23, y: 14, roof: 'purple', mapId: 'ecaille:bighouse23', name: 'Caserne d\'Écaille', npcs: [{ x: 4, y: 4, sprite: 'garde', text: ['Nous, les Gardes d\'Écaille, servons Drakos.', 'Il a juré qu\'aucun Maître de la Ligue ne dicterait jamais sa loi aux îles.'] }, { x: 7, y: 5, sprite: 'garde', text: ['Entre nous... ça fait longtemps que je ne sais plus contre qui on se bat.'] }] },
+      { kind: 'house', x: 31, y: 14, roof: 'teal', mapId: 'ecaille:house4', npcs: [{ x: 4, y: 4, sprite: 'habitante', text: ['Drakos a perdu contre Célestine, il y a dix ans, en finale de la Ligue.', 'Depuis, il refuse toute autorité. Même celle de la Ligue.'] }] },
+      { kind: 'house', x: 24, y: 21, roof: 'red', mapId: 'ecaille:house25', npcs: [{ x: 2, y: 4, sprite: 'vieil_homme', text: ['Au nord de la ville, il y a le Cap des Étoiles.', 'On raconte que Odyssor, le géant des océans, y passe quand la mer est calme...', 'Mais Drakos en interdit l\'accès.'] }] },
     ],
     npcs: [
-      { id: 'garde-cap', x: 16, y: 2, sprite: 'garde', dir: 'down', gate: { badges: 8, tiles: [[16, 1], [17, 1]] }, text: ['Le Cap des Étoiles est interdit.', 'Seul Drakos, ou celui qui l\'aura vaincu, peut y passer.'] },
-      { id: 'enfant', x: 8, y: 20, sprite: 'enfant', move: 'wander', text: ['Mon papa dit que Drakos était un héros, avant.'] },
+      { id: 'garde-cap', x: 20, y: 2, sprite: 'garde', dir: 'down', gate: { badges: 8, tiles: [[20, 1], [21, 1]] }, text: ['Le Cap des Étoiles est interdit.', 'Seul Drakos, ou celui qui l\'aura vaincu, peut y passer.'] },
+      { id: 'enfant', x: 27, y: 26, sprite: 'enfant', move: 'wander', text: ['Mon papa dit que Drakos était un héros, avant.'] },
     ],
   };
   buildTown(W, maps, L);
@@ -745,10 +764,12 @@ export function buildWorld() {
   routeTrainer(W, r11, 0.25, 1, 3, 'Garde d\'Écaille', 'Ronan', [[1044, 44], [1025, 44], [1048, 45]], { intro: 'Halte ! La Grande Île appartient à Drakos !', lose: 'Tch... Passe, alors.' });
   routeTrainer(W, r11, 0.8, -1, 3, 'Garde d\'Écaille', 'Solène', [[1050, 46], [1012, 45], [1035, 45]], { intro: 'Tu veux voir Drakos ? Montre-moi d\'abord ce que tu vaux !', lose: 'Drakos va enfin avoir un vrai adversaire...' });
   routeItem(W, r11, 0.4, 1, 4, 'max-potion');
-  const r12 = R('r12', 'Forêt d\'Écaille', [[212.5, 230], [212.5, 245], [222, 256], [240, 258]], { w: 12, grass: 1.1, tall: T.DARKTALL, trees: 0.14, taperStart: false, theme: 'forest' }, 'ecaille', 'forest');
+  const r12 = R('r12', 'Forêt d\'Écaille', [[212.5, 240], [212.5, 245], [222, 256], [240, 258]], { w: 12, grass: 1.1, tall: T.DARKTALL, trees: 0.14, taperStart: false, theme: 'forest' }, 'ecaille', 'forest');
   routeTrainer(W, r12, 0.3, -1, 3, 'Topdresseuse', 'Maya', [[1040, 44], [1016, 44], [184, 45]]);
   routeTrainer(W, r12, 0.6, 1, 3, 'Karatéka', 'Takeo', [[1033, 45], [107, 45], [68, 46]]);
-  routeItem(W, r12, 0.5, -1, 4, 'ultra-ball', 3); routeItem(W, r12, 0.95, 1, 2, 'rare-candy');
+  routeItem(W, r12, 0.5, -1, 4, 'ultra-ball', 3, 'monde:222,250'); routeItem(W, r12, 0.95, 1, 2, 'rare-candy');   // (la première garde son identifiant d'avant l'agrandissement de Fort-Écaille)
+  // les couloirs des routes 11 et 12 débordent sur Fort-Écaille agrandie : la ville garde son sol (ni arbre ni herbe haute)
+  W.rect(L.x + 2, L.y + 2, L.x + L.w - 3, L.y + L.h - 3, T.GRASS, [T.TREE, T.TALL, T.DARKTALL, T.ROCK]);
   // Cap des Étoiles : au nord de Fort-Écaille, une clairière où passe Odyssor
   W.rect(210, 202, 215, 206, T.GRASS); W.rect(212, 203, 213, 206, T.PATH);
   W.prop('statue', 210, 203); W.prop('statue', 215, 203);
@@ -759,7 +780,7 @@ export function buildWorld() {
 
   // la mer de l'archipel : rencontres en surfant
   W.zone(185, 186, 339, 279, { name: 'Mer de l\'Archipel', music: 'route2', enc: ENC.mer, sea: true, prio: -1 });
-  W.zone(296, 196, 333, 219, { name: 'Île de Granit', music: 'port', enc: ENC.granit });
+  W.zone(296, 196, 333, 228, { name: 'Île de Granit', music: 'port', enc: ENC.granit });
 
   const r9 = R('r9', 'Route 9', [[160.5, 224], [160.5, 214], [160.5, 208]], { w: 7, grass: 0.5, trees: 0.03, taperEnd: false }, 'r9');
   const r9b = R('r9b', 'Route 9', sinueuse([[115.5, 166], [114, 176], [111, 185], [102, 190], [90.5, 187]]), { w: 7, grass: 0.4, trees: 0.02, taperStart: false }, 'r9');
@@ -801,7 +822,7 @@ export function buildWorld() {
   };
   // le passeur du Cap Mirage et le ponton de Port-Granit : le seul bateau qui franchit les tourbillons de l'archipel
   pierV('cap', 'Cap Mirage', 298, 189, 1, 2, 0, { town: 'Cap Mirage' });
-  pierV('granit', 'Île de Granit (Port-Granit)', 315, 195, -1, 1, 5, { town: 'Port-Granit' });
+  pierV('granit', 'Île de Granit (Port-Granit)', 322, 195, -1, 1, 5, { town: 'Port-Granit' });
   /** passage étroit (2 cases) fermé par un PNJ tant qu'un drapeau d'histoire n'est pas levé */
   const flagGate = (id, tiles, npcAt, flag, badges, sprite, text) => {
     const n = W.npc({ id, x: npcAt[0], y: npcAt[1], dir: 'down', sprite, gate: { badges, flag, tiles }, text });
@@ -878,39 +899,28 @@ export function buildWorld() {
   W.zone(409, 235, 423, 242, { name: 'Sanctuaire Scellé', music: 'mystic' });
   legend({ id: 'mewtwo', sp: 150, lvl: 70, x: 416, y: 239, intro: ['Une présence écrasante emplit le sanctuaire...', 'Mewtwo ouvre les yeux.'] });
 
-  /* ---------- Île de la Grue (3 badges) : Hautegrue, la Tour de la Grue et Ho-Oh, Sulfura, Entei ---------- */
+  /* ---------- Île de la Grue (3 badges) : Hautegrue et son jardin, Sulfura, Entei ---------- */
+  // (la tour des Sages et Ho-Oh, la Tour Dorée qu'on appelait Tour de la Grue, se dresse sur le continent, dans la Forêt
+  // des Torii, à côté de la Tour Cendrée : world/tourdoree.js)
+  tCount += 5;   // les numéros de ses cinq dresseurs (gardés là-bas) : les dresseurs suivants gardent leur identifiant
   W.rect(350, 72, 434, 148, T.TREE);
-  const tower = (id) => towerFloor(id, 'Tour de la Grue — rez-de-chaussée', { ground: true, up: true });
-  const towerMore = (f1, id) => {
-    const f2 = towerFloor(id + '2', 'Tour de la Grue — 1er étage', { up: true, down: true });
-    const f3 = towerFloor(id + '3', 'Tour de la Grue — 2e étage', { up: true, down: true });
-    const roof = towerFloor(id + '-toit', 'Toit de la Tour de la Grue', { down: true, roof: true });
-    const link = (a, b) => { a.warp(TOWER_UP.x, TOWER_UP.y, { map: b.id, x: TOWER_DOWN.x, y: TOWER_DOWN.y + 1, dir: 'down' }); b.warp(TOWER_DOWN.x, TOWER_DOWN.y, { map: a.id, x: TOWER_UP.x, y: TOWER_UP.y + 1, dir: 'down' }); };
-    link(f1, f2); link(f2, f3); link(f3, roof);
-    const sage = (m, x, y, dir, name, team, intro) => trainerNpc(m, x, y, dir, 'Sage', name, team, { sight: 3, intro, after: 'Le Grand Sage t\'attend plus haut.' });
-    sage(f1, 4, 7, 'right', 'Ernest', [[1039, 30], [163, 30]], 'La tour accueille ceux qui viennent en paix. Prouve-le !');
-    sage(f1, 8, 5, 'left', 'Gaspard', [[1023, 31], [1015, 30]], 'La grue de bois veille sur nous depuis mille ans.');
-    sage(f2, 5, 5, 'right', 'Hilaire', [[1030, 32], [1040, 31]], 'Ho-Oh ne se montre qu\'aux cœurs sincères.');
-    sage(f2, 8, 8, 'left', 'Isidore', [[164, 32], [1016, 32]], 'Plus haut, l\'air devient sacré.');
-    trainerNpc(f3, 6, 4, 'down', 'Grand Sage', 'Hoël', [[1040, 34], [1030, 34], [1023, 35], [1016, 36]], { sight: 0, ai: 'smart', onWin: 'grandSage', intro: 'Tu viens chercher la Plume Arc-en-ciel ? Montre-moi le lien qui t\'unit à tes créatures !', lose: 'Ce lien... il est réel.', after: 'Va sur le toit. Ho-Oh t\'attend peut-être.' });
-    const n = f3.npc({ id: id + ':novice', x: 10, y: 3, dir: 'down', sprite: 'medium', gate: { badges: 3, flag: 'plume', tiles: [[10, 2], [11, 3]] }, text: ['Le toit est réservé à qui porte la Plume Arc-en-ciel.', 'Seul le Grand Sage peut te la confier.'] });
-    f3.gates.push({ npc: n.id, badges: 3, flag: 'plume', tiles: [[10, 2], [11, 3]] });
-    legends.push({ id: 'hooh', sp: 250, lvl: 40, map: roof.id, x: 6, y: 6, cond: 'plume', intro: ['La Plume Arc-en-ciel se met à briller...', 'Un arc-en-ciel déchire les nuages. Ho-Oh se pose sur la tour !'] });
-    return [f2, f3, roof];
-  };
   const G2 = towns.Q = {
     id: 'grue', name: 'Hautegrue', x: 354, y: 112, w: 34, h: 30, exits: [['w', 12], ['e', 12], ['n', 16]], stock: 4, music: 'mystic', fermer: true,
-    roads: [[0, 12, 33, 13, T.PATH], [16, 0, 17, 27, T.PATH], [18, 27, 31, 27, T.PATH]],
+    roads: [[0, 12, 33, 13, T.PATH], [16, 0, 17, 27, T.PATH], [18, 27, 31, 27, T.PATH], [27, 20, 27, 26, T.PATH]],
     deco: [['lamp', 15, 11], ['lamp', 18, 11], ['flowers', 3, 20, 8, 23], ['water', 8, 25, 2.6, 1.6], ['trees', 2, 2, 4, 4, T.PINE],
-      ['sign', 14, 14, 'HAUTEGRUE\nLe village de la Grue de bois.'], ['sign', 19, 26, 'TOUR DE LA GRUE\nLà où l\'oiseau arc-en-ciel se posait jadis.']],
+      // le Jardin de la Grue, là où les Sages venaient méditer : gravier ratissé, étang, maison de thé, lanternes
+      ['sand', 20, 15, 23, 19], ['rocher_grand', 21, 16], ['butte', 22, 18], ['water', 22, 23, 2.6, 1.5],
+      ['flowers', 19, 21, 19, 25], ['flowers', 30, 15, 31, 19], ['flowers', 29, 21, 31, 25],
+      ['lanterne', 24, 20], ['lanterne', 30, 20], ['lanterne', 26, 26], ['lanterne', 28, 26], ['erable', 31, 14], ['cerisier', 19, 14], ['arbre_automne', 31, 23],
+      ['sign', 14, 14, 'HAUTEGRUE\nLe village de la Grue de bois.'], ['sign', 19, 26, 'JARDIN DE LA GRUE\nLes Sages de la Tour Dorée y venaient méditer.\nLeur tour se dresse sur le continent, dans la Forêt des Torii.']],
     buildings: [
-      { kind: 'center', x: 5, y: 4 }, { kind: 'mart', x: 10, y: 4 },
-      { kind: 'tower', ...GRAND.pagode, x: 21, y: 14, roof: 'brown', id: 'tour', name: 'Tour de la Grue', interior: tower, more: towerMore },
+      { kind: 'center', ...GRAND.center, x: 3, y: 4, mapId: 'grue:center5' }, { kind: 'mart', ...GRAND.mart, x: 11, y: 4, mapId: 'grue:mart10' },
+      { kind: 'house', w: 5, d: 5, h: 3, door: 2, modele: 'maisonThe', x: 25, y: 15, roof: 'gray', id: 'the', name: 'Maison de thé', npcs: [{ x: 4, y: 4, sprite: 'dame', text: ['Une tasse de thé ? Les Sages s\'arrêtaient toujours ici avant de prendre le bateau.', 'Leur tour dorée est sur le continent, dans la Forêt des Torii, au sud-ouest de Mirage.', 'Tout près de la Tour Cendrée, sa sœur brûlée.'] }] },
       { kind: 'house', x: 4, y: 16, roof: 'brown', id: 'doyenne', name: 'Maison de la Doyenne', npcs: [{ id: 'doyenne', x: 4, y: 4, sprite: 'vieil_homme', script: 'doyenne' }] },
-      { kind: 'house', x: 22, y: 4, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'habitante', text: ['Il y a longtemps, trois créatures ont péri dans l\'incendie de l\'ancienne tour, la sœur de la nôtre :', 'la Tour Cendrée, là-bas, dans la Forêt des Torii.', 'On raconte que Ho-Oh les a ramenées à la vie : Raikou, Entei et Suicune.'] }] },
+      { kind: 'house', x: 22, y: 4, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'habitante', text: ['Il y a longtemps, trois créatures ont péri dans l\'incendie d\'une tour : la Tour Cendrée,', 'la sœur de la Tour Dorée. Les deux tours se dressent côte à côte dans la Forêt des Torii, sur le continent.', 'On raconte que Ho-Oh a ramené les trois créatures à la vie : Raikou, Entei et Suicune.'] }] },
       { kind: 'house', x: 10, y: 17, roof: 'teal', npcs: [{ x: 2, y: 4, sprite: 'montagnard', text: ['À l\'est, le chemin du Mont Brasier est barré par des arbustes.', 'Avec Coupe, tu pourrais aller voir le cratère... on dit qu\'un oiseau de feu y niche.'] }] },
     ],
-    npcs: [{ id: 'enfant', x: 12, y: 15, sprite: 'enfant', move: 'wander', text: ['Mamie dit que la Tour de la Grue touche presque les nuages !'] }],
+    npcs: [{ id: 'enfant', x: 12, y: 15, sprite: 'enfant', move: 'wander', text: ['Mamie dit que la Tour Dorée, sur le continent, touche presque les nuages !', 'Avant, on l\'appelait la Tour de la Grue, comme notre village.'] }],
   };
   buildTown(W, maps, G2);
   W.rect(350, 124, 355, 125, T.SAND);

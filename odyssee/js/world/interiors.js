@@ -140,19 +140,19 @@ export function caveMap(id, w, h, seed, entries, o = {}) {
   return m;
 }
 
-/* ---------------- Tour de la Grue (Île de la Grue) ---------------- */
+/* ---------------- Tour Dorée (Forêt des Torii ; autrefois Tour de la Grue) ---------------- */
 // Étages reliés par des escaliers (cases d'escalier = téléporteurs). L'escalier qui monte est en haut à droite,
 // celui qui descend en haut à gauche ; on arrive juste en dessous.
 export const TOWER_UP = { x: 11, y: 2 }, TOWER_DOWN = { x: 1, y: 2 };
 export function towerFloor(id, name, o = {}) {
-  const m = room(id, 13, 12, { floor: o.roof ? 'league' : 'wood', music: 'tower', wall: o.roof ? 'wall_league' : 'wall_in', name, battleBg: 'indoor' });
+  const m = room(id, 13, 12, { floor: o.roof ? 'temple' : 'wood', music: 'tower', wall: o.roof ? 'wall_league' : 'wall_in', name, battleBg: 'indoor' });
   if (!o.ground) m.set(m.exitX, m.exitY, T.FLOOR);   // seul le rez-de-chaussée a une porte
   if (o.up) { m.set(TOWER_UP.x, TOWER_UP.y, T.CAVEDOOR); }
   if (o.down) { m.set(TOWER_DOWN.x, TOWER_DOWN.y, T.CAVEDOOR); }
   if (o.roof) {
-    // le toit : un autel au centre, des lanternes aux angles
-    furn(m, 'gymstatue', 4, 4); furn(m, 'gymstatue', 8, 4);
-    for (const [x, y] of [[2, 9], [10, 9], [2, 5], [10, 5]]) furn(m, 'lamp', x, y);
+    // le toit : dalles dorées, deux gardiens de pierre au fond, des braseros aux angles (Ho-Oh se pose au milieu)
+    furn(m, 'statue_dragon', 4, 4); furn(m, 'statue_dragon', 8, 4);
+    for (const [x, y] of [[2, 9], [10, 9], [2, 5], [10, 5]]) furn(m, 'brasero', x, y);
   } else {
     // piliers de bois et vases rituels
     for (const [x, y] of [[3, 4], [9, 4], [3, 8], [9, 8]]) furn(m, 'statue', x, y);
