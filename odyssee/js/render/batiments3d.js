@@ -2431,6 +2431,36 @@ export function atelier(D) {
   };
 
 
+
+  /** statue de dresseur debout (environ 1,9 de haut, pieds en 0,0,0) : casquette, veste, sac en bandoulière, un bras levé
+   *  qui brandit une Poké Ball, l'autre sur la hanche ; `mat` pierre ou bronze */
+  function statueDresseur(G, x, y, z, k = 1, mat = 'bronze') {
+    const S = new THREE.Group(); S.position.set(x, y, z); S.scale.setScalar(k); G.add(S);
+    const C = mat === 'bronze' ? M({ color: new THREE.Color('#b0763a') }) : M({ map: TX.pierre('#e2ddd2') });
+    const C2 = mat === 'bronze' ? M({ color: new THREE.Color('#8a5426') }) : M({ map: TX.pierre('#c8c2b6') });
+    const piece = (geo, px, py, pz, rx = 0, ry = 0, rz = 0, m = C) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); o.rotation.set(rx, ry, rz); o.castShadow = true; S.add(o); return o; };
+    // jambes (pas en avant), chaussures
+    piece(new THREE.CylinderGeometry(0.1, 0.09, 0.8, 8), -0.13, 0.42, 0.05, 0.12);
+    piece(new THREE.CylinderGeometry(0.1, 0.09, 0.8, 8), 0.13, 0.42, -0.05, -0.12);
+    piece(new THREE.BoxGeometry(0.17, 0.1, 0.3), -0.13, 0.05, 0.12, 0, 0, 0, C2); piece(new THREE.BoxGeometry(0.17, 0.1, 0.3), 0.13, 0.05, -0.02, 0, 0, 0, C2);
+    // buste, veste ouverte, sac
+    piece(new THREE.CylinderGeometry(0.2, 0.24, 0.62, 10), 0, 1.12, 0);
+    piece(new THREE.BoxGeometry(0.05, 0.55, 0.04), 0, 1.12, 0.22, 0, 0, 0, C2);
+    const sangle = piece(new THREE.BoxGeometry(0.06, 0.75, 0.05), 0.02, 1.15, 0.2, 0, 0, 0.75, C2);
+    piece(new THREE.BoxGeometry(0.28, 0.22, 0.12), -0.24, 0.85, 0.12, 0, 0, 0, C2);
+    // bras droit levé vers l'avant, Poké Ball au poing ; bras gauche sur la hanche
+    piece(new THREE.CylinderGeometry(0.07, 0.06, 0.66, 8), 0.27, 1.66, 0.06, 0.15, 0, -0.2);
+    piece(new THREE.SphereGeometry(0.075, 8, 6), 0.34, 1.99, 0.11);
+    const b = new THREE.Group(); pokeBall(b, 0, 0, 0, 0.13); b.position.set(0.35, 2.13, 0.13); S.add(b);
+    piece(new THREE.CylinderGeometry(0.07, 0.06, 0.34, 8), -0.3, 1.2, 0.04, 0, 0, -0.9);
+    piece(new THREE.CylinderGeometry(0.06, 0.06, 0.3, 8), -0.32, 0.98, 0.08, 0, 0, 0.8);
+    // tête, casquette à visière
+    piece(new THREE.CylinderGeometry(0.07, 0.08, 0.1, 8), 0, 1.47, 0);
+    piece(new THREE.SphereGeometry(0.17, 12, 10), 0, 1.64, 0);
+    piece(new THREE.SphereGeometry(0.18, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0, 1.68, -0.01, 0, 0, 0, C2);
+    piece(new THREE.BoxGeometry(0.26, 0.03, 0.17), 0, 1.69, 0.2, -0.15, 0, 0, C2);
+    return S;
+  }
   /** Poké Ball dessinée (rouge, blanc, bande noire), l'emblème du type au centre à la place du bouton */
   const pokeEmbleme = (type, acc) => { const k = 'pbe' + type; NETTES.add(k); const em = emblemeTex(type, acc); return tex(k, 4 * D, 4 * D, (g, px, w, h) => {
     const r = w / 2 - 2, c = w / 2;
@@ -2455,7 +2485,7 @@ export function atelier(D) {
    *  grande porte ; au-dessus de la porte, une Poké Ball dessinée avec l'emblème du type au centre.
    *  `style` : voute (le berceau couvre aussi l'avancée, colonnes en façade), portique (avancée basse à entablement
    *  devant la salle voûtée), arcades (avancée à arcs, côtes dorées sur la voûte), verriere (voûte vitrée au faîte) */
-  B.areneVoute = ({ style = 'voute', type = 'feu', pierre = null } = {}) => {
+  B.areneVoute = ({ style = 'voute', type = 'feu', pierre = null, statue = null } = {}) => {
     const T = ARENES[type] || ARENES.feu, acc = T.acc, A = COL(acc);
     const G = new THREE.Group(), W = 8, ZF = 11, cx = W / 2, ZS = 9.9;   // salle voûtée de z 0 à 9,4 ; avancée à colonnes devant
     const pc = pierre || '#d6cfbf';
@@ -2489,6 +2519,12 @@ export function atelier(D) {
     const rb = 0.72, yb = yV + 0.72;
     G.add(at(new THREE.Mesh(new THREE.CircleGeometry(rb, 32), M({ map: pokeEmbleme(type, acc), transparent: true })), cx, yb, ZS + 0.23));
     G.add(at(new THREE.Mesh(new THREE.TorusGeometry(rb + 0.04, 0.07, 6, 32), OR), cx, yb, ZS + 0.25));
+    // statue de dresseur au pinacle, sur l'avant de la voûte, au-dessus de la porte
+    if (statue) {
+      const ys = yV + hr, zs = ZS - 0.15;
+      G.add(at(boite(1.3, 0.4, 1.1, PC), cx, ys + 0.12, zs)); G.add(at(boite(1.4, 0.1, 1.2, A), cx, ys + 0.36, zs)); G.add(at(boite(1.05, 0.14, 0.9, PC), cx, ys + 0.48, zs));
+      statueDresseur(G, cx, ys + 0.55, zs, 1.45, statue);
+    }
     // avancée à colonnes (peu profonde, basse, pour que la grande porte se voie)
     const zf = ZF - 0.3, hp = 2.75;
     const plafond = () => { G.add(at(boite(W + 0.3, 0.32, zf - ZS + 0.5, PC), cx, y0 + hp + 0.16, (ZS + zf) / 2 + 0.05)); G.add(at(boite(W + 0.32, 0.15, 0.06, A), cx, y0 + hp + 0.16, zf + 0.31)); };
