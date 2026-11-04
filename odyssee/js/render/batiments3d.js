@@ -2,6 +2,7 @@
 // pixel art à D px par unité, éclairage en paliers nets). Chaque modèle tient dans l'emprise du jeu (w × d cases, porte
 // de 1 ou 2 cases de large sur la façade sud) ; les hauteurs sont en cases « à plat », étirées de tan(EL) par l'appelant.
 import * as THREE from 'three';
+import { STATUES } from './statues-data.js';
 
 export function atelier(D) {
   /* -------------------------------------------------------------- textures ------------------------------------------ */
@@ -2461,6 +2462,16 @@ export function atelier(D) {
     piece(new THREE.BoxGeometry(0.26, 0.03, 0.17), 0, 1.69, 0.2, -0.15, 0, 0, C2);
     return S;
   }
+
+  /** statue d'un champion en relief, tirée de son portrait de combat (statues-data.js) : une boîte par bande de pixels,
+   *  épaisseur en bosse vers le milieu, six tons de bronze ou de pierre ; hauteur h, pieds au point (x, y, z), face au sud */
+  const TONS_STATUE = { bronze: ['#2e1c0e', '#553417', '#7e4f22', '#a8702f', '#cc9548', '#ecc27a'], pierre: ['#5e5a54', '#86817a', '#a8a39a', '#c6c1b6', '#ddd9cf', '#f2efe8'] };
+  function statueChampion(G, nom, x, y, z, h = 2.4, mat = 'bronze') {
+    const S = STATUES[nom]; if (!S) return null;
+    const v = h / S.h, mats = TONS_STATUE[mat].map((c) => COL(c)), g = new THREE.Group();
+    for (const [px, py, n, t, e] of S.r) { const d = e * v * 1.3; g.add(at(boite(n * v, v, d, mats[t]), (px + n / 2 - S.w / 2) * v, (py + 0.5) * v, d / 2)); }
+    g.position.set(x, y, z); G.add(g); return g;
+  }
   /** Poké Ball dessinée (rouge, blanc, bande noire), l'emblème du type au centre à la place du bouton */
   const pokeEmbleme = (type, acc) => { const k = 'pbe' + type; NETTES.add(k); const em = emblemeTex(type, acc); return tex(k, 4 * D, 4 * D, (g, px, w, h) => {
     const r = w / 2 - 2, c = w / 2;
@@ -2485,7 +2496,13 @@ export function atelier(D) {
    *  grande porte ; au-dessus de la porte, une Poké Ball dessinée avec l'emblème du type au centre.
    *  `style` : voute (le berceau couvre aussi l'avancée, colonnes en façade), portique (avancée basse à entablement
    *  devant la salle voûtée), arcades (avancée à arcs, côtes dorées sur la voûte), verriere (voûte vitrée au faîte) */
-  B.areneVoute = ({ style = 'voute', type = 'feu', pierre = null, statue = null } = {}) => {
+  /** une statue de champion seule sur son socle (aperçus) */
+  B.statueChampion = ({ nom = 'hector', mat = 'bronze', acc = '#c8a040' } = {}) => {
+    const G = new THREE.Group(), P = M({ map: TX.pierre('#d6cfbf') });
+    G.add(at(boite(1.3, 0.4, 1.1, P), 0.75, 0.2, 0.75)); G.add(at(boite(1.4, 0.1, 1.2, COL(acc)), 0.75, 0.45, 0.75)); G.add(at(boite(1.05, 0.14, 0.9, P), 0.75, 0.57, 0.75));
+    statueChampion(G, nom, 0.75, 0.64, 0.55, 2.6, mat); return G;
+  };
+  B.areneVoute = ({ style = 'voute', type = 'feu', pierre = null, statue = null, champion = null } = {}) => {
     const T = ARENES[type] || ARENES.feu, acc = T.acc, A = COL(acc);
     const G = new THREE.Group(), W = 8, ZF = 11, cx = W / 2, ZS = 9.9;   // salle voûtée de z 0 à 9,4 ; avancée à colonnes devant
     const pc = pierre || '#d6cfbf';
@@ -2521,9 +2538,9 @@ export function atelier(D) {
     G.add(at(new THREE.Mesh(new THREE.TorusGeometry(rb + 0.04, 0.07, 6, 32), OR), cx, yb, ZS + 0.25));
     // statue de dresseur au pinacle, sur l'avant de la voûte, au-dessus de la porte
     if (statue) {
-      const ys = yV + hr, zs = ZS - 0.15;
+      const ys = yV + hr, zs = ZS - 2.0;   // en retrait sur le faîte de la voûte, bien posée
       G.add(at(boite(1.3, 0.4, 1.1, PC), cx, ys + 0.12, zs)); G.add(at(boite(1.4, 0.1, 1.2, A), cx, ys + 0.36, zs)); G.add(at(boite(1.05, 0.14, 0.9, PC), cx, ys + 0.48, zs));
-      statueDresseur(G, cx, ys + 0.55, zs, 1.45, statue);
+      if (!(champion && statueChampion(G, champion, cx, ys + 0.55, zs - 0.2, 2.6, statue))) statueDresseur(G, cx, ys + 0.55, zs, 1.45, statue);
     }
     // avancée à colonnes (peu profonde, basse, pour que la grande porte se voie)
     const zf = ZF - 0.3, hp = 2.75;
@@ -2881,7 +2898,7 @@ export const EMPRISES = {
   maison: [4, 3], maisonL: [5, 5], maisonLongue: [5, 3], maisonHaute: [4, 4], maisonExt: [7, 4], chalet: [5, 5], residence: [6, 4],
   cabaneChasseur: [4, 3], cabanePecheur: [5, 4], grange: [6, 5], moulin: [4, 4], phare: [3, 3], auberge: [6, 5], chapelle: [4, 7],
   boulangerie: [4, 4], maisonThe: [5, 5], gare: [8, 4], kiosque: [4, 5], puits: [2, 2], etal: [2, 2],
-  mairie: [9, 5], fontaine: [3, 3], centre: [7, 5], boutique: [5, 4], arene: [12, 11], areneFeu: [12, 11], pavillonFeu: [12, 11], areneCour: [18, 14], areneBloc: [9, 6], areneRonde: [9, 9], areneVoute: [8, 11], labo: [10, 7],
+  mairie: [9, 5], fontaine: [3, 3], centre: [7, 5], boutique: [5, 4], arene: [12, 11], areneFeu: [12, 11], pavillonFeu: [12, 11], areneCour: [18, 14], areneBloc: [9, 6], areneRonde: [9, 9], areneVoute: [8, 11], statueChampion: [2, 2], labo: [10, 7],
   pagode: [11, 11], tourCendree: [11, 11], pavillon: [8, 7], tour: [8, 5], tourVerre: [10, 7], tourDeco: [8, 8], bourse: [12, 8], casino: [14, 8], ligue: [30, 14], usinePokeball: [32, 10],
   escalierMontant: [1, 2], escalierDescendant: [1, 2],
 };
