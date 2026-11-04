@@ -12,6 +12,17 @@ export const BUILDINGS = {
   tower: { w: 4, d: 4, h: 3, door: 1, style: 'tower', roof: 'brown' }, gate: { w: 6, d: 3, h: 2, door: 2, style: 'house2', roof: 'gray' },
 };
 
+/** emprises des bâtiments en fausse 3D (modèles de render/batiments3d.js) : à étaler dans une définition de ville,
+ *  ex. { kind: 'gym', ...GRAND.gym, x, y }. door / door2 : cases de porte ; blocs : cases bloquées autour (statues, étal…) ;
+ *  libres : cases du rectangle où l'on marche (porche) ; porteY : rangée de la porte (sinon la dernière) */
+export const GRAND = {
+  center: { w: 7, d: 5, h: 3, door: 3 },
+  mart: { w: 5, d: 4, h: 3, door: 3, blocs: [[0, 4], [1, 4], [2, 4]] },
+  gym: { w: 18, d: 14, h: 9, door: 8, door2: 9, blocs: [[4, 15], [13, 15]] },
+  lab: { w: 10, d: 7, h: 4, door: 2, door2: 3 },
+  maisonL: { w: 5, d: 5, h: 3, door: 2, porteY: 2, libres: [[2, 3], [3, 3], [4, 3], [2, 4], [3, 4], [4, 4]], modele: 'maisonL' },
+};
+
 export class GameMap {
   constructor(id, w, h, o = {}) {
     this.id = id; this.w = w; this.h = h;
@@ -50,10 +61,15 @@ export class GameMap {
   /** pose un bâtiment ; renvoie la position de la porte */
   building(kind, x, y, o = {}) {
     const B = { ...BUILDINGS[kind] }; for (const [k, v] of Object.entries(o)) if (v !== undefined) B[k] = v;
-    const b = { kind, x, y, w: B.w, d: B.d, h: B.h, door: B.door, style: B.style || (kind === 'house2' ? 'house2' : 'house'), roof: B.roof || 'red', id: o.id, label: o.label, name: o.name, kit: o.kit, flat: o.flat };
-    for (let j = 0; j < B.d; j++) for (let i = 0; i < B.w; i++) this.set(x + i, y + j, T.BUILD);
-    const dx = x + B.door, dy = y + B.d - 1;
+    const b = { kind, x, y, w: B.w, d: B.d, h: B.h, door: B.door, style: B.style || (kind === 'house2' ? 'house2' : 'house'), roof: B.roof || 'red', id: o.id, label: o.label, name: o.name, kit: o.kit, flat: o.flat, modele: B.modele, opts: B.opts };
+    // emprise : rectangle w × d bâti, sauf les cases « libres » (porche, cour de devant…) ; « blocs » : cases bloquées
+    // autour (étal, statues, colonnes, lampadaires du modèle 3D) ; porte sur la rangée du bas, ou sur porteY
+    const libres = new Set((B.libres || []).map(([i, j]) => i + ',' + j));
+    for (let j = 0; j < B.d; j++) for (let i = 0; i < B.w; i++) if (!libres.has(i + ',' + j)) this.set(x + i, y + j, T.BUILD);
+    for (const [i, j] of B.blocs || []) { if (this.get(x + i, y + j) !== T.BLOCK) this.under.set(key(x + i, y + j), this.get(x + i, y + j)); this.set(x + i, y + j, T.BLOCK); }
+    const dx = x + B.door, dy = y + (B.porteY ?? B.d - 1);
     if (B.door >= 0) this.set(dx, dy, T.DOOR);
+    if (B.door2 !== undefined) { this.set(x + B.door2, dy, T.DOOR); b.door2X = x + B.door2; }
     b.doorX = dx; b.doorY = dy;
     this.buildings.push(b);
     return b;
@@ -224,6 +240,8 @@ export function nearestWalkable(map, x, y, avoid = new Set()) {
    ====================================================================== */
 export function carveTown(map, o) {
   const { x, y, w, h } = o;
+  // villes agrandies : la bordure redevient forêt (une route plus large qui y arrive ne contourne pas la sortie gardée)
+  if (o.fermer) for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if (i < 2 || j < 2 || i >= w - 2 || j >= h - 2) map.set(x + i, y + j, T.TREE);
   map.rect(x + 2, y + 2, x + w - 3, y + h - 3, o.ground ?? T.GRASS);
   // sorties : couloirs de 2 tuiles jusqu'au bord
   for (const [dir, k] of o.exits || []) {

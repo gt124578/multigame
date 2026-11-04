@@ -7,6 +7,7 @@ import { SPRITES } from '../data/sprites.js';
 import { Sol } from './sol.js';
 import { archeGrotte, jourGrotte } from './grottes.js';
 import { sorteCase, K as SORTE } from './solgen.js';
+import { choisirModele, geometriesModele, couleurBase, EMPRISES } from './bati-jeu.js';
 
 export const EL = 55 * Math.PI / 180, FOV = 13;
 
@@ -812,6 +813,12 @@ export class WorldView {
         const hole = new THREE.Mesh(geo, mat); hole.position.set(b.doorX + 0.5, 0.0056, b.doorY + 1 - holeD / 2); hole.renderOrder = 1;
         g.add(hole); this.root.add(g); continue;
       }
+      // bâtiment en fausse 3D (modèle de batiments3d.js) quand un modèle a la bonne emprise ; sinon l'ancienne façade
+      if (!/[?&]bati=0/.test(globalThis.location?.search || '')) {
+        const z = this.map.zoneAt?.(b.x, b.y);
+        const mod = choisirModele(b, { theme: z?.theme, ville: z?.town, typeArene: b.typeArene });
+        if (mod) { const gm = this.batimentModele(b, mod); this.root.add(gm); this.buildingMeshes.push(gm); continue; }
+      }
       const ks = kitStyle(b, this.map); b.kitStyle = ks;
       const fkey = `${ks}:${b.w}:${b.h}:${b.door}`;
       const fr = T3('f' + fkey, () => facade(ks, b.w, b.h, b.door, false, b.x * 7 + b.y));
@@ -864,12 +871,34 @@ export class WorldView {
       this.root.add(g); this.buildingMeshes.push(g);
     }
   }
+  /** pose un bâtiment en fausse 3D : géométries fusionnées du modèle, matériaux sans lumière (éclairage cuit),
+   *  profondeur de façade, teinte de l'heure */
+  batimentModele(b, mod) {
+    const parts = geometriesModele(mod.nom, mod.o);
+    const [ew, ed] = EMPRISES[mod.nom] || [b.w, b.d];
+    const sx = mod.libre ? 1 : b.w / ew, sz = mod.libre ? 1 : b.d / ed;
+    const g = new THREE.Group(); g.position.set(b.x, 0, b.y); g.scale.set(sx, 1, sz);
+    const zf = b.y + b.d + 0.02;
+    for (const p of parts) {
+      const m0 = p.mat0;
+      const mat = frontDepth(new THREE.MeshBasicMaterial({ map: m0.map || null, vertexColors: true, transparent: !!m0.transparent, opacity: m0.opacity ?? 1, side: m0.side, alphaTest: m0.alphaTest || 0 }), zf);
+      mat.userData.base = couleurBase(m0); mat.userData.ownTint = true; mat.userData.op0 = m0.transparent ? (m0.opacity ?? 1) : 1;
+      mat.color.copy(mat.userData.base).multiply(this.tint);
+      this.tinted.push(mat);
+      g.add(new THREE.Mesh(p.geo, mat));
+    }
+    const sh = new Geo(); const S = this.S.rects.shadow;
+    flat(sh, 0 - 0.1, b.d - 0.2, b.w + 0.1, b.d + 0.45, 0.012, [S.u0, S.v0 + (S.v1 - S.v0) * 0.4, S.u1, S.v1]);
+    const ombre = new THREE.Mesh(sh.build(), this.mat.shadow); ombre.scale.set(1 / sx, 1, 1 / sz); g.add(ombre);
+    g.userData.b = b; g.userData.modele = mod.nom;
+    return g;
+  }
   buildWindowsGroup() {
     // à la nuit tombée, fenêtres et portes s'allument (façades de nuit non teintées)
     this.nightGroup = new THREE.Group(); this.root.add(this.nightGroup);
     const cache = new Map();
     for (const g of this.buildingMeshes) {
-      const b = g.userData.b; if (!b) continue;
+      const b = g.userData.b; if (!b || g.userData.modele) continue;
       const key = g.userData.fkey;
       if (!cache.has(key)) {
         const ks = b.kitStyle || b.style;
@@ -1043,7 +1072,7 @@ export class WorldView {
       const mats = [];
       g.traverse((m) => { if (m.material && m.material !== this.mat.shadow) mats.push(m.material); });
       if (g.userData.win) mats.push(g.userData.win.material);
-      for (const m of mats) { m.transparent = n < 1; m.opacity = n; m.depthWrite = n >= 1; m.needsUpdate = true; }
+      for (const m of mats) { const o0 = m.userData.op0 ?? 1; m.transparent = n < 1 || o0 < 1; m.opacity = n * o0; m.depthWrite = n >= 1 && o0 >= 1; m.needsUpdate = true; }
     }
   }
 

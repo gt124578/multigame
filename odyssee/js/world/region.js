@@ -6,7 +6,7 @@
 // légendaires (renvoyées dans `legends`, les quais dans `docks`).
 // Noms de lieux et personnages originaux ; les créatures du jeu côtoient les Pokémon du prototype.
 import { T, DIRS, walkable, isGrassEnc } from './tiles.js';
-import { GameMap, carveRoute, carveTown, ledges, along, nearestWalkable, rng } from './mapgen.js';
+import { GameMap, carveRoute, carveTown, ledges, along, nearestWalkable, rng, GRAND } from './mapgen.js';
 import { centerInterior, martInterior, houseInterior, labInterior, gymInterior, leagueInterior, caveMap, towerFloor, TOWER_UP, TOWER_DOWN } from './interiors.js';
 import { NEW_STARTERS } from '../data/creatures.js';
 import { R } from '../data/remplacants.js';
@@ -147,7 +147,7 @@ function routeItem(map, pts, t, side, off, item, qty = 1) {
 /* ---------------- villes ---------------- */
 export function buildTown(W, maps, def) {
   const ox = def.x, oy = def.y;
-  carveTown(W, { x: ox, y: oy, w: def.w, h: def.h, exits: def.exits, ground: def.ground });
+  carveTown(W, { x: ox, y: oy, w: def.w, h: def.h, exits: def.exits, ground: def.ground, fermer: def.fermer });
   for (const [x0, y0, x1, y1, t] of def.roads || []) W.rect(ox + x0, oy + y0, ox + x1, oy + y1, t ?? T.PAVE);
   for (const d of def.deco || []) {
     const [k, ...a] = d;
@@ -165,7 +165,7 @@ export function buildTown(W, maps, def) {
     else W.prop(k, ox + a[0], oy + a[1]);
   }
   for (const b of def.buildings) {
-    const B = W.building(b.kind, ox + b.x, oy + b.y, { roof: b.roof, style: b.style, label: b.label, name: b.name, w: b.w, d: b.d, h: b.h, door: b.door, kit: b.kit, flat: b.flat });
+    const B = W.building(b.kind, ox + b.x, oy + b.y, { roof: b.roof, style: b.style, label: b.label, name: b.name, w: b.w, d: b.d, h: b.h, door: b.door, kit: b.kit, flat: b.flat, door2: b.door2, blocs: b.blocs, libres: b.libres, porteY: b.porteY, modele: b.modele, opts: b.opts });
     let id = `${def.id}:${b.id || b.kind + b.x}`;
     if (maps[id]) id += 'y' + b.y;   // deux bâtiments dans la même colonne : chacun garde son intérieur
     let inside;
@@ -180,6 +180,7 @@ export function buildTown(W, maps, def) {
     inside.warp(inside.exitX, inside.exitY, inside.outside);
     if (inside.get(inside.exitX - 1, inside.exitY) === T.MAT) inside.warp(inside.exitX - 1, inside.exitY, inside.outside);
     W.warp(B.doorX, B.doorY, { map: id, x: inside.exitX, y: inside.exitY, dir: 'up' });
+    if (B.door2X !== undefined) W.warp(B.door2X, B.doorY, { map: id, x: inside.exitX, y: inside.exitY, dir: 'up' });
     for (const n of b.npcs || []) inside.npc({ id: `${id}:${n.id || n.x + '-' + n.y}`, ...n });
     if (b.setup) b.setup(inside);
     // chemin depuis la porte jusqu'à la route la plus proche
@@ -189,7 +190,7 @@ export function buildTown(W, maps, def) {
     for (const more of b.more ? b.more(inside, id) : []) maps[more.id] = more;   // étages supplémentaires
     if (b.kind === 'center') { def.centerId = id; def.centerDoor = [B.doorX, B.doorY + 1]; }
     if (b.id === 'maison') def.homeDoor = [B.doorX, B.doorY + 1];   // Vol ramène devant la maison à Bourg-Aube (pas de Centre)
-    if (b.kind === 'gym') { def.gymMap = inside; def.gymDoor = [B.doorX, B.doorY]; }
+    if (b.kind === 'gym') { def.gymMap = inside; def.gymDoor = [B.doorX, B.doorY]; B.typeArene = LEADERS[def.gym]?.type; }
   }
   for (const n of def.npcs || []) {
     const gate = n.gate ? { ...n.gate, tiles: n.gate.tiles.map(([x, y]) => [ox + x, oy + y]) } : undefined;
