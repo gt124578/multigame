@@ -17,7 +17,8 @@ const CHEMIN = new Set([T.PATH, T.PAVE, T.STAIRS]);
  */
 export function plateau(W, cells, niv, o = {}) {
   const R = new Set();
-  for (const [x, y] of cells) if (W.in(x, y) && !PROTEGE.has(W.get(x, y))) { R.add(key(x, y)); W.setHeight(x, y, niv); }
+  // tout ce qui est sur le plateau monte avec lui (bâtiments et portes compris) ; seules les parois épargnent le décor protégé
+  for (const [x, y] of cells) if (W.in(x, y)) { R.add(key(x, y)); W.setHeight(x, y, niv); }
   const avant = new Map();   // sol d'origine des cases devenues paroi
   for (const k of R) {
     const [x, y] = k.split(',').map(Number);

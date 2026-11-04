@@ -88,6 +88,20 @@ for (const [k, w] of W.warps) {
   ok(seenW[at(W, x, y)] || reachable(W, seenW, x, y + 1), `porte ${k} → ${w.map} accessible`);
   const dst = maps[w.map]; ok(dst && walkable(dst.get(w.x, w.y)), `arrivée ${w.map} (${w.x},${w.y}) praticable`);
 }
+// relief : chaque porte est au niveau de la case devant elle ; les marches relient deux niveaux voisins, jamais plus
+for (const [k] of W.warps) { const [x, y] = k.split(',').map(Number); if (W.get(x, y) === T.DOOR) ok(W.height(x, y) === W.height(x, y + 1), `porte ${k} au niveau de son seuil`); }
+for (let y = 1; y < W.h - 1; y++) for (let x = 1; x < W.w - 1; x++) {
+  if (!walkable(W.get(x, y))) continue;
+  for (const [dx, dy] of [[1, 0], [0, 1]]) { const q = W.get(x + dx, y + dy); if (walkable(q) && Math.abs(W.height(x, y) - W.height(x + dx, y + dy)) > 1) ok(false, `marche trop haute entre ${x},${y} et ${x + dx},${y + dy}`); }
+}
+{ // une marche mène d'un niveau à l'autre ; une falaise, non
+  const { GameMap } = await import('../odyssee/js/world/mapgen.js'), { plateau, rectangle } = await import('../odyssee/js/world/relief.js');
+  const m = new GameMap('essai', 12, 12, { fill: T.GRASS }); m.rect(5, 0, 6, 11, T.PATH);
+  plateau(m, rectangle(0, 0, 11, 4), 1);
+  ok(m.get(3, 5) === T.CLIFF && m.get(5, 5) === T.STAIRS && m.height(3, 3) === 1 && m.height(3, 7) === 0, 'plateau : paroi au sud, marches sur le chemin');
+  ok(!m.canStep(3, 4, 3, 5) && m.canStep(5, 4, 5, 5) && m.canStep(5, 5, 5, 6), 'on ne descend une falaise que par les marches');
+  const r = m.reach(5, 10); ok(r[2 * 12 + 2] && r[10 * 12 + 2], 'les deux niveaux sont reliés par l\'escalier');
+}
 // PNJ, dresseurs et objets du monde : on peut se placer à côté
 for (const n of W.npcs) ok(reachable(W, seenW, n.x, n.y), `PNJ ${n.id} atteignable (${n.x},${n.y})`);
 for (const it of W.items) ok(reachable(W, seenW, it.x, it.y), `objet ${it.item} atteignable (${it.x},${it.y})`);
