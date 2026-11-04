@@ -6,7 +6,7 @@ import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from './xls
 import { estChiffre, dechiffrerOffice, ErreurMotDePasse } from './chiffrement.js';
 import { executerMacro, analyserVBA, ErreurVBA, InterpreteurVBA, creerUDF } from './vba.js';
 import { listerProcedures, procedureALaLigne, insererMacro, supprimerProcedure, ajouterAuProjet, nomVBAValide } from './projetvba.js';
-import { rendreGraphiqueSVG, TYPES_GRAPHIQUE } from './graphiques.js';
+import { installerGraphiques } from './ui-graphiques.js';
 
 const XLSX = window.XLSX;
 const $ = (id) => document.getElementById(id);
@@ -233,26 +233,23 @@ function donneesGraphique(f, plage) {
   for (let r = p.r1; r <= r2; r++) { const l = []; for (let c = p.c1; c <= c2; c++) { const v = classeur.valeur(F, r, c); l.push(v instanceof ErreurFormule ? null : v); } m.push(l); }
   return m;
 }
-function rendreGraphiques(f) {
-  let html = '';
-  for (const g of f.graphiques || []) {
-    const svg = rendreGraphiqueSVG(g, donneesGraphique(f, g.plage), g.w - 2, g.h - 26);
-    const options = Object.entries(TYPES_GRAPHIQUE).map(([k, v]) => `<option value="${k}"${k === g.type ? ' selected' : ''}>${v}</option>`).join('');
-    html += `<div class="graphique${g.id === graphiqueActif ? ' actif' : ''}" data-id="${g.id}" style="left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px">
-      <div class="graphique-barre"><span class="graphique-titre" title="Double-clic pour renommer">${echapper(g.titre || g.plage)}</span><select class="graphique-type">${options}</select><button class="graphique-plage" title="Changer la plage de données">${echapper(g.plage)}</button><button class="graphique-suppr" title="Supprimer">✕</button></div>
-      <div class="graphique-corps">${svg}</div><div class="graphique-redim"></div></div>`;
-  }
-  return html;
-}
-function creerGraphique(type) {
-  const s = selectionBornee();
-  if (s.r1 === s.r2 && s.c1 === s.c2 && !feuille().get(s.r1, s.c1)) return toast('Sélectionnez d\'abord la plage de données (en-têtes compris)', true);
-  const plage = adresse(s.r1, s.c1) + ':' + adresse(s.r2, s.c2);
-  const g = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), type, plage, titre: '', x: xCols[Math.min(s.c2 + 1, nbColonnes - 1)] + 10, y: yLigs[s.r1], w: 440, h: 280 };
-  feuille().graphiques.push(g);
-  graphiqueActif = g.id;
-  classeur.modifie(); sauvegarderLocal(); rendre();
-}
+function rendreGraphiques(f) { return uiG.rendreSurFeuille(f); }
+function creerGraphique() { uiG.ouvrirGalerie(); }
+const uiG = installerGraphiques({
+  feuille: () => feuille(),
+  donnees: (f, plage) => donneesGraphique(f, plage),
+  selection: () => selectionBornee(),
+  adresse: (r, c) => adresse(r, c),
+  plageValide: (t) => !!plageDepuisTexte(String(t).replace(/\$/g, '').replace(/^.*!/, '').trim()),
+  position: (s2) => ({ x: xCols[Math.min(s2.c2 + 1, nbColonnes - 1)] + 10, y: yLigs[s2.r1] }),
+  rendre: () => rendre(),
+  sauvegarder: () => { classeur.version++; sauvegarderLocal(); },
+  toast: (m, e) => toast(m, e),
+  ouvrirPanneau: (nom) => ouvrirPanneau(nom),
+  panneauOuvert: (nom) => panneauCourant === nom && !$('panneau').hidden,
+  actif: () => graphiqueActif,
+  activer: (id) => { graphiqueActif = id; },
+});
 function graphiqueDepuis(el) { const div = el.closest('.graphique'); if (!div) return null; return { div, g: feuille().graphiques.find((x) => x.id === div.dataset.id) }; }
 cellulesDiv.addEventListener('mousedown', (e) => {
   const trouve = graphiqueDepuis(e.target);
@@ -267,24 +264,32 @@ cellulesDiv.addEventListener('mousedown', (e) => {
   else glisse = { mode: 'graphique', g, x0: e.clientX, y0: e.clientY, x: g.x, y: g.y };
   rendre();
 });
-cellulesDiv.addEventListener('change', (e) => {
-  const trouve = graphiqueDepuis(e.target);
-  if (!trouve || !trouve.g) return;
-  if (e.target.classList.contains('graphique-type')) { trouve.g.type = e.target.value; sauvegarderLocal(); rendre(); }
-});
 cellulesDiv.addEventListener('click', (e) => {
   const trouve = graphiqueDepuis(e.target);
   if (!trouve || !trouve.g) return;
-  if (e.target.classList.contains('graphique-suppr')) { feuille().graphiques = feuille().graphiques.filter((x) => x !== trouve.g); graphiqueActif = null; sauvegarderLocal(); rendre(); }
-  else if (e.target.classList.contains('graphique-plage')) { const p = prompt('Plage de données (ex. A1:C12) :', trouve.g.plage); if (p && plageDepuisTexte(p.replace(/\$/g, ''))) { trouve.g.plage = p.toUpperCase(); sauvegarderLocal(); rendre(); } else if (p) toast('Plage invalide', true); }
+  if (e.target.classList.contains('graphique-suppr')) uiG.supprimer(trouve.g);
+  else if (e.target.classList.contains('graphique-reglages')) uiG.ouvrirParametres(trouve.g);
 });
 cellulesDiv.addEventListener('dblclick', (e) => {
   const trouve = graphiqueDepuis(e.target);
   if (!trouve || !trouve.g) return;
   e.stopPropagation();
-  const t = prompt('Titre du graphique :', trouve.g.titre || '');
-  if (t !== null) { trouve.g.titre = t; sauvegarderLocal(); rendre(); }
+  uiG.ouvrirParametres(trouve.g);
 });
+cellulesDiv.addEventListener('contextmenu', (e) => {
+  const trouve = graphiqueDepuis(e.target);
+  if (!trouve || !trouve.g) return;
+  e.preventDefault(); e.stopPropagation();
+  const g = trouve.g;
+  graphiqueActif = g.id; rendre();
+  ouvrirMenu(e.clientX, e.clientY, [
+    ['Paramètres du graphique…', () => uiG.ouvrirParametres(g)],
+    ['Télécharger en image (PNG)', () => uiG.exporter(g, 'png')],
+    ['Télécharger en SVG', () => uiG.exporter(g, 'svg')],
+    null,
+    ['Supprimer le graphique', () => uiG.supprimer(g)],
+  ]);
+}, true);
 
 // Un nombre trop large pour sa cellule : moins de chiffres significatifs, sinon « ##### » comme Excel.
 function ajusterNombre(v, z, largeur, s) {
@@ -956,6 +961,7 @@ let timerLocal;
 function sauvegarderLocal() {
   clearTimeout(timerLocal);
   timerLocal = setTimeout(() => {
+    try { uiG.rafraichir(); } catch (e) { console.warn(e); }
     try {
       const morceaux = [];
       let total = 0;
@@ -1002,7 +1008,7 @@ function ouvrirPanneau(nom) {
   p.hidden = false;
   for (const el of document.querySelectorAll('.panneau-contenu')) el.hidden = true;
   $('panneau-' + nom).hidden = false;
-  $('panneau-titre').textContent = { macros: 'Macros VBA', fonctions: 'Fonctions', noms: 'Noms définis', aide: 'Aide' }[nom];
+  $('panneau-titre').textContent = { macros: 'Macros VBA', fonctions: 'Fonctions', noms: 'Noms définis', aide: 'Aide', graphique: 'Graphique' }[nom] || nom;
   if (nom === 'fonctions') rendreFonctions();
   if (nom === 'noms') rendreNoms();
   if (nom === 'aide') rendreAide();
@@ -1677,7 +1683,7 @@ $('btn-sans-fond').addEventListener('click', () => surSelection((r, c) => classe
 for (const b of document.querySelectorAll('[data-align]')) b.addEventListener('click', () => surSelection((r, c) => classeur.style(fi(), r, c, { align: b.dataset.align })));
 $('format-nombre').addEventListener('change', (e) => { const z = e.target.value; surSelection((r, c) => { if (z || feuille().get(r, c)) classeur.format(fi(), r, c, z || null); }); conteneur.focus(); });
 $('btn-bouton').addEventListener('click', insererBouton);
-$('graphique-type').addEventListener('change', (e) => { if (e.target.value) creerGraphique(e.target.value); e.target.value = ''; conteneur.focus(); });
+$('btn-graphique').addEventListener('click', () => creerGraphique());
 $('bordures').addEventListener('change', (e) => { if (e.target.value) appliquerBordures(e.target.value); e.target.value = ''; conteneur.focus(); });
 $('btn-decimales-moins').addEventListener('click', () => changerDecimales(-1));
 $('btn-decimales-plus').addEventListener('click', () => changerDecimales(1));

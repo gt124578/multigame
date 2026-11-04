@@ -76,16 +76,7 @@
         <button id="btn-inserer-colonne" title="Insérer une colonne à gauche">+ Col.</button>
         <button id="btn-supprimer-colonne" title="Supprimer la ou les colonnes">− Col.</button>
         <span class="sep"></span>
-        <select id="graphique-type" title="Insérer un graphique à partir de la sélection">
-          <option value="">📈 Graphique</option>
-          <option value="barres">Barres</option>
-          <option value="barres-empilees">Barres empilées</option>
-          <option value="courbes">Courbes</option>
-          <option value="aires">Aires</option>
-          <option value="secteurs">Secteurs</option>
-          <option value="anneau">Anneau</option>
-          <option value="nuage">Nuage de points (X, Y)</option>
-        </select>
+        <button id="btn-graphique" title="Insérer un graphique à partir de la sélection (galerie avec aperçus)">📈 Graphique</button>
         <button id="btn-bouton" title="Insérer un bouton qui lance une macro VBA (sur la sélection)">🔘 Bouton</button>
         <span class="sep"></span>
         <button id="btn-noms" title="Noms définis">Noms</button>
@@ -158,6 +149,7 @@
           <div id="liste-noms"></div>
         </div>
         <div id="panneau-aide" class="panneau-contenu" hidden></div>
+        <div id="panneau-graphique" class="panneau-contenu" hidden></div>
       </aside>
     </div>
     <footer id="onglets">

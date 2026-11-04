@@ -9,7 +9,7 @@ import { Classeur } from '../tableur/js/classeur.js';
 import { Evaluateur, ErreurFormule, decalerFormule, formaterNombre, formaterDate, tokeniser } from '../tableur/js/formules.js';
 import { executerMacro, analyserVBA, InterpreteurVBA, creerUDF } from '../tableur/js/vba.js';
 import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from '../tableur/js/xlsxio.js';
-import { preparerDonnees, rendreGraphiqueSVG } from '../tableur/js/graphiques.js';
+import { preparerDonnees, rendreGraphiqueSVG, normaliser, CATEGORIES } from '../tableur/js/graphiques.js';
 import { decompresserOVBA } from '../tableur/js/vbaextract.js';
 import { listerProcedures, insererMacro, supprimerProcedure, ajouterAuProjet, decouperProjet } from '../tableur/js/projetvba.js';
 import { aesEcbDechiffrer, aesCbcDechiffrer, sha1, sha256, sha384, sha512, estChiffre, dechiffrerOffice, ErreurMotDePasse } from '../tableur/js/chiffrement.js';
@@ -455,11 +455,26 @@ test('graphiques : préparation des données et rendu SVG', () => {
   egal(d.categories, ['2021', '2022', '2023']); egal(d.series.map((s) => s.nom), ['Primes', 'Sinistres']); egal(d.series[1].valeurs, [80, 95, 90]);
   const n = preparerDonnees([['x', 'y'], [1, 2], [2, 4]], 'nuage');
   egal(n.xs, [1, 2]); egal(n.series[0].valeurs, [2, 4]);
+  // Anciens types (fichiers enregistrés avant les catégories) : toujours lisibles
   for (const type of ['barres', 'barres-empilees', 'courbes', 'aires', 'secteurs', 'anneau', 'nuage']) {
     const svg = rendreGraphiqueSVG({ type, titre: 'T' }, m, 400, 250);
     egal(svg.startsWith('<svg') && svg.endsWith('</svg>'), true, type);
-    egal(svg.includes(type === 'secteurs' || type === 'anneau' ? '<path' : type === 'barres' || type === 'barres-empilees' ? '<rect x=' : '<circle'), true, type);
+    egal(svg.includes(type === 'secteurs' || type === 'anneau' || type === 'aires' ? '<path' : type === 'barres' || type === 'barres-empilees' ? '<rect x=' : '<circle'), true, type);
   }
+  egal(normaliser({ type: 'barres-empilees' }).type, 'colonnes'); egal(normaliser({ type: 'barres-empilees' }).variante, 'empile');
+  egal(normaliser({ type: 'courbes' }).marqueurs, true); egal(normaliser({ type: 'anneau' }).variante, 'anneau');
+  // Chaque catégorie et chaque variante se dessine, avec titres, légende et étiquettes
+  for (const { type, variantes } of CATEGORIES) for (const [variante] of variantes) {
+    const svg = rendreGraphiqueSVG({ type, variante, titre: 'T', titreX: 'X', titreY: 'Y', etiquettes: 'valeur', legende: 'bas' }, m, 400, 250);
+    egal(svg.startsWith('<svg') && svg.endsWith('</svg>') && !svg.includes('NaN') && !svg.includes('undefined'), true, type + '/' + variante);
+    egal(rendreGraphiqueSVG({ type, variante }, m, 120, 80, { mini: true }).includes('NaN'), false, 'miniature ' + type);
+  }
+  // Séries en lignes : les années de l'en-tête deviennent les catégories
+  const l = preparerDonnees([['', 2021, 2022], ['Primes', 120, 135], ['Sinistres', 80, 95]], 'colonnes', true);
+  egal(l.categories, ['2021', '2022']); egal(l.series.map((s) => s.nom), ['Primes', 'Sinistres']);
+  // Empilé à 100 % : les hauteurs se complètent
+  const e = rendreGraphiqueSVG({ type: 'colonnes', variante: 'empile100', etiquettes: 'valeur' }, m, 400, 250);
+  egal(e.includes('100'), true);
   egal(rendreGraphiqueSVG({ type: 'barres' }, [['a'], ['b']]).includes('Aucune donnée'), true);
 });
 
