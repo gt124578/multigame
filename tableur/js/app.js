@@ -375,6 +375,7 @@ surObjets('contextmenu', (e) => {
   e.preventDefault(); e.stopPropagation();
   const o = t.o, liste = t.genre === 'bouton' ? feuille().boutons : feuille().images;
   const items = [];
+  if (t.genre === 'image') { graphiqueActif = null; imageActive = o.id; rendre(); items.push(['Couper', () => copier(true), 'Ctrl+X'], ['Copier', () => copier(false), 'Ctrl+C'], null); }
   if (t.genre === 'bouton') items.push(['Modifier le texte…', () => { const x = prompt('Texte du bouton :', o.texte); if (x !== null) { o.texte = x; sauvegarderLocal(); rendre(); } }]);
   items.push(['Affecter une macro…', () => { const x = choisirMacro(o.macro); if (x !== null) { o.macro = x; sauvegarderLocal(); rendre(); } }]);
   if (o.macro) items.push(['Exécuter « ' + o.macro + ' »', () => lancerMacro(o.macro, { depuisBouton: true })]);
@@ -457,12 +458,37 @@ surObjets('mousedown', (e) => {
   if (edition) validerEdition();
   uiD.ouvrirFiltre(+b.dataset.filtreCol, b);
 }, true);
+function modifierTitreGraphique(g, zone, el) {
+  if (edition) validerEdition();
+  document.querySelectorAll('.titre-en-cours').forEach((x) => x.remove());
+  const r = el.getBoundingClientRect(), vertical = r.height > r.width * 1.5;
+  const champ = document.createElement('input');
+  champ.className = 'titre-en-cours';
+  champ.value = g[zone] || '';
+  champ.placeholder = zone === 'titre' ? 'Titre du graphique' : 'Titre de l\'axe';
+  const w = Math.max(180, (vertical ? r.height : r.width) + 60), h = Math.max(26, (vertical ? r.width : r.height) + 8);
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  Object.assign(champ.style, { left: Math.max(4, Math.min(window.innerWidth - w - 4, cx - w / 2)) + 'px', top: Math.max(4, cy - h / 2) + 'px', width: w + 'px', height: h + 'px', fontSize: zone === 'titre' ? '15px' : '12px', fontWeight: zone === 'titre' ? '600' : '400' });
+  document.body.appendChild(champ);
+  champ.focus(); champ.select();
+  let fini = false;
+  const terminer = (garder) => {
+    if (fini) return; fini = true;
+    if (garder && champ.value !== (g[zone] || '')) { memoriser(); if (champ.value.trim()) g[zone] = champ.value; else delete g[zone]; classeur.version++; sauvegarderLocal(); }
+    champ.remove(); rendre(); conteneur.focus({ preventScroll: true });
+  };
+  champ.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') { ev.preventDefault(); terminer(true); } else if (ev.key === 'Escape') { ev.preventDefault(); terminer(false); } });
+  champ.addEventListener('blur', () => terminer(true));
+}
 function graphiqueDepuis(el) { const div = el.closest('.graphique'); if (!div) return null; return { div, g: feuille().graphiques.find((x) => x.id === div.dataset.id) }; }
 surObjets('mousedown', (e) => {
   const trouve = graphiqueDepuis(e.target);
   if (!trouve || !trouve.g) return;
   e.stopPropagation();
   const { g } = trouve;
+  // Graphique déjà choisi : un clic sur son titre (ou un titre d'axe) l'écrit directement, comme une zone de texte
+  const zoneTexte = e.target.closest && e.target.closest('[data-zone]');
+  if (zoneTexte && graphiqueActif === g.id && e.button === 0) { e.preventDefault(); modifierTitreGraphique(g, zoneTexte.dataset.zone, zoneTexte); return; }
   graphiqueActif = g.id;
   if (e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
   e.preventDefault();
@@ -484,6 +510,7 @@ surObjets('dblclick', (e) => {
   const trouve = graphiqueDepuis(e.target);
   if (!trouve || !trouve.g) return;
   e.stopPropagation();
+  if (e.target.closest && e.target.closest('[data-zone]')) return;
   uiG.ouvrirParametres(trouve.g);
 });
 surObjets('contextmenu', (e) => {
@@ -493,6 +520,8 @@ surObjets('contextmenu', (e) => {
   const g = trouve.g;
   graphiqueActif = g.id; rendre();
   ouvrirMenu(e.clientX, e.clientY, [
+    ['Couper', () => copier(true), 'Ctrl+X'], ['Copier', () => copier(false), 'Ctrl+C'], null,
+    ['Modifier le titre', () => { rendre(); setTimeout(() => { const el = document.querySelector('.graphique[data-id="' + g.id + '"] [data-zone="titre"]'); if (el) modifierTitreGraphique(g, 'titre', el); }, 30); }],
     ['Paramètres du graphique…', () => uiG.ouvrirParametres(g)],
     ['Télécharger en image (PNG)', () => uiG.exporter(g, 'png')],
     ['Télécharger en SVG', () => uiG.exporter(g, 'svg')],
@@ -860,39 +889,65 @@ function recopier(sens) { // Ctrl+D / Ctrl+R : recopie la première ligne/colonn
   else for (let r = s.r1; r <= s.r2; r++) for (let c = s.c1 + 1; c <= s.c2; c++) { const cel = feuille().get(r, s.c1); feuille().set(r, c, cel ? { ...cel, f: decalerFormule(cel.f, 0, c - s.c1) } : null); }
   feuille().recalculerZone(); classeur.modifie(); sauvegarderLocal(); rendre();
 }
-function recopierVers(cible) { // poignée : étend la sélection vers cible (série pour les nombres, formules décalées)
+// Séries de la poignée, comme Excel : nombres en progression (une date seule avance d'un jour), mois et jours
+// de la semaine, textes terminés par un nombre (« Trimestre 1 »…), sinon le motif est répété.
+const LISTES_SERIES = [
+  ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'],
+  ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'],
+  ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'],
+  ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'],
+  ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'], ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'],
+  ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'],
+  ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'],
+  ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
+  ['t1', 't2', 't3', 't4'], ['q1', 'q2', 'q3', 'q4'],
+];
+/** Cellule à la position k (0 = première de la source, peut être négative) d'une série prolongée ; decaler(cel, delta) décale une formule. */
+function prolongerSerie(src, k, decaler) {
+  const n = src.length, i = ((k % n) + n) % n, cel = src[i];
+  if (!cel) return null;
+  if (src.some((x) => !x || x.f != null)) return cel.f != null ? decaler(cel, k - i) : { ...cel };
+  const vals = src.map((x) => x.v);
+  if (vals.every((v) => typeof v === 'number')) {
+    if (n >= 2) { const pas = (vals[n - 1] - vals[0]) / (n - 1); return { ...src[0], z: src[i].z, s: src[i].s, v: Math.round((vals[0] + pas * k) * 1e10) / 1e10 }; }
+    return /[dmyj]/i.test((cel.z || '').replace(/"[^"]*"/g, '')) && !/[0#]/.test(cel.z || '') ? { ...cel, v: cel.v + k } : { ...cel };
+  }
+  if (vals.every((v) => typeof v === 'string')) {
+    const casse = (modele, t) => (modele === modele.toUpperCase() && /[A-Z]/i.test(modele) && modele.length > 1 ? t.toUpperCase() : /^[A-ZÀ-Ý]/.test(modele) ? t[0].toUpperCase() + t.slice(1) : t);
+    for (const L of LISTES_SERIES) {
+      const idx = vals.map((v) => L.indexOf(v.toLowerCase()));
+      if (idx.some((x) => x < 0)) continue;
+      const pas = n >= 2 ? (idx[n - 1] - idx[0]) / (n - 1) : 1;
+      if (!Number.isInteger(pas)) break;
+      const j = (((idx[0] + pas * k) % L.length) + L.length) % L.length;
+      return { ...cel, v: casse(vals[0], L[j]) };
+    }
+    const m = vals.map((v) => /^(.*?)(\d+)(\D*)$/.exec(v));
+    if (m.every(Boolean) && m.every((x) => x[1] === m[0][1] && x[3] === m[0][3])) {
+      const nums = m.map((x) => +x[2]), pas = n >= 2 ? (nums[n - 1] - nums[0]) / (n - 1) : 1;
+      if (Number.isInteger(pas)) { const v = nums[0] + pas * k; if (v >= 0) return { ...cel, v: m[0][1] + String(v).padStart(m[0][2].startsWith('0') ? m[0][2].length : 0, '0') + m[0][3] }; }
+    }
+  }
+  return { ...cel };
+}
+function recopierVers(cible) { // poignée : étend la sélection vers cible (séries, formules décalées)
   const s = selectionNormalisee();
   const f = feuille();
   memoriser();
-  const nl = s.r2 - s.r1 + 1, nc = s.c2 - s.c1 + 1;
   if (cible.r > s.r2 || cible.r < s.r1) {
     const bas = cible.r > s.r2;
     for (let c = s.c1; c <= s.c2; c++) {
-      const src = []; for (let r = s.r1; r <= s.r2; r++) src.push(f.get(r, c));
-      const nums = src.map((x) => x && x.f == null && typeof x.v === 'number' ? x.v : null);
-      const serie = nl >= 2 && nums.every((x) => x !== null) ? nums[1] - nums[0] : (nl === 1 && nums[0] !== null ? 0 : null);
+      const src = []; for (let r = s.r1; r <= s.r2; r++) { const x = f.get(r, c); src.push(x ? { ...x } : null); }
       const debut = bas ? s.r2 + 1 : cible.r, fin = bas ? cible.r : s.r1 - 1;
-      for (let r = debut; r <= fin; r++) {
-        const k = bas ? r - s.r1 : r - s.r1; const i = ((k % nl) + nl) % nl; const cel = src[i];
-        if (!cel) { f.set(r, c, null); continue; }
-        if (serie !== null && cel.f == null) f.set(r, c, { ...cel, v: nums[i] + serie * Math.floor(k / nl) * nl / (nl === 1 ? 1 : nl) * (nl === 1 ? 1 : 1) });
-        else f.set(r, c, { ...cel, f: decalerFormule(cel.f, r - (s.r1 + i), 0) });
-      }
+      for (let r = debut; r <= fin; r++) f.set(r, c, prolongerSerie(src, r - s.r1, (cel, d) => ({ ...cel, f: decalerFormule(cel.f, d, 0), cache: undefined })));
     }
     selection = { r1: Math.min(s.r1, cible.r), c1: s.c1, r2: Math.max(s.r2, cible.r), c2: s.c2 };
   } else if (cible.c > s.c2 || cible.c < s.c1) {
     const droite = cible.c > s.c2;
     for (let r = s.r1; r <= s.r2; r++) {
-      const src = []; for (let c = s.c1; c <= s.c2; c++) src.push(f.get(r, c));
-      const nums = src.map((x) => x && x.f == null && typeof x.v === 'number' ? x.v : null);
-      const serie = nc >= 2 && nums.every((x) => x !== null) ? nums[1] - nums[0] : (nc === 1 && nums[0] !== null ? 0 : null);
+      const src = []; for (let c = s.c1; c <= s.c2; c++) { const x = f.get(r, c); src.push(x ? { ...x } : null); }
       const debut = droite ? s.c2 + 1 : cible.c, fin = droite ? cible.c : s.c1 - 1;
-      for (let c = debut; c <= fin; c++) {
-        const k = c - s.c1; const i = ((k % nc) + nc) % nc; const cel = src[i];
-        if (!cel) { f.set(r, c, null); continue; }
-        if (serie !== null && cel.f == null) f.set(r, c, { ...cel, v: nums[i] + serie * Math.floor(k / nc) * nc / (nc === 1 ? 1 : nc) });
-        else f.set(r, c, { ...cel, f: decalerFormule(cel.f, 0, c - (s.c1 + i)) });
-      }
+      for (let c = debut; c <= fin; c++) f.set(r, c, prolongerSerie(src, c - s.c1, (cel, d) => ({ ...cel, f: decalerFormule(cel.f, 0, d), cache: undefined })));
     }
     selection = { r1: s.r1, c1: Math.min(s.c1, cible.c), r2: s.r2, c2: Math.max(s.c2, cible.c) };
   }
@@ -1792,6 +1847,9 @@ function rendreAide() {
 <h3>Souris et doigt</h3>
 <ul>
 <li>Glisser le <b>bord de la sélection</b> la déplace (avec Ctrl : la copie). Double-clic sur la <b>poignée</b> : recopie jusqu'au bout des données voisines. Double-clic sur le bord d'un en-tête : largeur ou hauteur ajustée au contenu.</li>
+<li><b>Titre d'un graphique</b> : choisissez le graphique, puis cliquez sur son titre (« Titre du graphique » s'il est vide) ou sur un titre d'axe et écrivez ; Entrée pour valider.</li>
+<li><b>Poignée de recopie</b> : séries comme Excel (1, 2… ; janv., févr.… ; lundi, mardi… ; Trimestre 1, 2… ; une date avance d'un jour).</li>
+<li>Tout ce qui a un raccourci est aussi dans un menu : clic droit (appui long au doigt) sur une cellule, un graphique, une image ou un onglet, et le menu ⋯ de la barre d'outils.</li>
 <li><b>Graphiques et images</b> : un clic (un appui) les choisit, on les glisse n'importe où ; flèches pour les ajuster (Maj : au pixel), Alt en glissant pour les caler sur les cellules, Suppr pour les enlever.</li>
 <li>🖌 <b>Pinceau</b> : un clic reproduit la mise en forme une fois, un double-clic plusieurs fois (Échap pour finir). ⊞ fusionne et centre.</li>
 <li>En tapant un texte, Sprezz propose celui qui existe déjà dans la colonne (Entrée pour le prendre).</li>
@@ -2048,6 +2106,7 @@ function menuCellules(s) {
     ['Insérer', [['Insérer ' + pl(nl, 'ligne'), () => lignesColonnes(true, 'r')], ['Insérer ' + pl(nc, 'colonne'), () => lignesColonnes(true, 'c')], ['Insérer des cellules…', () => uiB.cellules(true), 'Ctrl++']]],
     ['Supprimer', [['Supprimer ' + pl(nl, 'ligne'), () => lignesColonnes(false, 'r')], ['Supprimer ' + pl(nc, 'colonne'), () => lignesColonnes(false, 'c')], ['Supprimer des cellules…', () => uiB.cellules(false), 'Ctrl+-']]],
     ['Effacer', [['Le contenu', () => effacer(false), 'Suppr'], ['Les formats', () => effacerFormats()], ['Tout', () => effacer(true)], ...(cel.note ? [['La note', () => { memoriser(); delete cel.note; classeur.modifie(); sauvegarderLocal(); rendre(); }]] : [])]], null,
+    ['Remplir', [['Vers le bas', () => recopier('bas'), 'Ctrl+D'], ['Vers la droite', () => recopier('droite'), 'Ctrl+R'], ['Jusqu\'au bout des données voisines', () => recopieDoubleClic(), 'double-clic ■'], ['Formule de la cellule du dessus', () => { if (curseur.r > 0) commencerEdition(classeur.saisie(fi(), curseur.r - 1, curseur.c)); }, "Ctrl+'"]]],
     ['Format de cellule…', () => uiB.formatCellule(), 'Ctrl+1'],
     [fusion ? 'Dissocier les cellules' : 'Fusionner et centrer', () => fusionnerSelection(!fusion)],
     [cel.note ? 'Modifier la note…' : 'Insérer une note…', () => uiB.note(), 'Maj+F2'],
@@ -2447,7 +2506,9 @@ $('btn-plus').addEventListener('click', () => ouvrirMenu(...sousBouton('btn-plus
   ['Format de cellule…', () => uiB.formatCellule(), 'Ctrl+1'], ['Collage spécial…', () => uiB.collageSpecial(), 'Ctrl+Alt+V'], ['Atteindre…', () => uiB.atteindre(), 'Ctrl+G'], null,
   ['Insérer une image…', () => $('fichier-image').click()], ['Mettre sous forme de tableau', () => mettreEnTableau(), 'Ctrl+L'],
   ['Supprimer les doublons…', () => uiB.doublons()], ['Convertir en colonnes…', () => uiB.colonnes()], null,
-  [afficherFormules ? 'Afficher les résultats' : 'Afficher les formules', () => { afficherFormules = !afficherFormules; rendre(); }, 'Ctrl+`'], null,
+  [afficherFormules ? 'Afficher les résultats' : 'Afficher les formules', () => { afficherFormules = !afficherFormules; rendre(); }, 'Ctrl+`'],
+  ['Feuille', [['Nouvelle feuille', () => { memoriserVue(); classeur.ajouterFeuille(null, fi() + 1); activerFeuille(fi() + 1); sauvegarderLocal(); }, 'Maj+F11'], ['Feuille suivante', () => changerFeuille(1), 'Ctrl+PgSuiv'], ['Feuille précédente', () => changerFeuille(-1), 'Ctrl+PgPréc'], ['Dupliquer cette feuille', () => dupliquerFeuille(fi())]]],
+  ['Nouveau classeur', () => nouveauClasseur(), 'Ctrl+Alt+N'], ['Raccourcis clavier', () => { if (panneauCourant !== 'aide') ouvrirPanneau('aide'); }, '?'], null,
   ['Valeur cible…', () => uiD.ouvrirCible()], ['Validation des données…', () => uiD.validation.ouvrir()], ['Actualiser les tableaux croisés', () => uiT.toutActualiser()], ['Imprimer / PDF (feuille)', () => uiD.imprimer()], ['Imprimer la sélection', () => uiD.imprimer({ selectionSeule: true })], null,
   ['Recalculer (F9)', () => { classeur.evaluateur.invalider(); rendre(); toast('Recalculé'); }], ['Tout recalculer (Ctrl+Alt+F9)', () => { classeur.abandonnerCaches(); rendre(); toast('Tout est recalculé (valeurs du fichier oubliées)'); }],
 ]));
