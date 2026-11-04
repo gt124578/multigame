@@ -431,3 +431,11 @@ body.pinceau #grille-conteneur { cursor: copy; }
 #zone-debord { position: absolute; z-index: 3; border: 1px dashed #2563eb; pointer-events: none; }
 #zone-debord[hidden] { display: none; }
 #saisie-formule.fantome { color: #9ca3af; }
+
+/* Tableaux structurés : galerie de styles */
+.galerie-styles { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 8px 0; }
+.galerie-styles button { padding: 3px; border: 2px solid transparent; border-radius: 6px; background: #fff; display: flex; justify-content: center; cursor: pointer; }
+.galerie-styles button:hover { border-color: #b7d7c4; }
+.galerie-styles button.choisi { border-color: #1f7a4d; }
+.galerie-styles svg { display: block; border: 1px solid #e5e7eb; }
+@media (max-width: 600px) { .galerie-styles { grid-template-columns: repeat(4, 1fr); } }

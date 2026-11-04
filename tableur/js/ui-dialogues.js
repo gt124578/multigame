@@ -2,7 +2,8 @@
 // Insérer / Supprimer des cellules (Ctrl++ / Ctrl+-), Atteindre (Ctrl+G, F5), Lien hypertexte (Ctrl+K), Note (Maj+F2),
 // Supprimer les doublons, Convertir en colonnes.
 
-import { formater, colVersLettres, adresse } from './formules.js';
+import { formater, colVersLettres, adresse, parsePlage } from './formules.js';
+import { STYLES_TABLEAU, apercuStyle } from './tableaux.js';
 import { collerSpecial, decalerCellules, supprimerDoublons, convertirEnColonnes, zoneContigue, aUnEntete } from './donnees.js';
 
 const ech = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -313,6 +314,69 @@ export function installerDialogues(api) {
     });
   }
 
-  return { formatCellule, collageSpecial, cellules, atteindre, lien, note, doublons, colonnes, ouvert: () => !fond.hidden };
+  // ---------------------------------------------------------------------------
+  // Tableaux structurés : créer (Ctrl+L), style, nom, taille
+  // ---------------------------------------------------------------------------
+  const galerie = (choisi) => `<div class="galerie-styles">${STYLES_TABLEAU.map((n) => `<button data-style="${n}" class="${n === choisi ? 'choisi' : ''}" title="${n.replace('TableStyle', '').replace('Medium', 'Moyen ').replace('Light', 'Clair ')}">${apercuStyle(n)}</button>`).join('')}</div>`;
+  const brancherGalerie = (etat) => fond.querySelectorAll('[data-style]').forEach((b) => b.addEventListener('click', () => { etat.style = b.dataset.style; fond.querySelectorAll('[data-style]').forEach((x) => x.classList.toggle('choisi', x === b)); }));
+  function creerTableau() {
+    const C = api.classeur(), fi = api.fi(), s0 = api.selectionBornee();
+    const existant = C.tableauEn(fi, s0.r1, s0.c1);
+    if (existant) return api.toast('Cette cellule est déjà dans le tableau ' + existant.t.nom, true);
+    const p = s0.r1 === s0.r2 && s0.c1 === s0.c2 ? zoneContigue(api.feuille(), s0.r1, s0.c1) : s0;
+    const etat = { style: 'TableStyleMedium7' };
+    ouvrir('Créer un tableau', `<label>Plage des données <input id="tb-plage" value="${adresse(p.r1, p.c1, true, true)}:${adresse(p.r2, p.c2, true, true)}" spellcheck="false"></label>
+      <label class="case"><input type="checkbox" id="tb-entete"${aUnEntete(C, fi, p) ? ' checked' : ''}> Mon tableau comporte des en-têtes</label>
+      <p class="aide-petite">Le tableau s'agrandit tout seul quand vous écrivez juste dessous ou à côté ; une formule saisie dans une colonne se recopie sur toute la colonne ; les formules peuvent citer ses colonnes par leur nom (<code>=SOMME(Tableau1[Prix])</code>, <code>=[@Prix]*[@Qté]</code>).</p>
+      ${galerie(etat.style)}`, () => {
+      const q = parsePlage($('tb-plage').value.replace(/\$/g, '').trim().toUpperCase());
+      if (!q) { api.toast('Plage invalide', true); return false; }
+      api.memoriser();
+      let t;
+      try { t = C.creerTableau(fi, q, { entete: $('tb-entete').checked, style: etat.style }); } catch (e) { api.toast(e.message, true); return false; }
+      const f = api.feuille();
+      if (!f.filtre) { f.filtre = { r1: t.r1, c1: t.c1, r2: t.r2, c2: t.c2, criteres: {} }; f.filtrees = new Set(); }
+      api.selectionner({ r1: t.r1, c1: t.c1, r2: t.r2, c2: t.c2 }, api.curseur());
+      api.sauvegarder(); api.rendre();
+      api.toast('Tableau « ' + t.nom + ' » créé');
+    });
+    brancherGalerie(etat);
+  }
+  function styleTableauDlg(t) {
+    const etat = { style: t.style };
+    ouvrir('Style du tableau ' + t.nom, `${galerie(t.style)}
+      <div class="fc-grille"><label class="case"><input type="checkbox" id="tb-bandes"${t.bandes !== false ? ' checked' : ''}> Lignes à bandes</label>
+      <label class="case"><input type="checkbox" id="tb-prem"${t.premiereColonne ? ' checked' : ''}> Première colonne</label>
+      <label class="case"><input type="checkbox" id="tb-der"${t.derniereColonne ? ' checked' : ''}> Dernière colonne</label></div>`, () => {
+      api.memoriser();
+      t.style = etat.style; t.bandes = $('tb-bandes').checked; t.premiereColonne = $('tb-prem').checked || undefined; t.derniereColonne = $('tb-der').checked || undefined;
+      api.classeur().modifie(); api.sauvegarder(); api.rendre();
+    });
+    brancherGalerie(etat);
+  }
+  function renommerTableauDlg(t) {
+    ouvrir('Nom du tableau', `<label>Nom <input id="tb-nom" value="${ech(t.nom)}" spellcheck="false"></label><p class="aide-petite">Les formules qui citent le tableau suivent.</p>`, () => {
+      api.memoriser();
+      try { api.classeur().renommerTableau(t.nom, $('tb-nom').value); } catch (e) { api.toast(e.message, true); return false; }
+      api.sauvegarder(); api.rendre();
+    });
+  }
+  function redimensionnerTableau(t) {
+    ouvrir('Redimensionner le tableau', `<label>Nouvelle plage <input id="tb-plage" value="${adresse(t.r1, t.c1, true, true)}:${adresse(t.r2, t.c2, true, true)}" spellcheck="false"></label><p class="aide-petite">Les en-têtes restent sur la même ligne.</p>`, () => {
+      const q = parsePlage($('tb-plage').value.replace(/\$/g, '').trim().toUpperCase());
+      if (!q || q.r1 !== t.r1 || q.r2 <= q.r1) { api.toast('La plage doit commencer sur la ligne des en-têtes (' + (t.r1 + 1) + ')', true); return false; }
+      const C = api.classeur(), fi = api.fi();
+      if ((api.feuille().tableaux || []).some((x) => x !== t && !(q.r2 < x.r1 || q.r1 > x.r2 || q.c2 < x.c1 || q.c1 > x.c2))) { api.toast('La plage chevauche un autre tableau', true); return false; }
+      api.memoriser();
+      Object.assign(t, { c1: q.c1, r2: q.r2, c2: q.c2 });
+      const noms = C.nomsColonnes(fi, t);
+      noms.forEach((n, i) => { const cel = api.feuille().get(t.r1, t.c1 + i); if (!cel || cel.v == null || cel.v === '') api.feuille().set(t.r1, t.c1 + i, { ...(cel || {}), v: n }); });
+      t.colonnes = C.nomsColonnes(fi, t);
+      const f = api.feuille(); if (f.filtre && f.filtre.r1 === t.r1) Object.assign(f.filtre, { c1: t.c1, r2: t.totaux ? t.r2 - 1 : t.r2, c2: t.c2 });
+      C.modifie(); api.sauvegarder(); api.rendre();
+    });
+  }
+
+  return { ouvrir, creerTableau, styleTableau: styleTableauDlg, renommerTableau: renommerTableauDlg, redimensionnerTableau, formatCellule, collageSpecial, cellules, atteindre, lien, note, doublons, colonnes, ouvert: () => !fond.hidden };
 }
 

@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Classeur } from '../tableur/js/classeur.js';
-import { Evaluateur, ErreurFormule, decalerFormule, formaterNombre, formaterDate, tokeniser, formater, couleurFormat } from '../tableur/js/formules.js';
+import { Evaluateur, ErreurFormule, convertirFormule, decalerFormule, formaterNombre, formaterDate, tokeniser, formater, couleurFormat } from '../tableur/js/formules.js';
 import { codeFormat, lireCode } from '../tableur/js/ui-dialogues.js';
 import { executerMacro, analyserVBA, InterpreteurVBA, creerUDF } from '../tableur/js/vba.js';
 import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from '../tableur/js/xlsxio.js';
@@ -1079,6 +1079,36 @@ test('xlsx : formules matricielles dynamiques et virgules anglaises', () => {
   egal(e.feuilles[0].get(0, 0).f, '=SEQUENCE(3;2)');
   e.saisir(0, 0, 0, '=SEQUENCE(2)'); egal([e.valeur(0, 2, 1), e.valeur(0, 1, 0)], [null, 2]);
   egal(tokeniser('IF(A1>0,1.5,{1,2;3,4})', 'en').filter((t) => t.t === 'nombre').map((t) => t.v), [0, 1.5, 1, 2, 3, 4]);
+});
+
+test('tableaux structurés : références, colonne calculée, agrandissement, total, renommage', () => {
+  const c = Classeur.nouveau();
+  [['Produit', 'Prix HT', 'Qté'], ['a', 10, 2], ['b', 20, 3], ['c', 5, 10]].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  const t = c.creerTableau(0, { r1: 0, c1: 0, r2: 3, c2: 2 });
+  egal([t.nom, c.nomsColonnes(0, t)], ['Tableau1', ['Produit', 'Prix HT', 'Qté']]);
+  c.saisir(0, 0, 3, 'Montant'); c.etendreTableau(0, 0, 3);
+  c.saisir(0, 1, 3, '=[@[Prix HT]]*[@Qté]'); egal(c.colonneCalculee(0, 1, 3), true);
+  egal([1, 2, 3].map((r) => c.valeur(0, r, 3)), [20, 60, 50]);
+  c.saisir(0, 4, 0, 'd'); c.etendreTableau(0, 4, 0); c.saisir(0, 4, 1, '100'); c.saisir(0, 4, 2, '1');
+  egal([t.r2, c.valeur(0, 4, 3)], [4, 100], 'nouvelle ligne avec sa formule');
+  const F2 = (x) => c.evaluateur.evaluerFormule(x, 0, 9, 9);
+  egal([F2('=SOMME(Tableau1[Montant])'), F2('=NBVAL(Tableau1[#Tout])'), F2('=SOMME(Tableau1[[#Données];[Prix HT]:[Qté]])'), F2('=LIGNES(Tableau1)'), F2('=NBVAL(Tableau1[#En-têtes])')], [230, 20, 151, 4, 4]);
+  egal(F2('=Inconnu[Prix]'), new ErreurFormule('#NAME?'));
+  c.saisir(0, 8, 0, '=SOMME(Tableau1[Montant])');
+  c.ligneTotal(0, t, true); egal([t.r2, c.valeur(0, 5, 0), c.valeur(0, 5, 3)], [5, 'Total', 230]);
+  c.saisir(0, 0, 1, 'PU'); egal([c.feuilles[0].get(1, 3).f, c.valeur(0, 2, 3)], ['=[@PU]*[@Qté]', 60], 'colonne renommée');
+  c.insererLignes(0, 2, 1); egal([t.r2, c.valeur(0, 9, 0)], [6, 230], 'insertion dans le tableau');
+  c.renommerTableau('Tableau1', 'Ventes'); egal([c.feuilles[0].get(9, 0).f, c.valeur(0, 9, 0)], ['=SOMME(Ventes[Montant])', 230]);
+  // Écriture et relecture xlsx : les références deviennent Ventes[[#This Row],[PU]] dans le fichier
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c), 'x.xlsx'), te = e.feuilles[0].tableaux[0];
+  egal([te.nom, te.r1, te.r2, te.c2, te.totaux, e.valeur(0, 9, 0), e.valeur(0, 6, 3)], ['Ventes', 0, 6, 3, true, 230, 230]);
+  egal(convertirFormule('=[@PU]*Ventes[[#Tout];[Qté]]', 'en', { table: 'Ventes' }), '=Ventes[[#This Row],[PU]]*Ventes[[#All],[Qté]]');
+  egal(convertirFormule('=Table1[[#This Row],[Prix HT]]', 'fr'), '=Table1[@[Prix HT]]');
+  // Convertir en plage : références A1
+  c.supprimerTableau(0, t); egal([c.feuilles[0].get(9, 0).f, c.feuilles[0].get(1, 3).f, c.valeur(0, 9, 0)], ['=SOMME($D$2:$D$6)', '=B2*C2', 230]);
+  // Un nom défini qui ressemble à une adresse n'est plus décalé
+  const d = Classeur.nouveau(); d.definirNom('Prime2023', 'Feuil1!$A$1'); d.saisir(0, 0, 0, '5'); d.saisir(0, 0, 1, '=Prime2023*2'); d.insererLignes(0, 0, 1);
+  egal(d.feuilles[0].get(1, 1).f, '=Prime2023*2');
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);

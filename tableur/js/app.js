@@ -1,6 +1,7 @@
 // Interface du Tableur : grille virtualisée, barre de formule, onglets, presse-papiers, macros.
 
-import { Classeur } from './classeur.js';
+import { Classeur, PROPRIETES_FEUILLE } from './classeur.js';
+import { styleTableau, styleCelluleTableau } from './tableaux.js';
 import { couleurFormat, formater, colVersLettres, lettresVersCol, parsePlage, parseAdresse, adresse, ErreurFormule, NOMS_FONCTIONS, ALIAS, referencesDe, decalerFormule, fonction } from './formules.js';
 import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from './xlsxio.js';
 import { estChiffre, dechiffrerOffice, ErreurMotDePasse } from './chiffrement.js';
@@ -103,6 +104,16 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
   const entourerInvalides = uiD.validation.entourer();
   const zonesDebord = classeur.evaluateur.zonesDebord(F) || [];
   const fusionDe = (r, c) => f.fusions.find((m) => r >= m.r1 && r <= m.r2 && c >= m.c1 && c <= m.c2);
+  // Tableaux structurés : leur style passe sous la mise en forme propre de chaque cellule
+  const tabs = (f.tableaux || []).filter((t) => t.r2 >= r1 && t.r1 <= r2), stTabs = new Map(tabs.map((t) => [t, styleTableau(t.style)]));
+  const styleTab = (r, c) => { if (!tabs.length) return null; const t = tabs.find((x) => r >= x.r1 && r <= x.r2 && c >= x.c1 && c <= x.c2); return t ? styleCelluleTableau(t, r, c, stTabs.get(t)) : null; };
+  const css = (s) => {
+    let o = '';
+    if (s.fond) o += `background:${s.fond};`;
+    const bo = s.bordures || (s.bordure ? { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } : null);
+    if (bo) { const ep = { thin: 1, medium: 2, thick: 3, double: 3 }; for (const [k, cs] of [['h', 'top'], ['b', 'bottom'], ['g', 'left'], ['d', 'right']]) if (bo[k]) o += `border-${cs}:${ep[bo[k]] || 1}px ${bo[k] === 'double' ? 'double' : 'solid'} ${s.bordCouleur || '#1f2937'};`; }
+    return o;
+  };
   for (let r = r1; r <= r2; r++) {
     if (!hauteurLig(r)) continue;
     for (let c = Math.max(0, c1 - 8); c <= c2; c++) {
@@ -113,7 +124,8 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
       if (fus && (fus.r1 !== r || fus.c1 !== c)) continue;
       let w = largeurCol(c), h = hauteurLig(r);
       if (fus) { w = xCols[fus.c2 + 1] - xCols[fus.c1]; h = yLigs[fus.r2 + 1] - yLigs[fus.r1]; }
-      if (!cel) { if (c >= c1) html += `<div class="cellule" style="left:${xCols[c] + dx}px;top:${yLigs[r] + dy}px;width:${w}px;height:${h}px"></div>`; continue; }
+      const ts = styleTab(r, c);
+      if (!cel) { if (c >= c1) html += `<div class="cellule" style="left:${xCols[c] + dx}px;top:${yLigs[r] + dy}px;width:${w}px;height:${h}px;${ts ? css(ts) : ''}"></div>`; continue; }
       const v = classeur.valeur(F, r, c);
       let txt = afficherValeur(v, cel.z);
       let cls = 'cellule';
@@ -125,6 +137,7 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
         else if (besoinN > dispo) txt = ajusterNombre(v, cel.z, dispo, cel.s);
       }
       let s = cel.s || {};
+      if (ts) s = { ...ts, ...s, bordures: s.bordures || ts.bordures, bordCouleur: s.bordures ? s.bordCouleur : ts.bordCouleur };
       const mfc = f.mfc && f.mfc.length ? styleConditionnel(classeur, F, r, c) : null;
       if (mfc) { s = { ...s }; for (const k of ['fond', 'couleur', 'gras', 'italique']) if (mfc[k] !== undefined) s[k] = mfc[k]; }
       if (v instanceof ErreurFormule) cls += ' erreur';
@@ -153,11 +166,10 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
       if (s.souligne || s.barre) style += `text-decoration:${[s.souligne && 'underline', s.barre && 'line-through'].filter(Boolean).join(' ')};`;
       if (s.retrait) style += `padding-${s.align === 'right' ? 'right' : 'left'}:${4 + s.retrait * 9}px;`;
       const cFormat = typeof v === 'number' && cel.z ? couleurFormat(v, cel.z) : null;
-      if (cFormat && !(mfc && mfc.couleur)) style += `color:${cFormat};`; else if (s.couleur) style += `color:${s.couleur};`; if (s.fond) style += `background:${s.fond};`; if (s.taille) style += `font-size:${s.taille}px;`;
+      if (cFormat && !(mfc && mfc.couleur)) style += `color:${cFormat};`; else if (s.couleur) style += `color:${s.couleur};`; if (s.taille) style += `font-size:${s.taille}px;`;
       if (reduction) style += `font-size:${reduction}px;padding:0 2px;`;
       if (mfc && mfc.barre) { const b = mfc.barre; style += `background:linear-gradient(90deg,transparent ${b.debut}%,${b.negatif ? '#ff5555' : b.couleur} ${b.debut}%,${(b.negatif ? '#ff5555' : b.couleur) + '55'} ${b.fin}%,transparent ${b.fin}%)${s.fond ? ',' + s.fond : ''};`; }
-      const bo = s.bordures || (s.bordure ? { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } : null);
-      if (bo) { const ep = { thin: 1, medium: 2, thick: 3 }; for (const [k, css] of [['h', 'top'], ['b', 'bottom'], ['g', 'left'], ['d', 'right']]) if (bo[k]) style += `border-${css}:${ep[bo[k]]}px solid #1f2937;`; }
+      style += css({ ...s, fond: mfc && mfc.barre ? null : s.fond });
       if (cel.note) cls += ' note';
       if (cel.lien) cls += ' lien';
       if (entourerInvalides && f.validations.length) { const dv = validationDe(f, r, c); if (dv && !valeurValide(classeur, F, dv, r, c)) cls += ' invalide'; }
@@ -714,7 +726,8 @@ function instantane() {
   for (const [k, cel] of f.cellules) cells.set(k, { ...cel, s: cel.s ? { ...cel.s } : undefined });
   return { fi: fi(), nom: f.nom, cells, largeurs: { ...f.largeurs }, hauteurs: { ...f.hauteurs }, fusions: f.fusions.map((m) => ({ ...m })), graphiques: f.graphiques.map((g) => ({ ...g })), boutons: f.boutons.map((b) => ({ ...b })), images: f.images.map((im) => ({ ...im, de: im.de && { ...im.de }, a: im.a && { ...im.a } })), noms: new Map([...classeur.noms].map(([k, v]) => [k, { ...v }])),
     figer: f.figer ? { ...f.figer } : null, mfc: JSON.parse(JSON.stringify(f.mfc || [])), filtre: f.filtre ? JSON.parse(JSON.stringify(f.filtre)) : null, filtrees: new Set(f.filtrees || []),
-    validations: JSON.parse(JSON.stringify(f.validations || [])), tcd: JSON.parse(JSON.stringify(f.tcd || [])) };
+    validations: JSON.parse(JSON.stringify(f.validations || [])), tcd: JSON.parse(JSON.stringify(f.tcd || [])),
+    extra: Object.fromEntries(PROPRIETES_FEUILLE.map((k) => [k, f[k] === undefined ? undefined : JSON.parse(JSON.stringify(f[k]))])) };
 }
 function memoriser() { historique.push(instantane()); if (historique.length > 100) historique.shift(); futur = []; }
 function restaurer(s) {
@@ -722,6 +735,7 @@ function restaurer(s) {
   f.cellules = s.cells; f.largeurs = s.largeurs; f.hauteurs = s.hauteurs; f.fusions = s.fusions; f.graphiques = s.graphiques; f.boutons = s.boutons; if (s.images) f.images = s.images; f.recalculerZone();
   if ('mfc' in s) { f.figer = s.figer; f.mfc = s.mfc; f.filtre = s.filtre; f.filtrees = s.filtrees; }
   if ('tcd' in s) { f.validations = s.validations; f.tcd = s.tcd; }
+  if (s.extra) for (const k of PROPRIETES_FEUILLE) f[k] = s.extra[k] === undefined ? (k === 'tableaux' ? [] : undefined) : s.extra[k];
   classeur.noms = s.noms; classeur.active = s.fi; classeur.modifie();
 }
 function annuler() { if (!historique.length) return; futur.push(instantane()); restaurer(historique.pop()); rendre(); sauvegarderLocal(); }
@@ -767,6 +781,8 @@ function validerEdition(mouvement) {
     const avant = feuille().get(r, c);
     const copie = avant ? { ...avant } : null;
     try { classeur.saisir(fi(), r, c, texte); } catch (e) { toast(e.message, true); }
+    // Tableau structuré : il s'agrandit si on écrit juste à côté ; une formule devient une colonne calculée
+    if (texte !== '') { try { classeur.etendreTableau(fi(), r, c); if (classeur.colonneCalculee(fi(), r, c)) toast('Colonne calculée : formule recopiée dans tout le tableau'); } catch (e) { console.warn(e); } }
     // Validation des données : une saisie refusée est retirée et on la propose de nouveau
     if (!uiD.validation.controlerSaisie(r, c)) {
       feuille().set(r, c, copie); feuille().recalculerZone(); classeur.modifie(); historique.pop();
@@ -1043,6 +1059,9 @@ function dupliquerFeuille(i) {
   f.boutons = (src.boutons || []).map((b) => ({ ...copie(b), id: 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }));
   for (const [cle, d] of src.noms) f.noms.set(cle, { ...d, ref: d.ref.replace(new RegExp("^'?" + src.nom.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "'?!", 'i'), (/^[A-Za-z_][\w.]*$/.test(nom) ? nom : "'" + nom + "'") + '!') });
   f.code = src.code || '';
+  for (const k of PROPRIETES_FEUILLE) if (src[k] !== undefined) f[k] = copie(src[k]);
+  // Les noms de tableau sont uniques dans le classeur : la copie reçoit des noms neufs
+  for (const t of f.tableaux || []) { t.nom = classeur.nomTableauLibre(t.nom.replace(/\d+$/, '') || 'Tableau'); }
   f.recalculerZone(); classeur.modifie();
   memoriserVue(); activerFeuille(i + 1); sauvegarderLocal();
 }
@@ -1303,8 +1322,9 @@ function nouveauClasseur() {
 
 // Sauvegarde locale (navigateur) de tous les classeurs ouverts, pour survivre à un rechargement
 function serialiserClasseur(c) {
-  return JSON.stringify({ nomFichier: c.nomFichier, active: c.active, macros: c.macros || '', noms: [...c.noms.values()], modifie: estModifie(c),
+  return JSON.stringify({ nomFichier: c.nomFichier, active: c.active, macros: c.macros || '', calculManuel: !!c.calculManuel, noms: [...c.noms.values()], modifie: estModifie(c),
     feuilles: c.feuilles.map((f, fi2) => ({ nom: f.nom, codeNom: f.codeNom, cachee: f.cachee, largeurs: f.largeurs, hauteurs: f.hauteurs, fusions: f.fusions, graphiques: f.graphiques, boutons: f.boutons, images: f.images, noms: [...f.noms.values()], figer: f.figer, mfc: f.mfc, filtre: f.filtre, filtrees: [...(f.filtrees || [])], validations: f.validations, tcd: f.tcd, couleur: f.couleur,
+      ...Object.fromEntries(PROPRIETES_FEUILLE.filter((k) => f[k] !== undefined).map((k) => [k, f[k]])),
       cellules: [...f.cellules].map(([k, cel]) => {
         const o = { ...cel, v: cel.v instanceof ErreurFormule ? { erreur: cel.v.code } : cel.v };
         // Comme Excel à l'enregistrement : la dernière valeur calculée d'une formule est gardée
@@ -1318,6 +1338,7 @@ function deserialiserClasseur(data) {
   for (const fd of data.feuilles || []) {
     const f = c.ajouterFeuille(fd.nom); if (fd.codeNom) { try { c.changerCodeNom(f, fd.codeNom); } catch { /* nom pris */ } } f.cachee = !!fd.cachee; f.largeurs = fd.largeurs || {}; f.hauteurs = fd.hauteurs || {}; f.fusions = fd.fusions || []; f.graphiques = fd.graphiques || []; f.boutons = fd.boutons || []; f.images = fd.images || [];
     f.figer = fd.figer || null; f.mfc = fd.mfc || []; f.filtre = fd.filtre || null; f.filtrees = new Set(fd.filtrees || []); f.validations = fd.validations || []; f.tcd = fd.tcd || []; if (fd.couleur) f.couleur = fd.couleur;
+    for (const k of PROPRIETES_FEUILLE) if (fd[k] !== undefined) f[k] = fd[k];
     for (const n of fd.noms || []) f.noms.set(n.nom.toUpperCase(), n);
     for (const [k, cel] of fd.cellules) { if (cel.v && typeof cel.v === 'object' && cel.v.erreur) cel.v = new ErreurFormule(cel.v.erreur); f.cellules.set(k, cel); }
     f.recalculerZone();
@@ -1325,6 +1346,7 @@ function deserialiserClasseur(data) {
   if (!c.feuilles.length) return null;
   for (const n of data.noms || []) c.noms.set(n.nom.toUpperCase(), n);
   c.macros = data.macros || ''; c.active = Math.min(data.active || 0, c.feuilles.length - 1);
+  if (data.calculManuel) c.calculManuel = true;
   c.modifie();
   c.enregistre = data.modifie ? -1 : c.version;
   return c;
@@ -2126,12 +2148,28 @@ function menuCellules(s) {
     ['Données', [['Trier de A à Z', () => uiD.trierRapide(false)], ['Trier de Z à A', () => uiD.trierRapide(true)], ['Tri personnalisé…', () => uiD.ouvrirTri()], [feuille().filtre ? 'Retirer le filtre' : 'Filtrer', () => uiD.basculerFiltre(), 'Ctrl+Maj+L'], null,
       ['Supprimer les doublons…', () => uiB.doublons()], ['Convertir en colonnes…', () => uiB.colonnes()], ['Validation des données…', () => uiD.validation.ouvrir()], ['Mettre sous forme de tableau', () => mettreEnTableau(), 'Ctrl+L']]],
     ['Mise en forme conditionnelle…', () => uiD.ouvrirMfc()],
+    ...menuTableau(),
     ...(uiT.sousCurseur() ? [['Tableau croisé', [['Modifier les champs…', () => uiT.ouvrir()], ['Actualiser', () => { uiT.ouvrir(); uiT.toutActualiser(); }]]]] : [['Tableau croisé dynamique…', () => uiT.ouvrir()]]),
     ['Masquer / afficher', [
       ...(s.r2 >= 1048575 ? [] : [['Masquer les lignes', () => uiD.masquer('r', false), 'Ctrl+9'], ['Afficher les lignes masquées', () => uiD.masquer('r', true), 'Ctrl+Maj+9']]),
       ...(s.c2 >= 16383 ? [] : [['Masquer les colonnes', () => uiD.masquer('c', false), 'Ctrl+0'], ['Afficher les colonnes masquées', () => uiD.masquer('c', true), 'Ctrl+Maj+0']])]],
     ['Définir un nom…', () => { const n = prompt('Nom pour ' + zoneNom.value + ' :'); if (n) try { classeur.definirNom(n, feuille().nom + '!' + adresseAbsolue(s)); sauvegarderLocal(); toast('Nom « ' + n + ' » défini'); } catch (err) { toast(err.message, true); } }],
   ];
+}
+// Sous-menu du tableau structuré sous le curseur
+function menuTableau() {
+  const x = classeur.tableauEn(fi(), curseur.r, curseur.c);
+  if (!x) return [];
+  const t = x.t, fait = (fn) => () => { memoriser(); fn(); sauvegarderLocal(); rendre(); };
+  const choisir = (r1, c1, r2, c2) => () => { selection = { r1, c1, r2, c2 }; curseur = { r: r1, c: c1 }; rendre(); };
+  const d1 = t.r1 + 1, d2 = t.totaux ? t.r2 - 1 : t.r2;
+  return [['Tableau « ' + t.nom + ' »', [
+    [t.totaux ? 'Retirer la ligne de total' : 'Ligne de total', fait(() => classeur.ligneTotal(fi(), t, !t.totaux)), 'Ctrl+Maj+T'],
+    ['Style du tableau…', () => uiB.styleTableau(t)], ['Renommer le tableau…', () => uiB.renommerTableau(t)], ['Redimensionner…', () => uiB.redimensionnerTableau(t)], null,
+    ['Sélectionner', [['La colonne (données)', choisir(d1, curseur.c, d2, curseur.c), 'Ctrl+Espace'], ['La ligne du tableau', choisir(curseur.r, t.c1, curseur.r, t.c2), 'Maj+Espace'], ['Tout le tableau', choisir(t.r1, t.c1, t.r2, t.c2), 'Ctrl+A']]],
+    ['Insérer une ligne au-dessus', fait(() => { classeur.insererLignes(fi(), Math.max(curseur.r, d1), 1); })], ['Insérer une colonne à gauche', fait(() => { classeur.insererColonnes(fi(), curseur.c, 1); if (curseur.c === t.c1) { t.c1--; } const n = classeur.nomsColonnes(fi(), t); feuille().set(t.r1, curseur.c, { v: n[curseur.c - t.c1] }); t.colonnes = classeur.nomsColonnes(fi(), t); })], null,
+    ['Convertir en plage', () => { if (!confirm('Convertir le tableau « ' + t.nom + ' » en plage normale ? Les formules qui le citent passent en références A1.')) return; fait(() => classeur.supprimerTableau(fi(), t))(); }],
+  ]]];
 }
 function lignesColonnes(inserer, axe) {
   const s = selectionNormalisee(); memoriser();
@@ -2173,19 +2211,7 @@ function suivreLien(url) {
   window.open(url, '_blank', 'noopener');
 }
 // Mettre sous forme de tableau (Ctrl+L) : en-têtes colorés, lignes à bandes, bordures fines et filtre
-function mettreEnTableau() {
-  const s0 = selectionBornee();
-  const p = s0.r1 === s0.r2 && s0.c1 === s0.c2 ? uiD.zone(s0) : s0;
-  if (p.r2 <= p.r1) return toast('Choisissez un tableau avec une ligne d\'en-têtes', true);
-  memoriser();
-  for (let r = p.r1; r <= p.r2; r++) for (let c = p.c1; c <= p.c2; c++) {
-    const entete = r === p.r1;
-    classeur.style(fi(), r, c, { fond: entete ? '#1f7a4d' : ((r - p.r1) % 2 ? '#ffffff' : '#e8f3ec'), couleur: entete ? '#ffffff' : null, gras: entete || null, bordures: { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } });
-  }
-  if (!feuille().filtre) { feuille().filtre = { r1: p.r1, c1: p.c1, r2: p.r2, c2: p.c2, criteres: {} }; feuille().filtrees = new Set(); }
-  classeur.modifie(); sauvegarderLocal(); rendre();
-  toast('Tableau ' + adresse(p.r1, p.c1) + ':' + adresse(p.r2, p.c2) + ' mis en forme, avec un filtre');
-}
+function mettreEnTableau() { uiB.creerTableau(); }
 function adresseAbsolue(s) { const a = adresse(s.r1, s.c1, true, true); return s.r1 === s.r2 && s.c1 === s.c2 ? a : a + ':' + adresse(s.r2, s.c2, true, true); }
 async function collerValeurs() {
   const dest = selectionNormalisee();
@@ -2268,6 +2294,7 @@ function raccourciExcel(e) {
   if (ctrl && e.shiftKey && code === 'Digit0') return fait(() => uiD.masquer('c', true));
   if (ctrl && e.shiftKey && (code === 'Digit8' || k === '*')) return fait(() => { const z = uiD.zone(selectionNormalisee()); selection = { ...z }; rendre(); });
   if (ctrl && e.shiftKey && (k === 'F' || k === 'f' || k === 'P' || k === 'p')) return fait(() => uiB.formatCellule('police'));
+  if (ctrl && e.shiftKey && !e.altKey && (k === 'T' || k === 't')) { const x = classeur.tableauEn(fi(), curseur.r, curseur.c); if (x) return fait(() => { memoriser(); classeur.ligneTotal(fi(), x.t, !x.t.totaux); sauvegarderLocal(); rendre(); }); }
   if (ctrl && e.shiftKey && (k === ':' || code === 'Semicolon' || code === 'Period')) return fait(() => { const d = new Date(); memoriser(); classeur.saisir(fi(), curseur.r, curseur.c, String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')); sauvegarderLocal(); rendre(); });
   if (ctrl && !e.shiftKey && !e.altKey) {
     if (code === 'Digit1' || code === 'Numpad1') return fait(() => uiB.formatCellule());
@@ -2278,6 +2305,11 @@ function raccourciExcel(e) {
     if (code === 'Digit9') return fait(() => uiD.masquer('r', false));
     if (code === 'Digit0') return fait(() => uiD.masquer('c', false));
     if (code === 'Backquote' || k === '`' || k === '²') return fait(() => { afficherFormules = !afficherFormules; toast(afficherFormules ? 'Formules affichées (Ctrl+` pour revenir)' : 'Résultats affichés'); rendre(); });
+    if ((code === 'Space' || k === ' ') && classeur.tableauEn(fi(), curseur.r, curseur.c)) {
+      // Dans un tableau : d'abord les données de la colonne, puis la colonne entière
+      const t = classeur.tableauEn(fi(), curseur.r, curseur.c).t, s = selectionNormalisee(), d2 = t.totaux ? t.r2 - 1 : t.r2;
+      if (!(s.r1 === t.r1 + 1 && s.r2 === d2)) return fait(() => { selection = { r1: t.r1 + 1, c1: s.c1, r2: d2, c2: s.c2 }; rendre(); });
+    }
     if (code === 'Space' || k === ' ') return fait(() => { const s = selectionNormalisee(); selection = { r1: 0, c1: s.c1, r2: 1048575, c2: s.c2 }; rendre(); });
     if (k === '-' || code === 'NumpadSubtract' || code === 'Minus') return fait(() => uiB.cellules(false));
     if (k === 'k' || k === 'K') return fait(() => uiB.lien());
@@ -2366,6 +2398,23 @@ function majSuggestions() {
   if (!cible || !cible.value.startsWith('=') || cible.selectionStart !== cible.selectionEnd) return fermerSuggestions();
   const avant = cible.value.slice(0, cible.selectionStart);
   if ((avant.match(/"/g) || []).length % 2) return fermerSuggestions();
+  // 0. Colonne d'un tableau : Tableau1[Pr… ou [@Pr…
+  const mt = /(?:^|[^\wÀ-ÿ.])([A-Za-zÀ-ÿ_][\wÀ-ÿ.]*)?\[(@?)([^\[\]'"]*)$/.exec(avant);
+  if (mt) {
+    const x = mt[1] ? classeur.tableau(mt[1]) : edition && classeur.tableauEn(fi(), edition.r, edition.c);
+    if (x) {
+      const P = mt[3].toLowerCase();
+      const cols = classeur.nomsColonnes(x.fi, x.t).map((n) => ({ nom: /[\s\[\]#'@,;:]/.test(n) && mt[2] ? '[' + n + ']' : n, nomDefini: true, ref: 'colonne de ' + x.t.nom, suffixe: ']' }));
+      const mots = mt[2] ? [] : ['#Tout', '#Données', '#En-têtes', '#Totaux'].map((n) => ({ nom: n, nomDefini: true, ref: '', suffixe: ']' }));
+      const liste0 = [...cols, ...mots].filter((y) => y.nom.toLowerCase().replace(/^\[/, '').startsWith(P)).slice(0, 10);
+      if (liste0.length) {
+        sugg = { liste: liste0, i: 0, debut: avant.length - mt[3].length, fin: avant.length, navigue: false };
+        boiteSugg.innerHTML = liste0.map((y, i) => `<div data-i="${i}" class="${i === 0 ? 'choisi' : ''}"><b>${echapper(y.nom)}</b> <small>${echapper(y.ref)}</small></div>`).join('');
+        boiteSugg.hidden = false; bulleArgs.hidden = true; placerSous(boiteSugg, cible);
+        return;
+      }
+    }
+  }
   // 1. Nom en cours de frappe
   const m = /(^=|[(;,+\-*/^&<>=\s])([A-Za-zÀ-ÿ_][\wÀ-ÿ.]*)$/.exec(avant);
   let liste = [];
@@ -2378,6 +2427,7 @@ function majSuggestions() {
     liste.sort((a, b) => (a.nom === P ? -1 : b.nom === P ? 1 : 0) || courante(a) - courante(b) || (a.fr === b.fr ? a.nom.length - b.nom.length || a.nom.localeCompare(b.nom) : a.fr ? -1 : 1));
     // Noms définis (plages nommées)
     for (const d of [...classeur.noms.values(), ...feuille().noms.values()]) if (d.nom.toUpperCase().startsWith(P)) liste.unshift({ nom: d.nom, nomDefini: true, ref: d.ref });
+    for (const f2 of classeur.feuilles) for (const t of f2.tableaux || []) if (t.nom.toUpperCase().startsWith(P)) liste.unshift({ nom: t.nom, nomDefini: true, ref: 'tableau ' + f2.nom + '!' + adresse(t.r1, t.c1) + ':' + adresse(t.r2, t.c2), suffixe: '[' });
     liste = liste.slice(0, 8);
     if (liste.length === 1 && liste[0].nom === P && !liste[0].nomDefini) liste = [];
   }
@@ -2413,7 +2463,7 @@ function accepterSuggestion(i = sugg && sugg.i) {
   const cible = cibleEdition();
   if (!sugg || !cible || !sugg.liste[i]) return false;
   const x = sugg.liste[i], txt = cible.value;
-  const ajout = x.nom + (x.nomDefini ? '' : '(');
+  const ajout = x.nom + (x.suffixe != null ? x.suffixe : x.nomDefini ? '' : '(');
   cible.value = txt.slice(0, sugg.debut) + ajout + txt.slice(sugg.fin);
   const pos = sugg.debut + ajout.length;
   cible.setSelectionRange(pos, pos);

@@ -6,7 +6,14 @@
 
 import { serialiserProjet, appliquerProjet, nomVBAValide } from './projetvba.js';
 import { decalerMfc } from './donnees.js';
-import { Evaluateur, ErreurFormule, versNombre, parsePlage, colVersLettres, adresse, decalerFormule, formater, dateVersSerie } from './formules.js';
+import { Evaluateur, ErreurFormule, versNombre, parsePlage, colVersLettres, adresse, decalerFormule, formater, dateVersSerie, lireSpec, remplacerTref } from './formules.js';
+import { styleTableau, styleCelluleTableau } from './tableaux.js';
+
+// Applique une transformation au texte d'une formule, hors des chaînes entre guillemets
+function horsChaines(f, fn) { return f.split(/("(?:[^"]|"")*")/).map((m, i) => (i % 2 ? m : fn(m))).join(''); }
+
+/** Réglages de feuille (en JSON) gardés dans l'historique d'annulation et la sauvegarde du navigateur. */
+export const PROPRIETES_FEUILLE = ['tableaux', 'protection', 'miseEnPage', 'tablesDonnees', 'sparklines'];
 
 export class Feuille {
   constructor(nom) {
@@ -29,6 +36,7 @@ export class Feuille {
     this.filtrees = new Set(); // lignes masquées par le filtre (recalculées)
     this.validations = [];     // validation des données (règles, voir donnees.js)
     this.tcd = [];             // tableaux croisés dynamiques posés sur cette feuille (voir tcd.js)
+    this.tableaux = [];        // tableaux structurés { nom, r1, c1, r2, c2, entete, totaux, style, bandes, colonnes, calculees }
   }
   static cle(r, c) { return r + ',' + c; }
   get(r, c) { return this.cellules.get(Feuille.cle(r, c)); }
@@ -198,6 +206,191 @@ export class Classeur {
     this.version++;
   }
 
+  // ----- Tableaux structurés (Ctrl+L) -----
+  /** Tableau par son nom → { fi, t } (ou null). */
+  tableau(nom) {
+    const n = String(nom).toLowerCase();
+    for (let fi = 0; fi < this.feuilles.length; fi++) for (const t of this.feuilles[fi].tableaux || []) if (t.nom.toLowerCase() === n) return { fi, t };
+    return null;
+  }
+  /** Tableau qui contient une cellule → { fi, t } (ou null). */
+  tableauEn(fi, r, c) {
+    const f = this.feuilles[fi];
+    const t = f && (f.tableaux || []).find((x) => r >= x.r1 && r <= x.r2 && c >= x.c1 && c <= x.c2);
+    return t ? { fi, t } : null;
+  }
+  /** Noms des colonnes d'un tableau : textes de sa ligne d'en-têtes. */
+  nomsColonnes(fi, t) {
+    const f = this.feuilles[fi], out = [];
+    for (let c = t.c1; c <= t.c2; c++) {
+      const cel = t.entete === false ? null : f.get(t.r1, c);
+      let n = cel && cel.v != null && cel.v !== '' ? String(cel.v) : (t.colonnes && t.colonnes[c - t.c1]) || 'Colonne' + (c - t.c1 + 1);
+      while (out.some((x) => x.toLowerCase() === n.toLowerCase())) n += '2';
+      out.push(n);
+    }
+    return out;
+  }
+  nomTableauLibre(base = 'Tableau') {
+    let i = 1;
+    while (this.tableau(base + i) || this.nom(base + i) !== undefined) i++;
+    return base + i;
+  }
+  /** Transforme une plage en tableau : en-têtes « Colonne1… » posés s'il en manque. */
+  creerTableau(fi, p, { entete = true, style = 'TableStyleMedium7', nom } = {}) {
+    const f = this.feuilles[fi];
+    for (const t of f.tableaux) if (!(p.r2 < t.r1 || p.r1 > t.r2 || p.c2 < t.c1 || p.c1 > t.c2)) throw new Error('La plage chevauche le tableau ' + t.nom);
+    let r1 = p.r1, r2 = p.r2;
+    if (!entete) {
+      // Pas d'en-têtes dans les données : on insère une ligne au-dessus, comme Excel
+      if (r1 > 0 && !Array.from({ length: p.c2 - p.c1 + 1 }, (_, k) => f.get(r1 - 1, p.c1 + k)).some((x) => x && x.v != null && x.v !== '')) r1--;
+      else { this.insererLignes(fi, r1, 1); r2++; }
+    }
+    const t = { nom: nom || this.nomTableauLibre(), r1, c1: p.c1, r2: Math.max(r2, r1 + 1), c2: p.c2, entete: true, totaux: false, style, bandes: true, calculees: {} };
+    const pris = new Set();
+    for (let c = t.c1; c <= t.c2; c++) {
+      const cel = f.get(t.r1, c);
+      let n = cel && cel.v != null && cel.v !== '' && cel.f == null ? String(cel.v) : 'Colonne' + (c - t.c1 + 1);
+      while (pris.has(n.toLowerCase())) n += '2';
+      pris.add(n.toLowerCase());
+      if (!cel || cel.v !== n || cel.f != null) f.set(t.r1, c, { ...(cel || {}), f: undefined, v: n });
+    }
+    t.colonnes = this.nomsColonnes(fi, t);
+    f.tableaux.push(t);
+    this.modifie();
+    return t;
+  }
+  /** Agrandit le tableau si on écrit juste dessous ou juste à droite (comme Excel). Renvoie le tableau agrandi. */
+  etendreTableau(fi, r, c) {
+    const f = this.feuilles[fi];
+    for (const t of f.tableaux || []) {
+      if (!t.totaux && r === t.r2 + 1 && c >= t.c1 && c <= t.c2) {
+        t.r2++;
+        this.remplirCalculees(fi, t, r);
+        if (f.filtre && f.filtre.r1 === t.r1 && f.filtre.c1 === t.c1) f.filtre.r2 = t.r2;
+        this.modifie();
+        return t;
+      }
+      if (c === t.c2 + 1 && r >= t.r1 && r <= t.r2 && !(f.tableaux || []).some((x) => x !== t && c >= x.c1 && c <= x.c2 && !(t.r2 < x.r1 || t.r1 > x.r2))) {
+        t.c2++;
+        const h = f.get(t.r1, c);
+        if (!h || h.v == null || h.v === '') { const noms = this.nomsColonnes(fi, { ...t, c2: t.c2 - 1 }); let n = 'Colonne' + (t.c2 - t.c1 + 1); while (noms.some((x) => x.toLowerCase() === n.toLowerCase())) n += '2'; f.set(t.r1, c, { ...(h || {}), v: n }); }
+        t.colonnes = this.nomsColonnes(fi, t);
+        if (f.filtre && f.filtre.r1 === t.r1 && f.filtre.c1 === t.c1) f.filtre.c2 = t.c2;
+        this.modifie();
+        return t;
+      }
+    }
+    return null;
+  }
+  /** Colonne calculée : une formule saisie dans une colonne vide (ou déjà calculée) d'un tableau se recopie sur toute la colonne. */
+  colonneCalculee(fi, r, c) {
+    const x = this.tableauEn(fi, r, c), f = this.feuilles[fi];
+    if (!x) return false;
+    const t = x.t, d1 = t.r1 + 1, d2 = t.totaux ? t.r2 - 1 : t.r2;
+    if (r < d1 || r > d2) return false;
+    const cel = f.get(r, c);
+    if (!cel || cel.f == null) { if (t.calculees) delete t.calculees[c - t.c1]; return false; }
+    const ancienne = t.calculees && t.calculees[c - t.c1];
+    for (let k = d1; k <= d2; k++) {
+      if (k === r) continue;
+      const o = f.get(k, c);
+      if (!o || (o.v == null && o.f == null)) continue;
+      if (o.f != null && ancienne && o.f === decalerFormule(ancienne, k - d1, 0)) continue;
+      return false; // la colonne contient déjà d'autres données
+    }
+    const base = decalerFormule(cel.f, d1 - r, 0);
+    t.calculees = { ...(t.calculees || {}), [c - t.c1]: base };
+    for (let k = d1; k <= d2; k++) if (k !== r) { const o = f.get(k, c) || {}; f.set(k, c, { s: o.s, z: o.z || cel.z, f: decalerFormule(base, k - d1, 0) }); }
+    this.modifie();
+    return true;
+  }
+  remplirCalculees(fi, t, r) {
+    const f = this.feuilles[fi];
+    for (const [k, base] of Object.entries(t.calculees || {})) {
+      const c = t.c1 + +k, o = f.get(r, c);
+      if (!o || (o.v == null && o.f == null)) { const dessus = f.get(r - 1, c) || {}; f.set(r, c, { s: o && o.s, z: dessus.z, f: decalerFormule(base, r - t.r1 - 1, 0) }); }
+    }
+  }
+  /** Ligne de total : ajoutée sous les données (SOUS.TOTAL de la dernière colonne de nombres) ou retirée. */
+  ligneTotal(fi, t, oui) {
+    const f = this.feuilles[fi];
+    if (!!t.totaux === !!oui) return;
+    if (oui) {
+      const r = t.r2 + 1;
+      if (Array.from({ length: t.c2 - t.c1 + 1 }, (_, k) => f.get(r, t.c1 + k)).some((x) => x && (x.v != null || x.f != null))) this.insererLignes(fi, r, 1);
+      t.r2 = r; t.totaux = true;
+      const noms = this.nomsColonnes(fi, t);
+      let cible = -1;
+      for (let c = t.c2; c > t.c1 && cible < 0; c--) for (let k = t.r1 + 1; k < r; k++) { if (typeof this.valeur(fi, k, c) === 'number') { cible = c; break; } }
+      f.set(r, t.c1, { v: 'Total', s: { gras: true } });
+      if (cible >= 0) f.set(r, cible, { f: '=SOUS.TOTAL(109;[' + noms[cible - t.c1].replace(/([\[\]#'])/g, "'$1") + '])', s: { gras: true }, z: (f.get(r - 1, cible) || {}).z });
+    } else {
+      for (let c = t.c1; c <= t.c2; c++) f.set(t.r2, c, null);
+      t.r2--; t.totaux = false;
+    }
+    f.recalculerZone();
+    this.modifie();
+  }
+  /** Renomme un tableau et met à jour les formules qui le citent. */
+  renommerTableau(ancien, nouveau) {
+    nouveau = String(nouveau).trim();
+    if (!/^[A-Za-z_\u00C0-\u017F][\w.\u00C0-\u017F]*$/.test(nouveau) || parsePlage(nouveau) || /^[A-Za-z]{1,3}\d+$/.test(nouveau)) throw new Error('Nom de tableau invalide (une lettre, puis lettres, chiffres, _ ou .)');
+    const x = this.tableau(ancien);
+    if (!x) throw new Error('Tableau introuvable');
+    const autre = this.tableau(nouveau);
+    if ((autre && autre.t !== x.t) || this.nom(nouveau) !== undefined) throw new Error('Le nom « ' + nouveau + ' » est déjà pris');
+    const re = new RegExp('(^|[^\\w.])' + x.t.nom.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=\\[|[^\\w.(]|$)', 'gi');
+    for (const f of this.feuilles) f.chaque((r, c, cel) => { if (cel.f) cel.f = horsChaines(cel.f, (m) => m.replace(re, '$1' + nouveau)); });
+    x.t.nom = nouveau;
+    this.modifie();
+  }
+  /** Quand l'en-tête d'une colonne change, les références structurées qui la citent suivent. */
+  renommerColonne(fi, t, ancien, nouveau) {
+    if (!ancien || !nouveau || ancien === nouveau) return;
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const a = esc(ancien.replace(/([\[\]#'])/g, "'$1"));
+    const re = new RegExp('(\\[@?)' + a + '(\\])', 'gi');
+    const reNom = new RegExp('(^|[^\\w.])' + esc(t.nom) + '\\[', 'i');
+    const fv = this.feuilles[fi];
+    for (const [k, f] of this.feuilles.entries()) f.chaque((r, c, cel) => {
+      if (!cel.f || !cel.f.includes('[')) return;
+      const dedans = k === fi && r >= t.r1 && r <= t.r2 && c >= t.c1 && c <= t.c2;
+      if (!dedans && !reNom.test(cel.f)) return;
+      cel.f = cel.f.replace(re, '$1' + nouveau.replace(/([\[\]#'])/g, "'$1") + '$2');
+      cel.f = cel.f.replace(/\[@\[([^\[\]\s#'@,;:]+)\]\]/g, '[@$1]');
+    });
+    void fv;
+  }
+  supprimerTableau(fi, t, { garderFormat = true } = {}) {
+    const f = this.feuilles[fi];
+    if (garderFormat) {
+      // Convertir en plage : le style du tableau devient la mise en forme des cellules ; les références deviennent A1
+      const st = styleTableau(t.style);
+      for (let r = t.r1; r <= t.r2; r++) for (let c = t.c1; c <= t.c2; c++) { const x = styleCelluleTableau(t, r, c, st); if (x) this.style(fi, r, c, x); }
+    }
+    const nom = t.nom, d1 = t.r1 + 1, d2 = t.totaux ? t.r2 - 1 : t.r2, noms = this.nomsColonnes(fi, t);
+    const plageA1 = (r1, c1, r2, c2) => adresse(r1, c1, true, true) + (r1 === r2 && c1 === c2 ? '' : ':' + adresse(r2, c2, true, true));
+    for (const [k, fe] of this.feuilles.entries()) fe.chaque((r, c, cel) => {
+      if (!cel.f || !cel.f.includes('[')) return;
+      try {
+        cel.f = remplacerTref(cel.f, (table, spec) => {
+          if (table ? table.toLowerCase() !== nom.toLowerCase() : !(k === fi && r >= t.r1 && r <= t.r2 && c >= t.c1 && c <= t.c2)) return null;
+          const o = lireSpec(spec);
+          let c1 = t.c1, c2 = t.c2;
+          const idx = (n) => t.c1 + noms.findIndex((x) => x.toLowerCase() === n.toLowerCase());
+          if (o.col1 != null) { c1 = idx(o.col1); c2 = o.col2 != null ? idx(o.col2) : c1; }
+          if (o.zones.includes('ligne')) return c1 === c2 ? adresse(r, c1) : adresse(r, c1) + ':' + adresse(r, c2);
+          let r1 = Infinity, r2 = -Infinity;
+          for (const z of o.zones) { const [a, b] = z === 'tout' ? [t.r1, t.r2] : z === 'entetes' ? [t.r1, t.r1] : z === 'totaux' ? [t.r2, t.r2] : [d1, d2]; r1 = Math.min(r1, a); r2 = Math.max(r2, b); }
+          const pref = k === fi ? '' : (/^[A-Za-z_][\w.]*$/.test(f.nom) ? f.nom : "'" + f.nom.replace(/'/g, "''") + "'") + '!';
+          return pref + plageA1(r1, c1, r2, c2);
+        });
+      } catch { /* formule illisible : laissée telle quelle */ }
+    });
+    f.tableaux = f.tableaux.filter((x) => x !== t);
+    this.modifie();
+  }
+
   // ----- Cellules -----
   cellule(f, r, c) {
     const feuille = typeof f === 'number' ? this.feuilles[f] : f;
@@ -297,6 +490,17 @@ export class Classeur {
       else cel.v = t;
     }
     feuille.set(r, c, cel);
+    // En-tête de tableau modifié : les formules qui citent la colonne suivent
+    const fiS = typeof f === 'number' ? f : this.feuilles.indexOf(f);
+    const tb = (feuille.tableaux || []).find((x) => x.entete !== false && x.r1 === r && c >= x.c1 && c <= x.c2);
+    if (tb) {
+      if (cel.v != null && typeof cel.v !== 'string' && cel.f == null) feuille.set(r, c, { ...cel, v: t.trim() }); // les en-têtes sont des textes
+      const avant = tb.colonnes && tb.colonnes[c - tb.c1];
+      if (cel.v == null || cel.v === '' || cel.f != null) feuille.set(r, c, { ...cel, f: undefined, v: avant || 'Colonne' + (c - tb.c1 + 1) });
+      const apres = this.nomsColonnes(fiS, tb)[c - tb.c1];
+      this.renommerColonne(fiS, tb, avant, apres);
+      tb.colonnes = this.nomsColonnes(fiS, tb);
+    }
     this.modifie();
   }
 
@@ -385,6 +589,21 @@ export class Classeur {
     }
     decalerMfc(feuille, axe, idx, n);
     decalerMfc(feuille, axe, idx, n, 'validations');
+    // Tableaux structurés : insérer dedans les agrandit, supprimer dedans les réduit
+    for (const t of feuille.tableaux || []) {
+      const [a, b] = axe === 'r' ? ['r1', 'r2'] : ['c1', 'c2'];
+      if (axe === 'c' && t.calculees) {
+        // Colonnes calculées : repérées par leur rang dans le tableau
+        const cc = {};
+        for (const [k, v] of Object.entries(t.calculees)) { const col = t.c1 + +k; if (n < 0 && col >= idx && col < idx - n) continue; const nc = col >= idx ? col + n : col; const nc1 = t.c1 >= idx ? Math.max(idx, t.c1 + n) : t.c1; cc[nc - nc1] = v; }
+        t.calculees = cc;
+      }
+      if (n > 0) { if (t[a] >= idx) t[a] += n; if (t[b] >= idx) t[b] += n; }
+      else { const fin = idx - n; const na = t[a] >= fin ? t[a] + n : t[a] >= idx ? idx : t[a]; const nb = t[b] >= fin ? t[b] + n : t[b] >= idx ? idx - 1 : t[b]; t[a] = na; t[b] = nb; }
+      if (axe === 'c') t.colonnes = undefined;
+    }
+    feuille.tableaux = (feuille.tableaux || []).filter((t) => t.r2 > t.r1 && t.c2 >= t.c1);
+    for (const t of feuille.tableaux) if (!t.colonnes) t.colonnes = this.nomsColonnes(fi, t);
     // Tableaux croisés posés sur la feuille : leur coin et leur zone suivent
     for (const t of feuille.tcd || []) {
       const k = axe === 'r' ? 'r' : 'c';
@@ -427,9 +646,9 @@ export class Classeur {
 
 // Ajuste les références d'une formule après insertion/suppression de lignes ou colonnes.
 function ajusterReferences(formule, memeFeuille, nomFeuille, classeur, axe, idx, n) {
-  const re = /((?:'(?:[^']|'')+'|[A-Za-z_][\w.]*)!)?(\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?|\$?[A-Za-z]{1,3}:\$?[A-Za-z]{1,3}|\$?\d+:\$?\d+)(?![\w(])/g;
+  const re = /(?<![\w.])((?:'(?:[^']|'')+'|[A-Za-z_][\w.]*)!)?(\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?|\$?[A-Za-z]{1,3}:\$?[A-Za-z]{1,3}|\$?\d+:\$?\d+)(?![\w(])/g;
   // On évite de toucher aux chaînes de caractères.
-  const morceaux = formule.split(/("(?:[^"]|"")*")/);
+  const morceaux = formule.split(/("(?:[^"]|"")*"|\[(?:[^[\]]|\[(?:[^[\]]|\[[^[\]]*\])*\])*\])/);
   return morceaux.map((m, i) => {
     if (i % 2 === 1) return m;
     return m.replace(re, (tout, pref, ref) => {

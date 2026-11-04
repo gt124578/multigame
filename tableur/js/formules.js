@@ -142,12 +142,74 @@ export class Plage {
 // ---------------------------------------------------------------------------
 
 const T = {
-  NOMBRE: 'nombre', CHAINE: 'chaine', REF: 'ref', NOM: 'nom', FONCTION: 'fonction',
+  NOMBRE: 'nombre', CHAINE: 'chaine', REF: 'ref', NOM: 'nom', FONCTION: 'fonction', TREF: 'tref',
   OP: 'op', PARO: '(', PARF: ')', SEP: 'sep', ACCO: '{', ACCF: '}', BOOL: 'bool', ERREUR: 'erreur',
 };
 
-const RE_REF = /^(?:(?:'((?:[^']|'')+)'|([A-Za-z_\u00C0-\u017F][\w.\u00C0-\u017F]*))!)?(\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?|\$?[A-Za-z]{1,3}:\$?[A-Za-z]{1,3}|\$?\d+:\$?\d+)(?![\w(])/;
+const RE_REF = /^(?:(?:'((?:[^']|'')+)'|([A-Za-z_\u00C0-\u017F][\w.\u00C0-\u017F]*))!)?(\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?|\$?[A-Za-z]{1,3}:\$?[A-Za-z]{1,3}|\$?\d+:\$?\d+)(?![\w(\[])/;
 const RE_ERREUR = /^#(?:DIV\/0!|VALUE!|REF!|NAME\?|N\/A|NUM!|NULL!|CYCLE!)/i;
+
+// Fin d'un groupe entre crochets (imbriqués), « ' » échappe le caractère suivant : Tableau1[[#Tout];[Prix '[HT']]]
+function finCrochets(src, i) {
+  let prof = 0;
+  for (let j = i; j < src.length; j++) {
+    const ch = src[j];
+    if (ch === "'") { j++; continue; }
+    if (ch === '[') prof++;
+    else if (ch === ']' && --prof === 0) return j + 1;
+  }
+  throw err(ERR.REF, 'crochet manquant');
+}
+
+// Mots spéciaux des références structurées, en français et en anglais
+const MOTS_TABLEAU = { tout: 'tout', all: 'tout', 'données': 'donnees', donnees: 'donnees', data: 'donnees', 'en-têtes': 'entetes', 'en-tetes': 'entetes', headers: 'entetes',
+  totaux: 'totaux', totals: 'totaux', 'cette ligne': 'ligne', 'this row': 'ligne' };
+const MOTS_FR = { tout: '#Tout', donnees: '#Données', entetes: '#En-têtes', totaux: '#Totaux', ligne: '#Cette ligne' };
+const MOTS_EN = { tout: '#All', donnees: '#Data', entetes: '#Headers', totaux: '#Totals', ligne: '#This Row' };
+const desechapper = (s) => s.replace(/'(.)/g, '$1');
+const echapperCol = (s) => s.replace(/([\[\]#'])/g, "'$1");
+
+/**
+ * Lit la partie entre crochets d'une référence structurée.
+ * → { zones: ['donnees'|'tout'|'entetes'|'totaux'|'ligne'], col1, col2 } (col1/col2 : noms de colonnes ou null)
+ */
+export function lireSpec(spec) {
+  let inner = spec.slice(1, -1).trim();
+  const out = { zones: [], col1: null, col2: null };
+  const element = (x) => {
+    x = x.trim();
+    if (x.startsWith('#')) { const k = MOTS_TABLEAU[x.slice(1).trim().toLowerCase()]; if (!k) throw err(ERR.REF, x); out.zones.push(k); return; }
+    if (out.col1 == null) out.col1 = desechapper(x); else out.col2 = desechapper(x);
+  };
+  if (inner.startsWith('@')) { out.zones.push('ligne'); inner = inner.slice(1).trim(); if (!inner) return out; if (!inner.startsWith('[')) { out.col1 = desechapper(inner); return out; } }
+  if (!inner.startsWith('[')) { if (inner) element(inner); }
+  else {
+    // Suite de [..] séparés par , ; ou :
+    let j = 0;
+    while (j < inner.length) {
+      const ch = inner[j];
+      if (ch === '[') { const fin = finCrochets(inner, j); element(inner.slice(j + 1, fin - 1)); j = fin; }
+      else if (ch === '@') { out.zones.push('ligne'); j++; }
+      else j++;
+    }
+  }
+  if (!out.zones.length) out.zones.push('donnees');
+  return out;
+}
+
+/** Réécrit une partie entre crochets dans une langue ('fr' : #Tout, [@Col], « ; » ; 'en' : #All, [#This Row], « , »). */
+export function ecrireSpec(spec, sens) {
+  let o;
+  try { o = lireSpec(spec); } catch { return spec; }
+  const mots = sens === 'en' ? MOTS_EN : MOTS_FR, sep = sens === 'en' ? ',' : ';';
+  const cols = o.col1 == null ? '' : '[' + echapperCol(o.col1) + ']' + (o.col2 != null ? ':[' + echapperCol(o.col2) + ']' : '');
+  const zones = o.zones.filter((z) => !(z === 'donnees' && o.zones.length === 1 && !spec.includes('#')));
+  if (sens !== 'en' && zones.length === 1 && zones[0] === 'ligne') return o.col1 == null ? '[@]' : o.col2 == null && !/[\s\[\]#'@,;:]/.test(o.col1) ? '[@' + o.col1 + ']' : '[@' + cols + ']';
+  if (!zones.length) return o.col2 == null && o.col1 != null ? '[' + echapperCol(o.col1) + ']' : '[' + cols + ']';
+  const parts = zones.map((z) => '[' + mots[z] + ']');
+  if (!cols) return parts.length === 1 ? parts[0] : '[' + parts.join(sep) + ']';
+  return '[' + parts.join(sep) + sep + cols + ']';
+}
 
 export function tokeniser(src, langue) {
   const toks = [];
@@ -194,6 +256,10 @@ export function tokeniser(src, langue) {
       if (src[j] === '(') {
         toks.push({ t: T.FONCTION, v: nom.toUpperCase(), pos: i, fin: j + 1 }); i = j + 1; continue;
       }
+      if (src[i + nom.length] === '[') { // référence structurée : Tableau1[Ventes], Tableau1[[#Tout];[Ventes]]
+        const fin = finCrochets(src, i + nom.length);
+        toks.push({ t: T.TREF, table: nom, spec: src.slice(i + nom.length, fin), pos: i, fin }); i = fin; continue;
+      }
       const up = nom.toUpperCase();
       if (up === 'TRUE' || up === 'VRAI') toks.push({ t: T.BOOL, v: true, pos: i, fin: i + nom.length });
       else if (up === 'FALSE' || up === 'FAUX') toks.push({ t: T.BOOL, v: false, pos: i, fin: i + nom.length });
@@ -203,6 +269,7 @@ export function tokeniser(src, langue) {
     if ((m = /^(<=|>=|<>|[-+*/^&=<>%:@])/.exec(reste))) {
       toks.push({ t: T.OP, v: m[0], pos: i, fin: i + m[0].length }); i += m[0].length; continue;
     }
+    if (ch === '[') { const fin = finCrochets(src, i); toks.push({ t: T.TREF, table: null, spec: src.slice(i, fin), pos: i, fin }); i = fin; continue; }
     if (ch === '(') { toks.push({ t: T.PARO, pos: i, fin: i + 1 }); i++; continue; }
     if (ch === ')') { toks.push({ t: T.PARF, pos: i, fin: i + 1 }); i++; continue; }
     if (ch === '{') { accolades++; toks.push({ t: T.ACCO, pos: i, fin: i + 1 }); i++; continue; }
@@ -284,6 +351,7 @@ class Parseur {
       case T.ERREUR: return { k: 'err', v: k.v };
       case T.REF: return { k: 'ref', feuille: k.feuille, plage: k.v, debord: k.debord };
       case T.NOM: return { k: 'nom', v: k.v };
+      case T.TREF: return { k: 'tref', table: k.table, spec: k.spec };
       case T.FONCTION: {
         const args = [];
         if (this.peek() && this.peek().t === T.PARF) { this.next(); return { k: 'fn', nom: k.v, args }; }
@@ -1589,6 +1657,32 @@ export class Evaluateur {
     return this.plageDepuisTexte(tok.v, f);
   }
 
+  /** Plage d'une référence structurée (Tableau1[Ventes], [@Prix], Tableau1[[#Tout];[A]:[C]]). */
+  plageTableau(nom, spec) {
+    const C = this.classeur;
+    if (!C.tableau) throw err(ERR.NOM);
+    const { feuille, r, c } = this.courant;
+    const x = nom ? C.tableau(nom) : C.tableauEn(feuille, r, c);
+    if (!x) throw err(nom ? ERR.NOM : ERR.REF, nom || spec);
+    const { fi, t } = x, o = lireSpec(spec);
+    const cols = C.nomsColonnes(fi, t);
+    const idx = (n) => { const i = cols.findIndex((k) => k.toLowerCase() === String(n).trim().toLowerCase()); if (i < 0) throw err(ERR.REF, n); return t.c1 + i; };
+    let c1 = t.c1, c2 = t.c2;
+    if (o.col1 != null) { c1 = idx(o.col1); c2 = o.col2 != null ? idx(o.col2) : c1; if (c2 < c1) [c1, c2] = [c2, c1]; }
+    const haut = t.entete === false ? null : t.r1, d1 = t.entete === false ? t.r1 : t.r1 + 1, d2 = t.totaux ? t.r2 - 1 : t.r2, tot = t.totaux ? t.r2 : null;
+    let r1 = Infinity, r2 = -Infinity;
+    const prendre = (a, b) => { if (a == null) return; r1 = Math.min(r1, a); r2 = Math.max(r2, b); };
+    for (const z of o.zones) {
+      if (z === 'tout') prendre(t.r1, t.r2);
+      else if (z === 'donnees') prendre(d1, Math.max(d1, d2));
+      else if (z === 'entetes') prendre(haut, haut);
+      else if (z === 'totaux') prendre(tot, tot);
+      else if (z === 'ligne') { if (fi !== feuille || r < d1 || r > d2) throw err(ERR.VALEUR); prendre(r, r); }
+    }
+    if (r1 === Infinity) throw err(ERR.REF);
+    return new Plage(this, fi, r1, c1, r2, c2);
+  }
+
   plageDepuisTexte(texte, f) {
     const s = texte.replace(/\$/g, '');
     let m;
@@ -1609,10 +1703,12 @@ export class Evaluateur {
       case 'ref': return this.plageDepuisToken({ feuille: n.feuille, v: n.plage, debord: n.debord });
       case 'nom': {
         const def = this.classeur.nom(n.v, this.courant.feuille);
+        if (def === undefined && this.classeur.tableau && this.classeur.tableau(n.v)) return this.plageTableau(n.v, '[#Données]');
         if (def === undefined) throw err(ERR.NOM, n.v);
         if (typeof def === 'number' || typeof def === 'boolean') return def;
         return this.evaluer(analyser(String(def).startsWith('=') ? def : '=' + def));
       }
+      case 'tref': return this.plageTableau(n.table, n.spec);
       case 'tab': return n.lignes.map((l) => l.map((x) => scal(this.evaluer(x))));
       case 'pct': return N(this.evaluer(n.a)) / 100;
       case 'un': return -N(this.evaluer(n.a));
@@ -1750,7 +1846,7 @@ for (const [fr, en] of Object.entries(ALIAS)) if (!ALIAS_INVERSE[en] && !FONCTIO
  * et la syntaxe française de l'interface (noms français, « ; », virgule décimale acceptée).
  * sens : 'fr' (fichier → interface) ou 'en' (interface → fichier).
  */
-export function convertirFormule(formule, sens) {
+export function convertirFormule(formule, sens, ctx = {}) {
   if (!formule || !formule.startsWith('=')) return formule;
   const src = formule.slice(1);
   let toks;
@@ -1764,6 +1860,7 @@ export function convertirFormule(formule, sens) {
     else if (t.t === T.SEP) out += sens === 'fr' ? ';' : ',';
     else if (t.t === T.NOMBRE) out += sens === 'fr' ? brut : brut.replace(',', '.');
     else if (t.t === T.BOOL) out += sens === 'fr' ? (t.v ? 'VRAI' : 'FAUX') : (t.v ? 'TRUE' : 'FALSE');
+    else if (t.t === T.TREF) out += (t.table || (sens === 'en' && ctx.table) || '') + ecrireSpec(t.spec, sens);
     else if (t.t === T.FONCTION) {
       let nom = t.v.replace(/^_XLFN\.|^_XLWS\./, '');
       if (sens === 'fr') nom = ALIAS_INVERSE[nom] || brut.replace(/\s*\($/, '').replace(/^_xlfn\.|^_xlws\./i, '');
@@ -1774,6 +1871,20 @@ export function convertirFormule(formule, sens) {
   }
   out += src.slice(pos);
   return '=' + out;
+}
+
+/** Remplace les références structurées d'une formule : fn(table, spec) → texte (ou null pour garder). */
+export function remplacerTref(formule, fn) {
+  const src = formule.startsWith('=') ? formule.slice(1) : formule;
+  const toks = tokeniser(src);
+  let out = '', pos = 0;
+  for (const t of toks) {
+    out += src.slice(pos, t.pos);
+    const brut = src.slice(t.pos, t.fin);
+    if (t.t === T.TREF) { const x = fn(t.table, t.spec); out += x == null ? brut : x; } else out += brut;
+    pos = t.fin;
+  }
+  return (formule.startsWith('=') ? '=' : '') + out + src.slice(pos);
 }
 
 /** Renvoie les références (plages) utilisées par une formule : pour la coloration. */

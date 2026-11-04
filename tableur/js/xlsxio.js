@@ -6,6 +6,7 @@ import { extraireModulesVBA } from './vbaextract.js';
 import { lireStylesXlsx, ecrireStylesXlsx } from './styles-xlsx.js';
 import { lireObjetsXlsx } from './objets-xlsx.js';
 import { lireVuesXlsx, ecrireVuesXlsx } from './vues-xlsx.js';
+import { lireTableauxXlsx, ecrireTableauxXlsx } from './tableaux-xlsx.js';
 import { ecrireGraphiquesXlsx, specDepuisChartXml, positionAncre } from './graphiques-xlsx.js';
 
 const FEUILLE_MACROS = '_MacrosTableur';
@@ -120,6 +121,15 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
         }
       }
     } catch (e) { console.warn('Volets, filtre ou mise en forme conditionnelle non lus :', e); }
+    try {
+      for (const [nom, liste] of lireTableauxXlsx(XLSX, donnees)) {
+        const f = classeur.feuille(nom);
+        if (!f) continue;
+        f.tableaux = liste;
+        const t = liste.find((x) => x.entete !== false);
+        if (t && !f.filtre) { f.filtre = { r1: t.r1, c1: t.c1, r2: t.totaux ? t.r2 - 1 : t.r2, c2: t.c2, criteres: {} }; f.filtrees = new Set(); }
+      }
+    } catch (e) { console.warn('Tableaux non lus :', e); }
   }
   // Noms définis
   if (wb.Workbook && wb.Workbook.Names) {
@@ -191,7 +201,7 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
       const k = colVersLettres(c) + (r + 1);
       const o = {};
       let v = cel.f != null ? classeur.valeur(fi, r, c) : cel.v;
-      if (cel.f != null) o.f = convertirFormule(cel.f, 'en').slice(1);
+      if (cel.f != null) { const tb = cel.f.includes('[') && classeur.tableauEn(fi, r, c); o.f = convertirFormule(cel.f, 'en', tb ? { table: tb.t.nom } : {}).slice(1); }
       if (v instanceof ErreurFormule) { if (cel.f == null) { o.t = 'e'; o.v = 0; o.w = v.code; } else { o.t = 'n'; } }
       else if (v == null) { if (cel.f == null && !cel.z && !cel.s) return; o.t = cel.f != null ? 'n' : 'z'; }
       else if (typeof v === 'number') { o.t = 'n'; o.v = v; }
@@ -264,6 +274,7 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
   let out = new Uint8Array(XLSX.write(wb, { bookType, type: 'array', compression: true }));
   try { out = ecrireStylesXlsx(XLSX, out, classeur.feuilles); } catch (e) { console.warn('Styles non écrits :', e); }
   try { out = ecrireVuesXlsx(XLSX, out, classeur.feuilles); } catch (e) { console.warn('Volets, filtre ou mise en forme conditionnelle non écrits :', e); }
+  if (bookType !== 'csv') try { out = ecrireTableauxXlsx(XLSX, out, classeur); } catch (e) { console.warn('Tableaux non écrits :', e); }
   if (bookType !== 'csv') try { out = ecrireGraphiquesXlsx(XLSX, out, classeur); } catch (e) { console.warn('Graphiques Excel non écrits :', e); }
   return out;
 }
