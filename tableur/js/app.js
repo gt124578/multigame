@@ -14,6 +14,7 @@ import { installerDonnees } from './ui-donnees.js';
 import { installerTCD } from './ui-tcd.js';
 import { installerDialogues } from './ui-dialogues.js';
 import { installerAnalyse } from './ui-analyse.js';
+import { idbLire, idbEcrire, idbSupprimer, stockagePersistant } from './stockage.js';
 import { installerImpression } from './ui-impression.js';
 import { rendreGraphiqueSVG, normaliser as normaliserGraphique, sparklineSVG } from './graphiques.js';
 import { antecedents, dependants, actualiserTablesDonnees } from './analyse.js';
@@ -1238,7 +1239,7 @@ function toast(msg, erreur = false) {
 // Fichiers
 // ---------------------------------------------------------------------------
 
-async function ouvrirFichier(file) {
+async function ouvrirFichier(file, poignee = null) {
   const ext = (file.name.split('.').pop() || '').toLowerCase();
   try {
     let buf = new Uint8Array(await file.arrayBuffer());
@@ -1265,7 +1266,10 @@ async function ouvrirFichier(file) {
     }
     const nouveau = lireClasseur(XLSX, buf, file.name);
     nouveau.nomFichier = nomLibreClasseur(nouveau.nomFichier);
+    // Lié au fichier du disque : Ctrl+S le réécrira (formats que Sprezz sait écrire)
+    if (poignee && ['xlsx', 'xlsm', 'ods', 'csv'].includes(ext)) { await lierFichier(nouveau, poignee); nouveau.nomFichier = poignee.name; }
     chargerClasseur(nouveau);
+    if (['xlsx', 'xlsm', 'ods', 'csv'].includes(ext)) $('format-export').value = ext;
     toast('« ' + file.name + ' » ouvert : ' + nouveau.feuilles.length + ' feuille' + (nouveau.feuilles.length > 1 ? 's' : '') + (nouveau.modulesVBA().some((m) => (m.code || '').trim()) ? ', macros lues' : '') + (nouveau.feuilles.some((f) => f.graphiques.length) ? ', graphiques affichés' : ''));
     if (nouveau.vbaBrut) $('format-export').value = 'xlsm';
   } catch (e) { console.error(e); toast('Impossible de lire ce fichier : ' + e.message, true); }
@@ -1360,7 +1364,7 @@ function basculerVers(c) { // premier affichage d'un classeur qui remplace le pr
   graphiqueActif = null;
   $('sortie-vba').innerHTML = '';
   afficherModule();
-  $('format-export').value = aDesMacros(c) ? 'xlsm' : 'xlsx';
+  $('format-export').value = aDesMacros(c) ? 'xlsm' : [...$('format-export').options].some((o) => o.value === extension(c.nomFichier)) ? extension(c.nomFichier) : 'xlsx';
   activerFeuille(Math.min(c.active, c.feuilles.length - 1));
   document.title = (c.nomFichier || 'Classeur') + ' — Sprezz';
   if (panneauCourant === 'noms') rendreNoms();
@@ -1417,21 +1421,99 @@ function rendreClasseurs(forcer = false) {
   }
 }
 
-function enregistrer() {
+// ----- Fichiers du disque : réenregistrer au même endroit (Chrome, Edge), fichiers récents -----
+const disque = typeof window.showSaveFilePicker === 'function';
+const TYPES_FICHIER = {
+  xlsx: { description: 'Classeur Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } },
+  xlsm: { description: 'Classeur Excel avec macros', accept: { 'application/vnd.ms-excel.sheet.macroEnabled.12': ['.xlsm'] } },
+  ods: { description: 'Classeur OpenDocument (LibreOffice)', accept: { 'application/vnd.oasis.opendocument.spreadsheet': ['.ods'] } },
+  csv: { description: 'Texte CSV', accept: { 'text/csv': ['.csv'] } },
+};
+const extension = (nom) => (/\.([a-z0-9]+)$/i.exec(nom || '') || [])[1]?.toLowerCase() || '';
+async function poigneeDe(c) {
+  if (c._poignee) return c._poignee;
+  if (!c.idFichier) return null;
+  try { c._poignee = await idbLire('poignee:' + c.idFichier); } catch { /* rien */ }
+  return c._poignee || null;
+}
+async function lierFichier(c, h) {
+  // Le même fichier déjà dans les récents garde son identifiant
+  let id = null;
+  try { for (const r of (await idbLire('recents')) || []) { const x = await idbLire('poignee:' + r.id); if (x && await x.isSameEntry(h)) { id = r.id; break; } } } catch { /* rien */ }
+  c.idFichier = id || 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  c._poignee = h;
+  try {
+    await idbEcrire('poignee:' + c.idFichier, h);
+    const l = ((await idbLire('recents')) || []).filter((x) => x.id !== c.idFichier);
+    l.unshift({ id: c.idFichier, nom: h.name, date: Date.now() });
+    for (const x of l.splice(12)) idbSupprimer('poignee:' + x.id);
+    await idbEcrire('recents', l);
+  } catch (e) { console.warn(e); }
+}
+async function permissionFichier(h, mode = 'readwrite') {
+  if (!h.queryPermission) return true;
+  if ((await h.queryPermission({ mode })) === 'granted') return true;
+  return (await h.requestPermission({ mode })) === 'granted';
+}
+/** Ctrl+S : réécrit le fichier d'origine ; F12 (sous = vrai) : choisir où et sous quel nom. Sans accès au disque : téléchargement. */
+async function enregistrer(sous = false) {
   if (edition) validerEdition();
   let type = $('format-export').value;
   if (type === 'xlsx' && aDesMacros(classeur)) { type = 'xlsm'; $('format-export').value = 'xlsm'; }
+  const c = classeur;
   try {
-    const octets = ecrireClasseur(XLSX, classeur, { bookType: type });
-    const nom = (classeur.nomFichier || 'Classeur1').replace(/\.(xlsx|xlsm|xls|csv|ods)$/i, '') + '.' + type;
-    const blob = new Blob([octets], { type: type === 'csv' ? 'text/csv' : 'application/octet-stream' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nom; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    classeur.nomFichier = nom;
-    classeur.enregistre = classeur.version;
+    const octets = ecrireClasseur(XLSX, c, { bookType: type });
+    const nom = (c.nomFichier || 'Classeur1').replace(/\.(xlsx|xlsm|xls|csv|ods)$/i, '') + '.' + type;
+    if (disque) {
+      let h = sous ? null : await poigneeDe(c);
+      if (h && extension(h.name) !== type) h = null; // autre format : on demande où l'écrire
+      if (!h) {
+        try { h = await window.showSaveFilePicker({ suggestedName: nom, types: [TYPES_FICHIER[type] || TYPES_FICHIER.xlsx] }); }
+        catch (e) { if (e.name === 'AbortError') return; throw e; }
+        await lierFichier(c, h);
+      } else if (!(await permissionFichier(h))) return toast('Le navigateur n\'a pas permis d\'écrire dans « ' + h.name + ' »', true);
+      const w = await h.createWritable(); await w.write(octets); await w.close();
+      c.nomFichier = h.name;
+    } else {
+      const blob = new Blob([octets], { type: type === 'csv' ? 'text/csv' : 'application/octet-stream' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nom; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      c.nomFichier = nom;
+    }
+    c.enregistre = c.version;
+    if (c === classeur) document.title = c.nomFichier + ' — Sprezz';
     rendreClasseurs(true); sauvegarderLocal();
-    toast('Téléchargé : ' + nom + (type === 'xlsm' && classeur.macros.trim() ? ' (le code VBA modifié ici est gardé dans la feuille masquée _MacrosTableur ; Excel ne l\'exécute pas comme un vrai projet VBA)' : ''));
+    toast((disque ? 'Enregistré : ' : 'Téléchargé : ') + c.nomFichier + (type === 'xlsm' && c.macros.trim() ? ' (le code VBA modifié ici est gardé dans la feuille masquée _MacrosTableur ; Excel ne l\'exécute pas comme un vrai projet VBA)' : type === 'csv' ? ' (feuille active, valeurs seulement)' : ''));
   } catch (e) { console.error(e); toast('Enregistrement impossible : ' + e.message, true); }
+}
+/** Ouvrir… : sélecteur du système (le fichier reste lié pour Ctrl+S), ou champ de fichier classique. */
+async function ouvrirDepuisDisque() {
+  if (typeof window.showOpenFilePicker !== 'function') return $('fichier').click();
+  let hs;
+  try { hs = await window.showOpenFilePicker({ multiple: true, types: [{ description: 'Classeurs, CSV, Word, modules VBA', accept: { 'application/octet-stream': ['.xlsx', '.xlsm', '.xls', '.ods', '.csv', '.tsv', '.txt', '.docx', '.bas', '.cls', '.frm'] } }] }); }
+  catch (e) { if (e.name !== 'AbortError') $('fichier').click(); return; }
+  for (const h of hs) await ouvrirFichier(await h.getFile(), h);
+}
+async function ouvrirRecent(r) {
+  try {
+    const h = await idbLire('poignee:' + r.id);
+    if (!h) throw new Error('fichier introuvable');
+    if (!(await permissionFichier(h))) return toast('Le navigateur n\'a pas permis d\'ouvrir « ' + r.nom + ' »', true);
+    await ouvrirFichier(await h.getFile(), h);
+  } catch (e) {
+    toast('« ' + r.nom + ' » n\'est plus accessible (déplacé ou supprimé ?)', true);
+    const l = ((await idbLire('recents')) || []).filter((x) => x.id !== r.id); idbEcrire('recents', l); idbSupprimer('poignee:' + r.id);
+  }
+}
+async function menuOuvrir(x, y) {
+  const l = disque ? (await idbLire('recents').catch(() => null)) || [] : [];
+  const quand = (t) => { const d = new Date(t), j = new Date(); return d.toDateString() === j.toDateString() ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString('fr-FR'); };
+  ouvrirMenu(x, y, [
+    ['Ouvrir un fichier…', () => ouvrirDepuisDisque(), 'Ctrl+O'],
+    ...(l.length ? [null, ...l.map((r) => [r.nom, () => ouvrirRecent(r), quand(r.date)]), null, ['Vider la liste des récents', async () => { for (const r of l) idbSupprimer('poignee:' + r.id); await idbEcrire('recents', []); toast('Liste vidée'); }]]
+      : [null, [disque ? 'Aucun fichier récent' : 'Fichiers récents : avec Chrome ou Edge', () => {}]]),
+    null, ['Enregistrer sous…', () => enregistrer(true), 'F12'],
+  ]);
 }
 function nouveauClasseur() {
   const c = Classeur.nouveau();
@@ -1442,7 +1524,7 @@ function nouveauClasseur() {
 
 // Sauvegarde locale (navigateur) de tous les classeurs ouverts, pour survivre à un rechargement
 function serialiserClasseur(c) {
-  return JSON.stringify({ nomFichier: c.nomFichier, active: c.active, macros: c.macros || '', calculManuel: !!c.calculManuel, noms: [...c.noms.values()], modifie: estModifie(c),
+  return JSON.stringify({ nomFichier: c.nomFichier, idFichier: c.idFichier, active: c.active, macros: c.macros || '', calculManuel: !!c.calculManuel, noms: [...c.noms.values()], modifie: estModifie(c),
     feuilles: c.feuilles.map((f, fi2) => ({ nom: f.nom, codeNom: f.codeNom, cachee: f.cachee, largeurs: f.largeurs, hauteurs: f.hauteurs, fusions: f.fusions, graphiques: f.graphiques, boutons: f.boutons, images: f.images, noms: [...f.noms.values()], figer: f.figer, mfc: f.mfc, filtre: f.filtre, filtrees: [...(f.filtrees || [])], validations: f.validations, tcd: f.tcd, couleur: f.couleur,
       ...Object.fromEntries(PROPRIETES_FEUILLE.filter((k) => f[k] !== undefined).map((k) => [k, f[k]])), zoom: f.zoom,
       cellules: [...f.cellules].map(([k, cel]) => {
@@ -1455,6 +1537,7 @@ function serialiserClasseur(c) {
 function deserialiserClasseur(data) {
   const c = new Classeur();
   c.nomFichier = data.nomFichier || 'Classeur1.xlsx';
+  if (data.idFichier) c.idFichier = data.idFichier;
   for (const fd of data.feuilles || []) {
     const f = c.ajouterFeuille(fd.nom); if (fd.codeNom) { try { c.changerCodeNom(f, fd.codeNom); } catch { /* nom pris */ } } f.cachee = !!fd.cachee; f.largeurs = fd.largeurs || {}; f.hauteurs = fd.hauteurs || {}; f.fusions = fd.fusions || []; f.graphiques = fd.graphiques || []; f.boutons = fd.boutons || []; f.images = fd.images || [];
     f.figer = fd.figer || null; f.mfc = fd.mfc || []; f.filtre = fd.filtre || null; f.filtrees = new Set(fd.filtrees || []); f.validations = fd.validations || []; f.tcd = fd.tcd || []; if (fd.couleur) f.couleur = fd.couleur;
@@ -1479,25 +1562,47 @@ function sauvegarderLocal() {
     try { if (!classeur.calculManuel && classeur.feuilles.some((f) => f.tablesDonnees && f.tablesDonnees.length) && actualiserTablesDonnees(classeur)) rendre(); } catch (e) { console.warn(e); }
     try { uiG.rafraichir(); uiD.rafraichir(); uiA.rafraichir(); } catch (e) { console.warn(e); }
     try {
-      const morceaux = [];
+      const morceaux = [], tous = [], t = Date.now();
       let total = 0;
       for (const c of classeurs) {
         // Les classeurs en arrière-plan ne changent pas : on garde leur texte tant que leur version est la même
-        if (c !== classeur && c._json && c._jsonVersion === c.version + '/' + estModifie(c)) { /* déjà prêt */ }
-        else { c._json = serialiserClasseur(c); c._jsonVersion = c.version + '/' + estModifie(c); }
-        if (total + c._json.length > 4_500_000) continue; // trop gros pour le navigateur : seulement en mémoire
+        if (c !== classeur && c._json && c._jsonVersion === c.version + '/' + estModifie(c) + '/' + (c.idFichier || '')) { /* déjà prêt */ }
+        else { c._json = serialiserClasseur(c); c._jsonVersion = c.version + '/' + estModifie(c) + '/' + (c.idFichier || ''); }
+        tous.push(c._json);
+        c._dansLocal = total + c._json.length <= 4_500_000; // localStorage est petit : les gros classeurs vont seulement dans IndexedDB
+        if (!c._dansLocal) continue;
         morceaux.push(c._json); total += c._json.length;
       }
-      localStorage.setItem(CLE_STOCKAGE, '{"actif":' + Math.max(0, classeurs.indexOf(classeur)) + ',"liste":[' + morceaux.join(',') + ']}');
-      localStorage.removeItem(ANCIENNE_CLE);
-    } catch { /* stockage indisponible ou plein */ }
+      const actif = Math.max(0, classeurs.indexOf(classeur));
+      // IndexedDB : tout, sans limite pratique ; localStorage : copie rapide relue au démarrage
+      // (pas avant d'avoir relu IndexedDB au démarrage : on écraserait un gros classeur pas encore rechargé)
+      if (idbPret) idbEcrire('classeurs', { t, actif, liste: tous }).then(() => { for (const c of classeurs) c._dansIdb = true; }, () => { for (const c of classeurs) c._dansIdb = false; });
+      try { localStorage.setItem(CLE_STOCKAGE, '{"t":' + t + ',"complet":' + (morceaux.length === tous.length) + ',"actif":' + actif + ',"liste":[' + morceaux.join(',') + ']}'); localStorage.removeItem(ANCIENNE_CLE); } catch { for (const c of classeurs) c._dansLocal = false; }
+    } catch (e) { console.warn(e); }
   }, 400);
+}
+let tLocal = 0, localComplet = true, idbPret = false;
+// Au démarrage : IndexedDB peut avoir plus récent ou plus gros que localStorage ; on le prend tant que rien n'a été touché
+async function restaurerIdb() {
+  try {
+    const d = await idbLire('classeurs');
+    if (!d || !d.liste || !d.liste.length || d.t < tLocal || (d.t === tLocal && localComplet) || historique.length || futur.length || edition) return;
+    const liste = d.liste.map((j) => deserialiserClasseur(JSON.parse(j))).filter(Boolean);
+    if (!liste.length) return;
+    for (const c of liste) if (c.enregistre === undefined) c.enregistre = c.version;
+    classeurs = liste; classeur = liste[Math.min(d.actif || 0, liste.length - 1)];
+    afficherModule(); activerFeuille(Math.min(classeur.active, classeur.feuilles.length - 1));
+    document.title = (classeur.nomFichier || 'Classeur') + ' — Sprezz';
+    rendreClasseurs(true); rendre();
+  } catch (e) { console.warn('IndexedDB :', e); }
+  finally { idbPret = true; sauvegarderLocal(); }
 }
 function restaurerLocal() {
   try {
     const json = localStorage.getItem(CLE_STOCKAGE);
     if (json) {
       const data = JSON.parse(json);
+      tLocal = data.t || 0; localComplet = data.complet !== false;
       const liste = (data.liste || []).map(deserialiserClasseur).filter(Boolean);
       if (!liste.length) return false;
       classeurs = liste;
@@ -2484,7 +2589,7 @@ conteneur.addEventListener('keydown', (e) => {
     if (K === 'r') { e.preventDefault(); return recopier('droite'); }
     if (K === 'a') { e.preventDefault(); selection = { r1: 0, c1: 0, r2: Math.max(feuille().zone.r2, 0), c2: Math.max(feuille().zone.c2, 0) }; return rendre(); }
     if (K === 's') { e.preventDefault(); return enregistrer(); }
-    if (K === 'o') { e.preventDefault(); return $('fichier').click(); }
+    if (K === 'o') { e.preventDefault(); return ouvrirDepuisDisque(); }
     if (K === 'n' && e.altKey) { e.preventDefault(); return nouveauClasseur(); }
     if (K === 'f') { e.preventDefault(); return uiD.ouvrirRecherche(false); }
     if (K === 'h') { e.preventDefault(); return uiD.ouvrirRecherche(true); }
@@ -2554,8 +2659,8 @@ function raccourciExcel(e) {
   if (!ctrl && e.shiftKey && (code === 'Space' || k === ' ')) return fait(() => { const s = selectionNormalisee(); selection = { r1: s.r1, c1: 0, r2: s.r2, c2: 16383 }; rendre(); });
   if (!ctrl && e.shiftKey && k === 'F2') return fait(() => uiB.note());
   if ((e.shiftKey && k === 'F10') || k === 'ContextMenu') return fait(() => { const r = $('curseur').getBoundingClientRect(); ouvrirMenu(r.left + 10, r.bottom, menuCellules(selectionNormalisee())); });
-  if (!ctrl && !e.shiftKey && k === 'F12') return fait(() => enregistrer());
-  if (ctrl && !e.shiftKey && k === 'F12') return fait(() => $('fichier').click());
+  if (!ctrl && !e.shiftKey && k === 'F12') return fait(() => enregistrer(true));
+  if (ctrl && !e.shiftKey && k === 'F12') return fait(() => ouvrirDepuisDisque());
   if (ctrl && !e.shiftKey && k === 'F2') return fait(() => uiP.ouvrir());
   if (!ctrl && e.shiftKey && k === 'F11') return fait(() => { memoriserVue(); classeur.ajouterFeuille(null, fi() + 1); activerFeuille(fi() + 1); sauvegarderLocal(); });
   if (!ctrl && e.shiftKey && k === 'F3') return fait(() => ouvrirPanneau('fonctions'));
@@ -2754,10 +2859,11 @@ zoneNom.addEventListener('keydown', (e) => {
 
 // ----- Barre d'outils -----
 $('btn-nouveau').addEventListener('click', nouveauClasseur);
-$('btn-ouvrir').addEventListener('click', () => $('fichier').click());
+$('btn-ouvrir').addEventListener('click', () => ouvrirDepuisDisque());
+$('btn-ouvrir-menu').addEventListener('click', () => menuOuvrir(...sousBouton('btn-ouvrir')));
 $('fichier').addEventListener('change', async (e) => { const fichiers = [...e.target.files]; e.target.value = ''; for (const f of fichiers) await ouvrirFichier(f); });
 $('btn-nouveau-classeur').addEventListener('click', nouveauClasseur);
-$('btn-enregistrer').addEventListener('click', enregistrer);
+$('btn-enregistrer').addEventListener('click', () => enregistrer());
 $('btn-gras').addEventListener('click', () => basculerStyle('gras'));
 $('btn-italique').addEventListener('click', () => basculerStyle('italique'));
 $('btn-souligne').addEventListener('click', () => basculerStyle('souligne'));
@@ -2893,8 +2999,22 @@ $('code-vba').addEventListener('keydown', (e) => {
 });
 // Glisser-déposer d'un fichier sur la page
 document.addEventListener('dragover', (e) => { e.preventDefault(); });
-document.addEventListener('drop', async (e) => { e.preventDefault(); for (const f of e.dataTransfer.files) await ouvrirFichier(f); });
-window.addEventListener('beforeunload', () => { memoriserVue(); sauvegarderLocal(); });
+document.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  // Chrome / Edge : on garde le lien vers le fichier déposé pour que Ctrl+S le réécrive
+  const items = [...(e.dataTransfer.items || [])].filter((it) => it.kind === 'file');
+  if (items.length && items[0].getAsFileSystemHandle) {
+    const hs = await Promise.all(items.map((it) => it.getAsFileSystemHandle().catch(() => null)));
+    for (const h of hs) if (h && h.kind === 'file') await ouvrirFichier(await h.getFile(), h);
+    return;
+  }
+  for (const f of e.dataTransfer.files) await ouvrirFichier(f);
+});
+window.addEventListener('beforeunload', (e) => {
+  memoriserVue(); sauvegarderLocal();
+  // Un classeur modifié que le navigateur n'a pas pu garder (trop gros, stockage plein) serait perdu : on prévient
+  if (classeurs.some((c) => estModifie(c) && c._dansIdb === false && !c._dansLocal)) { e.preventDefault(); e.returnValue = ''; }
+});
 
 // ---------------------------------------------------------------------------
 // Écrans tactiles (téléphone, tablette)
@@ -3066,4 +3186,6 @@ document.title = (classeur.nomFichier || 'Classeur') + ' — Sprezz';
 conteneur.focus();
 if (window.HubBridge && window.HubBridge.shown) window.HubBridge.shown();
 rendreClasseurs(true);
+stockagePersistant();
+restaurerIdb();
 window.__tableur = { get classeur() { return classeur; }, get classeurs() { return classeurs; }, Classeur, rendre, chargerClasseur, basculerClasseur };
