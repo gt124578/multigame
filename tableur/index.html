@@ -83,7 +83,8 @@
         <span class="sep"></span>
         <button id="btn-noms" title="Noms définis">Noms</button>
         <button id="btn-fonctions" title="Liste des fonctions">ƒx</button>
-        <button id="btn-macros" title="Éditeur de macros VBA (Alt+F11)">VBA</button>
+        <button id="btn-macros-liste" title="Macros du classeur : exécuter, modifier, créer, supprimer (Alt+F8)">Macros</button>
+        <button id="btn-macros" title="Éditeur de macros VBA : modules de chaque feuille et modules nommés (Alt+F11)">VBA</button>
         <button id="btn-aide" title="Aide">?</button>
       </div>
     </header>
@@ -117,8 +118,18 @@
           <button id="panneau-fermer" title="Fermer">✕</button>
         </div>
         <div id="panneau-macros" class="panneau-contenu">
+          <div id="projet-vba">
+            <div class="projet-barre">
+              <span class="projet-titre">Projet VBA</span>
+              <button id="btn-nouveau-module" title="Insérer un module standard nommé">+ Module</button>
+              <button id="btn-nouvelle-macro" title="Créer une macro nommée dans le module affiché">+ Macro</button>
+              <button id="btn-liste-macros" title="Toutes les macros du classeur (Alt+F8)">Macros…</button>
+            </div>
+            <div id="arbre-vba" class="arbre"></div>
+          </div>
+          <div class="module-entete"><span class="module-label">Code :</span> <span id="module-titre">Module1</span></div>
           <div class="panneau-barre">
-            <select id="liste-procedures" title="Procédure à exécuter"></select>
+            <select id="liste-procedures" title="Macro à exécuter (celle où se trouve le curseur est choisie d'office)"></select>
             <button id="btn-executer" title="Exécuter (F5)">▶ Exécuter</button>
             <button id="btn-verifier" title="Vérifier la syntaxe">Vérifier</button>
             <button id="btn-exemple" title="Insérer un exemple">Exemple</button>
@@ -146,6 +157,28 @@
       <div id="liste-onglets"></div>
       <div id="statut"></div>
     </footer>
+  </div>
+  <div id="dialogue-macros" class="dialogue-fond" hidden>
+    <div class="dialogue" role="dialog" aria-labelledby="dialogue-macros-titre">
+      <div class="dialogue-titre" id="dialogue-macros-titre">Macros</div>
+      <div class="dialogue-corps">
+        <div class="dialogue-gauche">
+          <label for="macro-nom">Nom de la macro :</label>
+          <input id="macro-nom" spellcheck="false" autocomplete="off" placeholder="ex. CalculerProvisions">
+          <div id="macros-liste"></div>
+          <label for="macros-dans">Macros dans :</label>
+          <select id="macros-dans"></select>
+        </div>
+        <div class="dialogue-boutons">
+          <button id="macro-executer">Exécuter</button>
+          <button id="macro-modifier">Modifier</button>
+          <button id="macro-creer">Créer</button>
+          <button id="macro-supprimer">Supprimer</button>
+          <span class="espace"></span>
+          <button id="macro-fermer">Fermer</button>
+        </div>
+      </div>
+    </div>
   </div>
   <div id="menu-contextuel" class="menu" hidden></div>
   <div id="toast" hidden></div>

@@ -4,6 +4,7 @@ import { Classeur } from './classeur.js';
 import { formater, colVersLettres, lettresVersCol, parsePlage, parseAdresse, adresse, ErreurFormule, NOMS_FONCTIONS, ALIAS, referencesDe, decalerFormule, fonction } from './formules.js';
 import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from './xlsxio.js';
 import { executerMacro, analyserVBA, ErreurVBA, InterpreteurVBA, creerUDF } from './vba.js';
+import { listerProcedures, procedureALaLigne, insererMacro, supprimerProcedure, ajouterAuProjet, nomVBAValide } from './projetvba.js';
 import { rendreGraphiqueSVG, TYPES_GRAPHIQUE } from './graphiques.js';
 
 const XLSX = window.XLSX;
@@ -83,6 +84,7 @@ function rendre() { if (rendRequis) return; rendRequis = true; requestAnimationF
 
 function rendreMaintenant() {
   geometrie();
+  if (panneauCourant === 'macros') { if (moduleCourant().cle !== moduleAffiche) afficherModule(); else rendreArbreVBA(false); }
   const f = feuille(), F = fi();
   const sl = conteneur.scrollLeft, st = conteneur.scrollTop, W = conteneur.clientWidth, H = conteneur.clientHeight;
   // Extension automatique vers le bas / la droite
@@ -594,12 +596,13 @@ function menuOnglet(e, i) {
   const items = [
     ['Renommer…', () => renommerFeuille(i)],
     ['Insérer une feuille', () => { classeur.ajouterFeuille(null, i + 1); activerFeuille(i + 1); sauvegarderLocal(); }],
-    ['Dupliquer', () => { const src = classeur.feuilles[i]; const f = classeur.ajouterFeuille(classeur.nomLibre(src.nom + ' ('), i + 1); src.chaque((r, c, cel) => f.set(r, c, { ...cel })); f.largeurs = { ...src.largeurs }; activerFeuille(i + 1); sauvegarderLocal(); }],
+    ['Dupliquer', () => { const src = classeur.feuilles[i]; const f = classeur.ajouterFeuille(classeur.nomLibre(src.nom + ' ('), i + 1); src.chaque((r, c, cel) => f.set(r, c, { ...cel })); f.largeurs = { ...src.largeurs }; f.code = src.code || ''; activerFeuille(i + 1); sauvegarderLocal(); }],
+    ['Visualiser le code', () => { if (panneauCourant !== 'macros') ouvrirPanneau('macros'); afficherModule('feuille:' + classeur.feuilles[i].codeNom); }],
     ['Masquer', () => { if (classeur.feuilles.filter((f) => !f.cachee).length <= 1) return toast('Il faut garder une feuille visible', true); classeur.feuilles[i].cachee = true; if (fi() === i) activerFeuille(classeur.feuilles.findIndex((f) => !f.cachee)); sauvegarderLocal(); rendre(); }],
     ['Déplacer à gauche', () => { if (i > 0) { memoriserVue(); classeur.deplacerFeuille(i, i - 1); activerFeuille(i - 1); sauvegarderLocal(); } }],
     ['Déplacer à droite', () => { if (i < classeur.feuilles.length - 1) { memoriserVue(); classeur.deplacerFeuille(i, i + 1); activerFeuille(i + 1); sauvegarderLocal(); } }],
     null,
-    ['Supprimer', () => { if (!confirm('Supprimer la feuille « ' + classeur.feuilles[i].nom + ' » ?')) return; try { classeur.supprimerFeuille(i); activerFeuille(Math.min(i, classeur.feuilles.length - 1)); sauvegarderLocal(); } catch (err) { toast(err.message, true); } }],
+    ['Supprimer', () => { if (!confirm('Supprimer la feuille « ' + classeur.feuilles[i].nom + ' » ?' + ((classeur.feuilles[i].code || '').trim() ? '\nSon module de code VBA (' + classeur.feuilles[i].codeNom + ') sera supprimé avec elle.' : ''))) return; try { classeur.supprimerFeuille(i); activerFeuille(Math.min(i, classeur.feuilles.length - 1)); sauvegarderLocal(); } catch (err) { toast(err.message, true); } }],
   ];
   const cachees = classeur.feuilles.map((f, k) => [f, k]).filter(([f]) => f.cachee);
   if (cachees.length) { items.push(null); for (const [f, k] of cachees) items.push(['Afficher « ' + f.nom + ' »', () => { f.cachee = false; activerFeuille(k); sauvegarderLocal(); }]); }
@@ -642,10 +645,11 @@ async function ouvrirFichier(file) {
     if (ext === 'bas' || ext === 'cls' || ext === 'frm' || ext === 'vba') {
       let texte;
       try { texte = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch { texte = new TextDecoder('windows-1252').decode(buf); }
-      const ta = $('code-vba');
-      ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n\n' : '') + nettoyerModuleVBA(texte, file.name);
-      classeur.macros = ta.value; rafraichirProcedures(); sauvegarderLocal(); ouvrirPanneau('macros');
-      toast('Module « ' + file.name + ' » ajouté à l\'éditeur VBA');
+      const cles = ajouterAuProjet(classeur, nettoyerModuleVBA(texte, file.name));
+      classeur.version++;
+      if (panneauCourant !== 'macros') ouvrirPanneau('macros');
+      afficherModule(cles[0]); sauvegarderLocal();
+      toast('Module « ' + (classeur.moduleVBA(cles[0]) || { libelle: file.name }).libelle + ' » ajouté au projet VBA');
       return;
     }
     if (ext === 'docx') {
@@ -674,20 +678,18 @@ function nomLibreClasseur(voulu, sauf = null) {
   return nom + ext;
 }
 const estModifie = (c) => c.version !== c.enregistre;
-const estVierge = (c) => c.feuilles.length === 1 && !c.feuilles[0].cellules.size && !(c.feuilles[0].graphiques || []).length && !(c.macros || '').trim() && !estModifie(c);
+const estVierge = (c) => c.feuilles.length === 1 && !c.feuilles[0].cellules.size && !(c.feuilles[0].graphiques || []).length && !c.modulesVBA().some((m) => m.code.trim()) && !estModifie(c);
 
 /** Passe à un autre classeur ouvert en gardant la vue, l'historique et le presse-papiers. */
 function basculerClasseur(c) {
   if (!c || c === classeur) return;
   if (edition) validerEdition();
   memoriserVue();
-  classeur.macros = $('code-vba').value;
   classeur._hist = { historique, futur };
   classeur = c;
   graphiqueActif = null;
-  $('code-vba').value = classeur.macros || '';
   $('sortie-vba').innerHTML = '';
-  rafraichirProcedures();
+  afficherModule();
   $('format-export').value = classeur.vbaBrut || (classeur.macros || '').trim() ? 'xlsm' : 'xlsx';
   activerFeuille(Math.min(classeur.active, classeur.feuilles.length - 1));
   ({ historique, futur } = classeur._hist || { historique: [], futur: [] });
@@ -715,9 +717,8 @@ function chargerClasseur(nouveau, remplacerVierge = true) {
 function basculerVers(c) { // premier affichage d'un classeur qui remplace le précédent
   classeur = c;
   graphiqueActif = null;
-  $('code-vba').value = c.macros || '';
   $('sortie-vba').innerHTML = '';
-  rafraichirProcedures();
+  afficherModule();
   $('format-export').value = c.vbaBrut || (c.macros || '').trim() ? 'xlsm' : 'xlsx';
   activerFeuille(Math.min(c.active, c.feuilles.length - 1));
   document.title = (c.nomFichier || 'Classeur') + ' — Tableur';
@@ -765,7 +766,7 @@ function rendreClasseurs(forcer = false) {
       ouvrirMenu(e.clientX, e.clientY, [
         ['Renommer…', () => renommerClasseur(c)],
         ['Enregistrer', () => { basculerClasseur(c); enregistrer(); }],
-        ['Dupliquer', () => { if (c === classeur) classeur.macros = $('code-vba').value; const copie = lireClasseur(XLSX, ecrireClasseur(XLSX, c, { bookType: 'xlsx' }), nomLibreClasseur(baseNom(c.nomFichier) + ' - copie.xlsx')); copie.nomFichier = nomLibreClasseur(baseNom(c.nomFichier) + ' - copie.xlsx'); chargerClasseur(copie, false); }],
+        ['Dupliquer', () => { const copie = lireClasseur(XLSX, ecrireClasseur(XLSX, c, { bookType: 'xlsx' }), nomLibreClasseur(baseNom(c.nomFichier) + ' - copie.xlsx')); copie.nomFichier = nomLibreClasseur(baseNom(c.nomFichier) + ' - copie.xlsx'); chargerClasseur(copie, false); }],
         null,
         ['Fermer', () => fermerClasseur(c)],
         ['Fermer les autres', () => { for (const autre of [...classeurs]) if (autre !== c) fermerClasseur(autre); }],
@@ -778,7 +779,6 @@ function rendreClasseurs(forcer = false) {
 function enregistrer() {
   if (edition) validerEdition();
   let type = $('format-export').value;
-  classeur.macros = $('code-vba').value;
   if (type === 'xlsx' && (classeur.macros.trim() || classeur.vbaBrut)) { type = 'xlsm'; $('format-export').value = 'xlsm'; }
   try {
     const octets = ecrireClasseur(XLSX, classeur, { bookType: type });
@@ -802,13 +802,13 @@ function nouveauClasseur() {
 // Sauvegarde locale (navigateur) de tous les classeurs ouverts, pour survivre à un rechargement
 function serialiserClasseur(c) {
   return JSON.stringify({ nomFichier: c.nomFichier, active: c.active, macros: c.macros || '', noms: [...c.noms.values()], modifie: estModifie(c),
-    feuilles: c.feuilles.map((f) => ({ nom: f.nom, cachee: f.cachee, largeurs: f.largeurs, hauteurs: f.hauteurs, fusions: f.fusions, graphiques: f.graphiques, cellules: [...f.cellules].map(([k, cel]) => [k, { ...cel, v: cel.v instanceof ErreurFormule ? { erreur: cel.v.code } : cel.v }]) })) });
+    feuilles: c.feuilles.map((f) => ({ nom: f.nom, codeNom: f.codeNom, cachee: f.cachee, largeurs: f.largeurs, hauteurs: f.hauteurs, fusions: f.fusions, graphiques: f.graphiques, cellules: [...f.cellules].map(([k, cel]) => [k, { ...cel, v: cel.v instanceof ErreurFormule ? { erreur: cel.v.code } : cel.v }]) })) });
 }
 function deserialiserClasseur(data) {
   const c = new Classeur();
   c.nomFichier = data.nomFichier || 'Classeur1.xlsx';
   for (const fd of data.feuilles || []) {
-    const f = c.ajouterFeuille(fd.nom); f.cachee = !!fd.cachee; f.largeurs = fd.largeurs || {}; f.hauteurs = fd.hauteurs || {}; f.fusions = fd.fusions || []; f.graphiques = fd.graphiques || [];
+    const f = c.ajouterFeuille(fd.nom); if (fd.codeNom) { try { c.changerCodeNom(f, fd.codeNom); } catch { /* nom pris */ } } f.cachee = !!fd.cachee; f.largeurs = fd.largeurs || {}; f.hauteurs = fd.hauteurs || {}; f.fusions = fd.fusions || []; f.graphiques = fd.graphiques || [];
     for (const [k, cel] of fd.cellules) { if (cel.v && typeof cel.v === 'object' && cel.v.erreur) cel.v = new ErreurFormule(cel.v.erreur); f.cellules.set(k, cel); }
     f.recalculerZone();
   }
@@ -824,7 +824,6 @@ function sauvegarderLocal() {
   clearTimeout(timerLocal);
   timerLocal = setTimeout(() => {
     try {
-      classeur.macros = $('code-vba').value;
       const morceaux = [];
       let total = 0;
       for (const c of classeurs) {
@@ -874,43 +873,218 @@ function ouvrirPanneau(nom) {
   if (nom === 'fonctions') rendreFonctions();
   if (nom === 'noms') rendreNoms();
   if (nom === 'aide') rendreAide();
-  if (nom === 'macros') { rafraichirProcedures(); $('code-vba').focus(); }
+  if (nom === 'macros') { afficherModule(classeur._moduleActif); $('code-vba').focus(); }
   rendre();
 }
+// ----- Projet VBA : modules de feuille, ThisWorkbook, modules standard -----
+
+/** Module affiché dans l'éditeur (celui choisi, sinon le premier qui a du code, sinon Module1 / la feuille active). */
+let moduleAffiche = null; // clé du module montré dans l'éditeur
+function moduleCourant() {
+  let m = classeur._moduleActif && classeur.moduleVBA(classeur._moduleActif);
+  if (m) return m;
+  // Projet vide : un premier module standard « Module1 », prêt à recevoir des macros
+  if (!classeur.modules.length && !classeur.modulesVBA().some((x) => x.code.trim())) classeur.modules.push({ nom: 'Module1', code: '' });
+  const tous = classeur.modulesVBA();
+  m = tous.find((x) => x.genre === 'module') || tous.find((x) => x.code.trim()) || tous.find((x) => x.feuille === feuille()) || tous[0];
+  classeur._moduleActif = m.cle;
+  return m;
+}
+/** Affiche un module dans l'éditeur (et place le curseur à la ligne donnée, 1-based). */
+function afficherModule(cle, ligne) {
+  if (cle) classeur._moduleActif = cle;
+  const m = moduleCourant();
+  moduleAffiche = m.cle;
+  const ta = $('code-vba');
+  if (ta.value !== m.code) ta.value = m.code;
+  ta.placeholder = m.genre === 'feuille' ? "' Code de la feuille « " + m.feuille.nom + ' » : Range, Cells et Me y désignent cette feuille.\nSub MaMacro()\n    Range("A1").Value = 42\nEnd Sub'
+    : m.genre === 'classeur' ? "' Code du classeur (ThisWorkbook)\nSub MaMacro()\n    MsgBox ThisWorkbook.Name\nEnd Sub"
+    : 'Sub MaMacro()\n    Range("A1").Value = 42\nEnd Sub';
+  $('module-titre').textContent = m.libelle;
+  $('module-titre').title = m.genre === 'feuille' ? 'Module de la feuille « ' + m.feuille.nom + ' » (nom de code ' + m.nom + ')' : m.genre === 'classeur' ? 'Module du classeur' : 'Module standard « ' + m.nom + ' »';
+  rendreArbreVBA();
+  rafraichirProcedures();
+  const sel = $('liste-procedures');
+  if (!sel.value.startsWith(m.nom + '.')) { const o = [...sel.options].find((x) => x.value.startsWith(m.nom + '.')); if (o) sel.value = o.value; }
+  if (ligne) { allerALigne(ligne); suivreCurseurVBA(); }
+}
+function allerALigne(n, selectionner = false) {
+  const ta = $('code-vba'); const lignes = ta.value.split('\n'); let pos = 0;
+  for (let i = 0; i < n - 1 && i < lignes.length; i++) pos += lignes[i].length + 1;
+  const fin = selectionner ? pos + (lignes[n - 1] || '').length : pos + /^\s*/.exec(lignes[n - 1] || '')[0].length;
+  ta.focus(); ta.setSelectionRange(selectionner ? pos : fin, fin);
+  // fait défiler jusqu'à la ligne
+  const hl = parseFloat(getComputedStyle(ta).lineHeight) || 18;
+  ta.scrollTop = Math.max(0, (n - 4) * hl);
+}
+let signatureArbre = '';
+function rendreArbreVBA(forcer = true) {
+  const tous = classeur.modulesVBA();
+  const actif = moduleCourant().cle;
+  const sig = actif + '|' + tous.map((m) => m.libelle + ':' + m.code.length + ':' + m.code.split('\n').length).join('|');
+  if (!forcer && sig === signatureArbre) return;
+  signatureArbre = sig;
+  const arbre = $('arbre-vba');
+  arbre.innerHTML = '';
+  const groupe = (titre, info) => { const g = document.createElement('div'); g.className = 'arbre-groupe'; g.textContent = titre; if (info) g.title = info; arbre.appendChild(g); };
+  const ligneModule = (m) => {
+    const d = document.createElement('div');
+    d.className = 'arbre-module' + (m.cle === actif ? ' actif' : '');
+    const procs = listerProcedures(m.code);
+    d.innerHTML = '<span class="arbre-icone">' + (m.genre === 'feuille' ? '▦' : m.genre === 'classeur' ? '📗' : '⚙') + '</span>';
+    const nom = document.createElement('span'); nom.className = 'arbre-nom'; nom.textContent = m.libelle; d.appendChild(nom);
+    if (m.feuille && m.feuille.cachee) { const c = document.createElement('span'); c.className = 'arbre-note'; c.textContent = 'masquée'; d.appendChild(c); }
+    d.title = m.genre === 'module' ? 'Module standard — clic : afficher, double-clic : renommer, clic droit : menu' : 'Clic : afficher le code, clic droit : menu';
+    d.addEventListener('click', () => afficherModule(m.cle));
+    d.addEventListener('dblclick', () => { if (m.genre === 'module') renommerModuleUI(m.nom); });
+    d.addEventListener('contextmenu', (e) => { e.preventDefault(); menuModule(e, m); });
+    arbre.appendChild(d);
+    for (const p of procs) {
+      const q = document.createElement('div');
+      q.className = 'arbre-proc' + (p.macro ? ' macro' : '');
+      q.textContent = (p.genre === 'Function' ? 'ƒ ' : p.macro ? '▸ ' : '· ') + p.nom + (p.params ? '(…)' : '') + (p.prive ? ' (privée)' : '');
+      q.title = p.genre + ' ' + p.nom + ' — ligne ' + p.ligne + (p.macro ? ' — double-clic : exécuter' : '');
+      q.addEventListener('click', () => afficherModule(m.cle, p.ligne));
+      if (p.macro) q.addEventListener('dblclick', () => executerMacroUI(m.nom + '.' + p.nom));
+      q.addEventListener('contextmenu', (e) => { e.preventDefault(); ouvrirMenu(e.clientX, e.clientY, [
+        ...(p.macro ? [['▶ Exécuter', () => executerMacroUI(m.nom + '.' + p.nom)]] : []),
+        ['Modifier', () => afficherModule(m.cle, p.ligne)],
+        null,
+        ['Supprimer « ' + p.nom + ' »', () => supprimerMacroUI(m.cle, p.nom)],
+      ]); });
+      arbre.appendChild(q);
+    }
+  };
+  groupe('Feuilles et classeur', 'Microsoft Excel Objets : un module par feuille et ThisWorkbook');
+  for (const m of tous) if (m.genre !== 'module') ligneModule(m);
+  groupe('Modules', 'Modules standard : vos macros nommées');
+  const modules = tous.filter((m) => m.genre === 'module');
+  for (const m of modules) ligneModule(m);
+  if (!modules.length) { const v = document.createElement('div'); v.className = 'arbre-vide'; v.textContent = 'Aucun module — « + Module » pour en créer un'; arbre.appendChild(v); }
+}
+function menuModule(e, m) {
+  const items = [
+    ['Afficher le code', () => afficherModule(m.cle)],
+    ['Nouvelle macro ici…', () => { afficherModule(m.cle); nouvelleMacroUI(); }],
+  ];
+  if (m.genre === 'feuille') items.push(['Aller à la feuille « ' + m.feuille.nom + ' »', () => { const i = classeur.feuilles.indexOf(m.feuille); if (i >= 0) { if (m.feuille.cachee) m.feuille.cachee = false; activerFeuille(i); } }]);
+  items.push(['Exporter (.bas)', () => exporterModule(m)]);
+  if (m.genre === 'module') items.push(null, ['Renommer…', () => renommerModuleUI(m.nom)], ['Supprimer le module', () => supprimerModuleUI(m.nom)]);
+  else if (m.code.trim()) items.push(null, ['Effacer le code', () => { if (!confirm('Effacer tout le code de ' + m.libelle + ' ?')) return; classeur.definirCodeModule(m.cle, ''); afficherModule(m.cle); sauvegarderLocal(); }]);
+  ouvrirMenu(e.clientX, e.clientY, items);
+}
+function nouveauModuleUI() {
+  const propose = classeur.nomModuleLibre('Module');
+  const nom = prompt('Nom du nouveau module (lettres, chiffres et _, sans espace) :', propose);
+  if (nom == null) return;
+  try { const n = classeur.ajouterModule(nom.trim() || propose); if (panneauCourant !== 'macros') ouvrirPanneau('macros'); afficherModule('module:' + n); $('code-vba').focus(); sauvegarderLocal(); toast('Module « ' + n + ' » créé'); }
+  catch (e) { toast(e.message, true); }
+}
+function renommerModuleUI(ancien) {
+  const nom = prompt('Nouveau nom du module « ' + ancien + ' » :', ancien);
+  if (nom == null || nom.trim() === ancien) return;
+  try { const n = classeur.renommerModule(ancien, nom); afficherModule('module:' + n); sauvegarderLocal(); }
+  catch (e) { toast(e.message, true); }
+}
+function supprimerModuleUI(nom) {
+  const m = classeur.moduleVBA('module:' + nom);
+  if (!m) return;
+  if (m.code.trim() && !confirm('Supprimer le module « ' + nom + ' » et tout son code (' + listerProcedures(m.code).length + ' procédure(s)) ?')) return;
+  classeur.supprimerModule(nom);
+  if (classeur._moduleActif === m.cle) classeur._moduleActif = null;
+  afficherModule(); sauvegarderLocal();
+  toast('Module « ' + nom + ' » supprimé');
+}
+function exporterModule(m) {
+  const entete = m.genre === 'module' ? 'Attribute VB_Name = "' + m.nom + '"\r\n' : 'VERSION 1.0 CLASS\r\nBEGIN\r\n  MultiUse = -1  \'True\r\nEND\r\nAttribute VB_Name = "' + m.nom + '"\r\n';
+  const blob = new Blob([entete + m.code.replace(/\r?\n/g, '\r\n')], { type: 'text/plain' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = m.nom + (m.genre === 'module' ? '.bas' : '.cls'); a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+/** Toutes les macros du projet : [{ module, cle, nom, qualifie, ligne, prive, macro, genre }] */
+function toutesProcedures() {
+  const out = [];
+  for (const m of classeur.modulesVBA()) for (const p of listerProcedures(m.code)) out.push({ module: m, cle: m.cle, nom: p.nom, qualifie: m.nom + '.' + p.nom, ligne: p.ligne, prive: p.prive, macro: p.macro, genre: p.genre });
+  return out;
+}
+/** Crée une macro vide nommée dans un module (par défaut celui affiché) et place le curseur dedans. */
+function creerMacro(nom, cle) {
+  nom = String(nom || '').trim();
+  if (!nomVBAValide(nom)) { toast('Nom de macro invalide : une lettre, puis des lettres, chiffres ou _ (sans espace ni tiret)', true); return false; }
+  const m = classeur.moduleVBA(cle || moduleCourant().cle);
+  if (listerProcedures(m.code).some((p) => p.nom.toLowerCase() === nom.toLowerCase())) { toast('« ' + nom + ' » existe déjà dans ' + m.libelle, true); afficherModule(m.cle, listerProcedures(m.code).find((p) => p.nom.toLowerCase() === nom.toLowerCase()).ligne); return false; }
+  const autre = toutesProcedures().find((p) => p.nom.toLowerCase() === nom.toLowerCase() && p.module.genre === 'module' && m.genre === 'module');
+  if (autre) { toast('Une macro « ' + nom + ' » existe déjà dans ' + autre.module.nom + ' : choisissez un autre nom', true); return false; }
+  const { code, ligne } = insererMacro(m.code, nom);
+  classeur.definirCodeModule(m.cle, code);
+  if (panneauCourant !== 'macros') ouvrirPanneau('macros');
+  afficherModule(m.cle, ligne);
+  sauvegarderLocal();
+  toast('Macro « ' + nom + ' » créée dans ' + m.libelle);
+  return true;
+}
+function nouvelleMacroUI() {
+  const m = moduleCourant();
+  const nom = prompt('Nom de la nouvelle macro (dans ' + m.libelle + ') :', '');
+  if (nom == null) return;
+  creerMacro(nom, m.cle);
+}
+function supprimerMacroUI(cle, nom) {
+  const m = classeur.moduleVBA(cle);
+  if (!m || !confirm('Supprimer la macro « ' + nom + ' » de ' + m.libelle + ' ?')) return false;
+  classeur.definirCodeModule(cle, supprimerProcedure(m.code, nom));
+  afficherModule(classeur._moduleActif); sauvegarderLocal();
+  toast('Macro « ' + nom + ' » supprimée');
+  return true;
+}
+
 // Les Function du code VBA deviennent des fonctions de formule (=MaFonction(A1;2))
 function chargerUDF() {
-  const code = $('code-vba').value;
-  classeur.macros = code;
-  if (!code.trim()) { classeur.udf = null; classeur.evaluateur.invalider(); return; }
+  if (!classeur.modulesVBA().some((m) => m.code.trim())) { classeur.udf = null; classeur.evaluateur.invalider(); return; }
   try {
     const it = new InterpreteurVBA(classeur, { log: () => {}, msgBox: () => 1, inputBox: () => '' });
     it.limitePas = 200000;
-    it.charger(code);
+    for (const m of classeur.modulesVBA()) if (m.code.trim()) { try { it.charger(m.code, { nom: m.nom, genre: m.genre, feuille: m.feuille }); } catch { /* module en cours de frappe */ } }
     classeur.udf = creerUDF(it);
   } catch { classeur.udf = null; }
   classeur.evaluateur.invalider();
 }
 
+/** Liste des macros à exécuter (toutes celles du projet, groupées par module). */
 function rafraichirProcedures() {
   chargerUDF();
   const sel = $('liste-procedures');
   const courant = sel.value;
   sel.innerHTML = '';
-  try {
-    const prog = analyserVBA($('code-vba').value);
-    for (const p of prog.procedures.values()) { const o = document.createElement('option'); o.value = p.nom; o.textContent = (p.fonction ? 'Function ' : 'Sub ') + p.nom + (p.params.length ? ' (' + p.params.length + ' arg.)' : ''); if (p.fonction || p.params.length) o.disabled = true; sel.appendChild(o); }
-    if ([...sel.options].some((o) => o.value === courant)) sel.value = courant;
-    else { const premier = [...sel.options].find((o) => !o.disabled); if (premier) sel.value = premier.value; }
-  } catch { /* code incomplet pendant la frappe */ }
+  const actif = moduleCourant();
+  const parModule = new Map();
+  for (const p of toutesProcedures()) { if (!p.macro) continue; if (!parModule.has(p.cle)) parModule.set(p.cle, []); parModule.get(p.cle).push(p); }
+  for (const m of classeur.modulesVBA()) {
+    const liste = parModule.get(m.cle);
+    if (!liste) continue;
+    const g = document.createElement('optgroup'); g.label = m.libelle;
+    for (const p of liste) { const o = document.createElement('option'); o.value = p.qualifie; o.textContent = p.nom + (p.prive ? ' (privée)' : ''); g.appendChild(o); }
+    sel.appendChild(g);
+  }
+  if (!sel.options.length) { const o = document.createElement('option'); o.value = ''; o.textContent = '(aucune macro)'; sel.appendChild(o); }
+  if ([...sel.options].some((o) => o.value === courant)) sel.value = courant;
+  else { const premier = [...sel.options].find((o) => o.value.startsWith(actif.nom + '.')) || sel.options[0]; sel.value = premier.value; }
+}
+/** Quand le curseur de l'éditeur entre dans une Sub, elle devient la macro à exécuter. */
+function suivreCurseurVBA() {
+  const ta = $('code-vba');
+  const n = ta.value.slice(0, ta.selectionStart).split('\n').length;
+  const p = procedureALaLigne(ta.value, n);
+  if (p && p.macro) { const v = moduleCourant().nom + '.' + p.nom; if ([...$('liste-procedures').options].some((o) => o.value === v)) $('liste-procedures').value = v; }
 }
 function journalVBA(texte, classe) { const s = $('sortie-vba'); const d = document.createElement('div'); if (classe) d.className = classe; d.textContent = texte; s.appendChild(d); s.scrollTop = s.scrollHeight; }
-function executerMacroUI() {
+function executerMacroUI(nomQualifie) {
   if (macroEnCours) return;
   if (edition) validerEdition();
-  const code = $('code-vba').value; classeur.macros = code;
-  const nom = $('liste-procedures').value;
+  const nom = typeof nomQualifie === 'string' ? nomQualifie : $('liste-procedures').value;
+  if (panneauCourant !== 'macros') ouvrirPanneau('macros');
   $('sortie-vba').innerHTML = '';
-  if (!nom) { journalVBA('Aucune procédure Sub (sans paramètre) à exécuter.', 'err'); return; }
+  if (!nom) { journalVBA('Aucune macro à exécuter : créez une Sub sans paramètre (« + Macro »).', 'err'); return; }
   memoriser();
   macroEnCours = true;
   const debut = performance.now();
@@ -922,24 +1096,91 @@ function executerMacroUI() {
     enregistrer: () => toast('ThisWorkbook.Save : utilisez le bouton Enregistrer pour télécharger le fichier'),
   };
   let res;
-  try { res = executerMacro(classeur, code, nom, hote); }
+  try { res = executerMacro(classeur, null, nom, hote); }
   catch (e) { journalVBA('Erreur interne : ' + e.message, 'err'); console.error(e); macroEnCours = false; rendre(); return; }
   macroEnCours = false;
-  if (res.erreur) journalVBA('✖ Erreur ' + res.erreur.numero + (res.erreur.ligne ? ' (ligne ' + res.erreur.ligne + ')' : '') + ' : ' + res.erreur.description, 'err');
+  const err = res.erreur;
+  if (err) journalVBA('✖ Erreur ' + err.numero + (err.module ? ' dans ' + err.module : '') + (err.ligne ? ' (ligne ' + err.ligne + ')' : '') + ' : ' + err.description, 'err');
   else journalVBA('✔ Terminé en ' + Math.round(performance.now() - debut) + ' ms');
-  if (res.erreur && res.erreur.ligne) surlignerLigne(res.erreur.ligne);
+  if (err && err.ligne) montrerErreur(err.module, err.ligne);
   classeur.active = Math.min(classeur.active, classeur.feuilles.length - 1);
   geometrie(); sauvegarderLocal(); rendre();
+  rendreArbreVBA(false);
 }
-function surlignerLigne(n) {
-  const ta = $('code-vba'); const lignes = ta.value.split('\n'); let pos = 0;
-  for (let i = 0; i < n - 1 && i < lignes.length; i++) pos += lignes[i].length + 1;
-  ta.focus(); ta.setSelectionRange(pos, pos + (lignes[n - 1] || '').length);
+function montrerErreur(nomModule, ligne) {
+  const m = nomModule ? classeur.modulesVBA().find((x) => x.nom.toLowerCase() === nomModule.toLowerCase()) : moduleCourant();
+  if (m) { afficherModule(m.cle); allerALigne(ligne, true); }
 }
 function verifierVBA() {
   $('sortie-vba').innerHTML = '';
-  try { const prog = analyserVBA($('code-vba').value); journalVBA('✔ Syntaxe correcte : ' + prog.procedures.size + ' procédure(s) — ' + [...prog.procedures.values()].map((p) => p.nom).join(', ')); }
-  catch (e) { journalVBA('✖ ' + e.message, 'err'); if (e.ligne) surlignerLigne(e.ligne); }
+  let erreurs = 0, total = 0;
+  const publiques = new Map();
+  for (const m of classeur.modulesVBA()) {
+    if (!m.code.trim()) continue;
+    try {
+      const prog = analyserVBA(m.code);
+      total += prog.procedures.size;
+      journalVBA('✔ ' + m.libelle + ' : ' + prog.procedures.size + ' procédure(s)' + (prog.procedures.size ? ' — ' + [...prog.procedures.values()].map((p) => p.nom).join(', ') : ''));
+      if (m.genre === 'module') for (const p of prog.procedures.values()) { if (p.prive) continue; const k = p.nom.toUpperCase(); if (publiques.has(k)) journalVBA('⚠ « ' + p.nom + ' » existe dans ' + publiques.get(k) + ' et dans ' + m.nom + ' : appelez-la par Module.' + p.nom, 'msg'); else publiques.set(k, m.nom); }
+    } catch (e) {
+      erreurs++;
+      journalVBA('✖ ' + m.libelle + ' : ' + e.message, 'err');
+      if (erreurs === 1 && e.ligne) montrerErreur(m.nom, e.ligne);
+    }
+  }
+  if (!erreurs) journalVBA(total ? '✔ Syntaxe correcte dans tout le projet (' + total + ' procédure(s))' : 'Le projet ne contient pas encore de code.');
+}
+
+// ----- Boîte « Macros » (Alt+F8), comme dans Excel -----
+function ouvrirDialogueMacros() {
+  if (edition) validerEdition();
+  const d = $('dialogue-macros');
+  const sel = $('macros-dans');
+  const garde = sel.value;
+  sel.innerHTML = '<option value="">Tous les modules</option>';
+  for (const m of classeur.modulesVBA()) { const o = document.createElement('option'); o.value = m.cle; o.textContent = m.libelle; sel.appendChild(o); }
+  sel.value = [...sel.options].some((o) => o.value === garde) ? garde : '';
+  $('macro-nom').value = '';
+  d.hidden = false;
+  rendreDialogueMacros();
+  $('macro-nom').focus();
+}
+function fermerDialogueMacros() { $('dialogue-macros').hidden = true; }
+let macroChoisie = null;
+function rendreDialogueMacros() {
+  const filtre = $('macros-dans').value;
+  const texte = $('macro-nom').value.trim().toLowerCase();
+  const liste = $('macros-liste');
+  liste.innerHTML = '';
+  const macros = toutesProcedures().filter((p) => p.macro && !p.prive && (!filtre || p.cle === filtre));
+  let choisi = null;
+  for (const p of macros) {
+    const d = document.createElement('div');
+    d.className = 'macro-item';
+    const nomAffiche = p.module.genre === 'module' ? p.nom : p.qualifie;
+    d.innerHTML = '<span></span><small></small>';
+    d.firstChild.textContent = nomAffiche; d.lastChild.textContent = p.module.libelle;
+    if (texte && !nomAffiche.toLowerCase().includes(texte)) d.classList.add('estompe');
+    if (!choisi && texte && (nomAffiche.toLowerCase() === texte || p.nom.toLowerCase() === texte)) choisi = p;
+    if (macroChoisie && macroChoisie.qualifie === p.qualifie && !texte) choisi = p;
+    d.addEventListener('click', () => { $('macro-nom').value = nomAffiche; macroChoisie = p; rendreDialogueMacros(); });
+    d.addEventListener('dblclick', () => { fermerDialogueMacros(); executerMacroUI(p.qualifie); });
+    d.dataset.q = p.qualifie;
+    liste.appendChild(d);
+  }
+  if (!macros.length) { const v = document.createElement('div'); v.className = 'arbre-vide'; v.textContent = 'Aucune macro. Tapez un nom puis « Créer ».'; liste.appendChild(v); }
+  macroChoisie = choisi;
+  for (const el of liste.children) el.classList.toggle('choisi', !!choisi && el.dataset.q === choisi.qualifie);
+  $('macro-executer').disabled = !choisi; $('macro-modifier').disabled = !choisi; $('macro-supprimer').disabled = !choisi;
+  $('macro-creer').disabled = !texte || !!choisi;
+}
+function cibleCreation() {
+  const filtre = $('macros-dans').value;
+  if (filtre) return filtre;
+  const m = moduleCourant();
+  if (m.genre === 'module') return m.cle;
+  const premier = classeur.modulesVBA().find((x) => x.genre === 'module');
+  return premier ? premier.cle : 'module:' + classeur.ajouterModule();
 }
 
 const EXEMPLE_VBA = `Option Explicit
@@ -1048,7 +1289,10 @@ function rendreAide() {
 <ul>
 <li>Sous-ensemble de VBA : <code>Sub</code>/<code>Function</code>, <code>Dim</code>, tableaux, <code>If</code>, <code>Select Case</code>, <code>For</code>/<code>For Each</code>, <code>Do</code>/<code>While</code>, <code>With</code>, <code>On Error</code>, <code>Collection</code>, <code>Scripting.Dictionary</code>.</li>
 <li>Objets : <code>Worksheets("x")</code>, <code>ActiveSheet</code>, <code>Range</code>, <code>Cells</code>, <code>Rows</code>, <code>Columns</code>, <code>Offset</code>, <code>Resize</code>, <code>End(xlUp)</code>, <code>UsedRange</code>, <code>Value</code>, <code>Formula</code>, <code>NumberFormat</code>, <code>Font</code>, <code>Interior</code>, <code>WorksheetFunction.*</code>, <code>MsgBox</code>, <code>InputBox</code>, <code>Debug.Print</code> (sortie sous l'éditeur).</li>
-<li><code>F5</code> exécute la procédure choisie ; <code>Ctrl+Z</code> annule ses effets sur la feuille active.</li>
+<li><b>Projet VBA</b> (bouton <b>VBA</b>, <code>Alt+F11</code>) : comme dans Excel, chaque feuille a son module de code (<code>Feuil1 (Hypothèses)</code>), le classeur a <code>ThisWorkbook</code>, et vous ajoutez des modules nommés avec <b>+ Module</b> (double-clic pour renommer, clic droit pour supprimer ou exporter en .bas). Sous chaque module s'affichent ses procédures : un clic y mène, un double-clic exécute une macro. Clic droit sur un onglet de feuille : <b>Visualiser le code</b>.</li>
+<li>Dans un module de feuille, <code>Range</code>, <code>Cells</code> et <code>Me</code> désignent cette feuille. Une feuille s'appelle aussi par son nom de code : <code>Feuil1.Range("A1")</code> ; une procédure par son module : <code>Module1.MaMacro</code>.</li>
+<li><b>Macros</b> (<code>Alt+F8</code>) : la liste de toutes les macros du classeur. Tapez un nom puis <b>Créer</b> pour définir une nouvelle macro, ou choisissez-en une pour l'<b>Exécuter</b>, la <b>Modifier</b> ou la <b>Supprimer</b>. <b>+ Macro</b> crée une macro nommée dans le module affiché.</li>
+<li><code>F5</code> exécute la macro où se trouve le curseur (ou celle choisie dans la liste) ; <code>Ctrl+Z</code> annule ses effets sur la feuille active.</li>
 <li>Les <code>Function</code> du code s'utilisent dans les cellules : <code>=MaFonction(A1;B1)</code>. Une plage arrive en <code>Range</code> (<code>For Each c In rg</code>, <code>rg.Value</code>).</li>
 </ul>`;
 }
@@ -1180,6 +1424,7 @@ conteneur.addEventListener('keydown', (e) => {
   if (k === 'F2') { e.preventDefault(); return commencerEdition(); }
   if (k === 'F5' && panneauCourant === 'macros') { e.preventDefault(); return executerMacroUI(); }
   if (k === 'F11' && e.altKey) { e.preventDefault(); return ouvrirPanneau('macros'); }
+  if (k === 'F8' && e.altKey) { e.preventDefault(); return ouvrirDialogueMacros(); }
   if (k === 'Escape') { pressePapier = null; return rendre(); }
   if (ctrl) {
     const K = k.toLowerCase();
@@ -1273,13 +1518,37 @@ $('panneau-fermer').addEventListener('click', () => { $('panneau').hidden = true
 $('btn-ajouter-feuille').addEventListener('click', () => { memoriserVue(); classeur.ajouterFeuille(); activerFeuille(classeur.feuilles.length - 1); sauvegarderLocal(); });
 $('filtre-fonctions').addEventListener('input', rendreFonctions);
 $('btn-ajouter-nom').addEventListener('click', () => { try { classeur.definirNom($('nom-nouveau').value, $('ref-nouveau').value); $('nom-nouveau').value = ''; $('ref-nouveau').value = ''; rendreNoms(); sauvegarderLocal(); rendre(); } catch (e) { toast(e.message, true); } });
-$('btn-executer').addEventListener('click', executerMacroUI);
+$('btn-executer').addEventListener('click', () => executerMacroUI());
 $('btn-verifier').addEventListener('click', verifierVBA);
-$('btn-exemple').addEventListener('click', () => { const ta = $('code-vba'); ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n\n' : '') + EXEMPLE_VBA; classeur.macros = ta.value; rafraichirProcedures(); sauvegarderLocal(); });
+$('btn-exemple').addEventListener('click', () => { const m = moduleCourant(); classeur.definirCodeModule(m.cle, (m.code.trim() ? m.code.replace(/\s+$/, '') + '\n\n' : '') + EXEMPLE_VBA); afficherModule(m.cle); sauvegarderLocal(); });
+$('btn-nouveau-module').addEventListener('click', nouveauModuleUI);
+$('btn-nouvelle-macro').addEventListener('click', nouvelleMacroUI);
+$('btn-liste-macros').addEventListener('click', ouvrirDialogueMacros);
+$('btn-macros-liste').addEventListener('click', ouvrirDialogueMacros);
+$('macro-nom').addEventListener('input', () => { macroChoisie = null; rendreDialogueMacros(); });
+$('macros-dans').addEventListener('change', rendreDialogueMacros);
+$('macro-executer').addEventListener('click', () => { if (!macroChoisie) return; const q = macroChoisie.qualifie; fermerDialogueMacros(); executerMacroUI(q); });
+$('macro-modifier').addEventListener('click', () => { if (!macroChoisie) return; const p = macroChoisie; fermerDialogueMacros(); if (panneauCourant !== 'macros') ouvrirPanneau('macros'); afficherModule(p.cle, p.ligne + 1); });
+$('macro-creer').addEventListener('click', () => { const nom = $('macro-nom').value.trim(); if (!nomVBAValide(nom)) return toast('Nom de macro invalide : une lettre, puis des lettres, chiffres ou _ (sans espace ni tiret)', true); const cle = cibleCreation(); if (creerMacro(nom, cle)) fermerDialogueMacros(); });
+$('macro-supprimer').addEventListener('click', () => { if (macroChoisie && supprimerMacroUI(macroChoisie.cle, macroChoisie.nom)) { macroChoisie = null; $('macro-nom').value = ''; rendreDialogueMacros(); } });
+$('macro-fermer').addEventListener('click', fermerDialogueMacros);
+$('dialogue-macros').addEventListener('mousedown', (e) => { if (e.target.id === 'dialogue-macros') fermerDialogueMacros(); });
+$('dialogue-macros').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.preventDefault(); fermerDialogueMacros(); }
+  else if (e.key === 'Enter' && e.target.id === 'macro-nom') { e.preventDefault(); if (macroChoisie) $('macro-executer').click(); else if (!$('macro-creer').disabled) $('macro-creer').click(); }
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'F8' && e.altKey && !$('dialogue-macros').contains(e.target)) { e.preventDefault(); ouvrirDialogueMacros(); } }, true);
 let timerCode;
-$('code-vba').addEventListener('input', () => { classeur.macros = $('code-vba').value; classeur.version++; clearTimeout(timerCode); timerCode = setTimeout(() => { rafraichirProcedures(); sauvegarderLocal(); }, 400); });
+$('code-vba').addEventListener('input', () => {
+  const m = moduleAffiche && classeur.moduleVBA(moduleAffiche);
+  if (!m) return afficherModule();
+  classeur.definirCodeModule(m.cle, $('code-vba').value);
+  clearTimeout(timerCode); timerCode = setTimeout(() => { rendreArbreVBA(false); rafraichirProcedures(); suivreCurseurVBA(); sauvegarderLocal(); }, 400);
+});
+$('code-vba').addEventListener('click', suivreCurseurVBA);
+$('code-vba').addEventListener('keyup', (e) => { if (e.key.startsWith('Arrow') || e.key === 'PageUp' || e.key === 'PageDown') suivreCurseurVBA(); });
 $('code-vba').addEventListener('keydown', (e) => {
-  if (e.key === 'F5') { e.preventDefault(); executerMacroUI(); }
+  if (e.key === 'F5') { e.preventDefault(); suivreCurseurVBA(); executerMacroUI(); }
   else if (e.key === 'Tab') { e.preventDefault(); const t = e.target; const p = t.selectionStart; t.value = t.value.slice(0, p) + '    ' + t.value.slice(t.selectionEnd); t.setSelectionRange(p + 4, p + 4); }
   else if (e.key === 'Enter') { // conserve l'indentation
     const t = e.target; const p = t.selectionStart; const debut = t.value.lastIndexOf('\n', p - 1) + 1; const indent = /^[ \t]*/.exec(t.value.slice(debut, p))[0];
@@ -1297,8 +1566,7 @@ window.addEventListener('beforeunload', () => { memoriserVue(); sauvegarderLocal
 
 if (!restaurerLocal()) { classeur = Classeur.nouveau(); classeur.nomFichier = 'Classeur1.xlsx'; classeurs = [classeur]; }
 for (const c of classeurs) if (c.enregistre === undefined) c.enregistre = c.version;
-$('code-vba').value = classeur.macros || '';
-rafraichirProcedures();
+afficherModule();
 activerFeuille(Math.min(classeur.active, classeur.feuilles.length - 1));
 document.title = (classeur.nomFichier || 'Classeur') + ' — Tableur';
 conteneur.focus();

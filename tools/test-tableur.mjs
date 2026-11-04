@@ -11,6 +11,7 @@ import { executerMacro, analyserVBA, InterpreteurVBA, creerUDF } from '../tableu
 import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from '../tableur/js/xlsxio.js';
 import { preparerDonnees, rendreGraphiqueSVG } from '../tableur/js/graphiques.js';
 import { decompresserOVBA } from '../tableur/js/vbaextract.js';
+import { listerProcedures, insererMacro, supprimerProcedure, ajouterAuProjet, decouperProjet } from '../tableur/js/projetvba.js';
 
 const require = createRequire(import.meta.url);
 const XLSX = require('../tableur/lib/xlsx.full.min.js');
@@ -484,6 +485,67 @@ test('xlsm : extraction du code VBA (décompression MS-OVBA)', () => {
   // Bloc compressé : "aaaaaaaaaaaa" → littéral « a » puis copie (décalage 1, longueur 11)
   const comp = Uint8Array.from([0x01, 0x04, 0xb0, 0x02, 0x61, 0x08, 0x00]);
   egal(new TextDecoder().decode(decompresserOVBA(comp)), 'aaaaaaaaaaaa');
+});
+
+test('projet VBA : modules de feuille, ThisWorkbook et modules nommés', () => {
+  const c = Classeur.nouveau(); c.ajouterFeuille('Hypothèses'); c.ajouterFeuille('Calculs');
+  egal(c.feuilles.map((f) => f.codeNom), ['Feuil1', 'Feuil2', 'Feuil3']);
+  egal(c.nomModuleLibre(), 'Module1');
+  egal(c.ajouterModule('Provisions'), 'Provisions');
+  egal(c.ajouterModule(), 'Module1');
+  let refus = ''; try { c.ajouterModule('Mon module'); } catch (e) { refus = e.message; } egal(/invalide/.test(refus), true);
+  refus = ''; try { c.ajouterModule('feuil2'); } catch (e) { refus = e.message; } egal(/déjà pris/.test(refus), true);
+  c.definirCodeModule('module:Provisions', 'Sub Calculer()\n    Feuil2.Range("A1").Value = Module1.Taux() * 100\n    Module1.Marquer\nEnd Sub\n');
+  c.definirCodeModule('module:Module1', 'Function Taux()\n    Taux = 0.02\nEnd Function\nSub Marquer()\n    Worksheets("Calculs").Range("B1").Value = "ok"\nEnd Sub\n');
+  // Module de la feuille Calculs : Range et Me visent cette feuille, même si une autre est active
+  c.definirCodeModule('feuille:Feuil3', 'Sub Remplir()\n    Range("C1").Value = Me.Name\n    Aide\nEnd Sub\nPrivate Sub Aide()\n    Cells(2, 3).Value = 7\nEnd Sub\n');
+  c.definirCodeModule('classeur', 'Sub Nommer()\n    Debug.Print Me.Name\nEnd Sub\n');
+  c.active = 0;
+  let r = executerMacro(c, null, 'Calculer'); egal(r.erreur, null);
+  egal(c.valeur(1, 0, 0), 2); egal(c.valeur(2, 0, 1), 'ok');
+  r = executerMacro(c, null, 'Feuil3.Remplir'); egal(r.erreur, null);
+  egal(c.valeur(2, 0, 2), 'Calculs'); egal(c.valeur(2, 1, 2), 7); egal(c.valeur(0, 0, 2), null);
+  r = executerMacro(c, null, 'Nommer'); egal(r.sortie, [c.nomFichier]);
+  // Une erreur indique son module
+  c.definirCodeModule('module:Module1', c.moduleVBA('module:Module1').code + 'Sub Casse()\n    Dim x As Long\n    x = 1 / 0\nEnd Sub\n');
+  r = executerMacro(c, null, 'Module1.Casse'); egal(r.erreur.numero, 11); egal(r.erreur.module, 'Module1'); egal(r.erreur.ligne, 9);
+  // Aller-retour texte (sauvegarde du navigateur, feuille _MacrosTableur)
+  const texte = c.macros;
+  egal(/' ===== Feuille Feuil3 \(Calculs\) =====/.test(texte), true); egal(/' ===== Module Provisions =====/.test(texte), true);
+  const d = Classeur.nouveau(); d.ajouterFeuille('Hypothèses'); d.ajouterFeuille('Calculs');
+  d.macros = texte;
+  egal(d.modulesVBA().map((m) => m.libelle), ['Feuil1 (Feuil1)', 'Feuil2 (Hypothèses)', 'Feuil3 (Calculs)', 'ThisWorkbook', 'Provisions', 'Module1']);
+  egal(d.feuilles[2].code, c.feuilles[2].code); egal(d.codeClasseur, c.codeClasseur);
+  // Les feuilles réordonnées gardent leur module (par le nom de la feuille)
+  const e = Classeur.nouveau(); e.renommerFeuille(0, 'Calculs'); e.ajouterFeuille('Hypothèses');
+  e.macros = texte; egal(e.feuilles[0].codeNom, 'Feuil3'); egal(e.feuilles[0].code, c.feuilles[2].code);
+  // .xlsm : le projet entier revient
+  const lu = lireClasseur(XLSX, ecrireClasseur(XLSX, c, { bookType: 'xlsx' }), 'p.xlsx');
+  egal(lu.macros, texte); egal(lu.feuilles[2].codeNom, 'Feuil3');
+  // Ancien format (un seul texte) et modules importés
+  const v = Classeur.nouveau(); v.macros = 'Sub A()\nEnd Sub';
+  egal(v.modules.map((m) => m.nom), ['Module1']); egal(v.modules[0].code, 'Sub A()\nEnd Sub\n');
+  const cles = ajouterAuProjet(v, nettoyerModuleVBA('Attribute VB_Name = "Outils"\r\nSub B()\r\nEnd Sub\r\n', 'x.bas'));
+  egal(cles, ['module:Outils']);
+  egal(ajouterAuProjet(v, nettoyerModuleVBA('Sub C()\nEnd Sub', 'Module1.bas')), ['module:Module2']);
+  v.renommerModule('Module2', 'Divers'); egal(v.modules.map((m) => m.nom), ['Module1', 'Outils', 'Divers']);
+  v.supprimerModule('Outils'); egal(v.modules.map((m) => m.nom), ['Module1', 'Divers']);
+  egal(decouperProjet("' ===== Module Feuil1 =====\nSub X()\nEnd Sub").length, 1);
+  const w = Classeur.nouveau(); w.macros = "' ===== Module Feuil1 =====\nSub X()\nEnd Sub\n' ===== Module ThisWorkbook =====\nSub Y()\nEnd Sub";
+  egal(w.feuilles[0].code, 'Sub X()\nEnd Sub\n'); egal(w.codeClasseur, 'Sub Y()\nEnd Sub\n'); egal(w.modules.length, 0);
+});
+
+test('projet VBA : liste, création et suppression de macros nommées', () => {
+  const code = "Option Explicit\n\nSub Lancer()\n    ' commentaire avec Sub Faux()\nEnd Sub\n\nPrivate Function Taux(a As Double, Optional b)\nEnd Function\nPublic Sub AvecArg(x)\nEnd Sub\n";
+  egal(listerProcedures(code).map((p) => [p.nom, p.genre, p.params, p.prive, p.macro, p.ligne, p.fin]),
+    [['Lancer', 'Sub', 0, false, true, 3, 5], ['Taux', 'Function', 2, true, false, 7, 8], ['AvecArg', 'Sub', 1, false, false, 9, 10]]);
+  const { code: c2, ligne } = insererMacro(code, 'Nouvelle');
+  egal(c2.split('\n')[ligne - 2], 'Sub Nouvelle()'); egal(c2.split('\n')[ligne], 'End Sub');
+  egal(analyserVBA(c2).procedures.has('NOUVELLE'), true);
+  egal(insererMacro('', 'Premiere'), { code: 'Sub Premiere()\n    \nEnd Sub\n', ligne: 2 });
+  const c3 = supprimerProcedure(c2, 'lancer');
+  egal(listerProcedures(c3).map((p) => p.nom), ['Taux', 'AvecArg', 'Nouvelle']);
+  egal(analyserVBA(c3).procedures.size, 3);
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);

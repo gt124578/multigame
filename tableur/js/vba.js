@@ -338,7 +338,7 @@ class ParseurVBA {
       // Modificateurs
       let modif = null;
       while (this.estKw('PUBLIC') || this.estKw('PRIVATE') || this.estKw('STATIC') || this.estKw('GLOBAL') || this.estKw('FRIEND')) modif = this.next().v;
-      if (this.estKw('SUB') || this.estKw('FUNCTION') || (this.estKw('PROPERTY'))) { const p = this.procedure(); prog.procedures.set(p.nom.toUpperCase(), p); continue; }
+      if (this.estKw('SUB') || this.estKw('FUNCTION') || (this.estKw('PROPERTY'))) { const p = this.procedure(); p.prive = modif === 'PRIVATE'; prog.procedures.set(p.nom.toUpperCase(), p); continue; }
       if (this.estKw('DECLARE')) { while (this.peek().t !== 'nl' && this.peek().t !== 'eof') this.next(); this.attendreNl(); continue; }
       if (this.estKw('TYPE') || this.estKw('ENUM')) { // Type / Enum : on garde les constantes d'un Enum
         const quoi = this.next().v; const nom = this.attendreId(); this.attendreNl();
@@ -1134,6 +1134,7 @@ class WorksheetVBA extends ObjetVBA {
         if (N === 'MOVE') { it.classeur.deplacerFeuille(this.idx, pos > this.idx ? pos - 1 : pos); return undefined; }
         const copie = it.classeur.ajouterFeuille(it.classeur.nomLibre(this.feuille.nom + ' ('), pos);
         this.feuille.chaque((r, c, cel) => copie.set(r, c, { ...cel }));
+        copie.code = this.feuille.code || '';
         return undefined;
       }
       case 'EVALUATE': return it.evaluerFormule(texte(p[0]), this.idx);
@@ -1484,6 +1485,7 @@ export class InterpreteurVBA {
     this.debug = new DebugVBA(this);
     this.globales = new Map();
     this.prog = { procedures: new Map(), globales: [], base: 0, explicit: false };
+    this.modulesCharges = new Map(); // NOM DU MODULE (majuscules) → { nom, genre, feuille }
     this.limitePas = 5_000_000;
     this.pas = 0;
     this.selection = null;
@@ -1513,22 +1515,54 @@ export class InterpreteurVBA {
     return v === null ? undefined : v;
   }
 
-  /** Charge (analyse) un module de code. Les procédures s'ajoutent à celles déjà chargées. */
-  charger(src) {
-    const prog = analyserVBA(src);
-    for (const [k, p] of prog.procedures) this.prog.procedures.set(k, p);
-    this.prog.base = prog.base;
-    this.prog.explicit = prog.explicit;
+  /**
+   * Charge (analyse) un module de code. Les procédures s'ajoutent à celles déjà chargées.
+   * `module` : { nom, genre: 'module'|'feuille'|'classeur', feuille } — les procédures d'un module de feuille ou de
+   * ThisWorkbook s'appellent aussi « Feuil1.MaMacro » ; dans un module de feuille, Range, Cells et Me visent cette feuille.
+   */
+  charger(src, module = null) {
+    let prog;
+    try { prog = analyserVBA(src); }
+    catch (e) { if (e instanceof ErreurVBA && module) e.module = module.nom; throw e; }
+    const M = module ? module.nom.toUpperCase() : null;
+    if (module) this.modulesCharges.set(M, module);
+    for (const [k, p] of prog.procedures) {
+      if (module) { p.module = module.nom; p.moduleInfo = module; this.prog.procedures.set(M + '.' + k, p); }
+      const deja = this.prog.procedures.get(k);
+      // Un module standard l'emporte sur un module de feuille pour un appel sans préfixe
+      if (!deja || !module || module.genre === 'module' || (deja.moduleInfo && deja.moduleInfo.genre !== 'module')) this.prog.procedures.set(k, p);
+    }
+    if (!module || module.genre === 'module' || prog.base) this.prog.base = prog.base;
+    if (prog.explicit) this.prog.explicit = true;
     const portee = { vars: this.globales, parent: null };
-    for (const g of prog.globales) this.executer(g, portee);
+    try { for (const g of prog.globales) this.executer(g, portee); }
+    catch (e) { if (e instanceof ErreurVBA && module && !e.module) e.module = module.nom; throw e; }
     return prog;
   }
 
-  listerProcedures() { return [...this.prog.procedures.values()].filter((p) => !p.fonction && !p.params.length).map((p) => p.nom); }
+  /** Charge tous les modules du projet VBA d'un classeur (modules de feuille, ThisWorkbook, modules standard). */
+  chargerProjet(classeur = this.classeur) {
+    for (const m of classeur.modulesVBA()) {
+      if (!m.code.trim()) { this.modulesCharges.set(m.nom.toUpperCase(), { nom: m.nom, genre: m.genre, feuille: m.feuille }); continue; }
+      this.charger(m.code, { nom: m.nom, genre: m.genre, feuille: m.feuille });
+    }
+  }
+
+  /** Procédure appelée sans préfixe depuis `portee` : celle du même module d'abord. */
+  procedurePour(N, portee) {
+    const racine = portee ? this.porteeProcedure(portee) : null;
+    const p = racine && racine.proc;
+    if (p && p.module) { const locale = this.prog.procedures.get(p.module.toUpperCase() + '.' + N); if (locale) return locale; }
+    const g = this.prog.procedures.get(N);
+    if (g && g.prive && g.module && (!p || p.module !== g.module)) return null;
+    return g || null;
+  }
+
+  listerProcedures() { return [...new Set(this.prog.procedures.values())].filter((p) => !p.fonction && !p.params.length).map((p) => p.nom); }
 
   /** Exécute une procédure par son nom avec des arguments déjà évalués. */
   executerProcedure(nom, args = []) {
-    const p = this.prog.procedures.get(nom.toUpperCase());
+    const p = this.prog.procedures.get(String(nom).toUpperCase());
     if (!p) throw erreur(35, 'Sub ou Function non définie : ' + nom);
     this.pas = 0;
     this.err.clear();
@@ -1536,7 +1570,7 @@ export class InterpreteurVBA {
   }
 
   appelerProcedure(p, args) {
-    const portee = { vars: new Map(), parent: null, fonction: p.fonction ? p.nom : null, with: [], onError: null };
+    const portee = { vars: new Map(), parent: null, fonction: p.fonction ? p.nom : null, with: [], onError: null, proc: p };
     const pos = args.filter((a) => !a.nomme);
     let k = 0;
     for (const param of p.params) {
@@ -1555,7 +1589,7 @@ export class InterpreteurVBA {
       this.executerBloc(p.corps, portee);
     } catch (e) {
       if (e instanceof SignalExit && (e.quoi === 'SUB' || e.quoi === 'FUNCTION' || e.quoi === 'PROPERTY')) { /* sortie normale */ }
-      else throw e;
+      else { if (e instanceof ErreurVBA && e.module === undefined) { e.module = p.module || null; e.procedure = p.nom; } throw e; }
     }
     return p.fonction ? this.lire(portee, p.nom) : undefined;
   }
@@ -1824,6 +1858,16 @@ export class InterpreteurVBA {
   /** Objets globaux accessibles sans préfixe. */
   objetGlobal(nom, args, portee, ligne) {
     const N = nom.toUpperCase();
+    const racine = portee ? this.porteeProcedure(portee) : null;
+    const mod = racine && racine.proc && racine.proc.moduleInfo;
+    if (mod && mod.genre === 'feuille' && mod.feuille) {
+      const idx = this.classeur.feuilles.indexOf(mod.feuille);
+      if (idx >= 0) {
+        if (N === 'ME') return { trouve: true, v: new WorksheetVBA(this, idx) };
+        if (N === 'RANGE' || N === 'CELLS' || N === 'ROWS' || N === 'COLUMNS') return { trouve: true, v: new WorksheetVBA(this, idx).get(N, args, this) };
+      }
+    }
+    if (mod && mod.genre === 'classeur' && N === 'ME') return { trouve: true, v: this.classeurVBA };
     switch (N) {
       case 'APPLICATION': return { trouve: true, v: this.application };
       case 'THISWORKBOOK': case 'ACTIVEWORKBOOK': return { trouve: true, v: this.classeurVBA };
@@ -1835,6 +1879,9 @@ export class InterpreteurVBA {
       case 'DEBUG': return { trouve: true, v: this.debug };
       case 'ME': return { trouve: true, v: new WorksheetVBA(this, this.classeur.active) };
     }
+    // Nom de code d'une feuille (Feuil1.Range("A1"))
+    const fi = this.classeur.feuilles.findIndex((f) => f.codeNom && f.codeNom.toUpperCase() === N);
+    if (fi >= 0) return { trouve: true, v: new WorksheetVBA(this, fi) };
     return { trouve: false };
   }
 
@@ -1858,10 +1905,21 @@ export class InterpreteurVBA {
       const argsEval = () => this.evaluerArgs(premierArgs ? premierArgs : (chaine.length === 0 && argsFinals ? [] : []), portee);
       const slot = this.chercher(portee, nom);
       const valeurSlot = slot ? (slot.ref ? slot.ref.get() : slot.v) : undefined;
-      if (slot && !(premierArgs && this.prog.procedures.has(N) && !(valeurSlot instanceof TableauVBA) && !(valeurSlot instanceof ObjetVBA))) {
+      const procN = this.procedurePour(N, portee);
+      // Appel qualifié par le module : Module1.MaMacro, Feuil1.Calcul
+      const procQualifiee = !slot && !premierArgs && chaine.length && chaine[0].nom && this.modulesCharges.has(N) ? this.prog.procedures.get(N + '.' + chaine[0].nom.toUpperCase()) : null;
+      if (slot && !(premierArgs && procN && !(valeurSlot instanceof TableauVBA) && !(valeurSlot instanceof ObjetVBA))) {
         courant = valeurSlot;
-      } else if (this.prog.procedures.has(N)) {
-        const p = this.prog.procedures.get(N);
+      } else if (procQualifiee) {
+        const e0 = chaine.shift();
+        let args;
+        if (e0.args) args = this.evaluerArgs(e0.args, portee);
+        else if (!chaine.length && argsFinals) { args = argsFinals; argsFinals = null; }
+        else args = [];
+        courant = this.appelerProcedure(procQualifiee, args);
+        if (!chaine.length && instruction) return courant;
+      } else if (procN) {
+        const p = procN;
         let args;
         if (premierArgs) { args = this.evaluerArgs(premierArgs, portee); chaine.shift(); }
         else if (!chaine.length && argsFinals) { args = argsFinals; argsFinals = null; }
@@ -1947,7 +2005,7 @@ export class InterpreteurVBA {
         if (g.trouve) {
           objet = g.v;
           if (!dernier.nom && ['RANGE', 'CELLS', 'WORKSHEETS', 'SHEETS', 'ROWS', 'COLUMNS'].includes(sans.base.nom.toUpperCase())) { if (objet instanceof RangeVBA) { objet.poser(v); return; } throw erreur(E_ARG, 'Affectation impossible', ligne); }
-        } else if (this.prog.procedures.has(sans.base.nom.toUpperCase())) objet = this.appelerProcedure(this.prog.procedures.get(sans.base.nom.toUpperCase()), []);
+        } else if (this.procedurePour(sans.base.nom.toUpperCase(), portee)) objet = this.appelerProcedure(this.procedurePour(sans.base.nom.toUpperCase(), portee), []);
         else throw erreur(E_NOM, 'Variable non définie : ' + sans.base.nom, ligne);
       }
     } else objet = this.evaluerChaine(sans, portee, null, false);
@@ -1970,7 +2028,8 @@ export class InterpreteurVBA {
 export function executerMacro(classeur, code, nomProcedure, hote = {}) {
   const it = new InterpreteurVBA(classeur, hote);
   try {
-    it.charger(code);
+    if (code == null) it.chargerProjet(classeur); // tout le projet du classeur
+    else it.charger(code);
     const nom = nomProcedure || it.listerProcedures()[0];
     if (!nom) throw erreur(35, 'Aucune procédure Sub sans paramètre à exécuter');
     const resultat = it.executerProcedure(nom);
