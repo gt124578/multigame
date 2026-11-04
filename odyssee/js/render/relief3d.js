@@ -34,7 +34,11 @@ const PENTE_DOUCE_MAX = 1.6;            // … entre deux replats où l'on march
 const WD = 0.16 * LV;                // l'eau est un peu plus basse que la berge
 const RAVIN = -3.2 * LV;             // fond d'un ravin
 const DOUX = 1.5;                    // largeur (cases) d'une pente douce entre deux replats d'un niveau d'écart
-const ROC = 0.42;                    // largeur de la paroi d'un gradin de roche (dans la case de roche)
+const ROC = 0.42;
+const GAMMA_STRATES = num('r3g', 1.8);   // > 1 : strates espacées en haut, serrées vers le pied (perspective)
+const PAS_STRATES = num('r3s', 9);
+const SERRE = num('r3p', 1.7);   // > 1 : la texture de la paroi se tasse vers le pied (perspective) ; 1 : régulière
+const SOMBRE = num('r3d', 0.65);  // assombrissement au pied (0 : aucun)       // espacement des strates (pixels « déroulés » de la paroi)                    // largeur de la paroi d'un gradin de roche (dans la case de roche)
 const NORD = 0.7;                    // pente maximale (× tan de la caméra) d'un versant tourné vers le nord
 
 // sortes de cases
@@ -165,7 +169,11 @@ export function matParoi() {
       .replace('#include <common>', '#include <common>\nvarying vec2 vSuv; varying float vTuile; varying vec2 vHb; varying vec3 vNrm; varying vec4 vLevre; varying float vY;' + GLSL_COMMUN)
       .replace('#include <map_fragment>', `
         if (vHb.x < 0.0 || vHb.y < 0.0) discard;
-        vec2 tp = floor(vSuv);
+        // perspective : le haut de la paroi est plus près de la caméra que son pied, les stries s'y resserrent
+        float sP = clamp(vHb.x / max(vHb.x + vHb.y, 1.0), 0.0, 1.0);
+        // la hauteur de la paroi se tasse vers le pied (plus loin de la caméra) : la texture y est plus serrée
+        float hP = max(vHb.x + vHb.y, 1.0);
+        vec2 tp = floor(vec2(vSuv.x, vSuv.y - vHb.x + hP * pow(sP, ${SERRE.toFixed(3)}) * (1.0 + 0.0 * sP)));
         vec2 tuv = vec2((mod(tp.x, ${TUILE}.0) + 0.5) / ${TUILE}.0, (mod(tp.y, ${TUILE}.0) + 0.5 + floor(vTuile + 0.5) * ${TUILE}.0) / ${(TUILE * A.n).toFixed(1)});
         vec3 col = texture2D(map, tuv).rgb;
         float bay = r3Bayer(tp);
@@ -175,6 +183,20 @@ export function matParoi() {
         float edge = 1.0;
         if (vHb.x < lv) { col = vLevre.rgb * (vHb.x > lv - 1.0 ? 0.74 : 1.0); edge = 0.0; }
         else if (vHb.x < lv + 2.0) col = min(vec3(1.0), col * 1.3 + 0.04);
+        // profondeur : strates horizontales qui se resserrent vers le haut (la paroi fuit vers le haut, comme vue en
+        // perspective), puis dégradé de lumière, clair sous la lèvre et sombre au pied, en paliers tramés
+        float hT = max(vHb.x + vHb.y, 1.0), s0 = clamp(vHb.x / hT, 0.0, 1.0);
+        if (edge > 0.5 && vTuile < ${MURS.length}.0 - 0.5) {
+          float G = ${GAMMA_STRATES.toFixed(3)}, L = ${PAS_STRATES.toFixed(2)};
+          float w0 = hT * pow(s0, G), w1 = hT * pow(clamp((vHb.x + 1.0) / hT, 0.0, 1.0), G), wm = hT * pow(clamp((vHb.x - 1.0) / hT, 0.0, 1.0), G);
+          float jit = floor(fract(sin(floor(vSuv.x / 7.0) * 7.31) * 91.7) * 3.0);   // les strates ondulent un peu par colonne
+          w0 += jit; w1 += jit; wm += jit;
+          if (floor(w1 / L) != floor(w0 / L) && vHb.x > 3.0) col *= 0.6;           // le pli sombre d'une strate
+          else if (floor(wm / L) != floor(w0 / L) && vHb.x > 3.0) col = min(vec3(1.0), col * 1.2 + 0.03);   // le rebord éclairé dessous
+          float g = 1.12 - ${SOMBRE.toFixed(3)} * pow(s0, 0.8);
+          float lvl = floor((g - 0.46) / 0.165 + bay * 0.9);
+          col *= 0.46 + clamp(lvl, 0.0, 4.0) * 0.165;
+        }
         // pied sombre
         if (vHb.y < 2.0) col *= 0.55; else if (vHb.y < 4.0 && bay < 0.6) col *= 0.75;
         float q = edge > 0.5 ? r3Palier(vNrm, bay) : 1.0;
