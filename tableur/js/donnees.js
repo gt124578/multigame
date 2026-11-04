@@ -1,7 +1,7 @@
 // Outils de données du Tableur, sans DOM (testés par tools/test-tableur.mjs) :
 // tri, filtre automatique, rechercher / remplacer, mise en forme conditionnelle, valeur cible, somme automatique.
 
-import { ErreurFormule, decalerFormule, formater, parsePlage, adresse, colVersLettres } from './formules.js';
+import { ErreurFormule, decalerFormule, formater, parsePlage, adresse, colVersLettres, dateVersSerie } from './formules.js';
 
 // ---------------------------------------------------------------------------
 // Tri
@@ -375,9 +375,9 @@ export function styleConditionnel(classeur, fi, r, c) {
 }
 
 /** Décale les plages des règles quand on insère / supprime des lignes ou des colonnes. */
-export function decalerMfc(f, axe, idx, n) {
-  if (!f.mfc) return;
-  f.mfc = f.mfc.map((regle) => {
+export function decalerMfc(f, axe, idx, n, cle = 'mfc') {
+  if (!f[cle] || !f[cle].length) return;
+  f[cle] = f[cle].map((regle) => {
     const ps = plagesMfc(regle).map((p) => {
       const q = { ...p };
       const [a, b] = axe === 'r' ? ['r1', 'r2'] : ['c1', 'c2'];
@@ -388,6 +388,120 @@ export function decalerMfc(f, axe, idx, n) {
     if (!ps.length) return null;
     return { ...regle, plage: ps.map((p) => adresse(p.r1, p.c1) + (p.r1 === p.r2 && p.c1 === p.c2 ? '' : ':' + adresse(p.r2, p.c2))).join(' ') };
   }).filter(Boolean);
+}
+
+
+// ---------------------------------------------------------------------------
+// Validation des données
+// ---------------------------------------------------------------------------
+//
+// Règle : { id, plage: 'B2:B50', type, op, v1, v2, liste, vides, fleche, message: { titre, texte }, erreur: { style, titre, texte } }
+//   type  : 'liste' (liste : « Oui;Non » ou « =$H$2:$H$9 »), 'entier', 'decimal', 'date', 'heure', 'longueur' (du texte), 'formule'
+//   op    : 'entre', 'hors', '=', '<>', '>', '<', '>=', '<=' (sauf liste et formule)
+//   v1/v2 : nombre, date (jj/mm/aaaa), heure (hh:mm) ou =formule ; formule : =… vraie pour une saisie valide
+//   vides : les cellules vides sont acceptées (vrai par défaut) ; fleche : liste déroulante proposée (vrai par défaut)
+//   erreur.style : 'stop' (saisie refusée), 'avertissement' (on demande), 'information' (on prévient)
+
+export const TYPES_VALIDATION = [['liste', 'Liste'], ['entier', 'Nombre entier'], ['decimal', 'Décimal'], ['date', 'Date'], ['heure', 'Heure'], ['longueur', 'Longueur du texte'], ['formule', 'Personnalisée (formule)']];
+export const OPS_VALIDATION = [['entre', 'comprise entre'], ['hors', 'non comprise entre'], ['=', 'égale à'], ['<>', 'différente de'], ['>', 'supérieure à'], ['<', 'inférieure à'], ['>=', 'supérieure ou égale à'], ['<=', 'inférieure ou égale à']];
+
+/** Règle de validation d'une cellule (la première qui la couvre) ou null. */
+export function validationDe(f, r, c) {
+  if (!f.validations || !f.validations.length) return null;
+  for (const v of f.validations) if (plagesMfc(v).some((p) => r >= p.r1 && r <= p.r2 && c >= p.c1 && c <= p.c2)) return v;
+  return null;
+}
+
+// Borne d'une règle : =formule (relative à la première cellule), date, heure ou nombre
+function borne(classeur, fi, x, p, r, c) {
+  if (x === null || x === undefined) return null;
+  const s = String(x).trim();
+  if (s === '') return null;
+  if (s.startsWith('=')) { let v = classeur.evaluateur.evaluerFormule(decalerFormule(s, r - p.r1, c - p.c1).slice(1), fi, r, c); if (Array.isArray(v)) v = v[0][0]; return typeof v === 'number' ? v : null; }
+  let m;
+  if ((m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/.exec(s))) { let an = +m[3]; if (an < 100) an += an < 30 ? 2000 : 1900; return dateVersSerie(new Date(Date.UTC(an, +m[2] - 1, +m[1]))); }
+  if ((m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(s))) return (+m[1] * 3600 + +m[2] * 60 + (+m[3] || 0)) / 86400;
+  const n = +s.replace(/[\s ]/g, '').replace(',', '.');
+  return isNaN(n) ? null : n;
+}
+
+/** Éléments d'une liste de validation (textes affichés), pour la liste déroulante. */
+export function elementsListe(classeur, fi, regle, r = 0, c = 0) {
+  const src = String(regle.liste || '').trim();
+  if (!src) return [];
+  if (src.startsWith('=')) {
+    const p = plagesMfc(regle)[0] || { r1: r, c1: c };
+    let v = classeur.evaluateur.evaluerFormule(decalerFormule(src, r - p.r1, c - p.c1).slice(1), fi, r, c);
+    if (!Array.isArray(v)) v = [[v]];
+    const out = [];
+    for (const ligne of v) for (const x of ligne) if (x !== null && x !== undefined && x !== '' && !(x instanceof ErreurFormule)) { const t = typeof x === 'number' ? formater(x) : typeof x === 'boolean' ? (x ? 'VRAI' : 'FAUX') : String(x); if (!out.includes(t)) out.push(t); }
+    return out;
+  }
+  return src.split(/[;\n]/).map((x) => x.trim()).filter((x) => x !== '');
+}
+
+/** La valeur actuelle de la cellule respecte-t-elle sa règle ? */
+export function valeurValide(classeur, fi, regle, r, c) {
+  const p = plagesMfc(regle).find((q) => r >= q.r1 && r <= q.r2 && c >= q.c1 && c <= q.c2) || plagesMfc(regle)[0] || { r1: r, c1: c };
+  const v = classeur.valeur(fi, r, c);
+  if (v === null || v === undefined || v === '') return regle.vides !== false;
+  if (v instanceof ErreurFormule) return false;
+  const comparer = (x) => {
+    const a = borne(classeur, fi, regle.v1, p, r, c), b = borne(classeur, fi, regle.v2, p, r, c);
+    if (a === null) return true;
+    switch (regle.op || 'entre') {
+      case 'entre': return b === null ? x >= a : x >= Math.min(a, b) && x <= Math.max(a, b);
+      case 'hors': return b === null ? x < a : x < Math.min(a, b) || x > Math.max(a, b);
+      case '=': return Math.abs(x - a) < 1e-12; case '<>': return Math.abs(x - a) >= 1e-12;
+      case '>': return x > a; case '<': return x < a; case '>=': return x >= a; case '<=': return x <= a;
+      default: return true;
+    }
+  };
+  switch (regle.type) {
+    case 'liste': {
+      const t = (typeof v === 'number' ? formater(v, (classeur.feuilles[fi].get(r, c) || {}).z) : typeof v === 'boolean' ? (v ? 'VRAI' : 'FAUX') : String(v)).toLowerCase();
+      const brut = typeof v === 'number' ? formater(v).toLowerCase() : t;
+      return elementsListe(classeur, fi, regle, r, c).some((x) => { const xl = x.toLowerCase(); return xl === t || xl === brut || (typeof v === 'number' && +x.replace(/[\s ]/g, '').replace(',', '.') === v); });
+    }
+    case 'entier': return typeof v === 'number' && Number.isInteger(Math.round(v * 1e9) / 1e9) && comparer(v);
+    case 'decimal': case 'date': case 'heure': return typeof v === 'number' && comparer(v);
+    case 'longueur': return comparer(String(typeof v === 'number' ? formater(v, (classeur.feuilles[fi].get(r, c) || {}).z) : v).length);
+    case 'formule': {
+      const fo = String(regle.v1 || '').trim();
+      if (!fo) return true;
+      let res = classeur.evaluateur.evaluerFormule(decalerFormule(fo.startsWith('=') ? fo : '=' + fo, r - p.r1, c - p.c1).slice(1), fi, r, c);
+      if (Array.isArray(res)) res = res[0][0];
+      return res === true || (typeof res === 'number' && res !== 0);
+    }
+    default: return true;
+  }
+}
+
+/** Texte qui décrit la règle (message d'erreur par défaut). */
+export function decrireValidation(regle) {
+  const op = Object.fromEntries(OPS_VALIDATION)[regle.op || 'entre'] || '';
+  const bornes = (regle.op || 'entre') === 'entre' || regle.op === 'hors' ? (regle.v1 ?? '') + ' et ' + (regle.v2 ?? '') : (regle.v1 ?? '');
+  switch (regle.type) {
+    case 'liste': return 'La valeur doit être choisie dans la liste' + (String(regle.liste || '').startsWith('=') ? ' ' + regle.liste.slice(1) : ' : ' + elementsListeTexte(regle));
+    case 'entier': return 'Nombre entier ' + op + ' ' + bornes;
+    case 'decimal': return 'Nombre ' + op + ' ' + bornes;
+    case 'date': return 'Date ' + op + ' ' + bornes;
+    case 'heure': return 'Heure ' + op + ' ' + bornes;
+    case 'longueur': return 'Texte dont la longueur est ' + op + ' ' + bornes;
+    case 'formule': return 'La formule ' + (regle.v1 || '') + ' doit être vraie';
+    default: return '';
+  }
+}
+const elementsListeTexte = (regle) => String(regle.liste || '').split(/[;\n]/).map((x) => x.trim()).filter(Boolean).join(', ');
+
+/** Toutes les cellules non valides de la feuille (pour « Entourer les données non valides »). */
+export function cellulesInvalides(classeur, fi) {
+  const f = classeur.feuilles[fi], out = [];
+  for (const regle of f.validations || []) for (const p of plagesMfc(regle)) {
+    const r2 = Math.min(p.r2, f.zone.r2), c2 = Math.min(p.c2, f.zone.c2);
+    for (let r = p.r1; r <= r2; r++) for (let c = p.c1; c <= c2; c++) if (validationDe(f, r, c) === regle && !valeurValide(classeur, fi, regle, r, c)) out.push({ r, c });
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

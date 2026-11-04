@@ -7,8 +7,10 @@ import { estChiffre, dechiffrerOffice, ErreurMotDePasse } from './chiffrement.js
 import { executerMacro, analyserVBA, ErreurVBA, InterpreteurVBA, creerUDF } from './vba.js';
 import { listerProcedures, procedureALaLigne, insererMacro, supprimerProcedure, ajouterAuProjet, nomVBAValide } from './projetvba.js';
 import { installerGraphiques } from './ui-graphiques.js';
-import { styleConditionnel } from './donnees.js';
+import { styleConditionnel, validationDe, valeurValide } from './donnees.js';
 import { installerDonnees } from './ui-donnees.js';
+import { installerTCD } from './ui-tcd.js';
+import { AIDE } from './aide-fonctions.js';
 
 const XLSX = window.XLSX;
 const $ = (id) => document.getElementById(id);
@@ -91,6 +93,7 @@ function rendre() { if (rendRequis) return; rendRequis = true; requestAnimationF
 
 function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
   let html = '';
+  const entourerInvalides = uiD.validation.entourer();
   const fusionDe = (r, c) => f.fusions.find((m) => r >= m.r1 && r <= m.r2 && c >= m.c1 && c <= m.c2);
   for (let r = r1; r <= r2; r++) {
     if (!hauteurLig(r)) continue;
@@ -143,6 +146,7 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
       const bo = s.bordures || (s.bordure ? { h: 'thin', b: 'thin', g: 'thin', d: 'thin' } : null);
       if (bo) { const ep = { thin: 1, medium: 2, thick: 3 }; for (const [k, css] of [['h', 'top'], ['b', 'bottom'], ['g', 'left'], ['d', 'right']]) if (bo[k]) style += `border-${css}:${ep[bo[k]]}px solid #1f2937;`; }
       if (cel.note) cls += ' note';
+      if (entourerInvalides && f.validations.length) { const dv = validationDe(f, r, c); if (dv && !valeurValide(classeur, F, dv, r, c)) cls += ' invalide'; }
       html += `<div class="${cls}" style="${style}"${cel.note ? ` title="${echapper(cel.note).replace(/"/g, '&quot;')}"` : ''}>${echapper(txt)}</div>`;
     }
   }
@@ -335,6 +339,14 @@ const uiD = installerDonnees({
   ouvrirPanneau: (nom) => ouvrirPanneau(nom), panneauOuvert: (nom) => panneauCourant === nom && !$('panneau').hidden,
   commencerEdition: (t) => { conteneur.focus(); commencerEdition(t); },
 });
+const uiT = installerTCD({
+  classeur: () => classeur, fi: () => fi(), feuille: () => feuille(), selection: () => selectionNormalisee(), curseur: () => curseur,
+  selectionner: (p) => { selection = { ...p }; curseur = { r: p.r1, c: p.c1 }; },
+  activerFeuille: (i) => { memoriserVue(); activerFeuille(i); },
+  nouvelleFeuille: (base) => { let n = base, i = 1; while (classeur.indexFeuille(n) >= 0) n = base + (++i); memoriserVue(); classeur.ajouterFeuille(n, fi() + 1); return classeur.indexFeuille(n); },
+  rendre: () => rendre(), sauvegarder: () => sauvegarderLocal(), memoriser: () => memoriser(), toast: (m, e) => toast(m, e),
+  ouvrirPanneau: (nom) => ouvrirPanneau(nom), panneauOuvert: (nom) => panneauCourant === nom && !$('panneau').hidden,
+});
 // Bouton ▾ d'un en-tête de filtre
 surObjets('mousedown', (e) => {
   const b = e.target.closest('[data-filtre-col]');
@@ -426,6 +438,15 @@ function positionnerSelection() {
   if (!edition) { zoneNom.value = multi ? adresse(Math.min(selection.r1, selection.r2), Math.min(selection.c1, selection.c2)) + ':' + adresse(Math.max(selection.r1, selection.r2), Math.max(selection.c1, selection.c2)) : adresse(curseur.r, curseur.c); barre.value = saisieAffichee(curseur.r, curseur.c); }
   for (const el of refsColorees) el.remove(); refsColorees = [];
   if (edition) colorerReferences();
+  // Validation : flèche de la liste déroulante et message de saisie de la cellule active
+  const dv = validationDe(feuille(), curseur.r, curseur.c);
+  const fleche = $('fleche-liste'), msgDv = $('message-validation');
+  const voir = (el, oui) => { el.hidden = !oui; };
+  voir(fleche, !!(dv && dv.type === 'liste' && dv.fleche !== false && !edition && rc.width > 0 && rc.height > 0));
+  if (!fleche.hidden) { fleche.style.left = (rc.left + rc.width + 1) + 'px'; fleche.style.top = rc.top + 'px'; fleche.style.height = rc.height + 'px'; }
+  voir(msgDv, !!(dv && dv.message && (dv.message.titre || dv.message.texte) && rc.width > 0 && rc.height > 0));
+  if (!msgDv.hidden) { msgDv.innerHTML = (dv.message.titre ? '<b>' + echapper(dv.message.titre) + '</b>' : '') + echapper(dv.message.texte || ''); msgDv.style.left = (rc.left + 12) + 'px'; msgDv.style.top = (rc.top + rc.height + 4) + 'px'; }
+  uiD.curseurChange(); uiT.curseurChange();
   // Boutons de style
   const cel = feuille().get(curseur.r, curseur.c), s = (cel && cel.s) || {};
   $('btn-gras').classList.toggle('actif', !!s.gras); $('btn-italique').classList.toggle('actif', !!s.italique); $('btn-souligne').classList.toggle('actif', !!s.souligne);
@@ -545,13 +566,15 @@ function instantane() {
   const cells = new Map();
   for (const [k, cel] of f.cellules) cells.set(k, { ...cel, s: cel.s ? { ...cel.s } : undefined });
   return { fi: fi(), nom: f.nom, cells, largeurs: { ...f.largeurs }, hauteurs: { ...f.hauteurs }, fusions: f.fusions.map((m) => ({ ...m })), graphiques: f.graphiques.map((g) => ({ ...g })), boutons: f.boutons.map((b) => ({ ...b })), noms: new Map([...classeur.noms].map(([k, v]) => [k, { ...v }])),
-    figer: f.figer ? { ...f.figer } : null, mfc: JSON.parse(JSON.stringify(f.mfc || [])), filtre: f.filtre ? JSON.parse(JSON.stringify(f.filtre)) : null, filtrees: new Set(f.filtrees || []) };
+    figer: f.figer ? { ...f.figer } : null, mfc: JSON.parse(JSON.stringify(f.mfc || [])), filtre: f.filtre ? JSON.parse(JSON.stringify(f.filtre)) : null, filtrees: new Set(f.filtrees || []),
+    validations: JSON.parse(JSON.stringify(f.validations || [])), tcd: JSON.parse(JSON.stringify(f.tcd || [])) };
 }
 function memoriser() { historique.push(instantane()); if (historique.length > 100) historique.shift(); futur = []; }
 function restaurer(s) {
   const f = classeur.feuilles[s.fi]; if (!f) return;
   f.cellules = s.cells; f.largeurs = s.largeurs; f.hauteurs = s.hauteurs; f.fusions = s.fusions; f.graphiques = s.graphiques; f.boutons = s.boutons; f.recalculerZone();
   if ('mfc' in s) { f.figer = s.figer; f.mfc = s.mfc; f.filtre = s.filtre; f.filtrees = s.filtrees; }
+  if ('tcd' in s) { f.validations = s.validations; f.tcd = s.tcd; }
   classeur.noms = s.noms; classeur.active = s.fi; classeur.modifie();
 }
 function annuler() { if (!historique.length) return; futur.push(instantane()); restaurer(historique.pop()); rendre(); sauvegarderLocal(); }
@@ -586,6 +609,7 @@ function ajusterEditeur() {
 }
 function validerEdition(mouvement) {
   if (!edition) return;
+  fermerSuggestions();
   const { r, c, origine } = edition;
   const texte = origine === 'barre' ? barre.value : editeur.value;
   edition = null;
@@ -593,7 +617,17 @@ function validerEdition(mouvement) {
   const ancien = saisieAffichee(r, c);
   if (texte !== ancien) {
     memoriser();
+    const avant = feuille().get(r, c);
+    const copie = avant ? { ...avant } : null;
     try { classeur.saisir(fi(), r, c, texte); } catch (e) { toast(e.message, true); }
+    // Validation des données : une saisie refusée est retirée et on la propose de nouveau
+    if (!uiD.validation.controlerSaisie(r, c)) {
+      feuille().set(r, c, copie); feuille().recalculerZone(); classeur.modifie(); historique.pop();
+      curseur = { r, c }; selection = { r1: r, c1: c, r2: r, c2: c };
+      rendre();
+      commencerEdition(texte);
+      return;
+    }
     sauvegarderLocal();
   }
   conteneur.focus();
@@ -601,6 +635,7 @@ function validerEdition(mouvement) {
 }
 function annulerEdition() {
   if (!edition) return;
+  fermerSuggestions();
   edition = null; editeur.hidden = true; conteneur.focus(); rendre();
 }
 function insererReference(r1, c1, r2, c2) {
@@ -787,7 +822,7 @@ function changerDecimales(delta) {
 
 function activerFeuille(i) {
   if (edition) validerEdition();
-  uiD.fermerPopup();
+  uiD.fermerPopup(); uiD.validation.fermerListe();
   classeur.active = i;
   const f = feuille();
   curseur = f.curseur || { r: 0, c: 0 }; selection = f.selection || { r1: 0, c1: 0, r2: 0, c2: 0 };
@@ -1054,7 +1089,7 @@ function nouveauClasseur() {
 // Sauvegarde locale (navigateur) de tous les classeurs ouverts, pour survivre à un rechargement
 function serialiserClasseur(c) {
   return JSON.stringify({ nomFichier: c.nomFichier, active: c.active, macros: c.macros || '', noms: [...c.noms.values()], modifie: estModifie(c),
-    feuilles: c.feuilles.map((f, fi2) => ({ nom: f.nom, codeNom: f.codeNom, cachee: f.cachee, largeurs: f.largeurs, hauteurs: f.hauteurs, fusions: f.fusions, graphiques: f.graphiques, boutons: f.boutons, images: f.images, noms: [...f.noms.values()], figer: f.figer, mfc: f.mfc, filtre: f.filtre, filtrees: [...(f.filtrees || [])],
+    feuilles: c.feuilles.map((f, fi2) => ({ nom: f.nom, codeNom: f.codeNom, cachee: f.cachee, largeurs: f.largeurs, hauteurs: f.hauteurs, fusions: f.fusions, graphiques: f.graphiques, boutons: f.boutons, images: f.images, noms: [...f.noms.values()], figer: f.figer, mfc: f.mfc, filtre: f.filtre, filtrees: [...(f.filtrees || [])], validations: f.validations, tcd: f.tcd,
       cellules: [...f.cellules].map(([k, cel]) => {
         const o = { ...cel, v: cel.v instanceof ErreurFormule ? { erreur: cel.v.code } : cel.v };
         // Comme Excel à l'enregistrement : la dernière valeur calculée d'une formule est gardée
@@ -1067,7 +1102,7 @@ function deserialiserClasseur(data) {
   c.nomFichier = data.nomFichier || 'Classeur1.xlsx';
   for (const fd of data.feuilles || []) {
     const f = c.ajouterFeuille(fd.nom); if (fd.codeNom) { try { c.changerCodeNom(f, fd.codeNom); } catch { /* nom pris */ } } f.cachee = !!fd.cachee; f.largeurs = fd.largeurs || {}; f.hauteurs = fd.hauteurs || {}; f.fusions = fd.fusions || []; f.graphiques = fd.graphiques || []; f.boutons = fd.boutons || []; f.images = fd.images || [];
-    f.figer = fd.figer || null; f.mfc = fd.mfc || []; f.filtre = fd.filtre || null; f.filtrees = new Set(fd.filtrees || []);
+    f.figer = fd.figer || null; f.mfc = fd.mfc || []; f.filtre = fd.filtre || null; f.filtrees = new Set(fd.filtrees || []); f.validations = fd.validations || []; f.tcd = fd.tcd || [];
     for (const n of fd.noms || []) f.noms.set(n.nom.toUpperCase(), n);
     for (const [k, cel] of fd.cellules) { if (cel.v && typeof cel.v === 'object' && cel.v.erreur) cel.v = new ErreurFormule(cel.v.erreur); f.cellules.set(k, cel); }
     f.recalculerZone();
@@ -1130,8 +1165,9 @@ function ouvrirPanneau(nom) {
   p.hidden = false;
   for (const el of document.querySelectorAll('.panneau-contenu')) el.hidden = true;
   $('panneau-' + nom).hidden = false;
-  $('panneau-titre').textContent = { macros: 'Macros VBA', fonctions: 'Fonctions', noms: 'Noms définis', aide: 'Aide', graphique: 'Graphique', rechercher: 'Rechercher et remplacer', tri: 'Tri personnalisé', mfc: 'Mise en forme conditionnelle', cible: 'Valeur cible' }[nom] || nom;
+  $('panneau-titre').textContent = { macros: 'Macros VBA', fonctions: 'Fonctions', noms: 'Noms définis', aide: 'Aide', graphique: 'Graphique', rechercher: 'Rechercher et remplacer', tri: 'Tri personnalisé', mfc: 'Mise en forme conditionnelle', cible: 'Valeur cible', validation: 'Validation des données', tcd: 'Tableau croisé dynamique' }[nom] || nom;
   if (uiD.panneaux[nom]) uiD.panneaux[nom]();
+  if (nom === 'tcd') uiT.construire();
   if (nom === 'fonctions') rendreFonctions();
   if (nom === 'noms') rendreNoms();
   if (nom === 'aide') rendreAide();
@@ -1581,6 +1617,9 @@ function rendreAide() {
 <li><b>⧩ Filtrer</b> (<code>Ctrl+Maj+L</code>) : un ▾ dans chaque en-tête pour trier, cocher les valeurs à garder, chercher, ou poser une condition (supérieur à, contient…). Les numéros des lignes filtrées passent en bleu.</li>
 <li><b>🔍</b> (<code>Ctrl+F</code>, <code>Ctrl+H</code>) : rechercher et remplacer, avec les jokers <code>*</code> et <code>?</code>, dans les valeurs ou les formules, sur la feuille ou tout le classeur. <code>F3</code> : suivant.</li>
 <li><b>🎨 Conditionnelle</b> : règles rapides (doublons, 10 plus grandes, échelle de couleurs, barres de données…) ou règles sur mesure (valeur, texte, formule comme <code>=$C2&gt;100</code>…), dans l'ordre de priorité.</li>
+<li><b>📊 Croisé</b> : tableau croisé dynamique. Placez le curseur dans vos données (une ligne d'en-têtes), créez-le (nouvelle feuille ou cellule choisie), puis rangez chaque champ en Lignes, Colonnes, Valeurs (somme, nombre, moyenne, max, min, écart type… ou % du total) ou Filtres. ↻ Actualiser après avoir changé les données.</li>
+<li><b>Validation des données</b> (menu ⇅ Trier ou ⋯) : liste déroulante (<code>Oui;Non</code> ou une plage <code>=$H$2:$H$9</code>), nombre entier ou décimal entre deux bornes, date, heure, longueur du texte, formule ; message de saisie et alerte (arrêt, avertissement, information). <code>Alt+↓</code> ouvre la liste. ⭕ entoure les cellules non valides.</li>
+<li><b>Saisie des formules</b> : après <code>=</code>, les fonctions qui commencent par ce que vous tapez sont proposées (<code>Tab</code> ou un appui pour choisir, <code>↑ ↓</code> pour parcourir) ; pendant les arguments, une bulle rappelle lesquels sont attendus.</li>
 <li><b>❄ Figer</b> : figer les lignes au-dessus et les colonnes à gauche de la cellule active, la première ligne ou la première colonne ; masquer et afficher des lignes ou des colonnes (aussi au clic droit).</li>
 <li><b>⋯</b> : <b>Valeur cible</b> (la valeur d'une cellule qui donne le résultat voulu dans une formule : taux, prime…), impression / PDF (<code>Ctrl+P</code>), recalcul.</li>
 </ul>
@@ -1705,7 +1744,9 @@ conteneur.addEventListener('contextmenu', (e) => {
     ['Effacer le contenu', () => { memoriser(); classeur.effacer(fi(), s.r1, s.c1, Math.min(s.r2, feuille().zone.r2), Math.min(s.c2, feuille().zone.c2)); sauvegarderLocal(); rendre(); }],
     ['Effacer tout (contenu et formats)', () => { memoriser(); classeur.effacer(fi(), s.r1, s.c1, Math.min(s.r2, feuille().zone.r2), Math.min(s.c2, feuille().zone.c2), true); sauvegarderLocal(); rendre(); }],
     null, ['Trier de A à Z', () => uiD.trierRapide(false)], ['Trier de Z à A', () => uiD.trierRapide(true)], [feuille().filtre ? 'Retirer le filtre' : 'Filtrer', () => uiD.basculerFiltre()],
-    ['Mise en forme conditionnelle…', () => uiD.ouvrirMfc()], null,
+    ['Mise en forme conditionnelle…', () => uiD.ouvrirMfc()], ['Validation des données…', () => uiD.validation.ouvrir()],
+    ...(validationDe(feuille(), curseur.r, curseur.c)?.type === 'liste' ? [['Choisir dans la liste…', () => uiD.validation.ouvrirListe(curseur.r, curseur.c, $('curseur').getBoundingClientRect())]] : []),
+    ...(uiT.sousCurseur() ? [['Tableau croisé : modifier les champs…', () => uiT.ouvrir()], ['Tableau croisé : actualiser', () => { uiT.ouvrir(); uiT.toutActualiser(); }]] : [['Tableau croisé dynamique…', () => uiT.ouvrir()]]), null,
     ...(s.r2 >= 1048575 ? [] : [['Masquer les lignes', () => uiD.masquer('r', false)], ['Afficher les lignes masquées', () => uiD.masquer('r', true)]]),
     ...(s.c2 >= 16383 ? [] : [['Masquer les colonnes', () => uiD.masquer('c', false)], ['Afficher les colonnes masquées', () => uiD.masquer('c', true)]]),
     null, ['Définir un nom…', () => { const n = prompt('Nom pour ' + zoneNom.value + ' :'); if (n) try { classeur.definirNom(n, feuille().nom + '!' + adresseAbsolue(s)); sauvegarderLocal(); toast('Nom « ' + n + ' » défini'); } catch (err) { toast(err.message, true); } }],
@@ -1723,6 +1764,8 @@ async function collerValeurs() {
 
 conteneur.addEventListener('keydown', (e) => {
   if (edition) return;
+  if (uiD.validation.toucheListe(e)) return;
+  if (e.altKey && e.key === 'ArrowDown') { const dv = validationDe(feuille(), curseur.r, curseur.c); if (dv && dv.type === 'liste') { e.preventDefault(); return uiD.validation.ouvrirListe(curseur.r, curseur.c, $('curseur').getBoundingClientRect()); } }
   const ctrl = e.ctrlKey || e.metaKey;
   const k = e.key;
   const mouv = (dr, dc) => { e.preventDefault(); if (ctrl) { const p = sautCtrl(dr, dc); if (e.shiftKey) placerCurseur(p.r, p.c, true); else placerCurseur(p.r, p.c); } else { const base = e.shiftKey ? { r: selection.r2, c: selection.c2 } : curseur; placerCurseur(base.r + dr, base.c + dc, e.shiftKey); } };
@@ -1785,9 +1828,108 @@ barre.addEventListener('input', () => { if (edition) { editeur.value = barre.val
 barre.addEventListener('keydown', (e) => toucheEdition(e, 'barre'));
 barre.addEventListener('blur', () => { if (edition && edition.origine === 'barre' && !glisse) setTimeout(() => { if (edition && edition.origine === 'barre' && document.activeElement !== barre) validerEdition(); }, 150); });
 editeur.addEventListener('blur', () => { if (edition && edition.origine === 'cellule' && !glisse) setTimeout(() => { if (edition && edition.origine === 'cellule' && document.activeElement !== editeur && document.activeElement !== barre) validerEdition(); }, 150); });
+
+// ----- Saisie semi-automatique des formules : noms de fonctions et aide sur les arguments -----
+const boiteSugg = document.createElement('div'); boiteSugg.id = 'suggestions-formule'; boiteSugg.hidden = true; document.body.appendChild(boiteSugg);
+const bulleArgs = document.createElement('div'); bulleArgs.id = 'aide-arguments'; bulleArgs.hidden = true; document.body.appendChild(bulleArgs);
+let sugg = null; // { liste, i, debut, fin, navigue }
+const NOMS_PROPOSES = (() => {
+  const fr = Object.keys(ALIAS).filter((n) => !['VRAI', 'FAUX'].includes(n)).map((n) => ({ nom: n, en: fonction(n) ? fonction(n).nom : ALIAS[n], fr: true }));
+  const en = NOMS_FONCTIONS.filter((n) => !['TRUE', 'FALSE'].includes(n)).map((n) => ({ nom: n, en: n, fr: false }));
+  return [...fr, ...en];
+})();
+function aideDe(nom) { const f = fonction(nom); return f ? AIDE[f.nom] || AIDE[nom.toUpperCase()] : null; }
+function fermerSuggestions() { boiteSugg.hidden = true; bulleArgs.hidden = true; sugg = null; }
+function cibleEdition() { return edition ? (edition.origine === 'barre' ? barre : editeur) : null; }
+function placerSous(el, cible) { const r = cible.getBoundingClientRect(); el.style.left = Math.max(4, Math.min(r.left, window.innerWidth - el.offsetWidth - 4)) + 'px'; const h = el.offsetHeight; el.style.top = (r.bottom + h + 4 > window.innerHeight ? Math.max(4, r.top - h - 2) : r.bottom + 2) + 'px'; }
+function majSuggestions() {
+  const cible = cibleEdition();
+  if (!cible || !cible.value.startsWith('=') || cible.selectionStart !== cible.selectionEnd) return fermerSuggestions();
+  const avant = cible.value.slice(0, cible.selectionStart);
+  if ((avant.match(/"/g) || []).length % 2) return fermerSuggestions();
+  // 1. Nom en cours de frappe
+  const m = /(^=|[(;,+\-*/^&<>=\s])([A-Za-zÀ-ÿ_][\wÀ-ÿ.]*)$/.exec(avant);
+  let liste = [];
+  if (m && !/^[A-Za-z]{1,3}\d+$/.test(m[2])) {
+    const P = m[2].toUpperCase();
+    const vus = new Set();
+    for (const x of NOMS_PROPOSES) if (x.nom.startsWith(P) && !vus.has(x.nom)) { vus.add(x.nom); liste.push(x); }
+    // D'abord le nom exact, puis les fonctions courantes (celles qui ont une aide), en français, les plus courtes
+    const courante = (x) => (AIDE[x.en] ? 0 : 1);
+    liste.sort((a, b) => (a.nom === P ? -1 : b.nom === P ? 1 : 0) || courante(a) - courante(b) || (a.fr === b.fr ? a.nom.length - b.nom.length || a.nom.localeCompare(b.nom) : a.fr ? -1 : 1));
+    // Noms définis (plages nommées)
+    for (const d of [...classeur.noms.values(), ...feuille().noms.values()]) if (d.nom.toUpperCase().startsWith(P)) liste.unshift({ nom: d.nom, nomDefini: true, ref: d.ref });
+    liste = liste.slice(0, 8);
+    if (liste.length === 1 && liste[0].nom === P && !liste[0].nomDefini) liste = [];
+  }
+  if (liste.length) {
+    const ancien = sugg && sugg.liste[sugg.i] && sugg.liste[sugg.i].nom;
+    sugg = { liste, i: Math.max(0, liste.findIndex((x) => x.nom === ancien)), debut: avant.length - m[2].length, fin: avant.length, navigue: sugg ? sugg.navigue : false };
+    boiteSugg.innerHTML = liste.map((x, i) => { const a = x.nomDefini ? null : aideDe(x.nom); return `<div data-i="${i}" class="${i === sugg.i ? 'choisi' : ''}"><b>${echapper(x.nom)}</b>${x.nomDefini ? ` <small>${echapper(x.ref)}</small>` : a ? ` <small>${echapper(a[1])}</small>` : x.fr ? '' : ` <small>${echapper(Object.keys(ALIAS).find((k) => ALIAS[k] === x.nom) || '')}</small>`}</div>`; }).join('');
+    boiteSugg.hidden = false; bulleArgs.hidden = true;
+    placerSous(boiteSugg, cible);
+    return;
+  }
+  boiteSugg.hidden = true; sugg = null;
+  // 2. Aide sur la fonction dont on tape les arguments
+  let prof = 0, k = avant.length - 1, nArg = 0, dansTexte = false;
+  for (; k >= 0; k--) {
+    const ch = avant[k];
+    if (ch === '"') dansTexte = !dansTexte;
+    if (dansTexte) continue;
+    if (ch === ')') prof++;
+    else if (ch === '(') { if (prof === 0) break; prof--; }
+    else if ((ch === ';' || ch === ',') && prof === 0) nArg++;
+  }
+  const nomF = k > 0 ? (/([A-Za-zÀ-ÿ_][\wÀ-ÿ.]*)$/.exec(avant.slice(0, k)) || [])[1] : null;
+  const a = nomF && aideDe(nomF);
+  if (!a) { bulleArgs.hidden = true; return; }
+  const args = a[0] ? a[0].split(';').map((x) => x.trim()) : [];
+  const iArg = args.length && args[args.length - 1] === '…' ? Math.min(nArg, args.length - 2) : Math.min(nArg, args.length - 1);
+  bulleArgs.innerHTML = `<b>${echapper(nomF.toUpperCase())}</b>(${args.map((x, i) => (i === iArg ? '<u>' + echapper(x) + '</u>' : echapper(x))).join('; ')})<div>${echapper(a[1])}</div>`;
+  bulleArgs.hidden = false;
+  placerSous(bulleArgs, cible);
+}
+function accepterSuggestion(i = sugg && sugg.i) {
+  const cible = cibleEdition();
+  if (!sugg || !cible || !sugg.liste[i]) return false;
+  const x = sugg.liste[i], txt = cible.value;
+  const ajout = x.nom + (x.nomDefini ? '' : '(');
+  cible.value = txt.slice(0, sugg.debut) + ajout + txt.slice(sugg.fin);
+  const pos = sugg.debut + ajout.length;
+  cible.setSelectionRange(pos, pos);
+  if (cible === editeur) { barre.value = editeur.value; ajusterEditeur(); } else editeur.value = barre.value;
+  edition.refEnCours = null;
+  sugg = null;
+  positionnerSelection();
+  majSuggestions();
+  return true;
+}
+// Renvoie vrai si la touche a été prise par la liste de suggestions
+function toucheSuggestions(e) {
+  if (!sugg || boiteSugg.hidden) return false;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    sugg.i = (sugg.i + (e.key === 'ArrowDown' ? 1 : -1) + sugg.liste.length) % sugg.liste.length; sugg.navigue = true;
+    boiteSugg.querySelectorAll('[data-i]').forEach((el) => el.classList.toggle('choisi', +el.dataset.i === sugg.i));
+  } else if (e.key === 'Tab' || (e.key === 'Enter' && sugg.navigue)) accepterSuggestion();
+  else if (e.key === 'Escape') { fermerSuggestions(); }
+  else return false;
+  e.preventDefault(); e.stopPropagation();
+  return true;
+}
+boiteSugg.addEventListener('mousedown', (e) => e.preventDefault());
+boiteSugg.addEventListener('click', (e) => { const d = e.target.closest('[data-i]'); if (d) accepterSuggestion(+d.dataset.i); });
+for (const el of [editeur, barre]) {
+  el.addEventListener('input', () => majSuggestions());
+  el.addEventListener('click', () => majSuggestions());
+  el.addEventListener('keyup', (e) => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) majSuggestions(); });
+  el.addEventListener('blur', () => setTimeout(() => { if (!edition || (document.activeElement !== editeur && document.activeElement !== barre)) fermerSuggestions(); }, 200));
+}
+
 function toucheEdition(e, origine) {
   if (!edition) return;
   e.stopPropagation();
+  if (toucheSuggestions(e)) return;
   if (e.key === 'Enter' && !e.altKey) { e.preventDefault(); validerEdition({ dr: e.shiftKey ? -1 : 1 }); }
   else if (e.key === 'Enter' && e.altKey) { e.preventDefault(); const t = e.target; const p = t.selectionStart; t.value = t.value.slice(0, p) + '\n' + t.value.slice(p); t.setSelectionRange(p + 1, p + 1); if (origine === 'cellule') ajusterEditeur(); }
   else if (e.key === 'Tab') { e.preventDefault(); validerEdition({ dc: e.shiftKey ? -1 : 1 }); }
@@ -1833,14 +1975,17 @@ $('btn-bouton').addEventListener('click', insererBouton);
 $('btn-graphique').addEventListener('click', () => creerGraphique());
 const sousBouton = (id) => { const r = $(id).getBoundingClientRect(); return [r.left, r.bottom + 2]; };
 $('btn-somme').addEventListener('click', () => uiD.sommeAuto());
+$('fleche-liste').addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
+$('fleche-liste').addEventListener('click', (e) => { e.stopPropagation(); uiD.validation.ouvrirListe(curseur.r, curseur.c, $('curseur').getBoundingClientRect()); });
 $('btn-somme-menu').addEventListener('click', () => uiD.menuSomme(...sousBouton('btn-somme')));
 $('btn-trier').addEventListener('click', () => uiD.menuTri(...sousBouton('btn-trier')));
 $('btn-filtrer').addEventListener('click', () => uiD.basculerFiltre());
 $('btn-rechercher').addEventListener('click', () => uiD.ouvrirRecherche(false));
+$('btn-tcd').addEventListener('click', () => uiT.ouvrir());
 $('btn-mfc').addEventListener('click', () => uiD.menuMfc(...sousBouton('btn-mfc')));
 $('btn-figer').addEventListener('click', () => uiD.menuFiger(...sousBouton('btn-figer')));
 $('btn-plus').addEventListener('click', () => ouvrirMenu(...sousBouton('btn-plus'), [
-  ['Valeur cible…', () => uiD.ouvrirCible()], ['Imprimer / PDF (feuille)', () => uiD.imprimer()], ['Imprimer la sélection', () => uiD.imprimer({ selectionSeule: true })], null,
+  ['Valeur cible…', () => uiD.ouvrirCible()], ['Validation des données…', () => uiD.validation.ouvrir()], ['Actualiser les tableaux croisés', () => uiT.toutActualiser()], ['Imprimer / PDF (feuille)', () => uiD.imprimer()], ['Imprimer la sélection', () => uiD.imprimer({ selectionSeule: true })], null,
   ['Recalculer (F9)', () => { classeur.evaluateur.invalider(); rendre(); toast('Recalculé'); }], ['Tout recalculer (Ctrl+Alt+F9)', () => { classeur.abandonnerCaches(); rendre(); toast('Tout est recalculé (valeurs du fichier oubliées)'); }],
 ]));
 $('taille-police').addEventListener('change', (e) => { const v = +e.target.value; surSelection((r, c) => classeur.style(fi(), r, c, { taille: v && v !== 13 ? v : null })); conteneur.focus(); });

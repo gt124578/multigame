@@ -3,7 +3,7 @@
 // (<conditionalFormatting>, styles <dxfs> de xl/styles.xml). Lus et réécrits directement dans le zip.
 
 import { lireTheme, lireCouleur } from './styles-xlsx.js';
-import { convertirFormule, parsePlage, adresse } from './formules.js';
+import { convertirFormule, parsePlage, adresse, formater } from './formules.js';
 import { plagesMfc } from './donnees.js';
 
 const dec = (u8) => new TextDecoder('utf-8').decode(u8);
@@ -71,7 +71,35 @@ function valeurRegle(f) {
   return convertirFormule('=' + t, 'fr');
 }
 
-/** Map nomFeuille → { figer, filtre, mfc }. */
+const TYPES_DV = { list: 'liste', whole: 'entier', decimal: 'decimal', date: 'date', time: 'heure', textLength: 'longueur', custom: 'formule' };
+const TYPES_DV_INV = Object.fromEntries(Object.entries(TYPES_DV).map(([k, v]) => [v, k]));
+function lireValidation(tete, f1, f2, sqref) {
+  const type = TYPES_DV[attr(tete, 'type') || 'none'];
+  if (!type || !sqref) return null;
+  const v = { id: 'dv' + Math.random().toString(36).slice(2, 9), plage: String(sqref).trim(), type };
+  const borne = (f) => {
+    if (f == null) return '';
+    const t = entites(f).trim();
+    if (/^-?\d+(\.\d+)?(E[-+]?\d+)?$/i.test(t)) return type === 'date' ? formater(+t, 'dd/mm/yyyy') : type === 'heure' ? formater(+t, 'hh:mm') : t.replace('.', ',');
+    return convertirFormule('=' + t, 'fr');
+  };
+  if (type === 'liste') {
+    const t = entites(f1 || '').trim();
+    const q = /^"((?:[^"]|"")*)"$/.exec(t);
+    v.liste = q ? q[1].replace(/""/g, '"').split(',').map((x) => x.trim()).join(';') : convertirFormule('=' + t, 'fr');
+  } else if (type === 'formule') v.v1 = convertirFormule('=' + entites(f1 || 'TRUE'), 'fr');
+  else { v.op = OPS[attr(tete, 'operator') || 'between'] || 'entre'; v.v1 = borne(f1); if (v.op === 'entre' || v.op === 'hors') v.v2 = borne(f2); }
+  if (attr(tete, 'allowBlank') !== '1' && attr(tete, 'allowBlank') !== 'true') v.vides = false;
+  if (attr(tete, 'showDropDown') === '1') v.fleche = false; // attribut inversé dans le format d'Excel
+  const titreM = attr(tete, 'promptTitle'), texteM = attr(tete, 'prompt');
+  if ((titreM || texteM) && attr(tete, 'showInputMessage') !== '0') v.message = { titre: titreM || '', texte: texteM || '' };
+  const style = { warning: 'avertissement', information: 'information' }[attr(tete, 'errorStyle')] || 'stop';
+  if (attr(tete, 'showErrorMessage') === '0' || attr(tete, 'showErrorMessage') === null) v.erreur = { style: 'aucune' };
+  else v.erreur = { style, titre: attr(tete, 'errorTitle') || '', texte: attr(tete, 'error') || '' };
+  return v;
+}
+
+/** Map nomFeuille → { figer, filtre, mfc, validations }. */
 export function lireVuesXlsx(XLSX, octets) {
   const cfb = XLSX.CFB.read(octets, { type: 'array' });
   const z = fichiers(cfb);
@@ -140,6 +168,16 @@ export function lireVuesXlsx(XLSX, octets) {
       }
     }
     if (regles.length) { regles.sort((a, b) => a.prio - b.prio); for (const r of regles) delete r.prio; res.mfc = regles; }
+    // Validation des données (et sa variante Excel 2010, dans extLst, pour les listes prises sur une autre feuille)
+    const validations = [];
+    for (const dv of xml.matchAll(/<(x14:)?dataValidation\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:x14:)?dataValidation>)/g)) {
+      const tete = dv[0].slice(0, dv[0].indexOf('>') + 1), corps = dv[3] || '';
+      const f1 = /<(?:x14:)?formula1>(?:<xm:f>)?([\s\S]*?)(?:<\/xm:f>)?<\/(?:x14:)?formula1>/.exec(corps), f2 = /<(?:x14:)?formula2>(?:<xm:f>)?([\s\S]*?)(?:<\/xm:f>)?<\/(?:x14:)?formula2>/.exec(corps);
+      const sqref = dv[1] ? (/<xm:sqref>([\s\S]*?)<\/xm:sqref>/.exec(corps) || [])[1] : attr(tete, 'sqref');
+      const v = lireValidation(tete, f1 && f1[1], f2 && f2[1], sqref);
+      if (v) validations.push(v);
+    }
+    if (validations.length) res.validations = validations;
     if (Object.keys(res).length) out.set(nom, res);
   }
   return out;
@@ -190,6 +228,31 @@ function regleXml(r, prio, dxfId) {
   return '';
 }
 
+function validationXml(v) {
+  const type = TYPES_DV_INV[v.type];
+  const sq = plagesMfc(v).map((p) => adresse(p.r1, p.c1) + (p.r1 === p.r2 && p.c1 === p.c2 ? '' : ':' + adresse(p.r2, p.c2))).join(' ');
+  if (!type || !sq) return '';
+  const borne = (x) => {
+    const s = String(x ?? '').trim();
+    if (s.startsWith('=')) return ech(enAnglais(s));
+    let m;
+    if ((m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/.exec(s))) { let an = +m[3]; if (an < 100) an += an < 30 ? 2000 : 1900; return String((Date.UTC(an, +m[2] - 1, +m[1]) - Date.UTC(1899, 11, 30)) / 86400000); }
+    if ((m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(s))) return String((+m[1] * 3600 + +m[2] * 60 + (+m[3] || 0)) / 86400);
+    return String(+s.replace(/[\s\u202f]/g, '').replace(',', '.') || 0);
+  };
+  let f1 = '', f2 = '', op = '';
+  if (v.type === 'liste') { const l = String(v.liste || '').trim(); f1 = l.startsWith('=') ? ech(enAnglais(l)) : ech('"' + l.split(/[;\n]/).map((x) => x.trim()).filter(Boolean).join(',').replace(/"/g, '""') + '"'); }
+  else if (v.type === 'formule') f1 = ech(enAnglais(String(v.v1 || 'TRUE')));
+  else { const o = OPS_INV[v.op || 'entre'] || 'between'; if (o !== 'between') op = ' operator="' + o + '"'; f1 = borne(v.v1); if (o === 'between' || o === 'notBetween') f2 = borne(v.v2); }
+  const e = v.erreur || { style: 'stop' };
+  return '<dataValidation type="' + type + '"' + (e.style === 'avertissement' ? ' errorStyle="warning"' : e.style === 'information' ? ' errorStyle="information"' : '') + op
+    + (v.vides === false ? '' : ' allowBlank="1"') + (v.fleche === false && v.type === 'liste' ? ' showDropDown="1"' : '')
+    + (v.message ? ' showInputMessage="1"' : '') + (e.style !== 'aucune' ? ' showErrorMessage="1"' : '')
+    + (e.titre ? ' errorTitle="' + ech(e.titre) + '"' : '') + (e.texte ? ' error="' + ech(e.texte) + '"' : '')
+    + (v.message && v.message.titre ? ' promptTitle="' + ech(v.message.titre) + '"' : '') + (v.message && v.message.texte ? ' prompt="' + ech(v.message.texte) + '"' : '')
+    + ' sqref="' + sq + '"><formula1>' + f1 + '</formula1>' + (f2 ? '<formula2>' + f2 + '</formula2>' : '') + '</dataValidation>';
+}
+
 function dxfXml(s) {
   if (!s) return '<dxf/>';
   let font = '';
@@ -212,7 +275,7 @@ const OPS_FILTRE_INV = Object.fromEntries(Object.entries(OPS_FILTRE).map(([k, v]
  * Le filtre lui-même (<autoFilter ref>) est écrit par SheetJS (ws['!autofilter']), qui ajoute le nom _FilterDatabase.
  */
 export function ecrireVuesXlsx(XLSX, octets, feuilles) {
-  if (!feuilles.some((f) => (f.figer && (f.figer.r || f.figer.c)) || (f.mfc && f.mfc.length) || (f.filtre && Object.keys(f.filtre.criteres || {}).length))) return octets;
+  if (!feuilles.some((f) => (f.figer && (f.figer.r || f.figer.c)) || (f.mfc && f.mfc.length) || (f.validations && f.validations.length) || (f.filtre && Object.keys(f.filtre.criteres || {}).length))) return octets;
   const cfb = XLSX.CFB.read(octets, { type: 'array' });
   const z = fichiers(cfb);
   const chemins = cheminsFeuilles(z);
@@ -255,6 +318,10 @@ export function ecrireVuesXlsx(XLSX, octets, feuilles) {
         if (sq && corps) cf += '<conditionalFormatting sqref="' + sq + '">' + corps + '</conditionalFormatting>';
       });
       if (cf) xml = inserer(xml, cf, APRES_CF);
+    }
+    if (f.validations && f.validations.length) {
+      const dvs = f.validations.map(validationXml).filter(Boolean);
+      if (dvs.length) xml = inserer(xml, '<dataValidations count="' + dvs.length + '">' + dvs.join('') + '</dataValidations>', APRES_CF.filter((x) => x !== 'dataValidations'));
     }
     cfb.FileIndex[idx].content = enc(xml);
   });

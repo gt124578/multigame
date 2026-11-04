@@ -10,7 +10,7 @@ import { lireVuesXlsx, ecrireVuesXlsx } from './vues-xlsx.js';
 const FEUILLE_MACROS = '_MacrosTableur';
 const FEUILLE_GRAPHIQUES = '_GraphiquesTableur';   // ancien format : graphiques seuls
 const FEUILLE_OBJETS = '_ObjetsTableur';           // graphiques, boutons, images (une ligne par objet)
-const TYPES_OBJETS = { graphique: 'graphiques', bouton: 'boutons', image: 'images' };
+const TYPES_OBJETS = { graphique: 'graphiques', bouton: 'boutons', image: 'images', tcd: 'tcd' };
 
 /** Lit un fichier (ArrayBuffer / Uint8Array) et renvoie un Classeur. */
 export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
@@ -107,6 +107,7 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
         if (!f) continue;
         if (v.figer) f.figer = v.figer;
         if (v.mfc) f.mfc = v.mfc;
+        if (v.validations) f.validations = v.validations;
         if (v.filtre) {
           f.filtre = v.filtre;
           // Les lignes masquées dans la plage du filtre sont celles que le filtre cache (Excel les enregistre ainsi)

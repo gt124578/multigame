@@ -32,6 +32,15 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
   condition « supérieur à », « contient »…, tri) ; rechercher / remplacer (`Ctrl+F`, `Ctrl+H`, jokers `*` `?`, dans les
   valeurs ou les formules, une feuille ou tout le classeur) ; somme automatique Σ (`Alt+=`, et moyenne, nb, max, min) ;
   valeur cible (trouver le taux qui donne une valeur actuelle, par exemple).
+- **Tableaux croisés dynamiques** : champs en lignes, colonnes, valeurs (somme, nombre, moyenne, max, min, produit,
+  écart type, variance ; affichage en % du total général, de la ligne ou de la colonne) et filtres du rapport ; sous-totaux
+  et totaux généraux ; sur une nouvelle feuille ou à une cellule choisie ; actualisation d'un tableau ou de tous. Le
+  résultat est écrit en valeurs (Excel le voit comme un tableau ordinaire) et sa définition est gardée dans le `.xlsx`.
+- **Validation des données** : listes déroulantes (éléments ou plage), nombres entiers ou décimaux, dates, heures, longueur
+  du texte, formule personnalisée ; message de saisie, alertes arrêt / avertissement / information, cellules non valides
+  entourées ; lue et écrite au format d'Excel (listes prises sur une autre feuille comprises).
+- **Saisie des formules** : proposition des fonctions (françaises et anglaises) et des noms définis pendant la frappe,
+  bulle d'aide sur les arguments des fonctions courantes.
 - **Mise en forme conditionnelle** : valeur de la cellule, texte, premiers / derniers (nombre ou %), moyenne, doublons,
   valeurs uniques, cellules vides, formule personnalisée, échelles de 2 ou 3 couleurs, barres de données ; règles ordonnées,
   lues et écrites dans le `.xlsx` au format d'Excel.
@@ -62,8 +71,10 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 
 - Les macros écrites ici sont enregistrées dans une feuille masquée `_MacrosTableur`, un en-tête par module (et relues par ce tableur) : Excel ne peut pas
   les exécuter, car le tableur ne compile pas de projet VBA. Le projet VBA d'origine d'un `.xlsm` est réécrit tel quel.
-- Les graphiques ne sont pas écrits au format graphique d'Excel (seulement dans la feuille masquée) ; pas de tableaux croisés
-  ni de validation de données. Couleurs de bordure : noir seulement. Mise en forme conditionnelle : pas de jeux d'icônes.
+- Les graphiques ne sont pas écrits au format graphique d'Excel (seulement dans la feuille masquée). Couleurs de bordure :
+  noir seulement. Mise en forme conditionnelle : pas de jeux d'icônes.
+- Tableaux croisés : écrits en valeurs (pas de cache de tableau croisé d'Excel) ; ceux d'un fichier Excel s'ouvrent comme
+  de simples cellules ; pas de regroupement des dates par mois ou par année ni de champs calculés.
 - Les formules matricielles dynamiques ne « débordent » pas : une formule qui renvoie un tableau affiche sa première valeur
   (sauf dans une fonction qui attend un tableau).
 - Boutons, graphiques et images sont réécrits dans une feuille masquée que seul ce tableur relit : Excel ne les affiche pas.
@@ -85,7 +96,10 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 | `js/ui-graphiques.js` | Galerie d'insertion avec aperçus, panneau de réglages, export PNG / SVG |
 | `js/donnees.js` | Tri, filtre, rechercher / remplacer, mise en forme conditionnelle, valeur cible, somme automatique (sans DOM) |
 | `js/ui-donnees.js` | Leur interface : menus, menu ▾ du filtre, panneaux, impression |
-| `js/vues-xlsx.js` | Volets figés, filtre automatique et mise en forme conditionnelle dans le zip `.xlsx` |
+| `js/tcd.js` | Tableaux croisés dynamiques : calcul et écriture dans la feuille (sans DOM) |
+| `js/ui-tcd.js` | Panneau des tableaux croisés (champs, valeurs, filtres, aperçu sur téléphone) |
+| `js/aide-fonctions.js` | Arguments et description des fonctions courantes (saisie semi-automatique) |
+| `js/vues-xlsx.js` | Volets figés, filtre automatique, mise en forme conditionnelle et validation des données dans le zip `.xlsx` |
 | `js/chiffrement.js` | Ouverture des fichiers protégés par mot de passe (MS-OFFCRYPTO) |
 | `js/objets-xlsx.js` | Boutons de macro, formes et images d'un `.xlsx` |
 | `js/app.js` | Interface : grille virtualisée, barre de formule, onglets, presse-papiers, panneaux |

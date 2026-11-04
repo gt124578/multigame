@@ -27,6 +27,8 @@ export class Feuille {
     this.mfc = [];             // mise en forme conditionnelle (règles, voir donnees.js)
     this.filtre = null;        // filtre automatique { r1, c1, r2, c2, criteres: { colonne: { visibles: [...], condition } } }
     this.filtrees = new Set(); // lignes masquées par le filtre (recalculées)
+    this.validations = [];     // validation des données (règles, voir donnees.js)
+    this.tcd = [];             // tableaux croisés dynamiques posés sur cette feuille (voir tcd.js)
   }
   static cle(r, c) { return r + ',' + c; }
   get(r, c) { return this.cellules.get(Feuille.cle(r, c)); }
@@ -375,6 +377,13 @@ export class Classeur {
       if (feuille.filtre && axe === 'c') { const cr = {}; for (const [k, v] of Object.entries(feuille.filtre.criteres || {})) { const i = +k; if (n < 0 && i >= idx && i < idx - n) continue; cr[i >= idx ? i + n : i] = v; } feuille.filtre.criteres = cr; }
     }
     decalerMfc(feuille, axe, idx, n);
+    decalerMfc(feuille, axe, idx, n, 'validations');
+    // Tableaux croisés posés sur la feuille : leur coin et leur zone suivent
+    for (const t of feuille.tcd || []) {
+      const k = axe === 'r' ? 'r' : 'c';
+      if (t.dest && t.dest[k] >= idx) t.dest[k] = Math.max(idx, t.dest[k] + n);
+      if (t.zone) { const [a, b] = axe === 'r' ? ['r1', 'r2'] : ['c1', 'c2']; if (t.zone[a] >= idx) t.zone[a] = Math.max(idx, t.zone[a] + n); if (t.zone[b] >= idx) t.zone[b] = Math.max(t.zone[a], t.zone[b] + n); }
+    }
     // Références dans toutes les formules du classeur
     for (let i = 0; i < this.feuilles.length; i++) {
       this.feuilles[i].chaque((r, c, cel) => {

@@ -2,7 +2,8 @@
 // rechercher / remplacer, mise en forme conditionnelle, valeur cible, somme automatique, impression.
 
 import { trierPlage, zoneContigue, aUnEntete, valeursFiltre, appliquerFiltre, plageFiltre, rechercher, remplacer,
-  TYPES_MFC, STYLES_MFC, plagesMfc, valeurCible, formuleAutomatique } from './donnees.js';
+  TYPES_MFC, STYLES_MFC, plagesMfc, valeurCible, formuleAutomatique,
+  TYPES_VALIDATION, OPS_VALIDATION, validationDe, elementsListe, valeurValide, decrireValidation, cellulesInvalides } from './donnees.js';
 import { adresse, parsePlage, parseAdresse, colVersLettres, formater, ErreurFormule } from './formules.js';
 
 const ech = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -536,6 +537,7 @@ export function installerDonnees(api) {
       ['↑ Trier de A à Z', () => trierRapide(false)], ['↓ Trier de Z à A', () => trierRapide(true)], ['Tri personnalisé…', ouvrirTri], null,
       [f.filtre ? 'Retirer le filtre' : 'Filtrer (▾ dans les en-têtes)', basculerFiltre],
       ...(f.filtre ? [['Effacer les critères du filtre', effacerFiltres], ['Réappliquer le filtre', reappliquerFiltre]] : []),
+      null, ['Validation des données…', ouvrirValidation],
     ]);
   }
   function menuMfc(x, y) {
@@ -550,10 +552,156 @@ export function installerDonnees(api) {
     ]);
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Validation des données
+  // ---------------------------------------------------------------------------
+  let valEditee = null;
+  let entourer = false;
+  function construireValidation() {
+    const f = api.feuille(), cur = api.curseur();
+    if (!valEditee) {
+      const existante = validationDe(f, cur.r, cur.c);
+      valEditee = existante ? { ...JSON.parse(JSON.stringify(existante)), _ref: existante } : { id: 'dv' + Date.now().toString(36), plage: plageTexte(bornee()), type: 'liste', liste: '', op: 'entre', v1: '', v2: '', erreur: { style: 'stop' } };
+    }
+    const v = valEditee;
+    const opt = (liste, val) => liste.map(([k, t]) => `<option value="${ech(k)}"${String(val ?? '') === String(k) ? ' selected' : ''}>${ech(t)}</option>`).join('');
+    const e = v.erreur || { style: 'stop' }, m = v.message || {};
+    const indice = { date: 'jj/mm/aaaa ou =formule', heure: 'hh:mm ou =formule', longueur: 'nombre de caractères' }[v.type] || 'nombre ou =formule';
+    let champs = '';
+    if (v.type === 'liste') champs = `<label>Source <input id="dv-liste" value="${ech(v.liste || '')}" spellcheck="false" placeholder="Oui;Non;Peut-être  ou  =$H$2:$H$9"></label>
+      <button id="dv-liste-sel" class="petit">← sélection comme source</button>
+      <label class="case"><input type="checkbox" id="dv-fleche"${v.fleche !== false ? ' checked' : ''}> Liste déroulante dans la cellule</label>`;
+    else if (v.type === 'formule') champs = `<label>Formule <input id="dv-v1" value="${ech(v.v1 || '=')}" spellcheck="false" placeholder="=ET(B2>0;B2<C2)"></label><p class="aide-petite">Vraie pour une saisie valide, écrite pour la première cellule de la plage.</p>`;
+    else champs = `<label>Données <select id="dv-op">${opt(OPS_VALIDATION, v.op || 'entre')}</select></label>
+      <label>${v.op === 'entre' || v.op === 'hors' || !v.op ? 'Minimum' : 'Valeur'} <input id="dv-v1" value="${ech(v.v1 ?? '')}" placeholder="${indice}"></label>
+      ${!v.op || v.op === 'entre' || v.op === 'hors' ? `<label>Maximum <input id="dv-v2" value="${ech(v.v2 ?? '')}" placeholder="${indice}"></label>` : ''}`;
+    $('panneau-validation').innerHTML = `
+      <div class="outil">
+        <label>S'applique à <input id="dv-plage" value="${ech(v.plage)}" spellcheck="false"></label>
+        <button id="dv-plage-sel" class="petit">← sélection</button>
+        <label>Autoriser <select id="dv-type">${opt(TYPES_VALIDATION, v.type)}</select></label>
+        ${champs}
+        <label class="case"><input type="checkbox" id="dv-vides"${v.vides !== false ? ' checked' : ''}> Ignorer si vide</label>
+        <div class="outil-titre">Message de saisie (quand la cellule est choisie)</div>
+        <label>Titre <input id="dv-mt" value="${ech(m.titre || '')}"></label>
+        <label>Message <input id="dv-mx" value="${ech(m.texte || '')}"></label>
+        <div class="outil-titre">Alerte d'erreur</div>
+        <label>Style <select id="dv-style">${opt([['stop', '⛔ Arrêt (saisie refusée)'], ['avertissement', '⚠ Avertissement (on demande)'], ['information', 'ℹ Information'], ['aucune', 'Aucune alerte']], e.style || 'stop')}</select></label>
+        <label>Titre <input id="dv-et" value="${ech(e.titre || '')}"></label>
+        <label>Message <input id="dv-ex" value="${ech(e.texte || '')}" placeholder="${ech(decrireValidation(v))}"></label>
+        <div class="outil-actions"><button id="dv-ok" class="principal">Appliquer</button><button id="dv-effacer" class="danger">Effacer la validation</button></div>
+        <div class="outil-actions"><button id="dv-entourer" class="${entourer ? 'actif' : ''}">⭕ Entourer les données non valides</button></div>
+        <div id="dv-statut" class="outil-statut"></div>
+        ${f.validations.length ? `<div class="outil-titre">Règles de la feuille</div>${f.validations.map((x, i) => `<div class="mfc-regle" data-i="${i}"><span class="mfc-texte"><b>${ech(decrireValidation(x))}</b><small>${ech(x.plage)}</small></span></div>`).join('')}` : ''}
+      </div>`;
+    const lire = () => {
+      v.plage = $('dv-plage').value.trim(); v.type = $('dv-type').value;
+      if ($('dv-liste')) { v.liste = $('dv-liste').value; v.fleche = $('dv-fleche').checked ? undefined : false; }
+      if ($('dv-op')) v.op = $('dv-op').value;
+      if ($('dv-v1')) v.v1 = $('dv-v1').value; if ($('dv-v2')) v.v2 = $('dv-v2').value;
+      v.vides = $('dv-vides').checked ? undefined : false;
+      const mt = $('dv-mt').value.trim(), mx = $('dv-mx').value.trim();
+      v.message = mt || mx ? { titre: mt, texte: mx } : undefined;
+      v.erreur = { style: $('dv-style').value, titre: $('dv-et').value.trim(), texte: $('dv-ex').value.trim() };
+    };
+    $('dv-type').addEventListener('change', () => { lire(); if (v.type === 'formule' && !String(v.v1 || '').startsWith('=')) v.v1 = '='; construireValidation(); });
+    if ($('dv-op')) $('dv-op').addEventListener('change', () => { lire(); construireValidation(); });
+    $('dv-plage-sel').addEventListener('click', () => { $('dv-plage').value = plageTexte(bornee()); });
+    if ($('dv-liste-sel')) $('dv-liste-sel').addEventListener('click', () => { const s = bornee(); $('dv-liste').value = '=$' + colVersLettres(s.c1) + '$' + (s.r1 + 1) + (s.r1 === s.r2 && s.c1 === s.c2 ? '' : ':$' + colVersLettres(s.c2) + '$' + (s.r2 + 1)); });
+    $('dv-ok').addEventListener('click', () => {
+      lire();
+      const plages = String(v.plage).split(/[\s;,]+/).filter(Boolean).map((t) => parsePlage(t.replace(/\$/g, '')));
+      if (!plages.length || plages.some((x) => !x)) return api.toast('Plage invalide', true);
+      if (v.type === 'liste' && !String(v.liste || '').trim()) return api.toast('Indiquez les éléments de la liste (séparés par ;) ou une plage =$H$2:$H$9', true);
+      if (v.type === 'formule' && !/^=./.test(v.v1 || '')) return api.toast('Écrivez une formule qui commence par =', true);
+      api.memoriser();
+      const regle = JSON.parse(JSON.stringify({ ...v, _ref: undefined }));
+      regle.plage = plages.map(plageTexte).join(' ');
+      // Une cellule n'a qu'une règle : les règles entièrement recouvertes par la nouvelle disparaissent
+      f.validations = f.validations.filter((x) => x !== v._ref && !plagesMfc(x).every((q) => plages.some((P) => q.r1 >= P.r1 && q.r2 <= P.r2 && q.c1 >= P.c1 && q.c2 <= P.c2)));
+      f.validations.unshift(regle);
+      valEditee = null;
+      api.classeur().modifie(); finir();
+      const inv = cellulesInvalides(api.classeur(), api.fi()).length;
+      construireValidation();
+      $('dv-statut').textContent = '✔ Validation appliquée à ' + regle.plage + (inv ? ' — ' + inv + ' cellule(s) déjà remplie(s) ne la respectent pas' : '');
+    });
+    $('dv-effacer').addEventListener('click', () => {
+      const sel = bornee(); api.memoriser();
+      f.validations = f.validations.filter((x) => !plagesMfc(x).some((q) => q.r2 >= sel.r1 && q.r1 <= sel.r2 && q.c2 >= sel.c1 && q.c1 <= sel.c2));
+      valEditee = null; api.classeur().modifie(); finir(); construireValidation();
+    });
+    $('dv-entourer').addEventListener('click', () => {
+      entourer = !entourer; api.rendre();
+      const n = cellulesInvalides(api.classeur(), api.fi()).length;
+      construireValidation();
+      $('dv-statut').textContent = entourer ? (n ? '⭕ ' + n + ' cellule(s) non valide(s) entourée(s)' : 'Toutes les cellules sont valides') : '';
+    });
+    $('panneau-validation').querySelectorAll('.mfc-regle').forEach((el) => el.addEventListener('click', () => { const x = f.validations[+el.dataset.i]; valEditee = { ...JSON.parse(JSON.stringify(x)), _ref: x }; const p = plagesMfc(x)[0]; if (p) api.selectionner(p); api.rendre(); construireValidation(); }));
+  }
+  function ouvrirValidation() { valEditee = null; if (!api.panneauOuvert('validation')) api.ouvrirPanneau('validation'); else construireValidation(); }
+
+  // Liste déroulante d'une cellule à validation « liste »
+  const listeDV = document.createElement('div');
+  listeDV.id = 'liste-validation'; listeDV.hidden = true; listeDV.setAttribute('role', 'listbox');
+  document.body.appendChild(listeDV);
+  let listeCible = null;
+  function fermerListe() { listeDV.hidden = true; listeCible = null; }
+  document.addEventListener('mousedown', (e) => { if (!listeDV.hidden && !listeDV.contains(e.target) && e.target.id !== 'fleche-liste') fermerListe(); });
+  function ouvrirListe(r, c, rect) {
+    const C = api.classeur(), fi = api.fi(), regle = validationDe(api.feuille(), r, c);
+    if (!regle || regle.type !== 'liste') return;
+    const items = elementsListe(C, fi, regle, r, c);
+    const actuel = String(C.texte(fi, r, c));
+    listeCible = { r, c, items, i: Math.max(0, items.indexOf(actuel)) };
+    listeDV.innerHTML = items.length ? items.map((t, i) => `<div data-i="${i}" class="${t === actuel ? 'choisi' : ''}">${ech(t) || '&nbsp;'}</div>`).join('') : '<div class="vide">(liste vide)</div>';
+    listeDV.hidden = false;
+    listeDV.style.minWidth = Math.max(120, rect.width) + 'px';
+    listeDV.style.left = Math.max(4, Math.min(rect.left, window.innerWidth - listeDV.offsetWidth - 4)) + 'px';
+    const h = listeDV.offsetHeight;
+    listeDV.style.top = (rect.bottom + h + 4 > window.innerHeight ? Math.max(4, rect.top - h - 2) : rect.bottom + 1) + 'px';
+    listeDV.querySelectorAll('[data-i]').forEach((el) => el.addEventListener('click', () => choisirListe(+el.dataset.i)));
+    const sel = listeDV.querySelector('.choisi'); if (sel) sel.scrollIntoView({ block: 'nearest' });
+  }
+  function choisirListe(i) {
+    if (!listeCible) return;
+    const { r, c, items } = listeCible;
+    fermerListe();
+    if (items[i] === undefined) return;
+    api.memoriser();
+    api.classeur().saisir(api.fi(), r, c, items[i].startsWith('=') ? "'" + items[i] : items[i]);
+    finir();
+  }
+  // Clavier dans la liste ouverte (renvoie vrai si la touche a été prise)
+  function toucheListe(e) {
+    if (listeDV.hidden || !listeCible) return false;
+    const n = listeCible.items.length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { listeCible.i = (listeCible.i + (e.key === 'ArrowDown' ? 1 : -1) + n) % Math.max(1, n); listeDV.querySelectorAll('[data-i]').forEach((el) => el.classList.toggle('choisi', +el.dataset.i === listeCible.i)); const el = listeDV.querySelector('.choisi'); if (el) el.scrollIntoView({ block: 'nearest' }); }
+    else if (e.key === 'Enter' || e.key === 'Tab') choisirListe(listeCible.i);
+    else if (e.key === 'Escape') fermerListe();
+    else return false;
+    e.preventDefault(); e.stopPropagation();
+    return true;
+  }
+  /** Après une saisie : refuse, demande ou prévient selon la règle de la cellule. Renvoie vrai si la saisie est gardée. */
+  function controlerSaisie(r, c) {
+    const C = api.classeur(), fi = api.fi(), regle = validationDe(api.feuille(), r, c);
+    if (!regle || valeurValide(C, fi, regle, r, c)) return true;
+    const e = regle.erreur || { style: 'stop' };
+    if (e.style === 'aucune') return true;
+    const msg = (e.titre ? e.titre + '\n\n' : '') + (e.texte || 'Cette valeur ne correspond pas aux restrictions de validation des données de cette cellule.\n' + decrireValidation(regle));
+    if (e.style === 'avertissement') return confirm(msg + '\n\nGarder cette valeur ?');
+    alert(msg);
+    return e.style === 'information';
+  }
+
   return {
-    panneaux: { tri: construireTri, rechercher: () => construireRech(false), mfc: construireMfc, cible: construireCible },
+    validation: { ouvrir: ouvrirValidation, ouvrirListe, fermerListe, toucheListe, controlerSaisie, entourer: () => entourer },
+    panneaux: { validation: construireValidation, tri: construireTri, rechercher: () => construireRech(false), mfc: construireMfc, cible: construireCible },
     trierRapide, ouvrirTri, basculerFiltre, ouvrirFiltre, fermerPopup, reappliquerFiltre, effacerFiltres, ouvrirRecherche, rechercherSuivant: suivant,
     ouvrirMfc, ouvrirCible, celluleChoisie, sommeAuto, menuSomme, imprimer, masquer, figer, menuFiger, menuTri, menuMfc,
     rafraichir() { if (api.panneauOuvert('mfc') && !regleEditee) construireMfc(); },
+    curseurChange() { if (api.panneauOuvert('validation')) { const cur = api.curseur(), x = validationDe(api.feuille(), cur.r, cur.c); if (x && (!valEditee || valEditee._ref !== x)) { valEditee = null; construireValidation(); } } },
   };
 }

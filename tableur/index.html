@@ -80,6 +80,7 @@
         <button id="btn-trier" title="Trier et filtrer">⇅ Trier</button>
         <button id="btn-filtrer" title="Filtre automatique : ▾ dans les en-têtes (Ctrl+Maj+L)">⧩ Filtrer</button>
         <button id="btn-rechercher" title="Rechercher et remplacer (Ctrl+F, Ctrl+H)">🔍</button>
+        <button id="btn-tcd" title="Tableau croisé dynamique">📊 Croisé</button>
         <button id="btn-mfc" title="Mise en forme conditionnelle">🎨 Conditionnelle</button>
         <button id="btn-figer" title="Figer les volets, masquer des lignes ou des colonnes">❄ Figer</button>
         <button id="btn-plus" title="Valeur cible, impression, recalcul">⋯</button>
@@ -123,6 +124,8 @@
         <div id="selection"></div>
         <div id="curseur"></div>
         <div id="poignee" title="Recopier"></div>
+        <button id="fleche-liste" title="Choisir dans la liste (Alt+↓)" hidden>▾</button>
+        <div id="message-validation" hidden></div>
         <textarea id="editeur" rows="1" spellcheck="false" hidden></textarea>
         <div id="plage-copie" hidden></div>
       </div>
@@ -169,6 +172,8 @@
         <div id="panneau-tri" class="panneau-contenu" hidden></div>
         <div id="panneau-mfc" class="panneau-contenu" hidden></div>
         <div id="panneau-cible" class="panneau-contenu" hidden></div>
+        <div id="panneau-validation" class="panneau-contenu" hidden></div>
+        <div id="panneau-tcd" class="panneau-contenu" hidden></div>
       </aside>
     </div>
     <footer id="onglets">
