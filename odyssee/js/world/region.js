@@ -693,7 +693,8 @@ export function buildWorld() {
   W.rect(219, 91, 233, 95, T.GRASS, [T.TREE, T.TALL]); W.rect(226, 93, 227, 97, T.PATH, [T.GRASS, T.TALL, T.FLOWER, T.TREE]);
   plateau(W, polygone([[213.5, 90.5], [237.5, 90.5], [237.5, 106.5], [213.5, 106.5]]), 1);
   plateau(W, polygone([[218.5, 90.5], [234.5, 90.5], [234.5, 95.5], [218.5, 95.5]]), 2);
-  for (const [x, y] of [[221, 92], [231, 93]]) W.prop('rocher_grand', x, y);
+  for (const [x, y] of [[222, 92], [230, 93]]) W.prop('rocher_grand', x, y);
+  W.rect(219, 91, 220, 92, T.TREE); W.rect(232, 91, 233, 92, T.TREE); W.set(224, 91, T.TREE); W.item(229, 91, 'ether', 2);
   relief(r5);
   routeTrainer(W, r5, 0.12, 1, 4, 'Scientifique', 'Pierre', [[1036, 19], [100, 19], [81, 20]]);
   routeTrainer(W, r5, 0.3, -1, 4, 'Randonneuse', 'Élise', [[77, 20], [1014, 20]]);

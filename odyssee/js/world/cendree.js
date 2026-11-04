@@ -91,12 +91,12 @@ export function addCendree({ W, maps, trainerNpc, spot, enc }) {
 
   /* ------------------------------------------------------------------ sentiers */
   // le sentier de l'ouest : du pied de la butte jusqu'au petit sanctuaire, en passant le ruisseau sur un pont
-  sentier([[168.5, TY + 12], [168.5, 176], [170.5, 181], [171.5, 186]], { seed: 41, w: 5, grass: 0.9 });
+  sentier([[168.5, TY + 12], [168.5, 176], [170, 181], [168.5, 186], [169.5, 192]], { seed: 41, w: 5, grass: 0.9 });
   // la descente de la tour : de l'escalier jusqu'au carrefour du sud (pont sur le ruisseau)
   sentier([[DX + 0.5, 179], [DX + 0.5, 186], [DX - 0.5, 191]], { seed: 43, w: 5, grass: 0.6, trees: 0.02 });
   // le sanctuaire de l'ouest et la boucle qui revient au carrefour
   clairiere(166, 185, 176, 191);
-  sentier([[172, 189], [177, 191.5], [DX - 0.5, 191]], { seed: 47, w: 5, grass: 1.0 });
+  sentier([[170, 192], [177, 191.5], [DX - 0.5, 191]], { seed: 47, w: 5, grass: 1.0 });
   // le ravin : du carrefour à l'allée des torii, entre deux terrasses
   sentier([[DX - 0.5, 191], [194, 191.5], [203, 190], [211, 190.5], [218, 190.5]], { seed: 53, w: 6, grass: 0.8, trees: 0.02 });
   m.rect(219, 190, 219, 191, T.GRASS, [T.TREE, T.TALL]); m.set(219, 190, T.PATH); m.set(219, 191, T.PATH);
@@ -109,7 +109,7 @@ export function addCendree({ W, maps, trainerNpc, spot, enc }) {
     m.rect(168, 186, 174, 190, T.GRASS);
     m.rect(169, 186, 173, 187, T.SAND);
     m.prop('rocher_grand', 169, 186); m.prop('butte', 173, 186, true);
-    m.rect(171, 188, 171, 191, T.PATH); m.rect(172, 189, 174, 189, T.PATH);
+    m.rect(171, 188, 171, 192, T.PATH);
     m.prop('stele', 171, 186); m.object(171, 186, { use: async (A) => A.say(['Un petit autel, couvert de feuilles rouges.', 'Quelqu\'un y a laissé une offrande de baies encore fraîches.']) });
     m.prop('lanterne', 170, 188); m.prop('lanterne', 172, 188);
     m.prop('torii', 171, 190, false, { dz: 0.95, w: 1 });
