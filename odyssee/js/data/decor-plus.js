@@ -4,4 +4,6 @@ export const DECOR_PLUS = {
   automne0: ['nature', 2], automne1: ['nature', 2], automne2: ['nature', 2], automne3: ['nature', 2], automne4: ['nature', 2], automne5: ['nature', 2],
   // mine de Pierrefort (tools/odyssee-mine.py)
   etai: ['nature', 2], poteau: ['nature', 2], wagonnet: ['nature', 2], lampe_mine: ['nature', 2], minerai: ['nature', 2],
+  // désert de la route 16 (tools/odyssee-desert.py)
+  cactus: ['nature', 2], cactus2: ['nature', 2],
 };

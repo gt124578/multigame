@@ -51,7 +51,7 @@ export function sorteCase(m, x, y) {
     case T.SNOW: return K.SN;
     case T.ASH: return K.AS;
     case T.SAND: return jardin ? K.GR : th === 'canyon' ? K.RC : K.SA;   // jardins japonais : gravier ratissé
-    case T.TALL: return th === 'snow' ? K.TS : jardin ? K.TA : K.T;
+    case T.TALL: return th === 'snow' ? K.TS : jardin || th === 'desert' || th === 'canyon' ? K.TA : K.T;
     case T.DARKTALL: return K.TD;
     case T.FLOWER: return jardin ? K.MO : herbeux ? K.F : fond;   // jardins japonais : coussins de mousse
     case T.LEDGE: return K.L;

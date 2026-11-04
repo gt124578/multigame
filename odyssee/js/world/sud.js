@@ -5,6 +5,8 @@
 // Avec les cinq arènes du nord, cela fait douze Champions sur le continent, plus les trois frères de l'archipel.
 import { T } from './tiles.js';
 import { room } from './interiors.js';
+import { bande, massif, plateau, boucher, sinueuse } from './relief.js';
+import { rng, along, nearestWalkable } from './mapgen.js';
 
 // rencontres : [espèce, niveau min, niveau max, poids]
 export const ENC_SUD = {
@@ -210,7 +212,22 @@ export function buildSud(ctx) {
   buildTown(W, ctx.maps, N);
 
   /* ---------- route 16 → Dunes d'Ocre (désert) ---------- */
-  const r16 = R('r16', 'Route 16', [[318.5, 331], [318.5, 346], [330, 358], [348, 368], [363, 372.5]], { w: 13, grass: 0.5, trees: 0.02, rocks: 0.05, ground: T.SAND, overwrite: false }, 'r16');
+  // un vrai désert : sable à perte de vue entre des mesas de roche ocre, cactus, crêtes de dunes dont on se laisse glisser
+  const r16 = R('r16', 'Route 16', sinueuse([[318.5, 331], [318.5, 341], [326, 351], [334, 356], [342, 366], [352, 368], [363, 372.5]]), { w: 13, grass: 0.35, trees: 0, rocks: 0.04, ground: T.SAND, overwrite: false, theme: 'desert' }, 'r16');
+  {
+    const r = rng(1616), ville = (x, y) => [towns.SN, { x: 363, y: 360, w: 36, h: 26 }].some((t) => x >= t.x - 2 && x <= t.x + t.w + 1 && y >= t.y - 2 && y <= t.y + t.h + 1);
+    for (const [x, y] of bande(r16, 0, 11, 0, 0.04, 0.97)) {
+      if (ville(x, y) || W.get(x, y) !== T.TREE) continue;
+      W.set(x, y, T.SAND);
+      const q = r(); if (q < 0.035) W.prop(q < 0.022 ? 'cactus' : 'cactus2', x, y); else if (q < 0.045) W.set(x, y, T.ROCK);
+    }
+    // au-delà du sable, des mesas de roche ocre ferment le désert (toute la forêt de la zone disparaît)
+    const mesa = []; for (let y = 322; y <= 386; y++) for (let x = 292; x <= 376; x++) if (!ville(x, y) && W.get(x, y) === T.TREE) mesa.push([x, y]);
+    massif(W, mesa, { pas: 3 });
+    for (const [t, o] of [[0.3, 6], [0.5, -7], [0.75, 6], [0.62, 8]]) { const p = along(r16, t), x = Math.round(p.x + p.nx * o), y = Math.round(p.y + p.ny * o); if (W.get(x, y) === T.SAND) W.prop('rocher_grand', x, y); }
+    ctx.ledges?.(W, r16, [0.22, 0.6], { reach: 7 });
+  }
+  W.zone(296, 326, 372, 382, { name: 'Route 16', music: 'route', enc: ENC.r16, theme: 'desert', route: 'r16', prio: 0 });
   routeTrainer(W, r16, 0.2, 1, 4, 'Montagnard', 'Caravane', [[28, 59], [105, 59]]);
   routeTrainer(W, r16, 0.45, -1, 4, 'Randonneuse', 'Sahra', [[232, 60], [51, 60], [344, 60]]);
   routeTrainer(W, r16, 0.7, 1, 3, 'Topdresseur', 'Mirage', [[330, 61], [553, 61]]);
@@ -231,8 +248,19 @@ export function buildSud(ctx) {
   buildTown(W, ctx.maps, D);
 
   /* ---------- route 17 → Forge-Acier ---------- */
-  const r17 = R('r17', 'Route 17', [[381.5, 386], [381.5, 402], [366, 414], [342, 421], [322, 425.5]], { w: 12, grass: 0.7, trees: 0.03, rocks: 0.06 }, 'r17');
-  ctx.ledges?.(W, r17, [0.12], { reach: 6 });
+  // le Canyon d'Ocre : la route descend au fond d'une gorge entre deux parois de roche ocre, grimpe sur une corniche
+  // le long de la paroi nord, puis redescend vers Forge-Acier
+  const r17 = R('r17', 'Route 17 — Canyon d\'Ocre', sinueuse([[381.5, 386], [381.5, 395], [376, 404], [366, 412], [354, 416], [342, 421], [332, 424], [322, 425.5]]), { w: 10, grass: 0.5, trees: 0, rocks: 0.05, theme: 'canyon' }, 'r17');
+  {
+    const ville = (x, y) => [towns.SD, { x: 288, y: 412, w: 34, h: 26 }].some((t) => x >= t.x - 2 && x <= t.x + t.w + 1 && y >= t.y - 2 && y <= t.y + t.h + 1);
+    massif(W, bande(r17, 4.6, 13, 0, 0.03, 0.97).filter(([x, y]) => !ville(x, y)), { tout: true, pas: 2, max: 3 });
+    // la corniche : un tronçon du chemin passe sur une vire, au-dessus du fond de la gorge
+    const p = along(r17, 0.5), cote = p.ny < 0 ? 1 : -1;   // côté nord de la route
+    plateau(W, [...bande(r17, 0, 2.2, 0, 0.36, 0.62), ...bande(r17, 2.2, 4.6, cote, 0.36, 0.62)].filter(([x, y]) => W.get(x, y) !== T.CAVEWALL), 1);
+    for (const [x, y] of bande(r17, 0, 4.6, 0)) if (W.get(x, y) === T.TREE) W.set(x, y, T.GRASS);   // pas d'arbres au fond de la gorge
+    const m = along(r17, 0.5); boucher(W, bande(r17, 0, 5, 0).map(([x, y]) => x + ',' + y), nearestWalkable(W, m.x, m.y), T.ROCK);
+  }
+  W.zone(308, 380, 398, 440, { name: 'Canyon d\'Ocre', music: 'route', enc: ENC.r17, theme: 'canyon', route: 'r17', prio: 0 });
   routeTrainer(W, r17, 0.25, -1, 4, 'Ouvrier', 'Boulon', [[82, 62], [437, 63]]);
   routeTrainer(W, r17, 0.5, 1, 4, 'Topdresseuse', 'Alice', [[303, 63], [208, 63], [227, 64]]);
   routeTrainer(W, r17, 0.72, -1, 3, 'Ouvrier', 'Écrou', [[598, 63], [530, 64]]);

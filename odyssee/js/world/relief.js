@@ -136,13 +136,13 @@ export function tourbillons(W, lignes, hw = 1.5, seed = 77) {
 
 /** après avoir posé des plateaux sur une route : les bouts de couloir que le relief a isolés (ni marche ni chemin pour y
  *  monter) redeviennent de la forêt, pour qu'aucun dresseur, objet ou recoin n'y tombe. cells : clés « x,y » du couloir */
-export function boucher(W, cells, depart) {
+export function boucher(W, cells, depart, remplace = T.TREE) {
   const r = W.reach(depart[0], depart[1], true, false, true);
   const pris = new Set([...W.npcs.map((n) => key(n.x, n.y)), ...W.items.map((i) => key(i.x, i.y))]);
   const SOL = new Set([T.GRASS, T.TALL, T.DARKTALL, T.FLOWER, T.PATH, T.SAND, T.SNOW]);
   for (const k of cells) {
     const [x, y] = k.split(',').map(Number);
-    if (!r[y * W.w + x] && SOL.has(W.get(x, y)) && !pris.has(k)) W.set(x, y, T.TREE);
+    if (!r[y * W.w + x] && SOL.has(W.get(x, y)) && !pris.has(k)) W.set(x, y, remplace);
   }
 }
 
