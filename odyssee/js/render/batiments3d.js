@@ -2194,6 +2194,157 @@ export function atelier(D) {
     return G;
   };
 
+
+  /** arène d'après l'ancien bâtiment de tuiles : un bloc de pierre sombre (9 × 6), toit plat à corniche, meurtrières en
+   *  rangées, plaque dorée à la Poké Ball au-dessus d'une porte cintrée entre deux torches. `style` décline le dessin :
+   *  classique, forteresse, temple, moderne, donjon, coupole, japonais, deco ; `type` donne la couleur des ornements. */
+  B.areneBloc = ({ style = 'classique', type = 'feu', pierre = null } = {}) => {
+    const T = ARENES[type] || ARENES.feu, acc = T.acc, A = COL(acc), A2 = COL(mix(acc, -0.35));
+    const G = new THREE.Group(), W = 9, ZF = 6, cx = W / 2;
+    const pc = pierre || { classique: '#5c6068', forteresse: '#5a5652', temple: '#6a6662', moderne: '#6e737c', donjon: '#55585e', coupole: '#62666e', japonais: '#4e5054', deco: '#5a5e68' }[style] || '#5c6068';
+    const PM = M({ map: TX.pierre(pc) }), PC = M({ map: TX.pierre(mix(pc, 0.22)) }), PS = M({ map: TX.pierre(mix(pc, -0.3)) });
+    const NOIR = COL('#16181e'), y0 = 0.35, TP = M({ map: TX.beton(mix(pc, 0.35)) });
+    const dalle = (y, w = W - 0.5, d = ZF - 0.5, x = cx, z = ZF / 2) => { G.add(at(boite(w, 0.1, d, TP), x, y, z)); for (let i = 1; i < 4; i++) G.add(at(boite(w, 0.02, 0.05, PS), x, y + 0.06, z - d / 2 + i * d / 4)); };
+    const H = { classique: 4.2, forteresse: 4.0, temple: 3.8, moderne: 4.0, donjon: 3.6, coupole: 3.8, japonais: 3.2, deco: 4.4 }[style] || 4.2;
+    // socle, corps, bandeau de socle
+    G.add(at(boite(W + 0.3, y0, ZF + 0.3, PS), cx, y0 / 2, ZF / 2));
+    G.add(at(boite(W, H, ZF, PM), cx, y0 + H / 2, ZF / 2));
+    G.add(at(boite(W + 0.06, 0.35, ZF + 0.06, PS), cx, y0 + 0.18, ZF / 2));
+    // corniche : frise de la couleur du type, denticules, débord
+    const corniche = (y, w = W, d = ZF, x = cx, z = ZF / 2) => {
+      G.add(at(boite(w + 0.08, 0.26, d + 0.08, A2), x, y - 0.45, z));
+      G.add(at(boite(w + 0.1, 0.16, d + 0.1, A), x, y - 0.25, z));
+      for (let i = 0; i < Math.round(w / 0.4); i++) G.add(at(boite(0.16, 0.12, 0.12, PC), x - w / 2 + 0.2 + i * 0.4, y - 0.1, z + d / 2 + 0.06));
+      G.add(at(boite(w + 0.34, 0.2, d + 0.34, PC), x, y + 0.06, z));
+    };
+    // meurtrières en rangées (comme l'ancien dessin), avec appui clair
+    const meurtrieres = (y, n, z = ZF + 0.01, skip = []) => {
+      for (let i = 0; i < n; i++) { const x = 0.7 + i * (W - 1.4) / (n - 1); if (skip.some(([a, b]) => x > a && x < b)) continue;
+        G.add(at(boite(0.24, 0.72, 0.05, NOIR), x, y, z)); G.add(at(boite(0.36, 0.08, 0.1, PC), x, y - 0.4, z + 0.03)); G.add(at(boite(0.34, 0.08, 0.08, PC), x, y + 0.4, z + 0.02)); }
+    };
+    const cotes = (y, n) => { for (const sx of [-0.01, W + 0.01]) for (let i = 0; i < n; i++) { const z = 0.8 + i * (ZF - 1.6) / (n - 1), m = at(boite(0.05, 0.72, 0.24, NOIR), sx, y, z); G.add(m); } };
+    // plaque dorée : Poké Ball au centre, emblème du type de part et d'autre
+    const plaque = (y, w = 2.6) => {
+      G.add(at(boite(w, 0.78, 0.1, OR), cx, y, ZF + 0.06)); G.add(at(boite(w - 0.18, 0.6, 0.04, COL('#2a1e14')), cx, y, ZF + 0.12));
+      const b = new THREE.Group(); pokeBall(b, 0, 0, 0, 0.26); b.position.set(cx, y, ZF + 0.16); b.scale.set(1, 1, 0.35); G.add(b);
+      for (const s of [-1, 1]) G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.2, 16), M({ map: emblemeTex(type, acc) })), cx + s * (w / 2 - 0.42), y, ZF + 0.15));
+    };
+    const entree = (hp = 2.0, wp = 1.3) => {
+      G.add(at(boite(wp + 0.7, hp + 0.9, 0.3, PC), cx, y0 + (hp + 0.9) / 2, ZF + 0.12));
+      porte2(G, cx, ZF + 0.28, y0, hp, wp, '#4a2a16', OR, true);
+      marches(G, cx, ZF + 0.12, wp + 1.0, 2, y0 / 2, 0.3, PS);
+    };
+    const torches = (y = y0 + 1.6, dx = 1.35) => { for (const s of [-1, 1]) { G.add(at(boite(0.14, 0.2, 0.3, COL('#2a2420')), cx + s * dx, y - 0.15, ZF + 0.15)); torche(G, cx + s * dx, ZF + 0.28, y - 0.1, 0.25); } };
+    const yT = y0 + H;
+    if (style === 'classique') {
+      corniche(yT); meurtrieres(y0 + 1.25, 7, ZF + 0.01, [[cx - 1.4, cx + 1.4]]); meurtrieres(y0 + 2.9, 7, ZF + 0.01, [[cx - 1.5, cx + 1.5]]); cotes(y0 + 1.25, 4); cotes(y0 + 2.9, 4);
+      entree(); torches(); plaque(y0 + 3.15);
+      // toit : dalle, acrotère, édicule avec l'emblème
+      dalle(yT + 0.17);
+      G.add(at(boite(2.2, 0.9, 1.6, PM), cx, yT + 0.6, ZF / 2 - 0.6)); G.add(at(boite(2.4, 0.12, 1.8, PC), cx, yT + 1.1, ZF / 2 - 0.6));
+      G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.34, 18), M({ map: emblemeTex(type, acc) })), cx, yT + 0.65, ZF / 2 + 0.21));
+      for (const [x, z] of [[0.35, 0.35], [W - 0.35, 0.35], [0.35, ZF - 0.35], [W - 0.35, ZF - 0.35]]) { G.add(at(boite(0.5, 0.5, 0.5, PC), x, yT + 0.4, z)); G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), A), x, yT + 0.75, z)); }
+    }
+    if (style === 'forteresse') {
+      meurtrieres(y0 + 1.25, 7, ZF + 0.01, [[cx - 1.4, cx + 1.4]]); meurtrieres(y0 + 2.8, 7, ZF + 0.01, [[cx - 1.5, cx + 1.5]]); cotes(y0 + 1.3, 4);
+      G.add(at(boite(W + 0.1, 0.2, ZF + 0.1, A), cx, yT - 0.1, ZF / 2));
+      // créneaux
+      const cren = (x0, z0, x1, z1, y) => { const L = Math.hypot(x1 - x0, z1 - z0), n = Math.round(L / 0.55); for (let i = 0; i <= n; i += 2) { const t = i / n; G.add(at(boite(0.4, 0.5, 0.4, PM), x0 + (x1 - x0) * t, y + 0.25, z0 + (z1 - z0) * t)); } G.add(at(boite(Math.abs(x1 - x0) + 0.4, 0.18, Math.abs(z1 - z0) + 0.4, PC), (x0 + x1) / 2, y - 0.05, (z0 + z1) / 2)); };
+      dalle(yT + 0.02, W - 0.2, ZF - 0.2);
+      cren(0, ZF, W, ZF, yT); cren(0, 0, W, 0, yT); cren(0, 0, 0, ZF, yT); cren(W, 0, W, ZF, yT);
+      // tourelles d'angle à toit pointu
+      for (const [x, z] of [[0, ZF], [W, ZF], [0, 0], [W, 0]]) {
+        G.add(at(cyl(0.75, 0.8, H + 1.0, PM, 12), x, y0 + (H + 1.0) / 2, z)); G.add(at(cyl(0.85, 0.85, 0.18, PC, 12), x, y0 + H + 1.05, z));
+        G.add(at(new THREE.Mesh(new THREE.ConeGeometry(0.95, 1.5, 12), M({ map: TX.canalPetit(T.toit) })), x, y0 + H + 1.9, z));
+        G.add(at(boite(0.05, 0.6, 0.05, COL('#3a3230')), x, y0 + H + 2.9, z)); G.add(at(boite(0.4, 0.26, 0.02, A), x + 0.2, y0 + H + 3.05, z));
+        G.add(at(boite(0.16, 0.5, 0.05, NOIR), x, y0 + 2.2, z + (z ? 0.78 : -0.78)));
+      }
+      entree(); torches(); plaque(y0 + 3.2, 2.4);
+      for (const s of [-1, 1]) { G.add(at(boite(0.7, 1.9, 0.03, A), cx + s * 2.4, y0 + 2.3, ZF + 0.03)); G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.2, 14), M({ map: emblemeTex(type, acc) })), cx + s * 2.4, y0 + 2.7, ZF + 0.06)); }
+    }
+    if (style === 'temple') {
+      corniche(yT); meurtrieres(y0 + 2.4, 7, ZF + 0.01, [[cx - 2.6, cx + 2.6]]); cotes(y0 + 1.4, 4); cotes(y0 + 2.6, 4);
+      // portique : 4 colonnes, entablement, fronton à l'emblème
+      const zp = ZF + 1.1, MA = M({ map: TX.marbre() });
+      G.add(at(boite(5.6, 0.3, 1.5, PC), cx, y0 + 0.15, ZF + 0.75));
+      for (const x of [cx - 2.3, cx - 0.8, cx + 0.8, cx + 2.3]) colonne(G, x, zp, y0 + 0.3, 2.9, 0.2, MA, PC);
+      G.add(at(boite(5.4, 0.35, 1.5, PC), cx, y0 + 3.4, ZF + 0.75)); G.add(at(boite(5.4, 0.12, 0.05, A), cx, y0 + 3.4, zp + 0.06));
+      fronton(G, cx, y0 + 3.58, zp + 0.05, 5.6, 1.0, 1.5, PC);
+      G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.3, 18), M({ map: emblemeTex(type, acc) })), cx, y0 + 3.95, zp + 0.08));
+      porte2(G, cx, ZF + 0.02, y0, 2.1, 1.3, '#4a2a16', OR, true); marches(G, cx, ZF + 1.5, 5.6, 2, y0 / 2, 0.3, PS);
+      for (const s of [-1, 1]) brasero(G, cx + s * 3.3, 0, ZF + 1.2, 0.7, 0.6);
+      dalle(yT + 0.17);
+      const b = new THREE.Group(); pokeBall(b, 0, 0, 0, 0.45); b.position.set(cx, yT + 0.75, ZF / 2); G.add(b); G.add(at(cyl(0.5, 0.6, 0.3, PC, 12), cx, yT + 0.3, ZF / 2));
+    }
+    if (style === 'moderne') {
+      // bandeau vitré horizontal, bande de couleur, grande entrée vitrée, enseigne sur le toit
+      G.add(at(boite(W + 0.04, 0.5, ZF + 0.04, A), cx, y0 + 2.2, ZF / 2));
+      G.add(at(boite(W - 0.6, 0.85, 0.05, M({ map: TX.verre() })), cx, y0 + 3.2, ZF + 0.01));
+      for (let i = 0; i <= 8; i++) G.add(at(boite(0.07, 0.95, 0.08, PC), 0.3 + i * (W - 0.6) / 8, y0 + 3.2, ZF + 0.03));
+      G.add(at(boite(W + 0.2, 0.22, ZF + 0.2, PC), cx, yT + 0.1, ZF / 2)); dalle(yT + 0.25);
+      G.add(at(boite(3.0, 2.0, 0.6, PC), cx, y0 + 1.0, ZF + 0.25)); G.add(at(boite(2.4, 1.75, 0.05, M({ map: TX.verre() })), cx, y0 + 0.9, ZF + 0.56)); G.add(at(boite(0.06, 1.75, 0.07, PC), cx, y0 + 0.9, ZF + 0.58));
+      G.add(at(boite(3.6, 0.16, 1.2, A), cx, y0 + 2.05, ZF + 0.5));
+      meurtrieres(y0 + 1.1, 7, ZF + 0.01, [[cx - 1.9, cx + 1.9]]); cotes(y0 + 1.1, 4); cotes(y0 + 3.2, 4);
+      // enseigne : grand cercle à l'emblème posé sur le toit
+      for (const s of [-1, 1]) G.add(at(boite(0.12, 1.0, 0.12, COL('#3a3e46')), cx + s * 0.7, yT + 0.6, ZF - 0.7));
+      G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.75, 24), M({ map: emblemeTex(type, acc) })), cx, yT + 1.5, ZF - 0.62)); G.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.07, 6, 24), A2), cx, yT + 1.5, ZF - 0.6));
+      for (const s of [-1, 1]) G.add(at(boite(0.4, 0.4, 0.4, PC), cx + s * 3.6, yT + 0.4, 1.0));
+    }
+    if (style === 'donjon') {
+      corniche(yT); meurtrieres(y0 + 1.25, 7, ZF + 0.01, [[cx - 1.4, cx + 1.4]]); meurtrieres(y0 + 2.6, 7, ZF + 0.01, [[cx - 1.5, cx + 1.5]]); cotes(y0 + 1.3, 4);
+      entree(); torches(); plaque(y0 + 2.75, 2.2);
+      // tour centrale qui dépasse, à créneaux et bannières
+      const tw = 3.4, td = 3.0, th = 2.6, zt = ZF / 2 - 0.6, yt = yT + 0.15;
+      G.add(at(boite(tw, th, td, PM), cx, yt + th / 2, zt)); corniche(yt + th, tw, td, cx, zt);
+      for (const [x, z] of [[cx - tw / 2, zt - td / 2], [cx + tw / 2, zt - td / 2], [cx - tw / 2, zt + td / 2], [cx + tw / 2, zt + td / 2], [cx, zt + td / 2], [cx, zt - td / 2], [cx - tw / 2, zt], [cx + tw / 2, zt]]) G.add(at(boite(0.45, 0.5, 0.45, PM), x, yt + th + 0.4, z));
+      for (const x of [cx - 0.8, cx + 0.8]) { G.add(at(boite(0.24, 0.7, 0.05, NOIR), x, yt + th / 2 + 0.2, zt + td / 2 + 0.01)); }
+      G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.42, 18), M({ map: emblemeTex(type, acc) })), cx, yt + th / 2 + 0.25, zt + td / 2 + 0.02)); G.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.06, 6, 18), OR), cx, yt + th / 2 + 0.25, zt + td / 2 + 0.04));
+      G.add(at(boite(0.06, 1.4, 0.06, COL('#3a3230')), cx, yt + th + 1.3, zt)); G.add(at(boite(0.9, 0.5, 0.03, A), cx + 0.45, yt + th + 1.7, zt));
+      for (const s of [-1, 1]) G.add(at(boite(0.8, 2.6, 0.03, A), cx + s * 2.6, y0 + 2.4, ZF + 0.03));
+      dalle(yT + 0.17); for (const [x, z] of [[0.35, 0.35], [W - 0.35, 0.35], [0.35, ZF - 0.35], [W - 0.35, ZF - 0.35]]) G.add(at(boite(0.5, 0.45, 0.5, PC), x, yT + 0.35, z));
+    }
+    if (style === 'coupole') {
+      corniche(yT); meurtrieres(y0 + 1.25, 7, ZF + 0.01, [[cx - 1.4, cx + 1.4]]); cotes(y0 + 1.25, 4); cotes(y0 + 2.7, 4);
+      for (const x of [1.4, 2.6, W - 2.6, W - 1.4]) fenArc(G, x, y0 + 2.6, ZF, 0.42, 0.7, PC, M({ map: TX.vitrail(acc) }));
+      entree(); torches(); plaque(y0 + 3.0, 2.2);
+      // tambour et coupole de la couleur du type, lanterneau doré
+      const yd = yT + 0.15; dalle(yd);
+      balustrade(G, 0.25, ZF - 0.2, W - 0.25, ZF - 0.2, yd, PC, 0.4, 0.3);
+      G.add(at(cyl(1.75, 1.8, 0.9, PM, 24), cx, yd + 0.45, ZF / 2 - 0.3));
+      for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; G.add(at(cyl(0.05, 0.06, 0.8, PC, 6), cx + Math.cos(a) * 1.82, yd + 0.45, ZF / 2 - 0.3 + Math.sin(a) * 1.82)); }
+      G.add(at(cyl(1.92, 1.92, 0.14, A, 24), cx, yd + 0.95, ZF / 2 - 0.3));
+      G.add(at(lathe([[1.8, 0], [1.7, 0.7], [1.35, 1.3], [0.8, 1.75], [0.25, 1.95], [0, 1.97]], M({ map: TX.canal(T.toit) }), 24), cx, yd + 1.0, ZF / 2 - 0.3));
+      G.add(at(cyl(0.22, 0.26, 0.45, PC, 8), cx, yd + 3.15, ZF / 2 - 0.3)); G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), OR), cx, yd + 3.5, ZF / 2 - 0.3));
+    }
+    if (style === 'japonais') {
+      // socle de pierre sombre, galerie de bois, grand toit à coins relevés de la couleur du type
+      meurtrieres(y0 + 1.2, 7, ZF + 0.01, [[cx - 1.4, cx + 1.4]]); cotes(y0 + 1.2, 4);
+      G.add(at(boite(W + 0.1, 0.25, ZF + 0.1, A2), cx, yT - 0.12, ZF / 2));
+      const yb = yT; G.add(at(boite(W - 1.2, 1.3, ZF - 1.2, M({ map: TX.bois('#5a3020') })), cx, yb + 0.65, ZF / 2));
+      for (let i = 0; i < 6; i++) G.add(at(boite(0.7, 0.8, 0.04, M({ map: TX.treillis('#3a2010') })), 1.4 + i * 1.24, yb + 0.7, ZF - 0.58));
+      toitChinois(G, cx, ZF / 2, yb + 1.3, W / 2 - 0.2, ZF / 2 - 0.1, 1.1, { col: T.toit, rive: mix(T.toit, -0.4), bord: '#e8c060' });
+      porte2(G, cx, ZF + 0.02, y0, 2.0, 1.4, '#3a1e10', OR, false); marches(G, cx, ZF + 0.02, 2.4, 2, y0 / 2, 0.3, PS);
+      plaque(y0 + 2.55, 2.2);
+      for (const s of [-1, 1]) { G.add(at(boite(0.3, 0.8, 0.3, PC), cx + s * 2.6, 0.4, ZF + 0.9)); G.add(at(boite(0.5, 0.45, 0.5, COL('#f0e0b0')), cx + s * 2.6, 1.05, ZF + 0.9)); G.add(at(boite(0.62, 0.1, 0.62, PS), cx + s * 2.6, 1.32, ZF + 0.9)); }
+    }
+    if (style === 'deco') {
+      // gradins en retrait, ailettes verticales dorées, soleil au-dessus de la porte
+      meurtrieres(y0 + 1.25, 7, ZF + 0.01, [[cx - 1.6, cx + 1.6]]); cotes(y0 + 1.25, 4); cotes(y0 + 2.8, 4);
+      for (const x of [0.9, 2.1, W - 2.1, W - 0.9]) { G.add(at(boite(0.12, H - 0.6, 0.12, OR), x, y0 + (H - 0.6) / 2 + 0.3, ZF + 0.06)); }
+      for (const x of [1.5, W - 1.5]) for (const y of [y0 + 2.8]) G.add(at(boite(0.5, 0.8, 0.04, NOIR), x, y, ZF + 0.01));
+      G.add(at(boite(W + 0.1, 0.18, ZF + 0.1, A), cx, yT - 0.1, ZF / 2)); 
+      dalle(yT + 0.05, W - 0.2, ZF - 0.2); G.add(at(boite(W - 1.6, 1.0, ZF - 1.4, PM), cx, yT + 0.5, ZF / 2 - 0.2)); dalle(yT + 1.02, W - 1.7, ZF - 1.5, cx, ZF / 2 - 0.2); G.add(at(boite(W - 1.5, 0.14, 0.1, A), cx, yT + 0.95, ZF - 0.85));
+      G.add(at(boite(W - 3.6, 0.9, ZF - 2.8, PM), cx, yT + 1.45, ZF / 2 - 0.4)); dalle(yT + 1.92, W - 3.7, ZF - 2.9, cx, ZF / 2 - 0.4); G.add(at(boite(W - 3.5, 0.12, 0.08, OR), cx, yT + 1.86, ZF / 2 - 0.4 + (ZF - 2.8) / 2));
+      G.add(at(boite(0.5, 1.2, 0.5, PC), cx, yT + 2.5, ZF / 2 - 0.4)); G.add(at(new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.8, 4), OR), cx, yT + 3.5, ZF / 2 - 0.4));
+      G.add(at(boite(2.6, 2.9, 0.3, PC), cx, y0 + 1.45, ZF + 0.12)); porte2(G, cx, ZF + 0.28, y0, 2.0, 1.3, '#2a2a30', OR, false);
+      for (let i = 0; i < 9; i++) { const a = Math.PI * (i + 0.5) / 9, r = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.7, 0.03), OR); r.rotation.z = a - Math.PI / 2; G.add(at(r, cx + Math.cos(a) * 0.55, y0 + 2.35 + Math.sin(a) * 0.55, ZF + 0.3)); }
+      G.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.3, 18), M({ map: emblemeTex(type, acc) })), cx, y0 + 2.4, ZF + 0.31));
+      marches(G, cx, ZF + 0.12, 3.2, 2, y0 / 2, 0.3, PS);
+      for (const s of [-1, 1]) { G.add(at(boite(0.6, 1.0, 0.6, PC), cx + s * 3.6, 0.5, ZF + 0.7)); G.add(at(cyl(0.22, 0.3, 0.3, OR, 10), cx + s * 3.6, 1.15, ZF + 0.7)); flamme(G, cx + s * 3.6, 1.3, ZF + 0.7, 1.4); }
+    }
+    return G;
+  };
+
   /* -------------------------------------------------------------- usine à Poké Balls ----------------------------- */
   /** une Poké Ball : moitié haute rouge, basse blanche, bande noire, bouton tourné vers le sud */
   function pokeBall(G, x, y, z, r, rouge = '#d83a32') {
@@ -2533,7 +2684,7 @@ export const EMPRISES = {
   maison: [4, 3], maisonL: [5, 5], maisonLongue: [5, 3], maisonHaute: [4, 4], maisonExt: [7, 4], chalet: [5, 5], residence: [6, 4],
   cabaneChasseur: [4, 3], cabanePecheur: [5, 4], grange: [6, 5], moulin: [4, 4], phare: [3, 3], auberge: [6, 5], chapelle: [4, 7],
   boulangerie: [4, 4], maisonThe: [5, 5], gare: [8, 4], kiosque: [4, 5], puits: [2, 2], etal: [2, 2],
-  mairie: [9, 5], fontaine: [3, 3], centre: [7, 5], boutique: [5, 4], arene: [12, 11], areneFeu: [12, 11], pavillonFeu: [12, 11], areneCour: [18, 14], labo: [10, 7],
+  mairie: [9, 5], fontaine: [3, 3], centre: [7, 5], boutique: [5, 4], arene: [12, 11], areneFeu: [12, 11], pavillonFeu: [12, 11], areneCour: [18, 14], areneBloc: [9, 6], labo: [10, 7],
   pagode: [11, 11], tourCendree: [11, 11], pavillon: [8, 7], tour: [8, 5], tourVerre: [10, 7], tourDeco: [8, 8], bourse: [12, 8], casino: [14, 8], ligue: [30, 14], usinePokeball: [32, 10],
   escalierMontant: [1, 2], escalierDescendant: [1, 2],
 };
