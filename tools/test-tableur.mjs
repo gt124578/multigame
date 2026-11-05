@@ -24,6 +24,9 @@ import { hacherMotDePasse, verifierShaMotDePasse } from '../tableur/js/page-xlsx
 import { versOpenFormula, depuisOpenFormula } from '../tableur/js/ods.js';
 import { MODELES, creerModele } from '../tableur/js/modeles.js';
 import { nouvelleForme, formeHTML } from '../tableur/js/formes.js';
+import * as Plan from '../tableur/js/plan.js';
+import * as Scen from '../tableur/js/scenarios.js';
+import * as U from '../tableur/js/utilitaire.js';
 import { decoderTexte, analyserCsv, detecterSeparateur, detecterDecimale, ecrireCsv } from '../tableur/js/csv.js';
 import crypto from 'node:crypto';
 
@@ -1230,6 +1233,17 @@ test('ods : écriture et relecture (valeurs, formules, formats, styles, fusions)
   egal([f.get(0, 0).s, f.largeurs[0], f.fusions], [{ fond: '#fff2cc', bordures: { b: 'thin' }, gras: true }, 150, [{ r1: 9, c1: 0, r2: 9, c2: 2 }]]);
 });
 
+test('ods : formats finance (texte autour, milliers, parenthèses, zéro « - »)', () => {
+  const c = Classeur.nouveau();
+  const fmts = ['0.0 "ans"', '#,##0,"k€"', '#,##0.0,,"M€"', '#,##0.00_);(#,##0.00)', '#,##0;[Red](#,##0);"-"', '"x"0.00'];
+  const vals = ['20,34', '1234567', '1234567', '-1234,5', '0', '3'];
+  fmts.forEach((z, i) => { c.saisir(0, i, 0, vals[i]); c.format(0, i, 0, z); });
+  c.saisir(0, 6, 0, '-1234'); c.format(0, 6, 0, fmts[4]);
+  const avant = fmts.map((_, i) => c.texte(0, i, 0)).concat(c.texte(0, 6, 0));
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c, { bookType: 'ods' }), 'x.ods');
+  egal([0, 1, 2, 3, 4, 5, 6].map((r) => e.texte(0, r, 0).trim()), avant.map((t) => t.trim()));
+});
+
 test('mise en forme conditionnelle : jeux d\'icônes (et xlsx)', () => {
   const c = Classeur.nouveau();
   [10, 20, 30, 40, 50, 60, 70, 80, 90, 100].forEach((v, r) => c.saisir(0, r, 0, String(v)));
@@ -1355,6 +1369,135 @@ test('formes et zones de texte : dessin, xlsx (vraies formes d\'Excel) et images
   egal([natifs[0].src.startsWith('data:image/png;base64,'), natifs[0].titre, natifs[4].a], [true, 'point', { c: 6, dx: 0, r: 16, dy: 0 }]);
   const e = lireClasseur(XLSX, octets, 'x.xlsx');
   egal(e.feuilles[0].images.map((o) => o.id), ['i1', 'f1', 'f2', 'f3', 'f4']);
+});
+
+test('fonctions de finance, d\'actuariat et de statistique (valeurs de la documentation d\'Excel)', () => {
+  const c = Classeur.nouveau();
+  const ev = (f) => { c.saisir(0, 0, 0, f); const v = c.valeur(0, 0, 0); return v instanceof ErreurFormule ? v.code : v; };
+  const d = (s) => { const [j, m, a] = s.split('/'); return `DATE(${a};${m};${j})`; };
+  const tests = [
+  ['PRIX.TITRE(' + d('15/02/2008') + ';' + d('15/11/2017') + ';0,0575;0,065;100;2;0)', 94.6343616213221],
+  ['RENDEMENT.TITRE(' + d('15/02/2008') + ';' + d('15/11/2016') + ';0,0575;95,04287;100;2;0)', 0.0650000068807314],
+  ['DUREE(' + d('01/07/2018') + ';' + d('01/01/2048') + ';0,08;0,09;2;1)', 10.9191452815919],
+  ['DUREE.MODIFIEE(' + d('01/01/2008') + ';' + d('01/01/2016') + ';0,08;0,09;2;1)', 5.73566981391884],
+  ['NB.JOURS.COUPON.PREC(' + d('25/01/2011') + ';' + d('15/11/2011') + ';2;1)', 71],
+  ['NB.JOURS.COUPONS(' + d('25/01/2011') + ';' + d('15/11/2011') + ';2;1)', 181],
+  ['NB.JOURS.COUPON.SUIV(' + d('25/01/2011') + ';' + d('15/11/2011') + ';2;1)', 110],
+  ['NB.COUPONS(' + d('25/01/2007') + ';' + d('15/11/2008') + ';2;1)', 4],
+  
+  ['TAUX.INTERET(' + d('15/02/2008') + ';' + d('15/05/2008') + ';1000000;1014420;2)', 0.05768],
+  ['VALEUR.NOMINALE(' + d('15/02/2008') + ';' + d('15/05/2008') + ';1000000;0,0575;2)', 1014584.654],
+  ['VALEUR.ENCAISSEMENT(' + d('16/02/2008') + ';' + d('01/03/2008') + ';0,0525;100;2)', 99.79583333],
+  ['RENDEMENT.SIMPLE(' + d('16/02/2008') + ';' + d('01/03/2008') + ';99,795;100;2)', 0.052823],
+  ['PRIX.TITRE.ECHEANCE(' + d('15/02/2008') + ';' + d('13/04/2008') + ';' + d('11/11/2007') + ';0,061;0,061;0)', 99.98449888],
+  ['RENDEMENT.TITRE.ECHEANCE(' + d('15/03/2008') + ';' + d('03/11/2008') + ';' + d('08/11/2007') + ';0,0625;100,0123;0)', 0.060954334],
+  ['PRIX.BON.TRESOR(' + d('31/03/2008') + ';' + d('01/06/2008') + ';0,09)', 98.45],
+  ['RENDEMENT.BON.TRESOR(' + d('31/03/2008') + ';' + d('01/06/2008') + ';98,45)', 0.091417],
+  ['TAUX.ESCOMPTE.R(' + d('31/03/2008') + ';' + d('01/06/2008') + ';0,0914)', 0.094151],
+  ['INTERET.ACC.MAT(' + d('01/04/2008') + ';' + d('15/06/2008') + ';0,1;1000;3)', 20.54794521],
+  ['VDB(2400;300;10;0;1)', 480], ['VDB(2400;300;10*12;0;1)', 40], ['VDB(2400;300;10*12;6;18)', 396.306], ['VDB(2400;300;10;0;0,875;1,5)', 315],
+  ['AMORLINC(2400;' + d('19/08/2008') + ';' + d('31/12/2008') + ';300;1;0,15;1)', 360],
+  ['AMORDEGRC(2400;' + d('19/08/2008') + ';' + d('31/12/2008') + ';300;1;0,15;1)', 776],
+  ['PRIX.DEC(1,02;16)', 1.125], ['PRIX.FRAC(1,125;16)', 1.02], ['ISPMT(0,1/12;1;36;8000000)', -64814.8148],
+  ['NB.JOURS.OUVRES.INTL(' + d('01/01/2006') + ';' + d('01/02/2006') + ';7;{38719;38733})', 22],
+  ['NB.JOURS.OUVRES.INTL(' + d('01/01/2006') + ';' + d('31/01/2006') + ';"0010001")', 22],
+  ['SERIE.JOUR.OUVRE.INTL(' + d('01/01/2012') + ';30;17)', 40944],
+  ['LOI.STUDENT.INVERSE.N(0,75;2)', 0.8164966], ['LOI.STUDENT.INVERSE.BILATERALE(0,546449;60)', 0.606533], ['LOI.KHIDEUX.INVERSE(0,93;1)', 3.283020287], ['LOI.KHIDEUX.INVERSE.DROITE(0,050001;10)', 18.306973],
+  ['LOI.F.N(15,2069;6;4;VRAI)', 0.99], ['LOI.F.DROITE(15,2069;6;4)', 0.01], ['INVERSE.LOI.F.N(0,01;6;4)', 0.109309], ['INVERSE.LOI.F.DROITE(0,01;6;4)', 15.20686],
+  ['LOI.GAMMA.INVERSE.N(0,068094;9;2)', 10.0000112], ['BETA.INVERSE.N(0,685470581;8;10;1;3)', 2], ['LOI.BINOMIALE.INVERSE(6;0,5;0,75)', 4],
+  ['LOI.BINOMIALE.NEG.N(10;5;0,25;VRAI)', 0.3135141], ['LOI.BINOMIALE.NEG.N(10;5;0,25;FAUX)', 0.0550487], ['LOI.HYPERGEOMETRIQUE.N(1;4;8;20;VRAI)', 0.4654283], ['LOI.HYPERGEOMETRIQUE.N(1;4;8;20;FAUX)', 0.3632611],
+  ['INTERVALLE.CONFIANCE.STUDENT(0,05;1;50)', 0.284196855], ['LOI.BINOMIALE.SERIE(60;0,75;48)', 0.083974967], ['LOI.BINOMIALE.SERIE(60;0,75;45;50)', 0.523629793],
+  ['T.TEST({3;4;5;8;9;1;2;4;5};{6;19;3;2;14;4;5;17;1};2;1)', 0.196016], ['F.TEST({6;7;9;15;21};{20;28;31;38;40})', 0.64831785], ['CHISQ.TEST({58,35;11,25;10,23};{45.35,47.65;17.56,18.44;16.09,16.91})', 0.000308192],
+  ['Z.TEST({3;6;7;8;6;5;4;2;1;9};4)', 0.090574], ['RANG.POURCENTAGE.INCLURE({13;12;11;8;4;3;2;1;1;1};2)', 0.333], ['RANG.POURCENTAGE.EXCLURE({1;2;3;6;6;6;7;8;9};7)', 0.7],
+  ['PROBABILITE({0;1;2;3};{0.2;0.3;0.1;0.4};2)', 0.1], ['PROBABILITE({0;1;2;3};{0.2;0.3;0.1;0.4};1;3)', 0.8],
+  ['INDEX(DROITEREG({1;9;5;7};{0;4;2;3});1)', 2], ['INDEX(DROITEREG({1;9;5;7};{0;4;2;3});2)', 1], ['INDEX(TENDANCE({1;9;5;7};{0;4;2;3};{5});1)', 11],
+  ['INDEX(CROISSANCE({33100;47300;69000;102000;150000;220000};{11;12;13;14;15;16};{17});1)', 320196.7184], ['INDEX(LOGREG({33100;47300;69000;102000;150000;220000};{11;12;13;14;15;16});1)', 1.463275628],
+  ['INDEX(DROITEREG({1;9;5;7};{0;4;2;3};VRAI;VRAI);3;1)', 1],
+  ['LET(x;2;y;x*3;x+y)', 8], ['LET(f;LAMBDA(a;b;a*b);f(6;7))', 42], ['REDUCE(0;{1;2;3;4};LAMBDA(s;v;s+v))', 10], ['INDEX(SCAN(0;{1;2;3};LAMBDA(s;v;s+v));3)', 6],
+  ['INDEX(MAP({1;2;3};LAMBDA(x;x*x));3)', 9], ['INDEX(BYROW({1,2;3,4};LAMBDA(l;SOMME(l)));2)', 7], ['INDEX(BYCOL({1,2;3,4};LAMBDA(c;SOMME(c)));1;2)', 6], ['SOMME(MAKEARRAY(3;3;LAMBDA(i;j;i*j)))', 36],
+  ['LET(f;LAMBDA(a;[b];SI(ESTOMIS(b);a;a+b));f(5))', 5],
+  ['SOMME(PRENDRE({1,2,3;4,5,6};1))', 6], ['SOMME(EXCLURE({1,2,3;4,5,6};1))', 15], ['LIGNES(ASSEMB.V({1,2};{3,4};{5,6}))', 3], ['COLONNES(ASSEMB.H({1;2};{3;4}))', 2], ['COLONNES(ASSEMB.H({1,2};{3,4}))', 4],
+  ['LIGNES(TOCOL({1,2;3,4}))', 4], ['INDEX(ORGA.LIGNES({1;2;3;4;5};2);3;1)', 5], ['SOMME(CHOISIRCOLS({1,2,3;4,5,6};1;3))', 14], ['SOMME(CHOISIRLIGNES({1,2,3;4,5,6};-1))', 15],
+  ['LIGNES(DEVELOPPER({1;2};3;;0))', 3], ['INDEX(TRIERPAR({"a";"b";"c"};{3;1;2});1)', 'b'], ['LIGNES(TABLEAU.ALEA(4;2))', 4],
+  ['CONVERT(1;"lbm";"kg")', 0.45359237], ['CONVERT(68;"F";"C")', 20], ['CONVERT(2,5;"ft";"sec")', '#N/A'], ['CONVERT(1;"km";"m")', 1000], ['CONVERT(1;"mi";"km")', 1.609344],
+  ['TYPE.ERREUR(1/0)', 2], ['POURCENTAGEDE(10;40)', 0.25],
+];
+  for (const [f, att] of tests) {
+    const v = ev('=' + f);
+    if (typeof att === 'number') proche(v, att, Math.max(1e-6, Math.abs(att) * 2e-5), f); else egal(String(v).slice(0, String(att).length), att, f);
+  }
+  // Bases de données
+  const base = [['Arbre', 'Hauteur', 'Age', 'Rendement', 'Bénéfice'], ['Pommier', 18, 20, 14, 105], ['Poirier', 12, 12, 10, 96], ['Cerisier', 13, 14, 9, 105], ['Pommier', 14, 15, 10, 75], ['Poirier', 9, 8, 8, 76.8], ['Pommier', 8, 9, 6, 45]];
+  base.forEach((l, r) => l.forEach((v, k) => c.saisir(0, 10 + r, k, String(v).replace('.', ','))));
+  [['Arbre', 'Hauteur'], ['Pommier', '>10'], ['Poirier', '']].forEach((l, r) => l.forEach((v, k) => v && c.saisir(0, 20 + r, k, v)));
+  for (const [f, att] of [['BDSOMME(A11:E17;"Bénéfice";A21:B23)', 352.8], ['BDMOYENNE(A11:E17;"Rendement";A21:B23)', 10.5], ['BDNB(A11:E17;"Age";A21:B23)', 4], ['BDMAX(A11:E17;5;A21:B23)', 105]]) proche(ev('=' + f), att, 1e-9, f);
+  egal(ev('=BDLIRE(A11:E17;"Rendement";A21:A22)'), '#NUM!');
+  // LET et LAMBDA : paramètres écrits « _xlpm. » dans le fichier
+  egal([convertirFormule('=LET(x;2;x+1)', 'en'), convertirFormule('=_xlfn.LET(_xlpm.x,2,_xlpm.x+1)', 'fr')], ['=_xlfn.LET(_xlpm.x,2,_xlpm.x+1)', '=LET(x;2;x+1)']);
+  // Une LAMBDA nommée s'appelle comme une fonction
+  c.definirNom('CARRE', 'LAMBDA(x;x*x)'); egal(ev('=CARRE(7)'), 49);
+  // SOUS.TOTAL ne compte pas les autres sous-totaux de la plage ; 109 laisse de côté les lignes masquées
+  const t = Classeur.nouveau();
+  ['1', '2', '=SOUS.TOTAL(9;A1:A2)', '4', '=SOUS.TOTAL(9;A1:A4)', '=SOUS.TOTAL(109;A1:A4)'].forEach((x, r) => t.saisir(0, r, 0, x));
+  t.feuilles[0].hauteurs[1] = 0; t.evaluateur.invalider();
+  egal([t.valeur(0, 2, 0), t.valeur(0, 4, 0), t.valeur(0, 5, 0)], [3, 7, 5]);
+});
+
+test('formats : milliers et millions, sections à conditions, comptabilité', () => {
+  egal([formater(1234567.891, '#,##0,"k"'), formater(1234567.891, '#,##0.0,,"M€"'), formater(-1234567.891, '#,##0.00_);(#,##0.00)')], ['1 235k', '1,2M€', '(1 234 567,89)']);
+  egal([formater(999, '[<1000]0;[>=1000]#,##0,"k"'), formater(25000, '[<1000]0;[>=1000]#,##0,"k"'), formater(0, '_-* #,##0.00 €_-;-* #,##0.00 €_-;_-* "-"?? €_-;_-@_-')], ['999', '25k', ' -   € ']);
+  egal([formater(0, '#'), formater(2.5, '0.0?'), couleurFormat(-5, '[Red][<0]0;[Blue][>0]0;0'), couleurFormat(5, '[Red][<0]0;[Blue][>0]0;0')], ['', '2,5 ', '#ff0000', '#0000ff']);
+});
+
+test('plan, sous-totaux, calcul itératif, scénarios (et dans le .xlsx)', () => {
+  const c = Classeur.nouveau(), f = c.feuilles[0];
+  [['Région', 'Ventes'], ['Est', 10], ['Est', 20], ['Nord', 5], ['Nord', 7], ['Sud', 100]].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  egal(Plan.sousTotaux(c, 0, { r1: 0, c1: 0, r2: 5, c2: 1 }, { cle: 0, colonnes: [1] }), 3);
+  egal([c.texte(0, 3, 0), c.valeur(0, 3, 1), c.texte(0, 9, 0), c.valeur(0, 9, 1)], ['Total Est', 30, 'Total général', 142]);
+  Plan.afficherNiveau(f, 'L', 2);
+  egal(Object.entries(f.hauteurs).filter(([, h]) => h === 0).map(([r]) => +r), [1, 2, 4, 5, 7]);
+  const g = Plan.groupeEn(f, 'L', 4); Plan.deplier(f, 'L', g);
+  egal(Object.entries(f.hauteurs).filter(([, h]) => h === 0).map(([r]) => +r), [1, 2, 7]);
+  c.insererLignes(0, 0, 1); egal(f.plan.L[2], 2); // le plan suit les lignes insérées
+  c.supprimerLignes(0, 0, 1);
+  // Calcul itératif
+  c.saisir(0, 0, 5, '=1000+F2'); c.saisir(0, 1, 5, '=0,05*(1000+F1)/2');
+  egal(c.valeur(0, 0, 5) instanceof ErreurFormule, true);
+  c.iteration = { actif: true, max: 200, ecart: 1e-9 }; c.evaluateur.invalider();
+  proche(c.valeur(0, 0, 5), 1000 + 100 / 1.95, 1e-6);
+  // Scénarios
+  c.saisir(0, 0, 7, '5%'); c.saisir(0, 1, 7, '1000'); c.saisir(0, 2, 7, '=H2*(1+H1)');
+  f.scenarios = [{ nom: 'Bas', cellules: 'H1:H2', valeurs: ['2%', '1000'] }, { nom: 'Haut', cellules: 'H1:H2', valeurs: ['10%', '2000'] }];
+  const syn = Scen.synthese(c, 0, f.scenarios, 'H3');
+  egal(syn.lignes.map((l) => l.slice(2)), [['Valeurs actuelles :', 'Bas', 'Haut'], ['', '', ''], [0.05, 0.02, 0.1], [1000, 1000, 2000], ['', '', ''], [1050, 1020, 2200]]);
+  egal(c.valeur(0, 0, 7), 0.05); // valeurs de départ remises
+  f.espions = ['H3'];
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c), 'x.xlsx'), h = e.feuilles[0];
+  egal([h.plan.L[1], h.plan.L[3], h.scenarios.map((x) => x.nom + ':' + x.valeurs.join('|')), h.espions, e.iteration && e.iteration.actif], [2, 1, ['Bas:0,02|1000', 'Haut:0,1|2000'], ['H3'], true]);
+});
+
+test('utilitaire d\'analyse : descriptives, régression, test t, ANOVA', () => {
+  const x = [1, 2, 3, 4, 5, 6, 7, 8], y = [2.1, 3.9, 6.2, 7.8, 10.1, 12.2, 13.8, 16.1];
+  const dsc = U.descriptives([{ nom: 'Y', valeurs: y }]).lignes;
+  proche(dsc[1][1], y.reduce((a, b) => a + b) / 8, 1e-12); proche(dsc[6][1], 23.9707143, 1e-6); proche(dsc[5][1], Math.sqrt(23.9707143), 1e-6);
+  const reg = U.regressionLineaire(y, x.map((v) => [v]), ['X']).lignes;
+  const coef = reg.find((l) => l[0] === 'X'), cst = reg.find((l) => l[0] === 'Constante');
+  proche(coef[1], 1.9976190, 1e-6); proche(cst[1], 0.0357143, 1e-6); proche(reg[4][1], 0.9988393, 1e-6);
+  const tt = U.testT([3, 4, 5, 8, 9, 1, 2, 4, 5], [6, 19, 3, 2, 14, 4, 5, 17, 1], 'apparies').lignes;
+  proche(tt.find((l) => l[0] === 'P(T<=t) bilatéral')[1], 0.196016, 1e-5);
+  const an = U.anova([{ nom: 'A', valeurs: [6, 8, 4, 5, 3, 4] }, { nom: 'B', valeurs: [8, 12, 9, 11, 6, 8] }, { nom: 'C', valeurs: [13, 9, 11, 8, 7, 12] }]).lignes;
+  proche(an.find((l) => l[0] === 'Entre groupes')[4], 9.264706, 1e-5);
+  egal(U.histogramme([1, 2, 2, 3, 9], [2, 5]).lignes.slice(1).map((l) => l[1]), [3, 1, 1]);
+  egal(U.aleatoire(1, 3, 'uniforme', 0, 1, 42).lignes, U.aleatoire(1, 3, 'uniforme', 0, 1, 42).lignes);
+});
+
+test('tableau croisé : champs calculés ; graphique en cascade', () => {
+  const c = Classeur.nouveau();
+  [['Région', 'Ventes', 'Coûts'], ['Est', 100, 60], ['Est', 50, 20], ['Nord', 80, 90]].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  const res = calculerTCD(c, { source: 'A1:C4', dest: { r: 0, c: 5 }, lignes: ['Région'], colonnes: [], valeurs: [{ champ: 'Marge', fn: 'somme' }], calcules: [{ nom: 'Marge', formule: '=Ventes-Coûts' }] }, 0);
+  egal(res.cellules.map((l) => l.map((x) => x && x.v)), [['Région', 'Marge'], ['Est', 70], ['Nord', -10], ['Total général', 60]]);
+  const svg = rendreGraphiqueSVG({ type: 'cascade' }, [['Poste', 'Montant'], ['Ouverture', 1000], ['Ventes', 600], ['Achats', -350], ['Résultat', 1250]], 400, 260);
+  egal([svg.includes('#70ad47'), svg.includes('#e8463a'), svg.includes('#4472c4')], [true, true, true]);
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);

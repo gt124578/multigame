@@ -158,6 +158,7 @@ export function chartXml(classeur, f, g0) {
     + '<c:valAx><c:axId val="' + idD + '"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="r"/><c:numFmt formatCode="General" sourceLinked="1"/><c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:crossAx val="' + idC + '"/><c:crosses val="max"/><c:crossBetween val="between"/></c:valAx>' : '';
   let corps;
   switch (g.type) {
+    case 'cascade': // Excel : histogramme (la cascade complète est gardée par ce tableur dans sa feuille masquée)
     case 'colonnes': case 'barres':
       corps = '<c:barChart><c:barDir val="' + (g.type === 'barres' ? 'bar' : 'col') + '"/><c:grouping val="' + grouping + '"/><c:varyColors val="0"/>' + ser('barre') + '<c:gapWidth val="80"/>' + (grouping !== 'clustered' ? '<c:overlap val="100"/>' : '') + '<c:axId val="' + idA + '"/><c:axId val="' + idB + '"/></c:barChart>' + groupeSec + axesXml(g, idA, idB, { horizontal: g.type === 'barres' }) + axesSec;
       break;

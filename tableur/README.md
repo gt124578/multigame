@@ -17,9 +17,25 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
   absent du classeur d'arrivée) ; annuler/rétablir propre à chaque classeur ; tous gardés dans le navigateur.
 - **Feuilles** : onglets, ajout, renommage, duplication, masquage, déplacement ; références entre feuilles (`=Hypothèses!B2`).
 - **Saisie** : nombres (`12,5` ou `12.5`), pourcentages, dates (`12/03/2024`), heures, booléens, texte ; formules avec `;` ou `,`.
-- **Formules** : ~280 fonctions (logique, maths, statistiques et lois, finance, recherche, texte, dates, matrices),
-  plages, noms définis, constantes matricielles, formules matricielles simples (`=SOMME(SI(A1:A9>0;A1:A9))`), erreurs Excel
-  (`#DIV/0!`, `#N/A`…), détection des références circulaires.
+- **Formules** : ~390 fonctions (logique, maths, statistiques et lois, finance, recherche, texte, dates, matrices,
+  bases de données), plages, noms définis, constantes matricielles, formules matricielles simples
+  (`=SOMME(SI(A1:A9>0;A1:A9))`), tableaux dynamiques (`TRIERPAR`, `PRENDRE`, `ASSEMB.V`, `ORGA.LIGNES`…), `LET` et
+  `LAMBDA` (avec `MAP`, `REDUCE`, `SCAN`, `BYROW`, `BYCOL`, `MAKEARRAY`, et des noms définis comme `=LAMBDA(x;x*2)`),
+  erreurs Excel (`#DIV/0!`, `#N/A`…), détection des références circulaires ou calcul itératif (Formules ▸ Calcul itératif).
+- **Finance, comptabilité, actuariat** : obligations et coupons (`PRIX.TITRE`, `RENDEMENT.TITRE`, `DUREE`,
+  `DUREE.MODIFIEE`, `INTERET.ACC`, `NB.JOURS.COUPON…`, bons du Trésor, titres escomptés), amortissements (`VDB`,
+  `AMORLINC`, `AMORDEGRC`), `TRI.PAIEMENTS`, `TRI.MODIFIE`, `NB.JOURS.OUVRES.INTL` ; lois et leurs inverses (Student,
+  Fisher, khi², gamma, bêta, binomiale négative, hypergéométrique), tests (`T.TEST`, `F.TEST`, `Z.TEST`, `CHISQ.TEST`),
+  régression (`DROITEREG`, `LOGREG`, `TENDANCE`, `CROISSANCE`), `BDSOMME` et les autres fonctions de base de données,
+  `CONVERT`. Formats comptables (`_-* # ##0,00 €_-`, zéro en « - »), en milliers ou millions (`#,##0,"k€"`), négatifs
+  entre parenthèses, sections conditionnelles (`[<1000]`), durées `[h]:mm`.
+  **Plan** : grouper des lignes ou des colonnes (`Alt+Maj+→`, `Alt+Maj+←`), boutons + / − et niveaux 1, 2, 3 ;
+  **sous-totaux** automatiques par groupe (Données ▸ Sous-totaux…). **Gestionnaire de scénarios** avec synthèse,
+  **fenêtre espion**, **utilitaire d'analyse** (statistiques descriptives, histogramme, régression, corrélation,
+  covariance, moyenne mobile, lissage exponentiel, tests t et F, ANOVA, rang et centile, nombres aléatoires),
+  graphique en **cascade**, **champs calculés** dans les tableaux croisés. Modèles : tableau d'emprunt, rentabilité
+  d'un projet (VAN, TRI, délai de récupération), compte de résultat N / N-1, table de mortalité et commutations,
+  provisions par Chain Ladder. Le plan, les scénarios, les espions et le calcul itératif sont gardés dans le `.xlsx`.
 - **Édition** : sélection à la souris et au clavier, copier/couper/coller avec décalage des références relatives, poignée de recopie
   (séries), `Ctrl+D` / `Ctrl+R`, annuler/rétablir, insertion et suppression de lignes et colonnes (références ajustées), fusion,
   largeurs et hauteurs, gras/italique/souligné, couleurs, alignement, formats de nombre, `F4` pour les `$`.
@@ -128,12 +144,13 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 - Graphiques : la description complète (palette, police…) n'est relue que par ce tableur ; un graphique d'Excel dont les
   séries viennent de plusieurs feuilles, ou de type non géré (boursier, bulles, surface, 3D), n'est pas affiché.
 - Tableaux croisés : écrits en valeurs (pas de cache de tableau croisé d'Excel) ; ceux d'un fichier Excel s'ouvrent comme
-  de simples cellules ; pas de champs calculés.
+  de simples cellules ; les champs calculés ne sont relus que par ce tableur.
 - Les boutons de macro sont réécrits dans une feuille masquée que seul ce tableur relit ; graphiques, images et formes sont
   écrits à la fois comme de vrais objets d'Excel ou de LibreOffice et dans cette feuille (pour garder tous leurs réglages).
 - `.xls` (Excel 97-2003) : valeurs, formules, formats et fusions seulement (pas de mise en forme conditionnelle, de validation,
   de graphiques ni d'images) ; l'enregistrer en `.xlsx` garde le reste du travail.
-- `.ods` : formats de nombre comptables et formats rares approchés ; pas de tableaux structurés (écrits comme des plages).
+- `.ods` : formats de nombre rares approchés ; pas de tableaux structurés (écrits comme des plages) ; le plan, les scénarios et
+  les espions ne sont gardés que dans le `.xlsx`.
 - Pas de références externes entre classeurs (`=[Autre.xlsx]Feuil1!A1`) ; une macro VBA ne voit que son propre classeur.
 - VBA : pas de formulaires, d'événements, de classes, de `Property`, de fichiers ni d'API Windows.
 
@@ -164,7 +181,11 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 | `js/ods-objets.js` | Graphiques, images et formes d'un `.ods` (écriture et lecture) |
 | `js/csv.js` | CSV : décodage (UTF-8, Windows, UTF-16), séparateur et virgule décimale devinés, écriture à la française |
 | `js/stockage.js` | IndexedDB : classeurs ouverts, fichiers récents et leurs accès disque |
-| `js/modeles.js` | Modèles prêts à l'emploi |
+| `js/modeles.js` | Modèles prêts à l'emploi (au quotidien ; finance, comptabilité et actuariat) |
+| `js/plan.js` | Plan (groupes de lignes et de colonnes, niveaux) et sous-totaux automatiques (sans DOM) |
+| `js/scenarios.js` | Scénarios : application et synthèse (sans DOM) |
+| `js/utilitaire.js` | Utilitaire d'analyse : statistiques, régression, tests, ANOVA, lissages (sans DOM) |
+| `js/ui-finance.js` | Boîtes Sous-totaux et Calcul itératif, panneaux Scénarios, Fenêtre espion et Utilitaire d'analyse |
 | `js/formes.js` | Formes et zones de texte : dessin SVG, correspondance avec les formes d'Excel |
 | `js/tableaux.js`, `js/tableaux-xlsx.js` | Styles des tableaux structurés ; tableaux et tables de données dans le `.xlsx` |
 | `js/analyse.js`, `js/ui-analyse.js` | Solveur, table de données, remplissage instantané, audit des formules (sans DOM) et leurs panneaux |

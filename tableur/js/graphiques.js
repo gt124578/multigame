@@ -35,7 +35,12 @@ export const CATEGORIES = [
   { type: 'nuage', nom: 'Nuage de points', variantes: [['points', 'Points'], ['lignes', 'Points reliés'], ['lisse', 'Courbes lissées']] },
   { type: 'radar', nom: 'Radar', variantes: [['lignes', 'Radar'], ['rempli', 'Radar rempli']] },
   { type: 'combine', nom: 'Combiné', variantes: [['groupe', 'Histogramme + courbe']] },
+  { type: 'cascade', nom: 'Cascade', variantes: [['standard', 'Cascade (pont)']] },
 ];
+/** Couleurs du graphique en cascade : hausse, baisse, total. */
+export const COULEURS_CASCADE = ['#70ad47', '#e8463a', '#4472c4'];
+/** Points « total » d'une cascade : choisis (g.totaux) ou devinés d'après leur libellé (Total, Solde, Résultat…). */
+export const estTotalCascade = (g, cat, i) => (g.totaux && g.totaux[i] !== undefined ? !!g.totaux[i] : /\b(total|sous-total|solde|résultat|resultat|net|fin|clôture|cloture|ouverture|initial|final)\b/i.test(String(cat || '')));
 
 /** Libellé lisible d'un graphique (type et variante). */
 export function nomType(g) {
@@ -56,7 +61,7 @@ export function normaliser(g) {
   if (g.type === 'anneau') { g.type = 'secteurs'; g.variante = 'anneau'; }
   if (g.type === 'lignes' && g.variante === 'marqueurs') { g.variante = 'groupe'; g.marqueurs = true; }
   if (g.type === 'lignes' && g.variante === 'lisse') { g.variante = 'groupe'; g.lisse = true; g.marqueurs = false; }
-  const defaut = { colonnes: 'groupe', barres: 'groupe', lignes: 'groupe', aires: 'groupe', secteurs: 'plein', nuage: 'points', radar: 'lignes', combine: 'groupe' };
+  const defaut = { colonnes: 'groupe', barres: 'groupe', lignes: 'groupe', aires: 'groupe', secteurs: 'plein', nuage: 'points', radar: 'lignes', combine: 'groupe', cascade: 'standard' };
   if (!defaut[g.type]) g.type = 'colonnes';
   if (!g.variante) g.variante = defaut[g.type];
   if (g.legende === undefined || g.legende === true) g.legende = 'droite';
@@ -230,9 +235,12 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
   const edition = !!options.edition && !mini;
   if ((g.titre || edition) && !mini) { svg += texte(W / 2, 6 + police * 1.35, g.titre || 'Titre du graphique', `data-zone="titre" text-anchor="middle" font-size="${Math.round(police * 1.3)}" font-weight="600" fill="${g.titre ? '#111827' : '#9ca3af'}"${g.titre ? '' : ' font-style="italic"'}${edition ? ' style="cursor:text"' : ''}`); haut += police * 1.6 + 4; }
   const circulaire = g.type === 'secteurs';
-  const legendeItems = circulaire ? d.categories.map((c, i) => [c, couleur(i)]) : d.series.map((s, i) => [s.nom, couleur(i)]);
+  const cascade = g.type === 'cascade';
+  if (cascade) d.series = d.series.slice(0, 1);
+  const cc = (i) => g.couleurs[i] || COULEURS_CASCADE[i];
+  const legendeItems = circulaire ? d.categories.map((c, i) => [c, couleur(i)]) : cascade ? [['Hausse', cc(0)], ['Baisse', cc(1)], ['Total', cc(2)]] : d.series.map((s, i) => [s.nom, couleur(i)]);
   if (!circulaire && g.type !== 'radar') d.series.forEach((s, i) => { const t = g.tendances[i]; if (t && t.type) legendeItems.push([(TYPES_TENDANCE.find((x) => x[0] === t.type) || ['', 'Tendance'])[1] + ' (' + s.nom + ')', couleur(i), true]); });
-  const pos = mini || g.legende === 'aucune' || (!circulaire && d.series.length < 2 && g.legende === 'droite' && !g.legendeForcee) ? 'aucune' : g.legende;
+  const pos = mini || g.legende === 'aucune' || (!circulaire && !cascade && d.series.length < 2 && g.legende === 'droite' && !g.legendeForcee) ? 'aucune' : g.legende;
   if (pos !== 'aucune') {
     const items = legendeItems.slice(0, 24);
     if (pos === 'droite' || pos === 'gauche') {
@@ -276,7 +284,16 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
   d.series.forEach((s, k) => { if (sec(k)) s.valeurs.forEach((v) => { if (v !== null) { min2 = Math.min(min2, v); max2 = Math.max(max2, v); } }); });
   const aSecondaire = min2 <= max2;
   const piles = d.series.map(() => new Array(nbCat));
-  if (emp) {
+  if (cascade) {
+    // Pont : chaque barre part du cumul précédent ; un total repart de zéro
+    let cumul = 0; min = 0; max = 0;
+    d.series[0].valeurs.forEach((v, i) => {
+      if (v === null) return;
+      if (estTotalCascade(g, d.categories[i], i)) { piles[0][i] = [0, v]; cumul = v; }
+      else { piles[0][i] = [cumul, cumul + v]; cumul += v; }
+      min = Math.min(min, ...piles[0][i]); max = Math.max(max, ...piles[0][i]);
+    });
+  } else if (emp) {
     for (let i = 0; i < nbCat; i++) {
       let pos = 0, neg = 0;
       if (g.type === 'colonnes' || g.type === 'barres') {
@@ -359,11 +376,11 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
   const titre = (s, i, v) => `<title>${ech(s.nom)} — ${ech(nuage ? formatAuto(d.xs[i]) : d.categories[i])} : ${ech(fmtVal(v, false))}</title>`;
 
   // Séries en barres (histogramme, barres, combiné : la première série)
-  const enBarres = (k) => !sec(k) && (g.type === 'colonnes' || g.type === 'barres' || (g.type === 'combine' && k === 0));
+  const enBarres = (k) => !sec(k) && (g.type === 'colonnes' || g.type === 'barres' || cascade || (g.type === 'combine' && k === 0));
   const seriesBarres = d.series.map((_, k) => k).filter(enBarres);
   if (seriesBarres.length) {
     const groupe = (horizontal ? zone.h : zone.w) / nbCat * (mini ? 0.8 : 0.72);
-    const n = emp ? 1 : seriesBarres.length;
+    const n = emp || cascade ? 1 : seriesBarres.length;
     const lb = groupe / n;
     seriesBarres.forEach((k, rang) => {
       const s = d.series[k];
@@ -375,6 +392,13 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
         if (horizontal) {
           svg += `<rect x="${Math.min(a1, a2).toFixed(1)}" y="${o.toFixed(1)}" width="${Math.max(0.5, Math.abs(a2 - a1)).toFixed(1)}" height="${ep.toFixed(1)}" fill="${couleur(k)}" rx="1">${titre(s, i, v)}</rect>`;
           svg += etiquette(emp ? (a1 + a2) / 2 : Math.max(a1, a2) + 3, o + ep / 2 + police * 0.35, v, i, k, emp ? 'text-anchor="middle"' : 'text-anchor="start"');
+        } else if (cascade) {
+          const total = estTotalCascade(g, d.categories[i], i);
+          svg += `<rect x="${o.toFixed(1)}" y="${Math.min(a1, a2).toFixed(1)}" width="${ep.toFixed(1)}" height="${Math.max(0.5, Math.abs(a2 - a1)).toFixed(1)}" fill="${total ? cc(2) : v >= 0 ? cc(0) : cc(1)}" rx="1">${titre(s, i, v)}</rect>`;
+          // Trait qui relie le haut de la barre au départ de la suivante
+          const suiv = piles[k].findIndex((x, j) => j > i && x);
+          if (suiv > 0) { const y = pv(total ? b[1] : b[1]); svg += `<line x1="${(o + ep).toFixed(1)}" y1="${y.toFixed(1)}" x2="${(pc(suiv) - groupe / 2).toFixed(1)}" y2="${y.toFixed(1)}" stroke="#9ca3af" stroke-dasharray="2 2"/>`; }
+          svg += etiquette(o + ep / 2, Math.min(a1, a2) - 3, v, i, k);
         } else {
           svg += `<rect x="${o.toFixed(1)}" y="${Math.min(a1, a2).toFixed(1)}" width="${ep.toFixed(1)}" height="${Math.max(0.5, Math.abs(a2 - a1)).toFixed(1)}" fill="${couleur(k)}" rx="1">${titre(s, i, v)}</rect>`;
           svg += etiquette(o + ep / 2, emp ? (a1 + a2) / 2 + police * 0.35 : Math.min(a1, a2) - 3, v, i, k);

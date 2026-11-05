@@ -13,7 +13,7 @@ import { styleTableau, styleCelluleTableau } from './tableaux.js';
 function horsChaines(f, fn) { return f.split(/("(?:[^"]|"")*")/).map((m, i) => (i % 2 ? m : fn(m))).join(''); }
 
 /** Réglages de feuille (en JSON) gardés dans l'historique d'annulation et la sauvegarde du navigateur. */
-export const PROPRIETES_FEUILLE = ['tableaux', 'protection', 'miseEnPage', 'tablesDonnees', 'sparklines', 'solveur'];
+export const PROPRIETES_FEUILLE = ['tableaux', 'protection', 'miseEnPage', 'tablesDonnees', 'sparklines', 'solveur', 'plan', 'scenarios', 'espions'];
 
 export class Feuille {
   constructor(nom) {
@@ -581,6 +581,12 @@ export class Classeur {
     const tailles = axe === 'r' ? feuille.hauteurs : feuille.largeurs, nt = {};
     for (const [k, v] of Object.entries(tailles)) { const i = +k; if (n < 0 && i >= idx && i < idx - n) continue; nt[i >= idx ? i + n : i] = v; }
     if (axe === 'r') feuille.hauteurs = nt; else feuille.largeurs = nt;
+    // Plan (niveaux de groupe, tailles gardées pendant le repli) : suit les lignes / colonnes
+    if (feuille.plan) for (const k of axe === 'r' ? ['L', 'H'] : ['C', 'W']) {
+      const m = feuille.plan[k]; if (!m) continue; const nm = {};
+      for (const [x, v] of Object.entries(m)) { const i = +x; if (n < 0 && i >= idx && i < idx - n) continue; nm[i >= idx ? i + n : i] = v; }
+      feuille.plan[k] = nm;
+    }
     if (feuille.filtre) {
       const [a, b] = axe === 'r' ? ['r1', 'r2'] : ['c1', 'c2'], flt = feuille.filtre;
       if (n > 0) { if (flt[a] >= idx) flt[a] += n; if (flt[b] >= idx) flt[b] += n; }

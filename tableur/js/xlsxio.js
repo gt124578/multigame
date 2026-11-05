@@ -7,7 +7,7 @@ import { lireMasqueesXlsx, lireStylesXlsx, ecrireStylesXlsx, lireRichesXlsx } fr
 import { lireObjetsXlsx } from './objets-xlsx.js';
 import { lireVuesXlsx, ecrireVuesXlsx } from './vues-xlsx.js';
 import { lireTableauxXlsx, ecrireTableauxXlsx } from './tableaux-xlsx.js';
-import { lirePageXlsx, ecrirePageXlsx } from './page-xlsx.js';
+import { lirePageXlsx, ecrirePageXlsx, lireCalculXlsx } from './page-xlsx.js';
 import { ecrireOds, lireStylesOds } from './ods.js';
 import { ecrireCsv } from './csv.js';
 import { ecrireGraphiquesXlsx, specDepuisChartXml, positionAncre } from './graphiques-xlsx.js';
@@ -179,7 +179,12 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
         if (res.miseEnPage) f.miseEnPage = { ...(f.miseEnPage || {}), ...res.miseEnPage };
         if (res.protection) f.protection = res.protection;
         if (res.sparklines) f.sparklines = res.sparklines;
+        if (res.plan) f.plan = res.plan;
+        if (res.scenarios) f.scenarios = res.scenarios;
+        if (res.espions) f.espions = res.espions;
       }
+      const it = lireCalculXlsx(XLSX, donnees);
+      if (it) classeur.iteration = it;
     } catch (e) { console.warn('Mise en page non lue :', e); }
   }
   // Noms définis
@@ -301,6 +306,11 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
     const rows = [];
     for (const [r, px] of Object.entries(f.hauteurs)) rows[r] = px === 0 ? { hidden: true } : { hpx: px };
     for (const r of f.filtrees || []) rows[r] = { ...(rows[r] || {}), hidden: true };
+    // Plan : niveaux de groupe des lignes et des colonnes
+    if (f.plan) {
+      for (const [r, n] of Object.entries(f.plan.L || {})) rows[r] = { ...(rows[r] || {}), level: n };
+      for (const [c, n] of Object.entries(f.plan.C || {})) { cols[c] = { ...(cols[c] || {}), level: n }; if (!ws['!cols']) ws['!cols'] = cols; }
+    }
     if (rows.length) ws['!rows'] = rows;
     if (f.filtre) ws['!autofilter'] = { ref: adresse(f.filtre.r1, f.filtre.c1) + ':' + adresse(f.filtre.r2, f.filtre.c2) };
     if (f.fusions.length) ws['!merges'] = f.fusions.map((m) => ({ s: { r: m.r1, c: m.c1 }, e: { r: m.r2, c: m.c2 } }));

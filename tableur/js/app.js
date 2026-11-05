@@ -18,6 +18,8 @@ import { idbLire, idbEcrire, idbSupprimer, stockagePersistant } from './stockage
 import { decoderTexte, analyserCsv, detecterSeparateur, detecterDecimale } from './csv.js';
 import { MODELES, creerModele } from './modeles.js';
 import { FORMES, nouvelleForme, formeHTML } from './formes.js';
+import * as Plan from './plan.js';
+import { installerFinance } from './ui-finance.js';
 import { installerImpression } from './ui-impression.js';
 import { rendreGraphiqueSVG, normaliser as normaliserGraphique, sparklineSVG } from './graphiques.js';
 import { antecedents, dependants, actualiserTablesDonnees } from './analyse.js';
@@ -314,6 +316,21 @@ function rendreMaintenant() {
   for (let c = 0; c < z.c; c++) hc += enteteCol(c, xCols[c], true);
   for (let r = rv1; r <= r2; r++) hl += enteteLig(r, yLigs[r] - st, false);
   for (let r = 0; r < z.r; r++) hl += enteteLig(r, yLigs[r], true);
+  // Plan : boutons + / − sur la ligne (colonne) de résumé de chaque groupe, niveaux 1 2 3 dans le coin
+  if (f.plan) {
+    for (const g of Plan.groupes(f, 'L')) {
+      const r = g.resume; if (r < rv1 || r > r2 || !hauteurLig(r)) continue;
+      const h = hauteurLig(r);
+      hl += `<button class="plan-bouton" data-plan="L,${g.debut},${g.fin},${g.niveau}" title="${g.replie ? 'Afficher' : 'Masquer'} le détail (lignes ${g.debut + 1} à ${g.fin + 1})" style="top:${yLigs[r] - st + Math.max(0, (h - 13) / 2)}px;left:${1 + (g.niveau - 1) * 5}px">${g.replie ? '+' : '−'}</button>`;
+    }
+    for (const g of Plan.groupes(f, 'C')) {
+      const c = g.resume; if (c < cv1 || c > c2 || !largeurCol(c)) continue;
+      hc += `<button class="plan-bouton" data-plan="C,${g.debut},${g.fin},${g.niveau}" title="${g.replie ? 'Afficher' : 'Masquer'} le détail" style="left:${xCols[c] - sl + 2 + (g.niveau - 1) * 5}px;top:${Math.max(0, (HAUTEUR_DEFAUT - 13) / 2)}px">${g.replie ? '+' : '−'}</button>`;
+    }
+  }
+  const nivL = Plan.niveauMax(f, 'L'), nivC = Plan.niveauMax(f, 'C'), axeNiv = nivL ? 'L' : 'C', nbNiv = nivL || nivC;
+  $('coin').innerHTML = nbNiv ? Array.from({ length: Math.min(4, nbNiv + 1) }, (_, i) => `<button class="plan-niveau" data-niveau="${axeNiv},${i + 1}" title="Afficher le niveau ${i + 1} du plan (${axeNiv === 'L' ? 'lignes' : 'colonnes'})">${i + 1}</button>`).join('') : '';
+  entetesLig.classList.toggle('avec-plan', !!nivL);
   entetesCol.innerHTML = hc; entetesLig.innerHTML = hl;
   rendreVolets(f, F, z, sl, st, W, H, rv1, r2, cv1, c2);
   // Cellules
@@ -371,6 +388,46 @@ function placerImage(im, x, y, w, h) {
   im.de = { c, dx: Math.round((x - xCols[c]) / z), r, dy: Math.round((y - yLigs[r]) / z) };
   delete im.a; im.w = Math.round(w / z); im.h = Math.round(h / z);
 }
+// ----- Plan : grouper / dissocier des lignes ou des colonnes, replier le détail -----
+function grouperSelection(oui) {
+  const s = selectionNormalisee();
+  const faire = (axe) => {
+    try { memoriser('affichage'); } catch (e) { return toast(e.message, true); }
+    const [a, b] = axe === 'L' ? [s.r1, Math.min(s.r2, 1048574)] : [s.c1, Math.min(s.c2, 16382)];
+    if (oui) Plan.grouper(feuille(), axe, a, b); else Plan.dissocier(feuille(), axe, a, b);
+    if (!Plan.aUnPlan(feuille())) delete feuille().plan;
+    classeur.modifie(); sauvegarderLocal(); geometrie(); rendre();
+    if (oui) toast((axe === 'L' ? 'Lignes' : 'Colonnes') + ' groupées : − pour replier le détail (Alt+Maj+← pour dissocier)');
+  };
+  if (s.c1 === 0 && s.c2 >= nbColonnes - 1) return faire('L');
+  if (s.r1 === 0 && s.r2 >= nbLignes - 1) return faire('C');
+  // Comme Excel : on demande s'il s'agit des lignes ou des colonnes
+  const r = $('curseur').getBoundingClientRect();
+  ouvrirMenu(r.left, r.bottom + 2, [[(oui ? 'Grouper' : 'Dissocier') + ' les lignes ' + (s.r1 + 1) + (s.r2 > s.r1 ? ' à ' + (s.r2 + 1) : ''), () => faire('L')], [(oui ? 'Grouper' : 'Dissocier') + ' les colonnes ' + colVersLettres(s.c1) + (s.c2 > s.c1 ? ' à ' + colVersLettres(s.c2) : ''), () => faire('C')]]);
+}
+function actionPlan(axe, fn) { try { memoriser('affichage'); } catch (e) { return toast(e.message, true); } fn(feuille()); classeur.modifie(); sauvegarderLocal(); geometrie(); rendre(); }
+function detailSelection(montrer) {
+  const g = Plan.groupeEn(feuille(), 'L', curseur.r) || Plan.groupeEn(feuille(), 'C', curseur.c);
+  if (!g) return toast('Pas de groupe ici : Données > Grouper (Alt+Maj+→)', true);
+  const axe = Plan.groupeEn(feuille(), 'L', curseur.r) === g ? 'L' : 'C';
+  actionPlan(axe, (f) => (montrer ? Plan.deplier : Plan.replier)(f, axe, g));
+}
+function menuPlan() {
+  return [['Grouper…', () => grouperSelection(true), 'Alt+Maj+→'], ['Dissocier…', () => grouperSelection(false), 'Alt+Maj+←'], null,
+    ['Masquer le détail', () => detailSelection(false)], ['Afficher le détail', () => detailSelection(true)], null,
+    ['Sous-totaux…', () => uiF.ouvrirSousTotaux()], ...(Plan.aUnPlan(feuille()) ? [['Effacer le plan', () => actionPlan('L', (f) => Plan.effacerPlan(f))]] : [])];
+}
+// Boutons du plan (en-têtes et coin) : avant la sélection de ligne / colonne
+conteneur.addEventListener('mousedown', (e) => {
+  const b = e.target.closest('.plan-bouton, .plan-niveau');
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  if (edition) validerEdition();
+  if (b.dataset.niveau) { const [axe, n] = b.dataset.niveau.split(','); return actionPlan(axe, (f) => Plan.afficherNiveau(f, axe, +n)); }
+  const [axe, debut, fin, niveau] = b.dataset.plan.split(','), g = Plan.groupes(feuille(), axe).find((x) => x.debut === +debut && x.fin === +fin && x.niveau === +niveau);
+  if (g) actionPlan(axe, (f) => (g.replie ? Plan.deplier : Plan.replier)(f, axe, g));
+}, true);
+
 // ----- Formes et zones de texte (rangées avec les images, voir formes.js) -----
 function formeActive() { const o = imageActive && feuille().images.find((x) => x.id === imageActive); return o && o.forme ? o : null; }
 /** Applique un réglage à la forme choisie (gras, couleur, fond…) ; faux s'il n'y en a pas. */
@@ -653,6 +710,15 @@ const uiA = installerAnalyse({
   ouvrirPanneau: (nom) => ouvrirPanneau(nom), panneauOuvert: (nom) => panneauCourant === nom && !$('panneau').hidden,
   dialogue: (titre, html, ok, opts) => uiB.ouvrir(titre, html, ok, opts),
 });
+const uiF = installerFinance({
+  classeur: () => classeur, fi: () => fi(), feuille: () => feuille(), selection: () => selectionNormalisee(), curseur: () => curseur,
+  memoriser: (perm) => memoriser(perm), rendre: () => { geometrie(); rendre(); }, sauvegarder: () => sauvegarderLocal(), toast: (m, e) => toast(m, e),
+  dialogue: (titre, html, ok, opts) => uiB.ouvrir(titre, html, ok, opts),
+  nouvelleFeuille: (base) => { let n = base, i = 1; while (classeur.indexFeuille(n) >= 0) n = base + ' ' + (++i); memoriserVue(); classeur.ajouterFeuille(n, fi() + 1); return classeur.indexFeuille(n); },
+  activerFeuille: (i) => { memoriserVue(); activerFeuille(i); },
+  allerA: (i, r, c) => { if (i !== fi()) { memoriserVue(); activerFeuille(i); } placerCurseur(r, c); },
+  panneauOuvert: (nom) => panneauCourant === nom && !$('panneau').hidden,
+});
 const uiP = installerImpression({
   classeur: () => classeur, fi: () => fi(), feuille: () => feuille(), selectionBornee: () => selectionBornee(),
   memoriser: (perm) => memoriser(perm), sauvegarder: () => sauvegarderLocal(), rendre: () => rendre(), toast: (m, e) => toast(m, e),
@@ -865,14 +931,14 @@ function rendreOnglets() {
 function rendreStatut() {
   const R1 = Math.min(selection.r1, selection.r2), R2 = Math.min(Math.max(selection.r1, selection.r2), feuille().zone.r2);
   const C1 = Math.min(selection.c1, selection.c2), C2 = Math.min(Math.max(selection.c1, selection.c2), feuille().zone.c2);
-  let somme = 0, nb = 0, nbNum = 0;
+  let somme = 0, nb = 0, nbNum = 0, mini = Infinity, maxi = -Infinity;
   if (R1 !== Math.max(selection.r1, selection.r2) || C1 !== Math.max(selection.c1, selection.c2)) {
     // Comme Excel : les lignes masquées par un filtre ne comptent pas
     const filtrees = feuille().filtrees;
-    for (let r = R1; r <= R2; r++) { if (filtrees && filtrees.has(r)) continue; for (let c = C1; c <= C2; c++) { const cel = feuille().get(r, c); if (!cel) continue; const v = classeur.valeur(fi(), r, c); if (v == null || v === '') continue; nb++; if (typeof v === 'number') { somme += v; nbNum++; } } }
+    for (let r = R1; r <= R2; r++) { if (filtrees && filtrees.has(r)) continue; for (let c = C1; c <= C2; c++) { const cel = feuille().get(r, c); if (!cel) continue; const v = classeur.valeur(fi(), r, c); if (v == null || v === '') continue; nb++; if (typeof v === 'number') { somme += v; nbNum++; if (v < mini) mini = v; if (v > maxi) maxi = v; } } }
   }
   const fmt = (x) => afficherValeur(Math.round(x * 1e10) / 1e10);
-  $('statut').textContent = nbNum ? `Somme : ${fmt(somme)}   Moyenne : ${fmt(somme / nbNum)}   Nb : ${nb}` : (nb ? `Nb : ${nb}` : (classeur.nomFichier || ''));
+  $('statut').textContent = nbNum ? `Somme : ${fmt(somme)}   Moyenne : ${fmt(somme / nbNum)}   Nb : ${nb}` + (nbNum > 1 && innerWidth > 900 ? `   Min : ${fmt(mini)}   Max : ${fmt(maxi)}` : '') : (nb ? `Nb : ${nb}` : (classeur.nomFichier || ''));
   $('zoom-valeur').textContent = Math.round(Z() * 100) + ' %';
   $('ind-protection').hidden = !feuilleProtegee();
   $('ind-calcul').hidden = !classeur.calculManuel;
@@ -1791,12 +1857,13 @@ function nouveauModele(cle) {
 }
 function menuNouveau(x, y) {
   ouvrirMenu(x, y, [['Classeur vide', () => nouveauClasseur(), 'Ctrl+Alt+N'], null,
-    ...MODELES.map((m) => [m.icone + '  ' + m.nom, () => nouveauModele(m.cle)]), null, ['Tous les modèles…', () => uiB.modeles(MODELES, nouveauModele)]]);
+    ...MODELES.filter((m) => !m.groupe).map((m) => [m.icone + '  ' + m.nom, () => nouveauModele(m.cle)]),
+    ['Finance et actuariat', MODELES.filter((m) => m.groupe === 'finance').map((m) => [m.icone + '  ' + m.nom, () => nouveauModele(m.cle)])], null, ['Tous les modèles…', () => uiB.modeles(MODELES, nouveauModele)]]);
 }
 
 // Sauvegarde locale (navigateur) de tous les classeurs ouverts, pour survivre à un rechargement
 function serialiserClasseur(c) {
-  return JSON.stringify({ nomFichier: c.nomFichier, idFichier: c.idFichier, active: c.active, macros: c.macros || '', calculManuel: !!c.calculManuel, noms: [...c.noms.values()], modifie: estModifie(c),
+  return JSON.stringify({ nomFichier: c.nomFichier, idFichier: c.idFichier, active: c.active, macros: c.macros || '', calculManuel: !!c.calculManuel, iteration: c.iteration || undefined, noms: [...c.noms.values()], modifie: estModifie(c),
     feuilles: c.feuilles.map((f, fi2) => ({ nom: f.nom, codeNom: f.codeNom, cachee: f.cachee, largeurs: f.largeurs, hauteurs: f.hauteurs, fusions: f.fusions, graphiques: f.graphiques, boutons: f.boutons, images: f.images, noms: [...f.noms.values()], figer: f.figer, mfc: f.mfc, filtre: f.filtre, filtrees: [...(f.filtrees || [])], validations: f.validations, tcd: f.tcd, couleur: f.couleur,
       ...Object.fromEntries(PROPRIETES_FEUILLE.filter((k) => f[k] !== undefined).map((k) => [k, f[k]])), zoom: f.zoom,
       cellules: [...f.cellules].map(([k, cel]) => {
@@ -1823,6 +1890,7 @@ function deserialiserClasseur(data) {
   for (const n of data.noms || []) c.noms.set(n.nom.toUpperCase(), n);
   c.macros = data.macros || ''; c.active = Math.min(data.active || 0, c.feuilles.length - 1);
   if (data.calculManuel) c.calculManuel = true;
+  if (data.iteration) c.iteration = data.iteration;
   c.modifie();
   c.enregistre = data.modifie ? -1 : c.version;
   return c;
@@ -1832,7 +1900,7 @@ function sauvegarderLocal() {
   clearTimeout(timerLocal);
   timerLocal = setTimeout(() => {
     try { if (!classeur.calculManuel && classeur.feuilles.some((f) => f.tablesDonnees && f.tablesDonnees.length) && actualiserTablesDonnees(classeur)) rendre(); } catch (e) { console.warn(e); }
-    try { uiG.rafraichir(); uiD.rafraichir(); uiA.rafraichir(); } catch (e) { console.warn(e); }
+    try { uiG.rafraichir(); uiD.rafraichir(); uiA.rafraichir(); uiF.rafraichir(); } catch (e) { console.warn(e); }
     try {
       const morceaux = [], tous = [], t = Date.now();
       let total = 0;
@@ -1901,9 +1969,10 @@ function ouvrirPanneau(nom) {
   p.hidden = false;
   for (const el of document.querySelectorAll('.panneau-contenu')) el.hidden = true;
   $('panneau-' + nom).hidden = false;
-  $('panneau-titre').textContent = { macros: 'Macros VBA', fonctions: 'Fonctions', noms: 'Noms définis', aide: 'Aide', graphique: 'Graphique', rechercher: 'Rechercher et remplacer', tri: 'Tri personnalisé', mfc: 'Mise en forme conditionnelle', cible: 'Valeur cible', validation: 'Validation des données', tcd: 'Tableau croisé dynamique', ...uiA.titres }[nom] || nom;
+  $('panneau-titre').textContent = { macros: 'Macros VBA', fonctions: 'Fonctions', noms: 'Noms définis', aide: 'Aide', graphique: 'Graphique', rechercher: 'Rechercher et remplacer', tri: 'Tri personnalisé', mfc: 'Mise en forme conditionnelle', cible: 'Valeur cible', validation: 'Validation des données', tcd: 'Tableau croisé dynamique', ...uiA.titres, ...uiF.titres }[nom] || nom;
   if (uiD.panneaux[nom]) uiD.panneaux[nom]();
   if (uiA.panneaux[nom]) uiA.panneaux[nom]();
+  if (uiF.panneaux[nom]) uiF.panneaux[nom]();
   if (nom === 'tcd') uiT.construire();
   if (nom === 'fonctions') rendreFonctions();
   if (nom === 'noms') rendreNoms();
@@ -2378,6 +2447,7 @@ function rendreAide() {
 <tr><td>F9 · Ctrl+Alt+F9</td><td>Recalculer · tout recalculer</td></tr>
 <tr><td>Ctrl+S · F12 · Ctrl+O · Ctrl+P</td><td>Enregistrer · enregistrer · ouvrir · imprimer (avec aperçu et mise en page)</td></tr>
 <tr><td>Alt+F11 · Alt+F8</td><td>Éditeur VBA · liste des macros</td></tr>
+<tr><td>Alt+Maj+→ · Alt+Maj+←</td><td>Grouper · dissocier les lignes ou les colonnes choisies (plan)</td></tr>
 </table>
 <h3>Souris et doigt</h3>
 <ul>
@@ -2387,7 +2457,7 @@ function rendreAide() {
 <li>Tout ce qui a un raccourci est aussi dans un menu : clic droit (appui long au doigt) sur une cellule, un graphique, une image ou un onglet, et le menu ⋯ de la barre d'outils.</li>
 <li><b>Graphiques, images et formes</b> : un clic (un appui) les choisit, on les glisse n'importe où ; la poignée du coin les redimensionne ; flèches pour les ajuster (Maj : au pixel), Alt en glissant pour les caler sur les cellules, Suppr pour les enlever.</li>
 <li><b>◇ Formes</b> : zone de texte, rectangle, flèche, bulle… Double-clic (au doigt : un second appui) pour écrire dedans, <code>Ctrl+Entrée</code> ou un clic ailleurs pour finir ; G, I, S, les couleurs et l'alignement de la barre s'appliquent à la forme choisie ; clic droit pour le remplissage, le contour et l'ordre.</li>
-<li><b>Nouveau ▾</b> : un classeur vide ou un modèle prêt à remplir (budget, facture, relevé de notes, planning, présence, heures, tâches).</li>
+<li><b>Nouveau ▾</b> : un classeur vide ou un modèle prêt à remplir (budget, facture, relevé de notes, planning, présence, heures, tâches ; emprunt, projet, compte de résultat, mortalité, Chain Ladder).</li>
 <li><b>Enregistrer</b> (<code>Ctrl+S</code>) : avec Chrome ou Edge, le fichier ouvert est réécrit sur place ; ▾ à côté d'Ouvrir pour les fichiers récents. Formats : <code>.xlsx</code>, <code>.ods</code> (LibreOffice), <code>.csv</code>.</li>
 <li>🖌 <b>Pinceau</b> : un clic reproduit la mise en forme une fois, un double-clic plusieurs fois (Échap pour finir). ⊞ fusionne et centre.</li>
 <li>En tapant un texte, Sprezz propose celui qui existe déjà dans la colonne (Entrée pour le prendre).</li>
@@ -2414,6 +2484,8 @@ function rendreAide() {
 <li><b>Tableaux</b> (<code>Ctrl+L</code>) : un style, un filtre, et des formules qui parlent : <code>=SOMME(Tableau1[Prime])</code>, <code>=[@Prix]*[@Qté]</code> (tapez <code>[</code> pour voir les colonnes). Le tableau grandit quand on écrit dessous ou à côté ; une formule dans une colonne se recopie sur toute la colonne. Clic droit › Tableau : total, style, nom, taille, convertir en plage.</li>
 <li><b>Formules qui débordent</b> : <code>=TRIER(A2:B9;2;-1)</code>, <code>=UNIQUE(…)</code>, <code>=FILTRE(…)</code>, <code>=SEQUENCE(10)</code> remplissent les cellules voisines (cadre pointillé) ; <code>A1#</code> désigne tout le résultat ; <code>#SPILL!</code> si la place est prise.</li>
 <li><b>Analyse</b> (menu ⋯) : <b>Valeur cible</b> ; <b>Solveur</b> (maximiser, minimiser ou atteindre une valeur en changeant des cellules, avec contraintes ≤ ≥ = entier binaire ; exact pour les modèles linéaires) ; <b>Table de données</b> à une ou deux entrées, recalculée quand le modèle change.</li>
+<li><b>Finance et comptabilité</b> : formats <b>Comptabilité</b>, milliers (k€), millions (M€) et négatifs entre parenthèses dans la liste des formats ; <b>Plan</b> (⋯ › Plan, ou clic droit › Données › Grouper) : boutons + / − à côté des en-têtes et niveaux 1, 2, 3 dans le coin ; <b>Sous-totaux…</b> (clic droit › Données) : un total à chaque changement de valeur d'une colonne, avec le plan prêt à replier ; <b>Gestionnaire de scénarios</b> et <b>Utilitaire d'analyse</b> (⋯ › Analyse : statistiques descriptives, histogramme, régression, corrélation, moyenne mobile, tests t et F, ANOVA…) ; <b>Fenêtre espion</b> et <b>Calcul itératif</b> (⋯ › Formules) pour les modèles qui se citent eux-mêmes ; graphique <b>Cascade</b> ; <b>champs calculés</b> dans les tableaux croisés. Modèles (Nouveau ▾ › Finance et actuariat) : emprunt, rentabilité d'un projet, compte de résultat, table de mortalité, Chain Ladder.</li>
+<li><b>LET et LAMBDA</b> : <code>=LET(x;A1*2;x+1)</code>, <code>=MAP(A1:A9;LAMBDA(v;v*2))</code>, <code>=REDUCE(0;A1:A9;LAMBDA(s;v;s+v))</code> ; un nom défini <code>=LAMBDA(x;x*1,2)</code> devient une fonction (<code>=TTC(A1)</code>).</li>
 <li><b>Formules</b> (menu ⋯) : flèches des antécédents et des dépendants, évaluer la formule pas à pas, vérification des erreurs (d'où vient un #DIV/0!, formule différente de ses voisines, nombre stocké en texte), calcul manuel (F9).</li>
 <li><b>Imprimer</b> (<code>Ctrl+P</code>) : aperçu des pages à droite, réglages à gauche (orientation, papier, toutes les colonnes sur une page, marges, en-tête et pied « Page 1 sur 3 », zone d'impression, lignes à répéter, quadrillage). Sauts de page : menu ⋯ › Mise en page.</li>
 <li><b>Protéger la feuille</b> (⋯ › Révision) : avec ou sans mot de passe ; déverrouillez d'abord les cellules à laisser remplir (Format de cellule › Protection). 🔒 dans la barre d'état.</li>
@@ -2750,7 +2822,8 @@ function menuCellules(s) {
     ...(validationDe(feuille(), curseur.r, curseur.c)?.type === 'liste' ? [['Choisir dans la liste…', () => uiD.validation.ouvrirListe(curseur.r, curseur.c, $('curseur').getBoundingClientRect()), 'Alt+↓']] : []),
     null,
     ['Données', [['Trier de A à Z', () => uiD.trierRapide(false)], ['Trier de Z à A', () => uiD.trierRapide(true)], ['Tri personnalisé…', () => uiD.ouvrirTri()], [feuille().filtre ? 'Retirer le filtre' : 'Filtrer', () => uiD.basculerFiltre(), 'Ctrl+Maj+L'], null,
-      ['Supprimer les doublons…', () => uiB.doublons()], ['Convertir en colonnes…', () => uiB.colonnes()], ['Validation des données…', () => uiD.validation.ouvrir()], ['Mettre sous forme de tableau', () => mettreEnTableau(), 'Ctrl+L']]],
+      ['Supprimer les doublons…', () => uiB.doublons()], ['Convertir en colonnes…', () => uiB.colonnes()], ['Validation des données…', () => uiD.validation.ouvrir()], ['Mettre sous forme de tableau', () => mettreEnTableau(), 'Ctrl+L'], null,
+      ['Sous-totaux…', () => uiF.ouvrirSousTotaux()], ['Grouper…', () => grouperSelection(true), 'Alt+Maj+→'], ['Dissocier…', () => grouperSelection(false), 'Alt+Maj+←']]],
     ['Mise en forme conditionnelle…', () => uiD.ouvrirMfc()],
     ...menuTableau(),
     ...((feuille().sparklines || []).some((x) => x.r === curseur.r && x.c === curseur.c) ? [['Sparkline', [['Modifier le groupe…', () => uiB.sparklines(null, (feuille().sparklines.find((x) => x.r === curseur.r && x.c === curseur.c) || {}).groupe)],
@@ -2837,6 +2910,7 @@ conteneur.addEventListener('keydown', (e) => {
   const ctrl = e.ctrlKey || e.metaKey;
   const k = e.key;
   // Graphique ou image choisi : Suppr l'enlève, les flèches le déplacent, Échap revient aux cellules
+  if (e.altKey && e.shiftKey && !ctrl && (k === 'ArrowRight' || k === 'ArrowLeft')) { e.preventDefault(); grouperSelection(k === 'ArrowRight'); return; }
   if ((k === 'Delete' || k === 'Backspace') && objetSelectionne()) { e.preventDefault(); supprimerObjet(); return; }
   if ((k === 'F2' || k === 'Enter') && !ctrl && formeActive() && formeActive().forme !== 'ligne') { e.preventDefault(); editerTexteForme(formeActive()); return; }
   if (formeActive() && ctrl && ['b', 'i', 'u'].includes(k.toLowerCase()) && !e.shiftKey) { e.preventDefault(); const o = formeActive(), p = { b: 'gras', i: 'italique', u: 'souligne' }[k.toLowerCase()]; styleForme({ [p]: o[p] ? null : true }); return; }
@@ -3220,12 +3294,13 @@ function menuPlus() {
       ['Sparklines', [['Courbe…', () => uiB.sparklines('ligne')], ['Histogramme…', () => uiB.sparklines('colonne')], ['Gain / perte…', () => uiB.sparklines('gainperte')]]], ['Image…', () => $('fichier-image').click()], ['Zone de texte', () => insererForme('texte')], ['Forme', FORMES.filter(([k]) => k !== 'texte').map(([k, n, ic]) => [ic + '  ' + n, () => insererForme(k)])], ['Lien hypertexte…', () => uiB.lien(), 'Ctrl+K'], ['Note…', () => uiB.note(), 'Maj+F2']]],
     ['Données', [['Remplissage instantané', () => uiA.remplissage(), 'Ctrl+E'], ['Supprimer les doublons…', () => uiB.doublons()], ['Convertir en colonnes…', () => uiB.colonnes()], ['Validation des données…', () => uiD.validation.ouvrir()], null,
       ['Actualiser tout', () => { uiT.toutActualiser(); actualiserTablesDonnees(classeur); rendre(); sauvegarderLocal(); }, 'Ctrl+Alt+F5']]],
-    ['Analyse', [['Valeur cible…', () => uiD.ouvrirCible()], ['Solveur…', () => uiA.ouvrirSolveur()], ['Table de données…', () => uiA.ouvrirTableDonnees()]]],
+    ['Plan', menuPlan()],
+    ['Analyse', [['Valeur cible…', () => uiD.ouvrirCible()], ['Solveur…', () => uiA.ouvrirSolveur()], ['Table de données…', () => uiA.ouvrirTableDonnees()], ['Gestionnaire de scénarios…', () => ouvrirPanneau('scenarios')], null, ['Utilitaire d\'analyse…', () => ouvrirPanneau('utilitaire')]]],
     ['Formules', [['Repérer les antécédents', () => tracer('ant')], ['Repérer les dépendants', () => tracer('dep')], ['Supprimer les flèches', () => effacerFleches()], null,
       ['Sélectionner les antécédents', () => selectionnerLies('ant'), 'Ctrl+['], ['Sélectionner les dépendants', () => selectionnerLies('dep'), 'Ctrl+]'], null,
       ['Évaluer la formule…', () => uiA.evaluerFormule()], ['Vérification des erreurs…', () => uiA.ouvrirErreurs()],
       [afficherFormules ? 'Afficher les résultats' : 'Afficher les formules', () => { afficherFormules = !afficherFormules; rendre(); }, 'Ctrl+`'], null,
-      [(classeur.calculManuel ? '✓ ' : '') + 'Calcul manuel', () => basculerCalculManuel()],
+      [(classeur.calculManuel ? '✓ ' : '') + 'Calcul manuel', () => basculerCalculManuel()], [((classeur.iteration && classeur.iteration.actif) ? '✓ ' : '') + 'Calcul itératif…', () => uiF.ouvrirIteration()], ['Fenêtre espion', () => ouvrirPanneau('espion')],
       ['Recalculer', () => recalculer(), 'F9'], ['Tout recalculer', () => { classeur.abandonnerCaches(); classeur.evaluateur.recalculerTout(); actualiserTablesDonnees(classeur); rendre(); toast('Tout est recalculé (valeurs du fichier oubliées)'); }, 'Ctrl+Alt+F9']]],
     ['Mise en page', [['Imprimer / PDF…', () => uiP.ouvrir(), 'Ctrl+P'], ['Imprimer la sélection…', () => uiP.ouvrir({ quoi: 'selection' })], null,
       ['Définir la zone d\'impression', () => uiP.definirZone()], ['Effacer la zone d\'impression', () => uiP.effacerZone()], null,

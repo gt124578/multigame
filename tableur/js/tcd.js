@@ -16,7 +16,7 @@ import { comparerTri } from './donnees.js';
 export const FONCTIONS_TCD = [['somme', 'Somme'], ['nbval', 'Nombre'], ['moyenne', 'Moyenne'], ['max', 'Max'], ['min', 'Min'], ['produit', 'Produit'], ['nb', 'Nb (nombres)'], ['ecartype', 'Écart type'], ['var', 'Variance']];
 export const AFFICHAGES_TCD = [['normal', 'Valeur'], ['pctTotal', '% du total général'], ['pctColonne', '% du total de la colonne'], ['pctLigne', '% du total de la ligne']];
 const NOM_FN = Object.fromEntries(FONCTIONS_TCD);
-export const libelleValeur = (v) => (NOM_FN[v.fn] || 'Somme') + ' de ' + v.champ;
+export const libelleValeur = (v) => (v.calcule || (v.k === -1) ? v.champ : (NOM_FN[v.fn] || 'Somme') + ' de ' + v.champ);
 
 const VIDE = '(vide)';
 const STYLE_ENTETE = { gras: true, fond: '#dbe5f1' };
@@ -139,7 +139,9 @@ export function calculerTCD(classeur, spec, fiDefaut = 0) {
   const champs = champsSource(classeur, spec.source, fiDefaut);
   const idx = (nom) => { const k = champs.indexOf(nom); if (k < 0) throw new Error('Champ « ' + nom + ' » absent de la source'); return k; };
   const lignes = (spec.lignes || []).map(idx), colonnes = (spec.colonnes || []).map(idx);
-  const valeurs = (spec.valeurs || []).map((v) => ({ ...v, k: idx(v.champ) }));
+  // Champs calculés : une formule sur les sommes d'autres champs (« =Ventes-Coûts »), comme dans Excel
+  const calcules = spec.calcules || [];
+  const valeurs = (spec.valeurs || []).map((v) => { const cf = calcules.find((x) => x.nom === v.champ); return cf ? { ...v, k: -1, calcule: cf, fn: 'somme' } : { ...v, k: idx(v.champ) }; });
   const filtres = (spec.filtres || []).map((x) => ({ ...x, k: idx(x.champ) }));
   const fSrc = classeur.feuilles[F];
   const formatDe = (k) => { for (let r = p.r1 + 1; r <= Math.min(p.r2, p.r1 + 20); r++) { const cel = fSrc.get(r, p.c1 + k); if (cel && cel.z) return cel.z; } return undefined; };
@@ -167,7 +169,7 @@ export function calculerTCD(classeur, spec, fiDefaut = 0) {
   const nv = Math.max(1, valeurs.length);
   // 3. Regroupement : cellule (préfixe de ligne, préfixe de colonne) → listes de valeurs par champ de valeur
   const groupes = new Map();
-  const ajouter = (cle, e) => { let g = groupes.get(cle); if (!g) { g = valeurs.map(() => []); groupes.set(cle, g); } valeurs.forEach((v, i) => g[i].push(e[v.k])); };
+  const ajouter = (cle, e) => { let g = groupes.get(cle); if (!g) { g = valeurs.map(() => []); groupes.set(cle, g); } valeurs.forEach((v, i) => g[i].push(v.k >= 0 ? e[v.k] : e)); };
   for (const e of enregistrements) {
     const cl = lignes.map((k) => cleDe(e[k])), cc = colonnes.map((k) => cleDe(e[k]));
     // Toutes les profondeurs de ligne (sous-totaux) × colonne complète ou total
@@ -177,7 +179,19 @@ export function calculerTCD(classeur, spec, fiDefaut = 0) {
       ajouter(i + '|' + pl + '||*', e);
     }
   }
-  const val = (profL, cleL, cleC, i) => { const g = groupes.get(profL + '|' + cleL + '||' + cleC); return g ? agreger(valeurs[i].fn, g[i]) : null; };
+  const calculer = (cf, lignesE) => {
+    // Chaque champ cité est remplacé par sa somme sur les lignes du croisement, puis la formule est évaluée
+    const noms = champs.map((nom, k) => ({ nom, k })).sort((a, b) => b.nom.length - a.nom.length);
+    let expr = String(cf.formule || '').trim().replace(/^=/, '');
+    for (const { nom, k } of noms) {
+      const somme = lignesE.reduce((t, e) => t + (typeof e[k] === 'number' ? e[k] : 0), 0);
+      const echappe = nom.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      expr = expr.replace(new RegExp("'" + echappe + "'|(?<![\\p{L}\\d_])" + echappe + '(?![\\p{L}\\d_])', 'giu'), '(' + somme + ')');
+    }
+    const v = classeur.evaluateur.evaluerFormule(expr, F, 0, 0);
+    return v instanceof ErreurFormule ? v : typeof v === 'number' ? v : null;
+  };
+  const val = (profL, cleL, cleC, i) => { const g = groupes.get(profL + '|' + cleL + '||' + cleC); return g ? (valeurs[i].calcule ? calculer(valeurs[i].calcule, g[i]) : agreger(valeurs[i].fn, g[i])) : null; };
   // 4. Mise en page (forme tabulaire)
   const out = [];
   const poser = (i, j, cel) => { while (out.length <= i) out.push([]); out[i][j] = cel; };
@@ -227,7 +241,7 @@ export function calculerTCD(classeur, spec, fiDefaut = 0) {
       const v = valeurs[cd.i];
       if (!v) return;
       let x = val(prof, cleL, cd.cleC, cd.i);
-      if (x !== null && v.affichage && v.affichage !== 'normal') {
+      if (typeof x === 'number' && v.affichage && v.affichage !== 'normal') {
         const den = v.affichage === 'pctTotal' ? totalGeneral(cd.i) : v.affichage === 'pctColonne' ? val(0, '', cd.cleC, cd.i) : val(prof, cleL, '*', cd.i);
         x = den ? x / den : null;
       }
