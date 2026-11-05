@@ -37,6 +37,27 @@ export const Nothing = Symbol('Nothing');
 export const Empty = undefined;
 export const Null = null;
 
+/** Valeur convertie au type déclaré (case d'un tableau As Double…) ; une cellule (Range) donne sa valeur. */
+function versType(v, type, ligne) {
+  const t = String(type || '').toUpperCase();
+  if (v instanceof RangeVBA && !['RANGE', 'OBJECT', 'VARIANT'].includes(t)) v = v.valeur();
+  if (t === 'STRING') return texte(scalaire(v));
+  if (['INTEGER', 'LONG', 'BYTE', 'LONGLONG'].includes(t)) return arrondiBancaire(nombre(scalaire(v), ligne));
+  if (['DOUBLE', 'SINGLE', 'CURRENCY', 'DECIMAL', 'DATE'].includes(t)) return nombre(scalaire(v), ligne);
+  if (t === 'BOOLEAN') return booleen(scalaire(v), ligne);
+  if (t === 'VARIANT' && v instanceof RangeVBA) return v.valeur();
+  return v;
+}
+/** Copie d'un tableau (en VBA, « a = b » copie le tableau), cases converties au type déclaré de la variable. */
+function copierTableau(src, type, ligne) {
+  const t = new TableauVBA(src.dims.map((d) => ({ lb: d.lb, ub: d.ub })));
+  const T = String(type || '').toUpperCase();
+  const convertir = T && T !== 'VARIANT' && T !== 'OBJECT';
+  for (let i = 0; i < src.data.length; i++) t.data[i] = convertir ? versType(src.data[i], T, ligne) : src.data[i];
+  t.type = type || src.type;
+  return t;
+}
+
 /** Jeton cité dans un message d'erreur : « la fin de la ligne » plutôt que « nl ». */
 function decrireJeton(t) { return t.t === 'nl' ? 'la fin de la ligne' : t.t === 'eof' ? 'la fin du module' : String(t.v ?? t.t); }
 
@@ -2109,7 +2130,11 @@ export class InterpreteurVBA {
         const g = this.objetGlobal(cible.base.nom, null, portee, ligne);
         if (g.trouve) { if (g.v instanceof ObjetVBA) { g.v.set('VALUE', null, v, this); return; } }
       }
-      if (slot && slot.type && !set) {
+      if (slot && slot.type && !set && (v instanceof TableauVBA || (slot.ref ? slot.ref.get() : slot.v) instanceof TableauVBA)) {
+        // Tableau typé (Dim t() As Double) : t = une fonction qui rend un tableau → copie, cases converties au type
+        if (!(v instanceof TableauVBA)) throw erreur(E_TYPE, 'Type incompatible : un tableau est attendu', ligne);
+        v = copierTableau(v, slot.type, ligne);
+      } else if (slot && slot.type && !set) {
         const t = slot.type.toUpperCase();
         if (t === 'STRING') v = texte(scalaire(v));
         else if (['INTEGER', 'LONG', 'BYTE', 'LONGLONG'].includes(t)) v = arrondiBancaire(nombre(scalaire(v), ligne));
@@ -2142,7 +2167,7 @@ export class InterpreteurVBA {
       if (!(objet instanceof ObjetVBA)) throw erreur(E_MEMBRE, 'Propriété non gérée : ' + dernier.nom, ligne);
       objet.set(dernier.nom, args, v, this);
     } else {
-      if (objet instanceof TableauVBA) objet.set(args.map((a) => nombre(a.v, ligne)), v);
+      if (objet instanceof TableauVBA) objet.set(args.map((a) => nombre(a.v, ligne)), objet.type ? versType(v, objet.type, ligne) : v instanceof RangeVBA ? v.valeur() : v);
       else if (objet instanceof ObjetVBA) objet.setIndex(args, v, this);
       else throw erreur(E_INDICE, 'Cette variable n\'est pas un tableau', ligne);
     }
@@ -2191,7 +2216,7 @@ export function creerUDF(it) {
       try { r = it.appelerProcedure(p, args.map((v) => ({ v: conv(v) }))); }
       catch (e) {
         const marquer = (x) => { x.vba = true; return x; };
-        if (e instanceof ErreurVBA) throw marquer(new ErreurFormule('#VALUE!', e.description));
+        if (e instanceof ErreurVBA) throw marquer(new ErreurFormule('#VALUE!', 'VBA, fonction ' + p.nom + (e.ligne ? ', ligne ' + e.ligne + (e.module ? ' de ' + e.module : '') : '') + ' : ' + e.description));
         if (e instanceof ErreurFormule) throw marquer(e);
         if (e instanceof SignalExit) r = undefined;
         else if (e instanceof RangeError) throw marquer(new ErreurFormule('#VALUE!', 'récursion'));

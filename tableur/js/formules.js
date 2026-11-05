@@ -2007,7 +2007,9 @@ export class Evaluateur {
     this.enConstruction = new Set();
   }
 
-  invalider() { if (this.classeur.calculManuel && !this.forcer) return; this.cache.clear(); this.debords.clear(); this.index.clear(); this.indexPret = false; }
+  invalider() { if (this.classeur.calculManuel && !this.forcer) return; this.cache.clear(); this.debords.clear(); this.index.clear(); this.indexPret = false; if (this.gardees) this.gardees.clear(); }
+  /** Erreur VBA masquée par la valeur enregistrée dans le fichier (voir valeurBrute), pour la signaler sur la cellule. */
+  erreurGardee(f, r, c) { return this.gardees ? this.gardees.get(f + ',' + r + ',' + c) || null : null; }
   recalculerTout() { this.forcer = true; try { this.invalider(); } finally { this.forcer = false; } }
 
   /**
@@ -2147,7 +2149,13 @@ export class Evaluateur {
     }
     // Une fonction VBA qui ne peut pas encore répondre (table pas chargée, macro absente) : comme Excel à l'ouverture,
     // on garde la valeur enregistrée dans le fichier tant que la cellule n'a pas été recalculée pour de bon.
-    if (v instanceof ErreurFormule && v.vba && cel.cache !== undefined && cel.cache !== null && !(cel.cache instanceof ErreurFormule)) v = cel.cache;
+    // Seulement tant que le code VBA est celui du fichier : une fois le code modifié ici, l'erreur se voit (comme Excel,
+    // qui remet le projet à zéro quand on modifie le code).
+    const codeDuFichier = !this.classeur.vbaCode || this.classeur._codeFichier === undefined || this.classeur.vbaCode === this.classeur._codeFichier;
+    if (v instanceof ErreurFormule && v.vba && codeDuFichier && cel.cache !== undefined && cel.cache !== null && !(cel.cache instanceof ErreurFormule)) {
+      (this.gardees || (this.gardees = new Map())).set(cle, v);
+      v = cel.cache;
+    } else if (this.gardees) this.gardees.delete(cle);
     this.cache.set(cle, v);
     return v;
   }

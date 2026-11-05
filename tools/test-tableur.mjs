@@ -1269,6 +1269,36 @@ test('vba : fonctions des cellules (Type, Enum, Caller, CVErr, Application.X, no
   egal([e.feuilles[1].get(5, 1).f, e.feuilles[1].get(6, 1).f.slice(0, 7)], ['=Duration(2)', '=DUREE(']);
 });
 
+test('vba : tableau typé rempli par une fonction (Dim t() As Double : t = f(plage)), erreur visible après modification du code', () => {
+  const c = Classeur.nouveau();
+  for (let i = 0; i < 6; i++) c.saisir(0, i, 1, String(1000 - 100 * i));
+  c.ajouterModule('Package');
+  const code = [
+    'Option Explicit', 'Option Base 0',
+    'Public Function EnTableau(rng As Range) As Variant', '  Dim res() As Double, i As Integer, n As Integer', '  n = Application.WorksheetFunction.Count(rng)', '  ReDim res(0 To n - 1)',
+    '  For i = 0 To n - 1', '    res(i) = rng(i + 1, 1)', '  Next i', '  EnTableau = res', 'End Function',
+    'Public Function Stress(rng As Range, d As Double) As Variant', '  Dim t() As Double, s() As Double, x As Integer', '  t = EnTableau(rng)', '  ReDim s(0 To UBound(t))', '  s(0) = t(0)',
+    '  For x = 0 To UBound(t) - 1', '    s(x + 1) = s(x) * (1 - (t(x) - t(x + 1)) / t(x) * (1 - d))', '  Next x', '  Stress = Application.Transpose(s)', 'End Function',
+    'Public Function Deuxieme(rng As Range) As Double', '  Dim t() As Double', '  t = EnTableau(rng)', '  Deuxieme = t(1)', 'End Function',
+  ].join('\n');
+  c.definirCodeModule('module:Package', code);
+  const it = new InterpreteurVBA(c, {});
+  for (const m of c.modulesVBA()) if (m.code.trim()) it.charger(m.code, { nom: m.nom, genre: m.genre, feuille: m.feuille });
+  c.udf = creerUDF(it); c.evaluateur.invalider();
+  c.saisir(0, 0, 3, '=Deuxieme(B1:B6)'); c.saisir(0, 0, 4, '=Stress(B1:B6;0)');
+  egal([c.valeur(0, 0, 3), c.valeur(0, 0, 4), c.valeur(0, 5, 4)], [900, 1000, 500]);
+  // Valeur du fichier gardée tant que le code est celui du fichier ; l'erreur se voit une fois le code modifié
+  const cel = c.feuilles[0].get(0, 3); cel.cache = 42;
+  c._codeFichier = c.vbaCode = 'v1';
+  c.definirCodeModule('module:Package', code.replace('Deuxieme = t(1)', 'Deuxieme = t(99)'));
+  const it2 = new InterpreteurVBA(c, {}); for (const m of c.modulesVBA()) if (m.code.trim()) it2.charger(m.code, { nom: m.nom, genre: m.genre, feuille: m.feuille });
+  c.udf = creerUDF(it2); c.evaluateur.invalider();
+  egal([c.valeur(0, 0, 3), !!c.evaluateur.erreurGardee(0, 0, 3)], [42, true]);
+  c.vbaCode = 'v2'; c.evaluateur.invalider();
+  const v = c.valeur(0, 0, 3);
+  egal([v.code, /Deuxieme, ligne \d+ de Package/.test(v.message)], ['#VALUE!', true]);
+});
+
 test('vba : renommer une macro, une fonction ou un module met à jour ce qui les cite', () => {
   const c = Classeur.nouveau();
   c.ajouterModule('Calculs'); c.ajouterModule('Boutons');

@@ -236,8 +236,10 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
       style += css({ ...s, fond: mfc && mfc.barre ? null : s.fond });
       if (cel.note) cls += ' note';
       if (cel.lien) cls += ' lien';
+      const gardee = cel.f != null ? classeur.evaluateur.erreurGardee(F, r, c) : null;
+      if (gardee) cls += ' gardee';
       if (entourerInvalides && f.validations.length) { const dv = validationDe(f, r, c); if (dv && !valeurValide(classeur, F, dv, r, c)) cls += ' invalide'; }
-      const bulle = cel.note || (cel.lien ? cel.lien + ' — Ctrl+clic pour suivre le lien' : '');
+      const bulle = cel.note || (cel.lien ? cel.lien + ' — Ctrl+clic pour suivre le lien' : '') || (v instanceof ErreurFormule && v.message ? v.code + ' — ' + v.message : '') || (gardee ? 'Valeur enregistrée dans le fichier : la fonction VBA ne répond pas encore (' + gardee.code + (gardee.message ? ' : ' + gardee.message : '') + '). Lancez la macro qui prépare ses données, ou corrigez le code.' : '');
       const riche = cel.riche && cel.f == null && typeof v === 'string' && !afficherFormules && texteRuns(cel.riche) === v;
       // Jeu d'icônes (mise en forme conditionnelle) : l'icône à gauche, la valeur garde sa place
       const icone = mfc && mfc.icone && !afficherFormules ? `<span class="icone-mfc">${iconeSVG(mfc.icone.jeu, mfc.icone.i)}</span>` : '';
@@ -938,7 +940,11 @@ function rendreStatut() {
     for (let r = R1; r <= R2; r++) { if (filtrees && filtrees.has(r)) continue; for (let c = C1; c <= C2; c++) { const cel = feuille().get(r, c); if (!cel) continue; const v = classeur.valeur(fi(), r, c); if (v == null || v === '') continue; nb++; if (typeof v === 'number') { somme += v; nbNum++; if (v < mini) mini = v; if (v > maxi) maxi = v; } } }
   }
   const fmt = (x) => afficherValeur(Math.round(x * 1e10) / 1e10);
-  $('statut').textContent = nbNum ? `Somme : ${fmt(somme)}   Moyenne : ${fmt(somme / nbNum)}   Nb : ${nb}` + (nbNum > 1 && innerWidth > 900 ? `   Min : ${fmt(mini)}   Max : ${fmt(maxi)}` : '') : (nb ? `Nb : ${nb}` : (classeur.nomFichier || ''));
+  // Une seule cellule en erreur : la raison (#VALUE! : ligne 12 de Package : Type incompatible…)
+  const vc = classeur.valeur(fi(), curseur.r, curseur.c), garde = classeur.evaluateur.erreurGardee(fi(), curseur.r, curseur.c);
+  const raison = !nb && vc instanceof ErreurFormule && vc.message ? vc.code + ' — ' + vc.message : !nb && garde ? 'Valeur du fichier : la fonction VBA répond ' + garde.code + (garde.message ? ' — ' + garde.message : '') : '';
+  $('statut').textContent = nbNum ? `Somme : ${fmt(somme)}   Moyenne : ${fmt(somme / nbNum)}   Nb : ${nb}` + (nbNum > 1 && innerWidth > 900 ? `   Min : ${fmt(mini)}   Max : ${fmt(maxi)}` : '') : raison || (nb ? `Nb : ${nb}` : (classeur.nomFichier || ''));
+  $('statut').title = raison;
   $('zoom-valeur').textContent = Math.round(Z() * 100) + ' %';
   $('ind-protection').hidden = !feuilleProtegee();
   $('ind-calcul').hidden = !classeur.calculManuel;
@@ -2274,6 +2280,7 @@ function hoteVBA() {
 function chargerUDF(c = classeur, invalider = true) {
   const signature = c.macros;
   c._udfEssaye = true;
+  if (c._codeFichier === undefined) c._codeFichier = signature; // le code tel qu'ouvert : les valeurs du fichier valent tant qu'il ne change pas
   if (c.vba && c.vbaCode === signature) { if (invalider) c.evaluateur.invalider(); return; }
   c.vbaCode = signature;
   c.vba = null;
