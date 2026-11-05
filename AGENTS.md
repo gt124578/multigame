@@ -124,6 +124,15 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   Odyssée Test (`odyssee/test/`, jeu `odysseetest` du Hub) : le vrai jeu avec `window.ODYSSEE_TEST`, un labo pour choisir
   lieu et équipe (`odyssee/js/labo/labo.js`, rien n'est sauvegardé) et un éditeur de carte (`odyssee/js/labo/editeur.js`) ;
   ses retouches exportées se collent dans `odyssee/js/world/retouches.js`, appliquées à la fin de `buildWorld`.
+  Schéma des cartes à dessiner par-dessus : `node tools/odyssee-schema.mjs [tout|monde|grottes|<carte>] [dossier]` (par défaut
+  `/tmp/schema`) exporte pour le dehors et chaque grotte un schéma 1 pixel = 1 case (une couleur par type de case, `legende.png`
+  / `legende.md`), sa version ×8 (grille, coordonnées, noms, PNJ), la carte des hauteurs en gris (32 + 16 × niveau, ravin = 0 ;
+  grottes : gradins du rendu, non relus), sa lecture ×8 colorée et la normal map qui en est tirée. Les images corrigées reviennent
+  par `node tools/odyssee-schema-import.mjs <carte> <schema.png|-> [hauteurs.png] [--appliquer] [--base dossier]` : rapport
+  (cases changées, cases fixes ignorées, accès coupés), retouches `['t', …]` et `['h', x, y, hauteur, pente]` (hauteur d'une
+  case, falaise posée sous un bord sud rehaussé comme `plateau()`) ; `--appliquer` les ajoute à `retouches.js` puis lance
+  `test-odyssee.mjs` (et remet le fichier si le test échoue). Code commun : `tools/odyssee-schema-commun.mjs` ;
+  `node tools/test-odyssee-schema.mjs` vérifie l'aller-retour (à vide, pinceau adouci, JPEG).
   Les outils de dessin (atelier graphique, vitrine, sources PixelLab, scripts de découpe des sols, kits, personnages
   et créatures à 16 px) vivent sur la branche `atelier` du fork ; `main` ne garde que le jeu.
   Personnages à 64 px (PixelLab, d'après les anciens modèles) : planches de marche dans `assets/graphics/persos64/`,
