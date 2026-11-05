@@ -25,6 +25,7 @@ export const facettesActives = () => !params().has('r3plat');
 let MAT_FAC = null;
 export function matFacettes() { return MAT_FAC || (MAT_FAC = new THREE.MeshBasicMaterial({ vertexColors: true })); }
 export const modePente = () => params().has('r3pente');
+const penteRoche = () => params().has('r3proche');   // les montagnes aussi en vraies pentes de roche
 export function relief3dActif() { return params().has('relief3d'); }
 const num = (k, d) => { const v = params().get(k); return v == null || v === '' || isNaN(+v) ? d : +v; };
 
@@ -38,7 +39,7 @@ const PENTE_DOUCE_MAX = 1.6;            // … entre deux replats où l'on march
 const WD = 0.16 * LV;                // l'eau est un peu plus basse que la berge
 const RAVIN = -3.2 * LV;             // fond d'un ravin
 const DOUX = 1.5;                    // largeur (cases) d'une pente douce entre deux replats d'un niveau d'écart
-const ROC = 0.42;
+const ROC = num('r3roc', 0.42);   // largeur de la pente d'un gradin de roche (cases)
 const GAMMA_STRATES = num('r3g', 1.8);   // > 1 : strates espacées en haut, serrées vers le pied (perspective)
 const PAS_STRATES = num('r3s', 9);
 const SERRE = num('r3p', 1.7);   // > 1 : la texture de la paroi se tasse vers le pied (perspective) ; 1 : régulière
@@ -544,7 +545,7 @@ export class Relief3D {
       if (!ks.some((k) => D.ht[k] >= 0 && D.hbas[k] >= 0)) continue;
       const cx = b.x0 + Math.floor(i / RN), cz = b.z0 + Math.floor(j / RN), ck = cx + ',' + cz;
       let p = cache.get(ck); if (!p) { p = this.paroiDe(cx, cz); cache.set(ck, p); }
-      if (modePente() && p.levre) continue;
+      if (modePente() && (p.levre || penteRoche())) continue;
       const lc = p.levre ? rgb(p.levre).map((v) => (v / 255) ** 2.2) : [0, 0, 0];
       for (const [q, k] of ks.entries()) {
         const a = i + (q === 1 || q === 2 ? 1 : 0), c = j + (q < 2 ? 1 : 0), x = b.x0 + a / RN, z = b.z0 + c / RN;
@@ -605,7 +606,7 @@ export class Relief3D {
       const cx = b.x0 + Math.floor(i / RN), cz = b.z0 + Math.floor(Math.max(r0.j0, 0) / RN);
       const pz = this.paroiDe(cx, cz + 1);
       if (pz.t >= MURS.length) continue;   // les marches gardent leur dessin
-      if (modePente() && pz.levre) continue;
+      if (modePente() && (pz.levre || penteRoche())) continue;
       const pal = PALS[MURS[pz.t]] || PALS.montagne;
       const T0 = P3(r0.t, i, r0.j0), B0 = P3(r0.b, i, r0.j1), T1 = P3(r1.t, i + 1, r1.j0), B1 = P3(r1.b, i + 1, r1.j1);
       // la lèvre (herbe, neige) reste visible : les facettes commencent un peu sous le haut de la paroi
