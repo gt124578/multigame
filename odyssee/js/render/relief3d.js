@@ -163,7 +163,7 @@ float r3Fond(float y) { return clamp(1.0 + y / ${(-RAVIN * 0.95).toFixed(4)}, 0.
 /* ESSAIS (?r3tal=lum,arete,pied,frange,courbes,hachures,sec,terre,tout) : comment faire lire un talus d'herbe comme une pente.
  *  Chaque mot ajoute un indice ; tout se calcule dans le pixel, d'après la facette (normale du triangle) et la hauteur. */
 const TAL = new Set((params().get('r3tal') || '').split(',').filter(Boolean));
-const tal = (k) => TAL.has(k) || (TAL.has('tout') && !['hachures', 'courbes2', 'lumface', 'gris', 'facette', 'courbes', 'terre'].includes(k));
+const tal = (k) => TAL.has(k) || (TAL.has('tout') && !['hachures', 'courbes2', 'lumface', 'gris', 'facette', 'courbes', 'terre', 'ombre', 'teinte', 'brins', 'contour', 'niveau'].includes(k));
 function glslTalus() {
   if (!TAL.size) return '';
   const K = num('r3lk', 2.4).toFixed(3), LZ = num('r3lz', -0.35).toFixed(3), LX = num('r3lx', -0.5).toFixed(3);
@@ -201,13 +201,22 @@ function glslTalus() {
       }` : ''}
       ${tal('arete') ? 'if (th > 0.9) q *= 1.18; else if (th > 0.84 && bay > 0.5) q *= 1.08;' : ''}
       ${tal('pied') ? 'if (th < 0.05) q *= 0.6; else if (th < 0.13) q *= 0.76; else if (th < 0.2 && bay > 0.5) q *= 0.88;' : ''}
+      ${tal('brins') ? `{
+        float lane = floor(along / 2.0), r1 = r3Hash(vec2(lane, 11.0)), r2 = r3Hash(vec2(lane, 17.0));
+        float ph = fract(th * 2.6 + r2);
+        if (r1 > 0.42 && ph < 0.3) q *= 0.84; else if (r1 > 0.42 && ph < 0.36) q *= 1.1;
+      }` : ''}
       ${tal('frange') ? `{
         float tooth = 0.07 + 0.2 * r3Hash(vec2(floor(col / 2.0), 3.0)) + 0.06 * r3Hash(vec2(floor(col / 5.0), 9.0));
+        float lw = ${tal('contour') ? 'max(0.045, fwidth(th) * 1.6)' : '0.045'};
         if (th > 1.0 - tooth) q = ${tal('lum') ? 'max(q, 1.0)' : '1.0'};
-        else if (th > 1.0 - tooth - 0.045) q *= 0.6;
+        else if (th > 1.0 - tooth - lw) q *= ${tal('contour') ? '0.48' : '0.6'};
       }` : ''}
+      ${tal('teinte') ? 'if (q < 1.0) diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.78, 0.94, 1.22), clamp((1.0 - q) * 1.6, 0.0, 0.7)); else diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.12, 1.07, 0.8), clamp((q - 1.0) * 2.5, 0.0, 0.6));' : ''}
     }
-  }`;
+  }
+  ${tal('ombre') ? `if (vRoc < 0.5 && vOmb > 0.02 && vOmb * 1.2 > bay * 0.6 + 0.2) { q *= 0.74; ${tal('teinte') ? 'diffuseColor.rgb *= vec3(0.86, 0.95, 1.14);' : ''} }` : ''}
+  ${tal('niveau') ? `q *= 1.0 + 0.05 * floor(vY / ${LV.toFixed(5)} + 0.02);` : ''}`;
 }
 
 /** sol généré posé sur le relief : paliers d'ombre selon la pente, herbe plus sombre au pied des parois */
@@ -215,10 +224,10 @@ export function matSol(mat, w, h) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uTx = { value: new THREE.Vector2(w, h) };
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec3 nrm; attribute float pied; attribute float fr; attribute float roc; varying vec3 vNrm; varying float vPied; varying float vY; varying vec2 vTx; varying float vFr; varying float vRoc; varying vec3 vP; uniform vec2 uTx;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNrm = nrm; vPied = pied; vY = transformed.y; vTx = uv * uTx; vFr = fr; vRoc = roc; vP = transformed;');
+      .replace('#include <common>', '#include <common>\nattribute vec3 nrm; attribute float pied; attribute float fr; attribute float roc; attribute float omb; varying float vOmb; varying vec3 vNrm; varying float vPied; varying float vY; varying vec2 vTx; varying float vFr; varying float vRoc; varying vec3 vP; uniform vec2 uTx;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNrm = nrm; vPied = pied; vY = transformed.y; vTx = uv * uTx; vFr = fr; vRoc = roc; vP = transformed; vOmb = omb;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vNrm; varying float vPied; varying float vY; varying vec2 vTx; varying float vFr; varying float vRoc; varying vec3 vP;' + GLSL_COMMUN)
+      .replace('#include <common>', '#include <common>\nvarying vec3 vNrm; varying float vPied; varying float vY; varying vec2 vTx; varying float vFr; varying float vRoc; varying vec3 vP; varying float vOmb;' + GLSL_COMMUN)
       .replace('#include <map_fragment>', `#include <map_fragment>
         float bay = r3Bayer(vTx);
         float q = r3Palier(vNrm, bay);
@@ -623,6 +632,17 @@ export class Relief3D {
       pied[v] = D.pied[k];
       if (D.ht[k] > -64 && D.hbas[k] > -64) fr[v] = Math.max(0, Math.min(1, D.ht[k] / Math.max(1, D.ht[k] + D.hbas[k])));
     }
+    // ESSAI r3tal=ombre : ombre portée du relief sur le sol plus bas (soleil en haut à gauche, comme l'ombrage des pentes)
+    const omb = new Float32Array(nx * nz);
+    if (tal('ombre')) {
+      const lx = num('r3lx', -0.5), lz = num('r3lz', -0.35), ll = Math.hypot(lx, lz), ux = lx / ll, uz = lz / ll, TE = num('r3ombe', 0.85);
+      for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+        const v = j * nx + i, x = pos[v * 3], z = pos[v * 3 + 2], y = pos[v * 3 + 1];
+        let o = 0;
+        for (let st = 1; st <= 12; st++) { const d = st * 0.25, hy = this.H(x + ux * d, z + uz * d); o = Math.max(o, (hy - y - d * TE) / 0.35); }
+        omb[v] = Math.max(0, Math.min(1, o));
+      }
+    }
     // fond des ravins : une case entière à plat, tout au fond (ses bords sont des parois verticales, geoRavin)
     const vide = new Uint8Array(bw * bh);
     for (let cy = 0; cy < bh; cy++) for (let cx = 0; cx < bw; cx++) vide[cy * bw + cx] = this.sorteDe(b.x0 + cx, b.z0 + cy) === V ? 1 : 0;
@@ -632,7 +652,7 @@ export class Relief3D {
     for (let cy = 0; cy < bh; cy++) for (let cx = 0; cx < bw; cx++) {
       if (vide[cy * bw + cx]) continue;
       const h0 = pos[((cy * RN) * nx + cx * RN) * 3 + 1]; let ok = true;
-      for (let j = 0; j <= RN && ok; j++) for (let i = 0; i <= RN; i++) { const v = ((cy * RN + j) * nx) + cx * RN + i; if (Math.abs(pos[v * 3 + 1] - h0) > 1e-5 || pied[v] < 99 || nrm[v * 3 + 1] < 0.9999) { ok = false; break; } }
+      for (let j = 0; j <= RN && ok; j++) for (let i = 0; i <= RN; i++) { const v = ((cy * RN + j) * nx) + cx * RN + i; if (Math.abs(pos[v * 3 + 1] - h0) > 1e-5 || pied[v] < 99 || nrm[v * 3 + 1] < 0.9999 || omb[v] > 0) { ok = false; break; } }
       plate[cy * bw + cx] = ok ? 1 : 0;
     }
     // quarts de case en pente : leurs sommets sont doublés, avec une texture déroulée selon la longueur réelle de la pente
@@ -667,7 +687,8 @@ export class Relief3D {
     const pq = (i, j) => deroule && !vide[Math.floor(j / RN) * bw + Math.floor(i / RN)] && (D.raide[kq(i, j)] || D.raide[kq(i, j + 1)] || D.raide[kq(i + 1, j)] || D.raide[kq(i + 1, j + 1)]) && roc(i, j) < 2 && !plat(i, j);
     const XP = [], XU = [], XN = [], XPi = [], XF = [], XR = [], xidx = [];
     let nv = nx * nz;
-    const plus = (v, U, Vv, y = pos[v * 3 + 1]) => { XP.push(pos[v * 3], y, pos[v * 3 + 2]); XN.push(nrm[v * 3], nrm[v * 3 + 1], nrm[v * 3 + 2]); XPi.push(pied[v]); XF.push(fr[v]); XR.push(0); XU.push(U, Vv); return nv++; };
+    const XO = [];
+    const plus = (v, U, Vv, y = pos[v * 3 + 1]) => { XP.push(pos[v * 3], y, pos[v * 3 + 2]); XN.push(nrm[v * 3], nrm[v * 3 + 1], nrm[v * 3 + 2]); XPi.push(pied[v]); XF.push(fr[v]); XR.push(0); XO.push(omb[v]); XU.push(U, Vv); return nv++; };
     // sommets de la grille touchant une pente de roche : ombrés en gradins (matSol)
     const rocG = new Float32Array(nx * nz);
     if (modePente()) for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
@@ -711,6 +732,7 @@ export class Relief3D {
     g.setAttribute('pied', new THREE.BufferAttribute(cat(pied, XPi), 1));
     g.setAttribute('fr', new THREE.BufferAttribute(cat(fr, XF), 1));
     g.setAttribute('roc', new THREE.BufferAttribute(cat(rocG, XR), 1));
+    g.setAttribute('omb', new THREE.BufferAttribute(cat(omb, XO), 1));
     g.setIndex(idx); g.computeBoundingSphere();
     return g;
   }
