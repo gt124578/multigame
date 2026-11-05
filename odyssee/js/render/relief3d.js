@@ -168,9 +168,9 @@ export function matSol(mat, w, h) {
         ${modePente() ? `if (vFr >= 0.0) {
           // pente d'un étage : bord haut éclairé, puis l'herbe fonce jusqu'au pied, en paliers tramés
           float t = vFr + (bay - 0.5) * 0.18;
-          q = t < 0.08 ? 1.12 : t < 0.3 ? 0.95 : t < 0.55 ? 0.82 : t < 0.8 ? 0.7 : 0.6;
+          q = t < 0.08 ? 1.14 : t < 0.28 ? 0.96 : t < 0.5 ? 0.8 : t < 0.72 ? 0.66 : 0.52;
         }` : ''}
-        if (vPied < 14.0 && (1.0 - vPied / 14.0) * 1.15 > bay) q *= 0.8;
+        if (vPied < 22.0 && (1.0 - vPied / 22.0) * 1.25 > bay) q *= vPied < 6.0 ? 0.66 : 0.8;
         diffuseColor.rgb *= q * r3Fond(vY);`);
   };
   mat.customProgramCacheKey = () => 'r3sol' + (modePente() ? 'p' : '');
@@ -360,7 +360,7 @@ export class Relief3D {
     else if (sl === B) a = Math.min(0.98, DOUX * Math.min(1.5, dl));
     else if (sh === R) a = roc;
     else if (sl === R) b = roc;
-    else { const w = DOUX * Math.min(1.5, Math.max(0.6, dl)); a = b = w / 2; }
+    else { const w = DOUX * Math.min(1.5, Math.max(0.6, dl)) * (this._va || 1); a = b = Math.min(0.98, w / 2); }
     // versant tourné vers le nord (la case basse est au nord) : jamais assez raide pour cacher ce qui est derrière
     if (dir === 0) {
       const min = dl * KLV / NORD;
@@ -379,6 +379,15 @@ export class Relief3D {
   /** cette case se dessine-t-elle en vraie pente (true) ou avec une paroi (false) ? */
   enPente(p, x, y) { return modePente() && (p.levre ? !this.abrupt(x, y) : penteRoche() && (p.t === 1 || p.t === 6) && !this.abrupt(x, y)); }
   /** retraits (nord, est, sud, ouest) du replat d'une case ; null pour une case libre (paroi, marche) */
+  /** facteur de largeur d'une pente le long de son bord (0,55 à 1,7) : un talus n'a pas le même angle partout */
+  varAngle(x, y) {
+    if (!modePente() || params().get('r3var') === '0') return 1;
+    const n = (u, v) => { const a = Math.floor(u), c = Math.floor(v), fu = u - a, fv = v - c, sm = (t) => t * t * (3 - 2 * t);
+      const h = (i, j) => hash(i, j, 911); const A = h(a, c), B = h(a + 1, c), C2 = h(a, c + 1), D2 = h(a + 1, c + 1);
+      return A + (B - A) * sm(fu) + (C2 - A) * sm(fv) + (A - B - C2 + D2) * sm(fu) * sm(fv); };
+    const v = n(x / 4.2, y / 4.2) * 0.7 + n(x / 1.7 + 7, y / 1.7) * 0.3;
+    return num('r3vmin', 0.45) + num('r3vamp', 1.9) * v * v;
+  }
   retraits(x, y) {
     const i = this.cell(x, y), s = this.sorte[i];
     if (LIBRE(s)) return null;
@@ -387,7 +396,9 @@ export class Relief3D {
       [[0, -1], [1, 0], [0, 1], [-1, 0]].forEach(([dx, dy], d) => {
         const j = this.cell(x + dx, y + dy), Ln = this.niv[j], sn = this.sorte[j];
         let v;
-        if (Math.abs(L - Ln) < 1e-4) v = 0;
+        this._va = this.varAngle(x + dx * 0.5, y + dy * 0.5);   // même facteur des deux côtés du bord
+        if (modePente() && sn === C && (s === W || s === TR || s === B) && dy !== 0 && !this.abrupt(x + dx, y + dy)) v = Math.max(0, Math.min(0.8, (this._va - 0.75) * 0.75));   // talus d'herbe : la pente déborde plus ou moins sur le replat
+        else if (Math.abs(L - Ln) < 1e-4) v = 0;
         else if (L > Ln) v = this.bande(s, sn, d, (L - Ln) / LV, this.largRoc(x, y))[0];
         else v = this.bande(sn, s, (d + 2) % 4, (Ln - L) / LV, this.largRoc(x, y))[1];
         this.ins[i * 4 + d] = v;
@@ -467,7 +478,7 @@ export class Relief3D {
       // une paroi : assez raide, et pas tournée vers le nord (ces versants-là restent du sol, vus de biais) ; entre deux
       // pelouses (pente douce), seulement si c'est vraiment abrupt
       const sc = this.sorteDe(Math.floor(b.x0 + (i - P) * e + 1e-4), Math.floor(b.z0 + (j - P) * e + 1e-4));
-      const seuil = sc === W || sc === TR || sc === B || sc === EAU ? PENTE_DOUCE_MAX : PENTE_PAROI;
+      const seuil = modePente() && (sc === W || sc === TR || sc === B) ? 0.32 : sc === W || sc === TR || sc === B || sc === EAU ? PENTE_DOUCE_MAX : PENTE_PAROI;
       raide[k] = g > seuil && !(gz[k] > 0.7 * g) ? 1 : 0;
       ecran[k] = ((b.z0 + (j - P) * e) - h[k] / TAN) * 32;
     }
@@ -480,7 +491,8 @@ export class Relief3D {
         if (!raide[j * N + i]) { j++; continue; }
         let j1 = j; while (j1 + 1 < N && raide[(j1 + 1) * N + i]) j1++;
         const k0 = j * N + i, k1 = j1 * N + i;
-        const croise = (ka, kb) => { const ga = g(ka), gb = g(kb), t = Math.max(0, Math.min(1, (PENTE_PAROI - ga) / (gb - ga || 1))); return ecran[ka] + (ecran[kb] - ecran[ka]) * t; };
+        const S0 = modePente() ? 0.32 : PENTE_PAROI;
+        const croise = (ka, kb) => { const ga = g(ka), gb = g(kb), t = Math.max(0, Math.min(1, (S0 - ga) / (gb - ga || 1))); return ecran[ka] + (ecran[kb] - ecran[ka]) * t; };
         const top = j > 0 ? croise(k0 - N, k0) : -1e4, bot = j1 < N - 1 ? croise(k1 + N, k1) : 1e4;
         for (let jj = Math.max(0, j - 1); jj <= Math.min(N - 1, j1 + 1); jj++) {
           const k = jj * N + i, a = ecran[k] - top, c = bot - ecran[k];
