@@ -868,7 +868,7 @@ function positionnerSelection() {
   barre.classList.toggle('fantome', fantome && !edition);
   if (!edition) { zoneNom.value = multi ? adresse(Math.min(selection.r1, selection.r2), Math.min(selection.c1, selection.c2)) + ':' + adresse(Math.max(selection.r1, selection.r2), Math.max(selection.c1, selection.c2)) : adresse(curseur.r, curseur.c); barre.value = fantome ? classeur.saisie(fi(), zd.r, zd.c) : saisieAffichee(curseur.r, curseur.c); }
   for (const el of refsColorees) el.remove(); refsColorees = [];
-  if (edition) colorerReferences();
+  if (edition) colorerReferences(); else if (miroirs.size) colorerSaisies();
   // Validation : flèche de la liste déroulante et message de saisie de la cellule active
   const dv = validationDe(feuille(), curseur.r, curseur.c);
   const fleche = $('fleche-liste'), msgDv = $('message-validation');
@@ -890,21 +890,68 @@ function positionnerSelection() {
 }
 
 const COULEURS_REF = ['#2563eb', '#dc2626', '#7c3aed', '#059669', '#d97706', '#db2777'];
+/** Couleur de chaque référence d'une formule : la même référence écrite deux fois garde sa couleur, comme dans Excel. */
+function couleursReferences(txt) {
+  const vues = new Map();
+  return referencesDe(txt).map((ref) => {
+    const cle = ((ref.feuille || '') + '!' + ref.ref).replace(/\$/g, '').toUpperCase();
+    if (!vues.has(cle)) vues.set(cle, COULEURS_REF[vues.size % COULEURS_REF.length]);
+    return { ...ref, couleur: vues.get(cle) };
+  });
+}
 function colorerReferences() {
   const txt = edition ? (edition.origine === 'barre' ? barre.value : editeur.value) : '';
+  colorerSaisies();
   if (!txt.startsWith('=')) return;
-  referencesDe(txt).forEach((ref, i) => {
+  couleursReferences(txt).forEach((ref) => {
     if (ref.feuille && classeur.indexFeuille(ref.feuille) !== fi()) return;
     const p = plageDepuisTexte(ref.ref);
     if (!p) return;
     const el = document.createElement('div');
     el.className = 'ref-couleur';
-    el.style.borderColor = COULEURS_REF[i % COULEURS_REF.length];
+    el.style.borderColor = ref.couleur;
     poser(el, rectPlage(p.r1, p.c1, Math.min(p.r2, nbLignes - 1), Math.min(p.c2, nbColonnes - 1)));
     conteneur.appendChild(el);
     refsColorees.push(el);
   });
 }
+// Les références écrites dans la formule prennent la couleur de leur cadre : un calque dessine le texte en couleur
+// sous la zone de saisie, dont le texte devient transparent (le curseur et la sélection restent ceux du navigateur).
+const miroirs = new Map();
+function miroirDe(ta) {
+  let m = miroirs.get(ta);
+  if (!m) {
+    m = document.createElement('div'); m.className = 'saisie-miroir'; m.setAttribute('aria-hidden', 'true');
+    ta.parentNode.insertBefore(m, ta);
+    ta.addEventListener('scroll', () => { m.scrollTop = ta.scrollTop; m.scrollLeft = ta.scrollLeft; });
+    miroirs.set(ta, m);
+  }
+  return m;
+}
+function colorerSaisie(ta) {
+  const txt = ta.value;
+  const actif = !!edition && !ta.hidden && txt.startsWith('=') && ta.offsetWidth > 0;
+  const m = miroirs.get(ta) || (actif ? miroirDe(ta) : null);
+  ta.classList.toggle('colore', actif);
+  if (!m) return;
+  m.hidden = !actif;
+  if (!actif) return;
+  const cs = getComputedStyle(ta);
+  for (const k of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'borderRadius', 'boxSizing', 'whiteSpace', 'wordBreak', 'overflowWrap', 'textAlign', 'tabSize']) m.style[k] = cs[k];
+  m.style.left = ta.offsetLeft + 'px'; m.style.top = ta.offsetTop + 'px';
+  m.style.width = ta.offsetWidth + 'px'; m.style.height = ta.offsetHeight + 'px';
+  m.style.zIndex = ta === editeur ? '5' : '0';
+  let html = '', d = 0;
+  for (const r of couleursReferences(txt)) {
+    if (r.pos < d) continue;
+    html += echapper(txt.slice(d, r.pos)) + '<span style="color:' + r.couleur + '">' + echapper(txt.slice(r.pos, r.fin)) + '</span>';
+    d = r.fin;
+  }
+  html += echapper(txt.slice(d)) + (txt.endsWith('\n') ? '\u200b' : '');
+  m.innerHTML = html;
+  m.scrollTop = ta.scrollTop; m.scrollLeft = ta.scrollLeft;
+}
+function colorerSaisies() { colorerSaisie(editeur); colorerSaisie(barre); }
 function plageDepuisTexte(s) {
   s = s.replace(/\$/g, '');
   let m;
@@ -2681,6 +2728,7 @@ function rendreAide() {
 <li><b>Formules qui débordent</b> : <code>=TRIER(A2:B9;2;-1)</code>, <code>=UNIQUE(…)</code>, <code>=FILTRE(…)</code>, <code>=SEQUENCE(10)</code> remplissent les cellules voisines (cadre pointillé) ; <code>A1#</code> désigne tout le résultat ; <code>#SPILL!</code> si la place est prise.</li>
 <li><b>Analyse</b> (menu ⋯) : <b>Valeur cible</b> ; <b>Solveur</b> (maximiser, minimiser ou atteindre une valeur en changeant des cellules, avec contraintes ≤ ≥ = entier binaire ; exact pour les modèles linéaires) ; <b>Table de données</b> à une ou deux entrées, recalculée quand le modèle change.</li>
 <li><b>Finance et comptabilité</b> : formats <b>Comptabilité</b>, milliers (k€), millions (M€) et négatifs entre parenthèses dans la liste des formats ; <b>Plan</b> (⋯ › Plan, ou clic droit › Données › Grouper) : boutons + / − à côté des en-têtes et niveaux 1, 2, 3 dans le coin ; <b>Sous-totaux…</b> (clic droit › Données) : un total à chaque changement de valeur d'une colonne, avec le plan prêt à replier ; <b>Gestionnaire de scénarios</b> et <b>Utilitaire d'analyse</b> (⋯ › Analyse : statistiques descriptives, histogramme, régression, corrélation, moyenne mobile, tests t et F, ANOVA…) ; <b>Fenêtre espion</b> et <b>Calcul itératif</b> (⋯ › Formules) pour les modèles qui se citent eux-mêmes ; graphique <b>Cascade</b> ; <b>champs calculés</b> dans les tableaux croisés. Modèles (Nouveau ▾ › Finance et actuariat) : emprunt, rentabilité d'un projet, compte de résultat, table de mortalité, Chain Ladder.</li>
+<li><b>Références en couleur</b> : pendant la saisie d'une formule, chaque référence (<code>B2</code>, <code>C2:D5</code>…) est écrite de la couleur du cadre qui l'entoure sur la grille ; la même référence garde la même couleur.</li>
 <li><b>Fonctions VBA dans les cellules</b> : comme « Insérer une fonction » d'Excel, le bouton <b>ƒx</b> les liste en tête (avec leurs arguments) et un clic écrit <code>=Nom(</code> dans la cellule choisie, ou dans la formule en cours ; dans le projet VBA, double-clic sur une fonction (ƒ) fait de même. En tapant <code>=Ex…</code>, elles se proposent avec les fonctions d'Excel, et la bulle montre leurs arguments. Pendant la saisie, <code>Ctrl+Z</code> / <code>Ctrl+Y</code> défont et refont la saisie elle-même (y compris les références cliquées).</li>
 <li><b>LET et LAMBDA</b> : <code>=LET(x;A1*2;x+1)</code>, <code>=MAP(A1:A9;LAMBDA(v;v*2))</code>, <code>=REDUCE(0;A1:A9;LAMBDA(s;v;s+v))</code> ; un nom défini <code>=LAMBDA(x;x*1,2)</code> devient une fonction (<code>=TTC(A1)</code>).</li>
 <li><b>Formules</b> (menu ⋯) : flèches des antécédents et des dépendants, évaluer la formule pas à pas, vérification des erreurs (d'où vient un #DIV/0!, formule différente de ses voisines, nombre stocké en texte), calcul manuel (F9).</li>

@@ -599,3 +599,10 @@ button.lien { border: none; background: none; padding: 0; color: var(--accent); 
 .erreurs-vba { margin: 4px 0; padding: 6px 8px; border: 1px solid #e0a0a0; background: #fdf0f0; color: #8a1f1f; border-radius: 4px; font-size: 12px; }
 .erreurs-vba > div + div { margin-top: 4px; }
 @media (pointer: coarse) { .resultats-vba .rv-item { padding: 8px 6px; } #recherche-vba { font-size: 16px; } }
+
+/* Références colorées dans la formule en cours de saisie (même couleur que leur cadre sur la grille) */
+#barre-formule { position: relative; }
+.saisie-miroir { position: absolute; pointer-events: none; overflow: hidden; color: var(--texte); background: var(--papier); border-style: solid; border-color: transparent; margin: 0; }
+textarea.colore { color: transparent !important; background: transparent !important; caret-color: var(--texte); }
+#saisie-formule.colore { position: relative; z-index: 1; }
+textarea.colore::selection { color: transparent; background: rgba(37, 99, 235, .25); }
