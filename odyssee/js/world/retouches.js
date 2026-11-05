@@ -12,6 +12,11 @@
 //   ['i', x, y, objet, quantité]             objet à ramasser
 //   ['-i', x, y]                             retire l'objet de cette case
 //   ['b', type, x, y, toit, nom]             bâtiment (house, house2, bighouse, center, mart) avec son intérieur
+//   ['h', x, y, hauteur, pente]              hauteur de la case (GameMap.hg, relief.js) ; pente (facultatif) : 1 = case d'un
+//                                            plateau d'herbe (talus de pelouse au rendu, m.pentes), 0 = non. Une case plus
+//                                            haute que sa voisine du sud a besoin d'une paroi (T.CLIFF) sous elle, et on ne
+//                                            change d'étage que par une marche (T.STAIRS) : tools/odyssee-schema-import.mjs
+//                                            les pose ou les signale.
 import { T } from './tiles.js';
 import { centerInterior, martInterior, houseInterior } from './interiors.js';
 
@@ -29,6 +34,10 @@ export function applyOps(m, ops, maps) {
       if (k === 't') { removeProp(m, op[1], op[2]); m.set(op[1], op[2], op[3]); }
       else if (k === 'p') { removeProp(m, op[2], op[3]); m.prop(op[1], op[2], op[3], true); }
       else if (k === '-p') removeProp(m, op[1], op[2]);
+      else if (k === 'h') {
+        const [, x, y, h, p] = op; m.setHeight(x, y, h);
+        if (p !== undefined && m.in(x, y)) { if (!m.pentes) m.pentes = new Uint8Array(m.w * m.h); m.pentes[y * m.w + x] = p ? 1 : 0; }
+      }
       else if (k === 's') { removeProp(m, op[1], op[2]); m.sign(op[1], op[2], op[3]); }
       else if (k === 'n') { const n = op[1]; m.npcs = m.npcs.filter((q) => q.id !== n.id); m.npc({ move: 'turn', ...n }); }
       else if (k === '-n') m.npcs = m.npcs.filter((q) => q.id !== op[1]);
