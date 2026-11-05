@@ -658,7 +658,7 @@ export function buildWorld() {
 
   // le Bois Murmure : une forêt dense et sombre (on marche à l'ombre des frondaisons), un sentier qui serpente, deux
   // cabanes, une clairière cachée derrière un passage dans les arbres
-  const bois = G2({ id: 'bois', nom: 'Bois Murmure', de: relais(144, 196, 'e'), vers: arrivee('C', 'bois'), effile: [false, true], long: 7, graine: 303, w: 11, grass: 1.3, tall: T.DARKTALL, trees: 0.3, flowers: 0, theme: 'forest', ombre: 0.5, paysages: ['bosquet', 'prairie', 'bosquet', 'etang'], branches: 0, anciens: 4, voix: 'bois', panneaux: [null, 'BOIS MURMURE\n↑ Pierrefort'] }, 'bois', 'forest');
+  const bois = G2({ id: 'bois', nom: 'Bois Murmure', de: relais(144, 196, 'e'), vers: arrivee('C', 'bois'), effile: [false, true], long: 7, graine: 303, w: 11, grass: 1.3, tall: T.DARKTALL, trees: 0.3, flowers: 0, theme: 'forest', ombre: 0.5, paysages: ['bosquet', 'prairie', 'bosquet', 'etang'], branches: 0, anciens: 4, voix: 'bois', bande: [4, 5], panneaux: [null, 'BOIS MURMURE\n↑ Pierrefort'] }, 'bois', 'forest');
   {
     /** cabane dans les bois : une petite clairière, une maison de bois et son intérieur, un sentier jusqu'à la route */
     const cabane = (id, name, x, y, vers, o = {}) => {

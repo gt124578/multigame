@@ -383,16 +383,16 @@ function cavePortal(W, pts, t0) {
  * obstacle, couloir de 3 tuiles, clairière 3 × 3 avec les objets. Ne creuse que des arbres et ne touche aucune autre zone.
  */
 function secretPocket(W, pts, t0, side, obs, items) {
-  for (let tries = 0; tries < 24; tries++) {
+  for (let tries = 0; tries < 40; tries++) {
     const t = t0 + (tries % 2 ? 1 : -1) * Math.ceil(tries / 2) * 0.015;
     const p = along(pts, t);
     let dx = p.nx * side, dy = p.ny * side;
     if (Math.abs(dx) > Math.abs(dy)) { dx = Math.sign(dx); dy = 0; } else { dy = Math.sign(dy); dx = 0; }
     let x = Math.round(p.x), y = Math.round(p.y), k = 0;
     let passe = false;   // le chemin vers le recoin ne traverse aucun téléporteur (passage vers un lieu annexe)
-    while (k++ < 14 && W.get(x, y) !== T.TREE && W.get(x, y) !== T.PINE) { if (W.warpAt(x, y)) passe = true; x += dx; y += dy; }
+    while (k++ < 34 && W.get(x, y) !== T.TREE && W.get(x, y) !== T.PINE) { if (W.warpAt(x, y)) passe = true; x += dx; y += dy; }
     const before = W.get(x - dx, y - dy);
-    if (passe || k >= 14 || !walkable(before) || before === T.TALL || before === T.DARKTALL) continue;
+    if (passe || k >= 34 || !walkable(before) || before === T.TALL || before === T.DARKTALL) continue;
     if (W.items.some((it) => it.x === x - dx && it.y === y - dy) || W.npcs.some((n) => n.x === x - dx && n.y === y - dy)) continue;   // l'entrée reste libre
     const ex = x, ey = y;
     const set = [];

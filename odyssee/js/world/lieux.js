@@ -119,12 +119,10 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
       if (lac > 0.74 && d[p] >= 5) { W.set(x, y, T.WATER); continue; }
       const crete = 1 - Math.abs(2 * bruit(x, y, 28, 21) - 1) + (bruit(x, y, 6, 22) - 0.5) * 0.12;
       if (crete > 0.9 && d[p] >= 4) { roche.push([x, y]); continue; }
-      if (bruit(x, y, 22, 31) > 0.72 && d[p] >= 5) butte.push([x, y]);
     }
     // des pinèdes partout dans la forêt (grandes taches, sans tenir compte des blocs)
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (W.get(x, y) === T.TREE && bruit(x, y, 16, 41) > 0.58 && !W.zoneAt(x, y)?.town) W.set(x, y, T.PINE);
     massif(W, roche, { pas: 2, max: 4 });
-    if (butte.length) plateau(W, butte, 1, { brut: true, marches: false });
   }
 
   /** un lieu à découvrir au bout d'un sentier */

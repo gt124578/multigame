@@ -798,9 +798,11 @@ function combler(W, X, Y, X1, Y1, o) {
 export function relier(W, X, Y, X1, Y1, departs, rue = T.PATH, prefixe = null) {
   const wW = X1 - X + 1, hH = Y1 - Y + 1, at = (x, y) => (y - Y) * wW + (x - X);
   const dedans = (x, y) => x >= X && y >= Y && x <= X1 && y <= Y1;
-  const bloque = new Set([...W.npcs.filter((n) => dedans(n.x, n.y) && !n.gate).map((n) => n.x + ',' + n.y), ...W.items.filter((i) => dedans(i.x, i.y)).map((i) => i.x + ',' + i.y)]);
+  const bloque = new Uint8Array(wW * hH);
+  for (const n of W.npcs) if (dedans(n.x, n.y) && !n.gate) bloque[at(n.x, n.y)] = 1;
+  for (const i of W.items) if (dedans(i.x, i.y)) bloque[at(i.x, i.y)] = 1;
   // les obstacles qu'une capacité ouvre (petit arbre, rocher fissuré) comptent comme un passage
-  const passe = (x, y) => { const t = W.get(x, y); return (walkable(t) || t === T.CUT || t === T.SMASH || t === T.BOULDER) && t !== T.DOOR && !bloque.has(x + ',' + y); };
+  const passe = (x, y) => { const t = W.t[y * W.w + x]; return (walkable(t) || t === T.CUT || t === T.SMASH || t === T.BOULDER) && t !== T.DOOR && !bloque[at(x, y)]; };
   const vu = new Uint8Array(wW * hH);
   const remplir = (sx, sy) => {
     if (!dedans(sx, sy) || !passe(sx, sy) || vu[at(sx, sy)]) return; const q = [[sx, sy]]; vu[at(sx, sy)] = 1;

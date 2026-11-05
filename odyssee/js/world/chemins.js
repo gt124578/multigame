@@ -330,7 +330,7 @@ export function ouvrirPaysage(W, S, info, cells, total, base, herbe, g) {
   let c0 = 1e9, r0 = 1e9, c1 = -1e9, r1 = -1e9;
   for (const k of TT) { const [c, rr] = k.split(',').map(Number); c0 = Math.min(c0, c); r0 = Math.min(r0, rr); c1 = Math.max(c1, c); r1 = Math.max(r1, rr); }
   const X0 = c0 * BLOC, Y0 = r0 * BLOC, w = (c1 - c0 + 1) * BLOC, h = (r1 - r0 + 1) * BLOC, at = (x, y) => (y - Y0) * w + (x - X0);
-  const RMIN = S.bande?.[0] ?? 7, RVAR = S.bande?.[1] ?? 8, RMAX = RMIN + RVAR, M = 3;
+  const RMIN = S.bande?.[0] ?? 9, RVAR = S.bande?.[1] ?? 9, RMAX = RMIN + RVAR, M = 3;
   // les cases du territoire, à plus de 3 cases d'un bloc qui n'en est pas
   const ok = new Uint8Array(w * h);
   for (const k of TT) {
