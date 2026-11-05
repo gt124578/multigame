@@ -7,7 +7,8 @@
 // (Coupe, Éclate-Roc, Surf). Les dresseurs ajoutés ont des identifiants fixes (`route:dN`), les objets aussi (`route:oN`).
 import { T, walkable } from './tiles.js';
 import { carveRoute, along, nearestWalkable, caseLibre, rng, ledges as _ledges } from './mapgen.js';
-import { plateau, sinueuse } from './relief.js';
+import { plateau, sinueuse, massif } from './relief.js';
+import { bruit } from './quartiers.js';
 import { houseInterior } from './interiors.js';
 import { ROUTES, PRENOMS } from './voix.js';
 
@@ -94,10 +95,11 @@ export function grandeRoute(W, S, ctx) {
   };
   const loin = (x, y, d = 2.6) => { const v = info.get(key(x, y)); return v && v.d > d; };
   const herbe = S.ground ?? T.GRASS;
+  if (S.bande !== false && !S.monte) ouvrirPaysage(W, S, info, cells, total, base, herbe, (S.graine || 1) * 13 + 5);
 
   const sentiersImpasses = new Set();
   /* impasses dans les blocs libres du territoire */
-  const T0 = blocs(S.terr), pris = new Set(chemin.map((b) => key(...b))), cotes = [];
+  const T0 = blocs([...S.terr, ...(S.ext || [])]), pris = new Set(chemin.map((b) => key(...b))), cotes = [];
   const libres = [];
   chemin.forEach((b, i) => { if (i === 0 || i === chemin.length - 1) return; for (const [dx, dy] of N4) { const f = [b[0] + dx, b[1] + dy]; if (T0.has(key(...f)) && !pris.has(key(...f))) libres.push([b, f, i]); } });
   libres.sort(() => r() - 0.5);
@@ -313,5 +315,108 @@ export function boucherLocal(W, cells, depart, rect, remplace = T.TREE, prefixe 
       const p = proche(q.x, q.y); if (!p) continue;
       occ.delete(key(q.x, q.y)); [q.x, q.y] = p; occ.add(key(...p));
     }
+  }
+}
+
+/**
+ * La route n'est pas un fil dans la forêt : autour du sentier s'ouvre une bande de paysage (12 à 30 cases de large) où la
+ * forêt recule — prairies, carrés d'herbes hautes, bosquets, massifs de fleurs, rochers, collines boisées et pitons
+ * rocheux. Entre deux morceaux du tracé qui se frôlent, une lisière de forêt les sépare toujours (on ne voit pas où va
+ * le chemin) ; au bord du territoire de la route, la forêt garde trois cases (jamais de passage vers une autre route),
+ * et rien ne s'ouvre près de l'eau existante (la mer reste hors de portée).
+ */
+export function ouvrirPaysage(W, S, info, cells, total, base, herbe, g) {
+  const TT = blocs([...S.terr, ...(S.ext || [])]);
+  let c0 = 1e9, r0 = 1e9, c1 = -1e9, r1 = -1e9;
+  for (const k of TT) { const [c, rr] = k.split(',').map(Number); c0 = Math.min(c0, c); r0 = Math.min(r0, rr); c1 = Math.max(c1, c); r1 = Math.max(r1, rr); }
+  const X0 = c0 * BLOC, Y0 = r0 * BLOC, w = (c1 - c0 + 1) * BLOC, h = (r1 - r0 + 1) * BLOC, at = (x, y) => (y - Y0) * w + (x - X0);
+  const RMIN = S.bande?.[0] ?? 7, RVAR = S.bande?.[1] ?? 8, RMAX = RMIN + RVAR, M = 3;
+  // les cases du territoire, à plus de 3 cases d'un bloc qui n'en est pas
+  const ok = new Uint8Array(w * h);
+  for (const k of TT) {
+    const [c, rr] = k.split(',').map(Number), has = (dc, dr) => TT.has(key(c + dc, rr + dr));
+    for (let j = 0; j < BLOC; j++) for (let i = 0; i < BLOC; i++) {
+      const L = i < M, Rr = i >= BLOC - M, U = j < M, D = j >= BLOC - M;
+      if ((L && !has(-1, 0)) || (Rr && !has(1, 0)) || (U && !has(0, -1)) || (D && !has(0, 1)) || (L && U && !has(-1, -1)) || (Rr && U && !has(1, -1)) || (L && D && !has(-1, 1)) || (Rr && D && !has(1, 1))) continue;
+      ok[at(c * BLOC + i, rr * BLOC + j)] = 1;
+    }
+  }
+  // l'eau d'avant (mer, lacs) et ce qui est déjà bâti : on reste à distance
+  const pres = new Uint8Array(w * h);
+  for (let y = Y0 - 3; y < Y0 + h + 3; y++) for (let x = X0 - 3; x < X0 + w + 3; x++) {
+    const t = W.get(x, y);
+    if (!(t === T.WATER || t === T.WHIRL || t === T.BUILD || t === T.CAVEWALL || t === T.CLIFF)) continue;
+    for (let b = -3; b <= 3; b++) for (let a = -3; a <= 3; a++) { const u = x + a, v = y + b; if (u >= X0 && v >= Y0 && u < X0 + w && v < Y0 + h) pres[at(u, v)] = 1; }
+  }
+  // distance au sentier (chanfrein 1 / 1,41) et position le long de la route de la case du sentier la plus proche
+  const dist = new Float32Array(w * h).fill(1e9), src = new Float32Array(w * h);
+  for (const [k, v] of info) { if (v.d > 1.05) continue; const [x, y] = k.split(',').map(Number); if (x < X0 || y < Y0 || x >= X0 + w || y >= Y0 + h) continue; dist[at(x, y)] = 0; src[at(x, y)] = v.s; }
+  const passe = (dx, dy, c, sens) => {
+    for (let j = sens > 0 ? 0 : h - 1; sens > 0 ? j < h : j >= 0; j += sens) for (let i = sens > 0 ? 0 : w - 1; sens > 0 ? i < w : i >= 0; i += sens) {
+      const p = j * w + i;
+      for (let q = 0; q < dx.length; q++) { const u = i + dx[q], v = j + dy[q]; if (u < 0 || v < 0 || u >= w || v >= h) continue; const n = v * w + u, d = dist[n] + c[q]; if (d < dist[p]) { dist[p] = d; src[p] = src[n]; } }
+    }
+  };
+  passe([-1, -1, 0, 1], [0, -1, -1, -1], [1, 1.41, 1, 1.41], 1);
+  passe([1, 1, 0, -1], [0, 1, 1, 1], [1, 1.41, 1, 1.41], -1);
+  // les lisières entre deux morceaux du tracé (deux cases voisines rattachées à des endroits éloignés du chemin)
+  const sep = new Uint8Array(w * h), loinS = (2 * RMAX + 8) / Math.max(1, total);
+  for (let j = 0; j < h - 1; j++) for (let i = 0; i < w - 1; i++) {
+    const p = j * w + i; if (dist[p] > RMAX + 2) continue;
+    for (const n of [p + 1, p + w]) if (Math.abs(src[p] - src[n]) > loinS) { sep[p] = 1; sep[n] = 1; }
+  }
+  const sep2 = sep.slice();
+  for (let j = 1; j < h - 1; j++) for (let i = 1; i < w - 1; i++) { const p = j * w + i; if (sep[p]) { sep2[p - 1] = sep2[p + 1] = sep2[p - w] = sep2[p + w] = 1; sep2[p - w - 1] = sep2[p - w + 1] = sep2[p + w - 1] = sep2[p + w + 1] = 1; } }
+  // on ouvre
+  const ouvert = [];
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const p = j * w + i, x = X0 + i, y = Y0 + j, d = dist[p];
+    if (!ok[p] || sep2[p] || pres[p] || d > RMAX || info.has(key(x, y))) continue;
+    const Rw = RMIN + RVAR * bruit(x, y, 21, g);
+    if (d > Rw) continue;
+    const t = W.get(x, y); if (!(t === T.TREE || t === T.PINE)) continue;
+    // le bord de la forêt s'effiloche
+    if (d > Rw - 2 && bruit(x, y, 3, g + 9) > 0.55) continue;
+    W.set(x, y, herbe); W.setHeight(x, y, base); cells.add(key(x, y)); ouvert.push([x, y, d, Rw]);
+  }
+  const r = rng(g * 31 + 7);
+  // le paysage : bosquets, fleurs, rochers, carrés d'herbes hautes (rectangles, comme sur DS)
+  const tall = S.tall ?? T.TALL, arbre = S.treeT ?? T.TREE;
+  for (const [x, y, d] of ouvert) {
+    if (d < 3) continue;
+    const n1 = bruit(x, y, 6, g + 1), n2 = bruit(x, y, 5, g + 2);
+    if (n1 > 0.71) W.set(x, y, arbre);
+    else if (n2 > 0.76) W.set(x, y, T.FLOWER);
+    else if (r() < 0.004) W.set(x, y, T.ROCK);
+  }
+  const libre = (x, y) => W.get(x, y) === herbe && cells.has(key(x, y)) && !info.has(key(x, y));
+  const herbes = S.grass ?? 0.7;
+  for (let j = 0; j < h; j += 9) for (let i = 0; i < w; i += 10) {
+    if (r() > herbes * 0.75) continue;
+    const rw = 3 + Math.floor(r() * 6), rh = 2 + Math.floor(r() * 4), x0 = X0 + i + Math.floor(r() * 4), y0 = Y0 + j + Math.floor(r() * 4);
+    let n = 0; for (let y = y0; y < y0 + rh; y++) for (let x = x0; x < x0 + rw; x++) if (libre(x, y)) n++;
+    if (n < rw * rh * 0.7) continue;
+    for (let y = y0; y < y0 + rh; y++) for (let x = x0; x < x0 + rw; x++) if (libre(x, y)) W.set(x, y, tall);
+  }
+  // du relief : collines boisées (plateau d'herbe couvert d'arbres) et pitons rocheux, loin du sentier
+  const nb = Math.max(1, Math.round(ouvert.length / 900)), relief = S.relief ?? 1;
+  let fait = 0;
+  for (let essai = 0; essai < 80 && fait < nb * relief; essai++) {
+    const [cx, cy, d, Rw] = ouvert[Math.floor(r() * ouvert.length)] || [];
+    if (cx == null || d < 6 || d > Rw - 1) continue;
+    const rx = 2.5 + r() * 3, ry = 2 + r() * 2.2, disque = [];
+    let bon = true;
+    for (let y = Math.floor(cy - ry - 1); y <= cy + ry + 1 && bon; y++) for (let x = Math.floor(cx - rx - 1); x <= cx + rx + 1; x++) {
+      if (((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 > 1) continue;
+      const t = W.get(x, y), k = key(x, y);
+      if (!cells.has(k) || info.has(k) || W.height(x, y) !== base || !(t === herbe || t === tall || t === T.FLOWER || t === arbre || t === T.ROCK)) { bon = false; break; }
+      disque.push([x, y]);
+    }
+    if (!bon || disque.length < 12) continue;
+    // sous la falaise, la case du pied doit rester libre (et hors du sentier)
+    if (disque.some(([x, y]) => info.has(key(x, y + 1)) || info.has(key(x, y + 2)))) continue;
+    if (r() < 0.5) { for (const [x, y] of disque) W.set(x, y, T.TREE); plateau(W, disque, base + 1); }
+    else massif(W, disque.map(([x, y]) => { W.set(x, y, T.TREE); return [x, y]; }), { pas: 2, max: 2, base });
+    fait++;
   }
 }

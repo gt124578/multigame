@@ -26,6 +26,7 @@ import { LARGEUR, HAUTEUR, BLOC, VILLES, TERR, TORII, LUNAIRE, CHAINE, porte, ar
 import { grandeVille } from './quartiers.js';
 import { grandeRoute, boucherLocal } from './chemins.js';
 import { atelier } from './atelier.js';
+import { lieux } from './lieux.js';
 import { ANCIENS_OBJETS } from './anciens-objets.js';
 
 /** version de la carte du monde : une sauvegarde d'une version plus ancienne reprend au Centre de la dernière ville
@@ -1146,6 +1147,8 @@ export function buildWorld() {
   addVehicules({ W, maps, towns });
   // la mine de Pierrefort (trois niveaux, un fossile au fond)
   addMine({ W, maps, towns, trainerNpc, ENC });
+  // les grands vides entre les routes : lieux à découvrir au bout d'un sentier, ou paysages vus de loin (lieux.js)
+  W.lieux = lieux(W, { maps, trainerNpc, ENC });
   { const tz = W.zones.filter((z) => z.town || z.trigger), sz = W.zones.filter((z) => z.sea), rz = W.zones.filter((z) => !z.town && !z.trigger && !z.sea); W.zones = [...sz, ...rz, ...tz]; }
   // les grandes villes perchées : on y monte par des escaliers à chaque porte
   for (const [k, t] of Object.entries(towns)) if (VILLES[k]?.releve) relever(W, t);

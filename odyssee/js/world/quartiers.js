@@ -122,8 +122,9 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   W.zone(X, Y, X1, Y1, { name: def.name, music: def.music || 'town', town: def.id, theme: def.theme });
 
   /* 2. les portes : un couloir de la lisière jusque dans la ville ; le garde à côté du couloir */
-  const sorties = [], rues = new Set();   // les cases de rue (index de la ville) : on n'y bâtit rien
-  const posRue = (x, y, t = rue) => { if (!dansRect(x, y)) return; if (riv[at(x, y)] || W.get(x, y) === T.WATER) W.set(x, y, T.BRIDGE); else W.set(x, y, t); rues.add(at(x, y)); M[at(x, y)] = 1; };
+  const sorties = [], RU = new Uint8Array(w * h);   // les cases de rue (index de la ville) : on n'y bâtit rien
+  const SO = new Uint8Array(w * h);   // les couloirs des portes
+  const posRue = (x, y, t = rue) => { if (!dansRect(x, y)) return; if (riv[at(x, y)] || W.get(x, y) === T.WATER) W.set(x, y, T.BRIDGE); else W.set(x, y, t); (RU[at(x, y)] = 1); M[at(x, y)] = 1; };
   for (const s of V.sorties || []) {
     const { dir, k } = s, cells = [], ext = [];
     for (let i = 0; i < 60; i++) {
@@ -131,7 +132,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
       for (const j of [0, 1]) {
         const [x, y] = dir === 'n' ? [X + k + j, Y + i] : dir === 's' ? [X + k + j, Y1 - i] : dir === 'w' ? [X + i, Y + k + j] : [X1 - i, Y + k + j];
         if (i >= ep + 4 && !(i > 1 && dans(x, y) && W.get(x, y) !== T.TREE)) fini = false;
-        posRue(x, y); cells.push([x, y]);
+        posRue(x, y); cells.push([x, y]); if (dansRect(x, y)) SO[at(x, y)] = 1;
       }
       if (fini && i > ep + 6) break;
     }
@@ -139,7 +140,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
     // la rangée gardée (dans la ceinture) et la case du garde (juste à l'intérieur)
     const g = ep - 1, tiles = [0, 1].map((j) => dir === 'n' ? [X + k + j, Y + g] : dir === 's' ? [X + k + j, Y1 - g] : dir === 'w' ? [X + g, Y + k + j] : [X1 - g, Y + k + j]);
     const poste = dir === 'n' ? [X + k + 2, Y + ep] : dir === 's' ? [X + k + 2, Y1 - ep] : dir === 'w' ? [X + ep, Y + k + 2] : [X1 - ep, Y + k + 2];
-    W.set(poste[0], poste[1], rue); rues.add(at(...poste));
+    W.set(poste[0], poste[1], rue); (RU[at(...poste)] = 1);
     const S = { ...s, cells, ext, tiles, poste, entree: ext[0], interieur: cells[cells.length - 2] };
     sorties.push(S);
     if (s.coupe) for (const [x, y] of tiles) W.set(x, y, T.CUT);
@@ -168,7 +169,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
         const x = ns ? X + v : X + u, y = ns ? Y + u : Y + v;
         if (!dansRect(x, y) || dansR(x, y) || x < X + ep || y < Y + ep || x > X1 - ep || y > Y1 - ep) continue;
         if (Math.abs(v - c) > lg + 0.2) continue;
-        if (rues.has(at(x, y))) { W.set(x, y, T.BRIDGE); continue; }
+        if (RU[at(x, y)]) { W.set(x, y, T.BRIDGE); continue; }
         if (W.get(x, y) === T.WATER) continue;
         riv[at(x, y)] = 1; W.set(x, y, T.WATER);
       }
@@ -181,7 +182,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   /* 5. les rues : boulevard autour du centre, rues en grille irrégulière (larges chaussées en ville), avenues des portes */
   const libreRue = (x, y) => { if (!dans(x, y) || dansR(x, y)) return false; const t = W.get(x, y); return t === T.TREE || t === sol || t === T.GRASS || t === T.FLOWER || t === T.SAND || t === T.PAVE || t === T.PATH || (t === T.WATER && riv[at(x, y)]) || t === T.BRIDGE; };
   const posee = (x, y, t = rue) => { if (libreRue(x, y)) posRue(x, y, t); };
-  for (let y = R.y0; y <= R.y1; y++) for (let x = R.x0; x <= R.x1; x++) if (x < C.x0 || x > C.x1 || y < C.y0 || y > C.y1) { const t = W.get(x, y); if (t === T.TREE || t === sol || t === T.GRASS || t === T.FLOWER || t === T.SAND) { W.set(x, y, rue); rues.add(at(x, y)); } else if (t === T.WATER) { W.set(x, y, T.BRIDGE); rues.add(at(x, y)); } }
+  for (let y = R.y0; y <= R.y1; y++) for (let x = R.x0; x <= R.x1; x++) if (x < C.x0 || x > C.x1 || y < C.y0 || y > C.y1) { const t = W.get(x, y); if (t === T.TREE || t === sol || t === T.GRASS || t === T.FLOWER || t === T.SAND) { W.set(x, y, rue); (RU[at(x, y)] = 1); } else if (t === T.WATER) { W.set(x, y, T.BRIDGE); (RU[at(x, y)] = 1); } }
   const RW = ville ? 4 : 2;   // largeur d'une rue (en ville : trottoir, deux voies, trottoir)
   const lignes = (a, b, pas0, pas1, evite0, evite1) => {
     const out = []; let v = a + 10 + Math.floor(r() * 6);
@@ -216,7 +217,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
     }
   }
   // avenues : de chaque porte jusqu'à une rue
-  const avenue = (x, y, dx, dy) => { for (let i = 0; i < 400; i++) { if (!W.in(x, y) || (i > 2 && rues.has(at(x, y)) && !sorties.some((s) => s.cells.some(([a, b]) => a === x && b === y)))) break; if (dansRect(x, y)) { posRue(x, y); posRue(x + dy, y + dx); } x += dx; y += dy; } };
+  const avenue = (x, y, dx, dy) => { for (let i = 0; i < 400; i++) { if (!W.in(x, y) || (i > 2 && dansRect(x, y) && RU[at(x, y)] && !SO[at(x, y)])) break; if (dansRect(x, y)) { posRue(x, y); posRue(x + dy, y + dx); } x += dx; y += dy; } };
   for (const s of sorties) { const [x, y] = s.interieur, v = { n: [0, 1], s: [0, -1], w: [1, 0], e: [-1, 0] }[s.dir]; avenue(x, y, v[0], v[1]); }
   // chaussées : marquage au sol, passages piétons à la sortie des carrefours
   if (ville) {
@@ -251,7 +252,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
           const q = ((x - best.cx) / (rx * k)) ** 2 + ((y - best.cy) / (ry * k)) ** 2 + (bruit(x, y, 9, graine + 7 + niv) - 0.5) * 0.5;
           if (q > 1 || !dans(x, y) || dansR(x, y) || riv[at(x, y)] || W.get(x, y) === T.WATER || W.get(x, y) === T.BRIDGE) continue;
           if (niv > 1 && !haut.has(at(x, y))) continue;
-          if (sorties.some((s) => s.cells.some(([a, b]) => Math.abs(a - x) + Math.abs(b - y) < 3))) continue;
+          if ([[0, 0], [2, 0], [-2, 0], [0, 2], [0, -2]].some(([a, c]) => dansRect(x + a, y + c) && SO[at(x + a, y + c)])) continue;
           cells.push([x, y]);
         }
         if (cells.length < 40) break;
@@ -266,7 +267,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
    *  ruelles (pavées en ville), jusqu'à des îlots de taille humaine */
   const reg = new Int32Array(w * h);
   let cur = 0;
-  const caseIlot = (x, y) => { if (!dans(x, y) || rues.has(at(x, y)) || dansR(x, y)) return false; const t = W.get(x, y); return t === sol || t === T.GRASS || t === T.FLOWER || t === T.SAND || t === T.PAVE || t === T.PATH; };
+  const caseIlot = (x, y) => { if (!dans(x, y) || RU[at(x, y)] || dansR(x, y)) return false; const t = W.get(x, y); return t === sol || t === T.GRASS || t === T.FLOWER || t === T.SAND || t === T.PAVE || t === T.PATH; };
   const regions = () => {
     reg.fill(0); const out = []; let id = 0; const q = [];
     for (let y = Y; y <= Y1; y++) for (let x = X; x <= X1; x++) {
@@ -291,18 +292,21 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   };
   const LMAX = ville ? 34 : 30, HMAX = ville ? 26 : 22;
   let ilots = regions();
-  for (let passe = 0; passe < 5; passe++) {
+  for (let passe = 0; passe < 2; passe++) {
     let coupe = false;
     for (const b of ilots) {
       const bw = b.x1 - b.x0 + 1, bh = b.y1 - b.y0 + 1;
       if (b.n < 120 || (bw <= LMAX && bh <= HMAX)) continue;
       const lw = ville ? 2 : 2, t = ville ? T.PAVE : T.PATH;
-      if (bw / LMAX >= bh / HMAX) {
-        const xc = Math.round(b.x0 + bw * (0.4 + r() * 0.2));
-        for (let y = b.y0; y <= b.y1; y++) for (let i = 0; i < lw; i++) if (reg[at(xc + i, y)] === b.id) { W.set(xc + i, y, t); rues.add(at(xc + i, y)); }
-      } else {
-        const yc = Math.round(b.y0 + bh * (0.4 + r() * 0.2));
-        for (let x = b.x0; x <= b.x1; x++) for (let i = 0; i < lw; i++) if (reg[at(x, yc + i)] === b.id) { W.set(x, yc + i, t); rues.add(at(x, yc + i)); }
+      // des ruelles régulières (un peu décalées) dans les deux sens, autant qu'il en faut
+      const nx = Math.ceil(bw / LMAX) - 1, ny = Math.ceil(bh / HMAX) - 1;
+      for (let k = 1; k <= nx; k++) {
+        const xc = Math.round(b.x0 + bw * k / (nx + 1) + (r() - 0.5) * 4);
+        for (let y = b.y0; y <= b.y1; y++) for (let i = 0; i < lw; i++) if (reg[at(xc + i, y)] === b.id) { W.set(xc + i, y, t); (RU[at(xc + i, y)] = 1); }
+      }
+      for (let k = 1; k <= ny; k++) {
+        const yc = Math.round(b.y0 + bh * k / (ny + 1) + (r() - 0.5) * 4);
+        for (let x = b.x0; x <= b.x1; x++) for (let i = 0; i < lw; i++) if (reg[at(x, yc + i)] === b.id) { W.set(x, yc + i, t); (RU[at(x, yc + i)] = 1); }
       }
       coupe = true;
     }
@@ -317,7 +321,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   const SOLS = new Set([sol, T.GRASS, T.FLOWER, T.PAVE, T.PATH, T.SAND]);
   const libre = (x0, y0, x1, y1) => {
     const hh = W.height(x0, y0);
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const t = W.get(x, y); if (!dans(x, y) || (cur && reg[at(x, y)] !== cur) || !SOLS.has(t) || occ.has(x + ',' + y) || rues.has(at(x, y)) || W.height(x, y) !== hh || (W.pentes && W.pentes[y * W.w + x] && W.height(x, y + 1) !== hh)) return false; }
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const t = W.get(x, y); if (!dans(x, y) || (cur && reg[at(x, y)] !== cur) || !SOLS.has(t) || occ.has(x + ',' + y) || RU[at(x, y)] || W.height(x, y) !== hh || (W.pentes && W.pentes[y * W.w + x] && W.height(x, y + 1) !== hh)) return false; }
     // devant (la rangée sous la porte) : au même niveau
     for (let x = x0; x <= x1; x++) { const t = W.get(x, y1 + 1); if (W.height(x, y1 + 1) !== hh || !dans(x, y1 + 1) || !(SOLS.has(t) || t === T.BRIDGE || t === T.FENCE || t === T.BUSH)) return false; }
     return true;
@@ -337,11 +341,12 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
     occ.add(x + ',' + y);
     return W.npc({ id: `${def.id}:h${nn++}`, x, y, dir: o.dir || pick(['down', 'left', 'right', 'up']), sprite: o.sprite || pick(SPRITES), move: o.move || pick(['wander', 'turn', 'turn']), text: o.text || parole() });
   };
-  const peutPoser = (x, y) => { const t = W.get(x, y); return dans(x, y) && (!cur || reg[at(x, y)] === cur) && SOLS.has(t) && !occ.has(x + ',' + y) && !rues.has(at(x, y)) && !W.signs.has(x + ',' + y) && W.get(x, y + 1) !== T.DOOR && !W.warpAt(x, y); };
+  const peutPoser = (x, y) => { const t = W.get(x, y); return dans(x, y) && (!cur || reg[at(x, y)] === cur) && SOLS.has(t) && !occ.has(x + ',' + y) && !RU[at(x, y)] && !W.signs.has(x + ',' + y) && W.get(x, y + 1) !== T.DOOR && !W.warpAt(x, y); };
   const prop = (k, x, y, o) => { if (peutPoser(x, y)) { W.prop(k, x, y, true, o); return true; } return false; };
   const arbre = (x, y) => { if (r() < 0.4) prop(pick(arbresV), x, y); else if (peutPoser(x, y) && W.get(x, y) !== T.PAVE) W.set(x, y, T.TREE); };
-  const objet = (x, y, item, qty = 1) => { if (walkable(W.get(x, y)) && W.get(x, y) !== T.DOOR) W.item(x, y, item, qty, `${def.id}:o${no++}`); };
-  const rect = (x0, y0, x1, y1, t, only) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (dans(x, y) && (!cur || reg[at(x, y)] === cur) && !rues.has(at(x, y)) && (!only || only.includes(W.get(x, y)))) W.set(x, y, t); };
+  const objs = new Set();
+  const objet = (x, y, item, qty = 1) => { if (walkable(W.get(x, y)) && W.get(x, y) !== T.DOOR && !occ.has(x + ',' + y)) { W.item(x, y, item, qty, `${def.id}:o${no++}`); objs.add(x + ',' + y); occ.add(x + ',' + y); } };
+  const rect = (x0, y0, x1, y1, t, only) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (dans(x, y) && (!cur || reg[at(x, y)] === cur) && !RU[at(x, y)] && (!only || only.includes(W.get(x, y)))) W.set(x, y, t); };
   const haie = (x, y) => { if (peutPoser(x, y) && W.get(x, y) !== T.PAVE) W.set(x, y, T.BUSH); };
   const cloture = (x, y) => { if (peutPoser(x, y)) W.set(x, y, T.FENCE); };
 
@@ -689,7 +694,6 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
     }
     if (q >= 0.75 && y1 - b.y0 >= 3) { prop('banc', Math.round(b.cx), b.y0 + 1); pnj(Math.round(b.cx) + 2, b.y0 + 2, { sprite: pick(['gamin', 'fillette', 'enfant']), move: 'wander' }); }
   }
-  if (globalThis.__DBGV === V.theme) console.log(V.theme, 'xs', xs.map((q) => q - X), 'ys', ys.map((q) => q - Y), ilots.map((b) => `${b.sorte}${b.repere ? '+' + b.repere : ''}[${b.x0 - X},${b.y0 - Y} ${b.x1 - b.x0 + 1}x${b.y1 - b.y0 + 1} p${b.plein.toFixed(2)}]`).join(' '));
   for (const b of ilots) { cur = b.id; (QUARTIERS[b.sorte] || QUARTIERS.maisons)(b); }
   cur = 0;
 
@@ -697,7 +701,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   {
     let k = 0;
     for (let y = Y; y <= Y1; y++) for (let x = X; x <= X1; x++) {
-      if (!dans(x, y) || rues.has(at(x, y))) continue;
+      if (!dans(x, y) || RU[at(x, y)]) continue;
       const t = W.get(x, y); if (!(t === sol || t === T.GRASS || t === T.SAND)) continue;
       const eau = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, c]) => W.get(x + a, y + c) === T.WATER);
       if (!eau) continue;
@@ -727,10 +731,10 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
     for (const x of xs) for (const y of ys) {
       if (r() < 0.45) continue;
       const px = x - 1, py = y - 1;
-      if (dans(px, py) && peutPoser(px, py) && !devantPorte(px, py) && rues.has(at(px + 1, py)) === false && (rues.has(at(px + 1, py + 1)) || rues.has(at(px, py + 1)))) W.sign(px, py, `${RUES[nr++ % RUES.length].toUpperCase()}\n${def.name}`);
+      if (dans(px, py) && peutPoser(px, py) && !devantPorte(px, py) && !RU[at(px + 1, py)] && (RU[at(px + 1, py + 1)] || RU[at(px, py + 1)])) W.sign(px, py, `${RUES[nr++ % RUES.length].toUpperCase()}\n${def.name}`);
     }
     // passants
-    const ruesL = [...rues];
+    const ruesL = []; for (let i = 0; i < RU.length; i++) if (RU[i]) ruesL.push(i);
     for (let k = 0; k < Math.round(w * h / 1400); k++) { const i = ruesL[Math.floor(r() * ruesL.length)]; pnj(X + (i % w), Y + Math.floor(i / w), { move: 'wander' }); }
   }
   // lampadaires à l'entrée des avenues ; panneau de bienvenue à chaque porte
@@ -742,10 +746,10 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   }
 
   /* 12. les grands vides (dans le centre aussi) : squares, bosquets, parterres — en laissant toujours un passage autour */
-  combler(W, X, Y, X1, Y1, { dans, rues: (x, y) => rues.has(at(x, y)), r, arbres: arbresV, prop, pnj, haie, sol });
+  combler(W, X, Y, X1, Y1, { dans, rues: (x, y) => RU[at(x, y)] === 1, r, arbres: arbresV, prop, pnj, haie, sol });
 
   /* 13. tout relier : chaque porte, chaque habitant et chaque objet rejoint les rues ; les recoins isolés se referment */
-  relier(W, X, Y, X1, Y1, sorties.length ? sorties.flatMap((q) => q.cells) : [[def.x, def.y]], rue);
+  relier(W, X, Y, X1, Y1, sorties.length ? sorties.flatMap((q) => q.cells) : [[def.x, def.y]], rue, `${def.id}:h`);
   return def;
 }
 
@@ -753,19 +757,19 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
  *  pelouse bordée de haies, des arbres d'ornement, un banc, des fleurs ; on garde une case de passage tout autour */
 function combler(W, X, Y, X1, Y1, o) {
   const w = X1 - X + 1, h = Y1 - Y + 1, pris = new Uint8Array(w * h), at = (x, y) => (y - Y) * w + (x - X);
-  const proche = new Set();
-  for (const n of W.npcs) if (n.x >= X - 2 && n.x <= X1 + 2 && n.y >= Y - 2 && n.y <= Y1 + 2) for (let a = -2; a <= 2; a++) for (let c = -2; c <= 2; c++) proche.add((n.x + a) + ',' + (n.y + c));
-  for (const i of W.items) if (i.x >= X && i.x <= X1 && i.y >= Y && i.y <= Y1) for (let a = -2; a <= 2; a++) for (let c = -2; c <= 2; c++) proche.add((i.x + a) + ',' + (i.y + c));
-  for (const k of W.warps.keys()) { const [x, y] = k.split(',').map(Number); if (x >= X && x <= X1 && y >= Y && y <= Y1) for (let a = -2; a <= 2; a++) for (let c = -1; c <= 3; c++) proche.add((x + a) + ',' + (y + c)); }
-  for (const k of W.signs.keys()) { const [x, y] = k.split(',').map(Number); if (x >= X && x <= X1 && y >= Y && y <= Y1) for (let a = -1; a <= 1; a++) for (let c = -1; c <= 2; c++) proche.add((x + a) + ',' + (y + c)); }
-  const vide = (x, y) => { if (!o.dans(x, y) || o.rues(x, y) || pris[at(x, y)] || proche.has(x + ',' + y)) return false; const t = W.get(x, y); return (t === o.sol || t === T.GRASS || t === T.PAVE || t === T.SAND) && W.get(x, y - 1) !== T.BUILD; };
-  const decoAt = new Set(W.deco.filter((d) => d.x >= X && d.x <= X1 && d.y >= Y && d.y <= Y1).map((d) => d.x + ',' + d.y));
+  const proche = new Uint8Array(w * h), marque = (x, y) => { if (x >= X && y >= Y && x <= X1 && y <= Y1) proche[at(x, y)] = 1; };
+  for (const n of W.npcs) if (n.x >= X - 2 && n.x <= X1 + 2 && n.y >= Y - 2 && n.y <= Y1 + 2) for (let a = -2; a <= 2; a++) for (let c = -2; c <= 2; c++) marque(n.x + a, n.y + c);
+  for (const i of W.items) if (i.x >= X && i.x <= X1 && i.y >= Y && i.y <= Y1) for (let a = -2; a <= 2; a++) for (let c = -2; c <= 2; c++) marque(i.x + a, i.y + c);
+  for (const k of W.warps.keys()) { const [x, y] = k.split(',').map(Number); if (x >= X && x <= X1 && y >= Y && y <= Y1) for (let a = -2; a <= 2; a++) for (let c = -1; c <= 3; c++) marque(x + a, y + c); }
+  for (const k of W.signs.keys()) { const [x, y] = k.split(',').map(Number); if (x >= X && x <= X1 && y >= Y && y <= Y1) for (let a = -1; a <= 1; a++) for (let c = -1; c <= 2; c++) marque(x + a, y + c); }
+  for (const d of W.deco) if (d.x >= X && d.x <= X1 && d.y >= Y && d.y <= Y1 && d.k !== 'asph') proche[at(d.x, d.y)] = 1;
+  const vide = (x, y) => { if (x > X1 || y > Y1 || pris[at(x, y)] || proche[at(x, y)] || !o.dans(x, y) || o.rues(x, y)) return false; const t = W.get(x, y); return (t === o.sol || t === T.GRASS || t === T.PAVE || t === T.SAND) && W.get(x, y - 1) !== T.BUILD; };
   for (let y = Y; y <= Y1; y++) for (let x = X; x <= X1; x++) {
-    if (!vide(x, y) || decoAt.has(x + ',' + y)) continue;
+    if (!vide(x, y)) continue;
     // le plus grand rectangle vide à partir de là (jusqu'à 14 × 10)
-    let wx = 0; while (wx < 14 && vide(x + wx, y) && !decoAt.has((x + wx) + ',' + y)) wx++;
+    let wx = 0; while (wx < 14 && vide(x + wx, y)) wx++;
     let hy = 1;
-    while (hy < 10) { let ok = true; for (let i = 0; i < wx; i++) if (!vide(x + i, y + hy) || decoAt.has((x + i) + ',' + (y + hy))) { ok = false; break; } if (!ok) break; hy++; }
+    while (hy < 10) { let ok = true; for (let i = 0; i < wx; i++) if (!vide(x + i, y + hy)) { ok = false; break; } if (!ok) break; hy++; }
     if (wx < 8 || hy < 6) { pris[at(x, y)] = 1; continue; }
     for (let j = 0; j < hy; j++) for (let i = 0; i < wx; i++) pris[at(x + i, y + j)] = 1;
     // le square : on garde une case de bord (passage)
@@ -791,7 +795,7 @@ function combler(W, X, Y, X1, Y1, o) {
 
 /** relie à la ville tout ce qui doit l'être (devants de porte, habitants, objets) en taillant une ruelle droite vers la
  *  case reliée la plus proche ; ce qui reste isolé (bouts d'herbe) se referme en bosquet */
-export function relier(W, X, Y, X1, Y1, departs, rue = T.PATH) {
+export function relier(W, X, Y, X1, Y1, departs, rue = T.PATH, prefixe = null) {
   const wW = X1 - X + 1, hH = Y1 - Y + 1, at = (x, y) => (y - Y) * wW + (x - X);
   const dedans = (x, y) => x >= X && y >= Y && x <= X1 && y <= Y1;
   const bloque = new Set([...W.npcs.filter((n) => dedans(n.x, n.y) && !n.gate).map((n) => n.x + ',' + n.y), ...W.items.filter((i) => dedans(i.x, i.y)).map((i) => i.x + ',' + i.y)]);
@@ -843,5 +847,10 @@ export function relier(W, X, Y, X1, Y1, departs, rue = T.PATH) {
   for (let y = Y; y <= Y1; y++) for (let x = X; x <= X1; x++) {
     const t = W.get(x, y);
     if (!vu[at(x, y)] && (t === T.GRASS || t === T.FLOWER || t === T.PATH || t === T.PAVE || t === T.SAND) && !garde.has(x + ',' + y) && !W.signs.has(x + ',' + y) && !dec.has(x + ',' + y)) W.set(x, y, T.TREE);
+  }
+  // les habitants ajoutés qu'on n'atteint toujours pas (enfermés par l'eau ou le relief) s'en vont
+  if (prefixe) {
+    vu.fill(0); for (const [x, y] of departs) remplir(x, y);
+    W.npcs = W.npcs.filter((n) => !(n.id?.startsWith(prefixe) && dedans(n.x, n.y) && !touche(n.x, n.y, 1)));
   }
 }
