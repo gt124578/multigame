@@ -1118,13 +1118,14 @@ function regionTerrain(game) {
   // 0 eau, 1 plaine, 2 forêt, 3 montagne, 4 pied de montagne (sol praticable des zones volcaniques et enneigées)
   const kind = new Uint8Array(bw * bh);
   for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++) {
-    let water = 0, walk = 0;
+    let water = 0, walk = 0, roc = 0;
     for (let dy = 0; dy < B; dy++) for (let dx = 0; dx < B; dx++) {
       const t = W.get(bx * B + dx, by * B + dy);
-      if (t === T.WATER) water++; else if (walkable(t) || t === T.DOOR) walk++;
+      if (t === T.WATER || t === T.WHIRL) water++; else if (walkable(t) || t === T.DOOR) walk++; else if (t === T.CAVEWALL) roc++;
     }
     const th = W.zoneAt(bx * B, by * B)?.theme, hill = th === 'volcanic' || th === 'snow';
-    kind[by * bw + bx] = water >= 2 ? 0 : walk ? (hill ? 4 : 1) : hill ? 3 : 2;
+    // la roche des massifs (Chaîne Céleste, mesas, canyon) est dessinée en montagne, comme les reliefs des îles
+    kind[by * bw + bx] = water >= 2 ? 0 : walk ? (hill ? 4 : 1) : hill || roc >= 2 ? 3 : 2;
   }
   // distance de chaque bloc à la nature voisine (pour la mer : à la côte ; pour la montagne : au pied)
   const dist = (pred) => {

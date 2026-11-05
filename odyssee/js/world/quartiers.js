@@ -239,6 +239,9 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
       for (const [x, y] of [[mx - 4, my + 3], [mx + 4, my + 3], [mx - 4, my - 3], [mx + 4, my - 3]]) prop(r() < 0.6 ? 'banc' : 'pot', x, y);
       for (let x = b.x0 + 3; x < b.x1 - 2; x += 4) { prop('pot', x, b.y0); }
       if (V.statue) prop(V.statue, mx, b.y0 + 1);
+      // une grande place s'ombrage d'arbres en bacs, en quinconce, loin du monument
+      if (b.aire > 150) for (let y = b.y0 + 2; y <= b.y1 - 2; y += 4) for (let x = b.x0 + 2 + (y % 2) * 2; x <= b.x1 - 2; x += 5)
+        if (Math.abs(x - mx) > 5 || Math.abs(y - my) > 4) prop(pick(V.arbres || ['erable', 'cerisier']), x, y);
       pnj(mx - 2, my + 4); pnj(mx + 3, my - 3); if (b.aire > 200) pnj(b.x0 + 3, my, { move: 'wander' });
     },
     marche(b) {
@@ -333,6 +336,13 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   for (const b of ilots) (QUARTIERS[b.sorte] || QUARTIERS.maisons)(b);
   // des lampadaires le long des avenues
   for (const s of sorties) { const [x, y] = s.interieur; for (const [a, c] of [[-1, 0], [2, 0], [0, -1], [0, 2]]) if (dans(x + a, y + c)) prop('lamp', x + a, y + c); }
+  // en ville de bitume, des arbres d'alignement le long des rues (jamais devant une porte)
+  if (sol !== T.GRASS) {
+    const devantPorte = (x, y) => { for (let a = -1; a <= 1; a++) for (let c = -1; c <= 2; c++) { const t = W.get(x + a, y + c); if (t === T.DOOR || t === T.CAVEDOOR || W.warpAt(x + a, y + c)) return true; } return false; };
+    const borde = (x, y) => { if (!dans(x, y) || dansR(x, y) || devantPorte(x, y) || W.get(x, y) !== sol) return; prop(pick(V.arbres || ['erable', 'erable', 'cerisier']), x, y); };
+    for (const x of xs) for (let y = Y + ib + 3; y <= Y1 - ib - 3; y += 7) { borde(x - 1, y); borde(x + 2, y + 3); }
+    for (const y of ys) for (let x = X + ib + 3; x <= X1 - ib - 3; x += 7) { borde(x, y - 1); borde(x + 3, y + 2); }
+  }
   // panneau de bienvenue à chaque porte
   for (const s of sorties) {
     const [x, y] = s.cells[ep + 1] || s.interieur, v = s.dir === 'n' || s.dir === 's' ? [2, 0] : [0, 2];

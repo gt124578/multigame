@@ -1013,9 +1013,15 @@ export class WorldView {
       const ex = this.map.ext ? 2 : 0;
       if (i < -ex || j < -ex || (i - ex) * CH >= this.map.w || (j - ex) * CH >= this.map.h) continue;
       const kk = i + ',' + j; if (!this.chunks.has(kk)) this.chunks.set(kk, this.buildChunk(i, j));
+      this.poserBatimentsBloc(i, j);
     }
-    // les morceaux éloignés sont masqués
-    for (const [kk, g] of this.chunks) { const [i, j] = kk.split(',').map(Number); g.visible = Math.abs(i - ci) <= 2 && Math.abs(j - cj) <= 2; }
+    // les morceaux éloignés sont masqués ; ceux qui sont loin derrière nous sont défaits (la grande carte en compte des
+    // milliers : la mémoire ne grossit pas à mesure qu'on voyage)
+    for (const [kk, g] of this.chunks) {
+      const [i, j] = kk.split(',').map(Number), d = Math.max(Math.abs(i - ci), Math.abs(j - cj));
+      g.visible = d <= 2;
+      if (d > 6) { this.root.remove(g); g.traverse((o) => o.geometry?.dispose()); this.chunks.delete(kk); }
+    }
   }
 
   /** sorties des grottes vues de dedans : le couloir creusé dans la paroi s'éclaire du jour qui entre du dehors */
@@ -1045,93 +1051,103 @@ export class WorldView {
   }
 
   /* ---------------- bâtiments ---------------- */
+  /** les bâtiments de la carte : sur la grande carte, chacun n'est construit qu'au moment où le morceau de 16 cases qui
+   *  le porte entre en vue (ensureChunks) ; les petites cartes (intérieurs, grottes) sont construites d'un coup */
   buildBuildings() {
     this.buildingMeshes = [];
-    const cache = new Map();
+    this._texBat = new Map(); this._fenetres = new Map();
+    this.nightGroup = new THREE.Group(); this.root.add(this.nightGroup); this.nightGroup.visible = false;
+    this.batAttente = new Map();
+    for (const b of this.map.buildings) { const k = Math.floor(b.x / CH) + ',' + Math.floor(b.y / CH); if (!this.batAttente.has(k)) this.batAttente.set(k, []); this.batAttente.get(k).push(b); }
+    if (this.map.buildings.length < 200) { for (const L of this.batAttente.values()) for (const b of L) this.poserBat(b); this.batAttente.clear(); }
+  }
+  /** construit les bâtiments en attente d'un morceau (i, j) */
+  poserBatimentsBloc(i, j) { const k = i + ',' + j, L = this.batAttente?.get(k); if (!L) return; this.batAttente.delete(k); for (const b of L) this.poserBat(b); }
+  poserBat(b) {
+    const cache = this._texBat;
     const T3 = (key, mk) => { if (!cache.has(key)) cache.set(key, tex(mk())); return cache.get(key); };
-    for (const b of this.map.buildings) {
-      const g = new THREE.Group();
-      // relief en 3D : le bâtiment est posé au niveau de sa porte (le sol est aplani dessous)
-      const hb = this.r3d && b.kind !== 'cave' ? this.r3d.niveauBatiment(b) : 0;
-      g.userData.hb = hb;
-      const wallH = b.h * Math.tan(EL), o = 0.18;
-      const zf = b.y + b.d + 0.02;
-      const own = (t) => { const m = frontDepth(new THREE.MeshBasicMaterial({ map: t, vertexColors: true }), zf); this.tinted.push(m); m.userData.ownTint = true; return m; };
-      if (b.kind === 'cave') {
-        // la montagne est dessinée par les plateaux de roche (vueCarte : l'entrée et les arbres qui la bordent) ;
-        // ici seulement la bouche sombre, peinte dans la falaise au-dessus de la porte
-        const bio = bioDehors(this.map.zoneAt?.(b.x, b.y)?.theme), holeW = 1.5, holeD = 1.25;   // arche de 48 × 40 px
-        const geo = new THREE.PlaneGeometry(holeW, holeD); geo.rotateX(-Math.PI / 2);
-        const mat = new THREE.MeshBasicMaterial({ map: T3('arche_' + bio, () => archeGrotte(bio, false, this.paletteRoche(bio))), transparent: true, alphaTest: 0.5 });
-        mat.map.flipY = true; mat.map.needsUpdate = true;   // ligne 0 de l'image = nord (le haut de l'arche)
-        this.tinted.push(mat); mat.color.copy(this.tint);
-        const hole = new THREE.Mesh(geo, mat); hole.position.set(b.doorX + 0.5, 0.0056, b.doorY + 1 - holeD / 2); hole.renderOrder = 1;
-        if (this.r3d) {
-          // relief en 3D : la bouche est plaquée sur la paroi au-dessus de la porte (la géométrie suit le sol)
-          const gg = new THREE.PlaneGeometry(holeW, holeD, 6, 5); gg.rotateX(-Math.PI / 2); gg.translate(b.doorX + 0.5, 0, b.doorY + 1 - holeD / 2);
-          const ps = gg.attributes.position; for (let i = 0; i < ps.count; i++) ps.setY(i, this.r3d.H(ps.getX(i), ps.getZ(i)) + 0.02);
-          hole.geometry.dispose(); hole.geometry = gg; hole.position.set(0, 0, 0); mat.polygonOffset = true; mat.polygonOffsetFactor = -2; mat.polygonOffsetUnits = -4;
-        }
-        g.add(hole); this.root.add(g); continue;
+    const g = new THREE.Group();
+    // relief en 3D : le bâtiment est posé au niveau de sa porte (le sol est aplani dessous)
+    const hb = this.r3d && b.kind !== 'cave' ? this.r3d.niveauBatiment(b) : 0;
+    g.userData.hb = hb;
+    const wallH = b.h * Math.tan(EL), o = 0.18;
+    const zf = b.y + b.d + 0.02;
+    const own = (t) => { const m = frontDepth(new THREE.MeshBasicMaterial({ map: t, vertexColors: true }), zf); this.tinted.push(m); m.userData.ownTint = true; return m; };
+    if (b.kind === 'cave') {
+      // la montagne est dessinée par les plateaux de roche (vueCarte : l'entrée et les arbres qui la bordent) ;
+      // ici seulement la bouche sombre, peinte dans la falaise au-dessus de la porte
+      const bio = bioDehors(this.map.zoneAt?.(b.x, b.y)?.theme), holeW = 1.5, holeD = 1.25;   // arche de 48 × 40 px
+      const geo = new THREE.PlaneGeometry(holeW, holeD); geo.rotateX(-Math.PI / 2);
+      const mat = new THREE.MeshBasicMaterial({ map: T3('arche_' + bio, () => archeGrotte(bio, false, this.paletteRoche(bio))), transparent: true, alphaTest: 0.5 });
+      mat.map.flipY = true; mat.map.needsUpdate = true;   // ligne 0 de l'image = nord (le haut de l'arche)
+      this.tinted.push(mat); mat.color.copy(this.tint);
+      const hole = new THREE.Mesh(geo, mat); hole.position.set(b.doorX + 0.5, 0.0056, b.doorY + 1 - holeD / 2); hole.renderOrder = 1;
+      if (this.r3d) {
+        // relief en 3D : la bouche est plaquée sur la paroi au-dessus de la porte (la géométrie suit le sol)
+        const gg = new THREE.PlaneGeometry(holeW, holeD, 6, 5); gg.rotateX(-Math.PI / 2); gg.translate(b.doorX + 0.5, 0, b.doorY + 1 - holeD / 2);
+        const ps = gg.attributes.position; for (let i = 0; i < ps.count; i++) ps.setY(i, this.r3d.H(ps.getX(i), ps.getZ(i)) + 0.02);
+        hole.geometry.dispose(); hole.geometry = gg; hole.position.set(0, 0, 0); mat.polygonOffset = true; mat.polygonOffsetFactor = -2; mat.polygonOffsetUnits = -4;
       }
-      // bâtiment en fausse 3D (modèle de batiments3d.js) quand un modèle a la bonne emprise ; sinon l'ancienne façade
-      if (!/[?&]bati=0/.test(globalThis.location?.search || '')) {
-        const z = this.map.zoneAt?.(b.x, b.y);
-        const mod = choisirModele(b, { theme: z?.theme, ville: z?.town, typeArene: b.typeArene });
-        if (mod) { const gm = this.batimentModele(b, mod); gm.position.y = hb; gm.userData.hb = hb; this.root.add(gm); this.buildingMeshes.push(gm); continue; }
-      }
-      const ks = kitStyle(b, this.map); b.kitStyle = ks;
-      const fkey = `${ks}:${b.w}:${b.h}:${b.door}`;
-      const fr = T3('f' + fkey, () => facade(ks, b.w, b.h, b.door, false, b.x * 7 + b.y));
-      const sd = T3(`s${ks}:${b.d}:${b.h}`, () => sideWall(ks, b.d, b.h));
-      // toit à deux pans, assez pentu pour qu'on voie surtout le pan avant (comme sur DS) ; toit plat pour les
-      // centres, boutiques, arènes et la Ligue
-      const flatRoof = b.flat || b.style === 'center' || b.style === 'mart' || b.style === 'gym' || b.style === 'league';
-      const rh = flatRoof ? 0.35 : Math.min(2.2, 0.55 * b.d);
-      // rangées de cellules d'un pan : sa hauteur à l'écran, en cases
-      const rows = Math.max(1, Math.round(b.d / 2 + o + rh * 0.7));
-      const rf = T3(`r${ks}:${b.roof}:${b.w}:${rows}`, () => roofTex(b.roof, b.w, b.d + 1, 3, ks, rows));
-      const mFront = own(fr), mSide = own(sd), mRoof = own(rf);
-      const x0 = b.x, x1 = b.x + b.w, z0 = b.y, z1 = b.y + b.d;
-      // façade
-      const geoF = new Geo(); geoF.quad([x0, 0, z1], [x1, 0, z1], [x1, wallH, z1], [x0, wallH, z1], 0, 0, 1, 1, 1);
-      g.add(new THREE.Mesh(geoF.build(), mFront));
-      // le toit déborde de o devant la façade : il est posé assez haut pour que son bord tombe pile sur le haut de la
-      // façade à l'écran (sinon il cache le haut des fenêtres de l'étage)
-      const eY = wallH + o * Math.tan(EL);
-      const geoS = new Geo();
-      geoS.quad([x1, 0, z1], [x1, 0, z0], [x1, eY, z0], [x1, eY, z1], 0, 0, 1, 1, 0.8);
-      geoS.quad([x0, 0, z0], [x0, 0, z1], [x0, eY, z1], [x0, eY, z0], 0, 0, 1, 1, 0.8);
-      g.add(new THREE.Mesh(geoS.build(), mSide));
-      const zm = (z0 + z1) / 2, ytop = eY + rh;
-      const geoR = new Geo();
-      geoR.quad([x0 - o, eY, z1 + o], [x1 + o, eY, z1 + o], [x1 + o, ytop, zm], [x0 - o, ytop, zm], 0, 0.5, 1, 1, 1);
-      geoR.quad([x1 + o, eY, z0 - o], [x0 - o, eY, z0 - o], [x0 - o, ytop, zm], [x1 + o, ytop, zm], 0, 0, 1, 0.5, 0.7);
-      g.add(new THREE.Mesh(geoR.build(), mRoof));
-      // pignons et liseré : couleur du mur et du rebord du kit (la couleur du toit pour les maisons recolorées)
-      const rc = roofColors[b.roof] || roofColors.red;
-      const kitted = !!kitColor(ks);
-      const gableCol = (kitted && kitColor(ks, 'mur', -0.12)) || rc[1];
-      const eaveCol = ks === 'house' || ks === 'house2' || ks === 'bighouse' || ks === 'tower' || ks === 'gate' || !kitted ? rc[1] : kitColor(ks, 'rebord', -0.35) || rc[1];
-      const mkCol = (col) => { const m = frontDepth(new THREE.MeshBasicMaterial({ color: new THREE.Color(col) }), zf); this.tinted.push(m); m.userData.ownTint = true; m.userData.base = new THREE.Color(col); return m; };
-      const gableMat = mkCol(gableCol), eaveMat = mkCol(eaveCol);
-      const gg = new THREE.BufferGeometry();
-      gg.setAttribute('position', new THREE.Float32BufferAttribute([x1 + o, eY, z1 + o, x1 + o, eY, z0 - o, x1 + o, ytop, zm, x0 - o, eY, z0 - o, x0 - o, eY, z1 + o, x0 - o, ytop, zm], 3));
-      g.add(new THREE.Mesh(gg, gableMat));
-      // bande de mur sous le débord du toit (cachée par le rebord, sauf de très près)
-      const band = new THREE.BufferGeometry();
-      band.setAttribute('position', new THREE.Float32BufferAttribute([x0, wallH, z1, x1, wallH, z1, x1, eY, z1, x0, wallH, z1, x1, eY, z1, x0, eY, z1], 3));
-      g.add(new THREE.Mesh(band, gableMat));
-      // liseré sous le toit
-      const eave = new THREE.Mesh(new THREE.BoxGeometry(b.w + 2 * o, 0.1, 0.1), eaveMat); eave.position.set((x0 + x1) / 2, eY - 0.05, z1 + o); g.add(eave);
-      // ombre portée au sol devant le bâtiment
-      const sh = new Geo(); const S = this.S.rects.shadow;
-      flat(sh, x0 - 0.1, z1 - 0.2, x1 + 0.1, z1 + 0.45, 0.012, [S.u0, S.v0 + (S.v1 - S.v0) * 0.4, S.u1, S.v1]);
-      g.add(new THREE.Mesh(sh.build(), this.mat.shadow));
-      g.userData.b = b; g.userData.front = mFront; g.userData.fkey = fkey;
-      g.position.y = hb;
-      this.root.add(g); this.buildingMeshes.push(g);
+      g.add(hole); this.root.add(g); return;
     }
+    // bâtiment en fausse 3D (modèle de batiments3d.js) quand un modèle a la bonne emprise ; sinon l'ancienne façade
+    if (!/[?&]bati=0/.test(globalThis.location?.search || '')) {
+      const z = this.map.zoneAt?.(b.x, b.y);
+      const mod = choisirModele(b, { theme: z?.theme, ville: z?.town, typeArene: b.typeArene });
+      if (mod) { const gm = this.batimentModele(b, mod); gm.position.y = hb; gm.userData.hb = hb; this.root.add(gm); this.buildingMeshes.push(gm); return; }
+    }
+    const ks = kitStyle(b, this.map); b.kitStyle = ks;
+    const fkey = `${ks}:${b.w}:${b.h}:${b.door}`;
+    const fr = T3('f' + fkey, () => facade(ks, b.w, b.h, b.door, false, b.x * 7 + b.y));
+    const sd = T3(`s${ks}:${b.d}:${b.h}`, () => sideWall(ks, b.d, b.h));
+    // toit à deux pans, assez pentu pour qu'on voie surtout le pan avant (comme sur DS) ; toit plat pour les
+    // centres, boutiques, arènes et la Ligue
+    const flatRoof = b.flat || b.style === 'center' || b.style === 'mart' || b.style === 'gym' || b.style === 'league';
+    const rh = flatRoof ? 0.35 : Math.min(2.2, 0.55 * b.d);
+    // rangées de cellules d'un pan : sa hauteur à l'écran, en cases
+    const rows = Math.max(1, Math.round(b.d / 2 + o + rh * 0.7));
+    const rf = T3(`r${ks}:${b.roof}:${b.w}:${rows}`, () => roofTex(b.roof, b.w, b.d + 1, 3, ks, rows));
+    const mFront = own(fr), mSide = own(sd), mRoof = own(rf);
+    const x0 = b.x, x1 = b.x + b.w, z0 = b.y, z1 = b.y + b.d;
+    // façade
+    const geoF = new Geo(); geoF.quad([x0, 0, z1], [x1, 0, z1], [x1, wallH, z1], [x0, wallH, z1], 0, 0, 1, 1, 1);
+    g.add(new THREE.Mesh(geoF.build(), mFront));
+    // le toit déborde de o devant la façade : il est posé assez haut pour que son bord tombe pile sur le haut de la
+    // façade à l'écran (sinon il cache le haut des fenêtres de l'étage)
+    const eY = wallH + o * Math.tan(EL);
+    const geoS = new Geo();
+    geoS.quad([x1, 0, z1], [x1, 0, z0], [x1, eY, z0], [x1, eY, z1], 0, 0, 1, 1, 0.8);
+    geoS.quad([x0, 0, z0], [x0, 0, z1], [x0, eY, z1], [x0, eY, z0], 0, 0, 1, 1, 0.8);
+    g.add(new THREE.Mesh(geoS.build(), mSide));
+    const zm = (z0 + z1) / 2, ytop = eY + rh;
+    const geoR = new Geo();
+    geoR.quad([x0 - o, eY, z1 + o], [x1 + o, eY, z1 + o], [x1 + o, ytop, zm], [x0 - o, ytop, zm], 0, 0.5, 1, 1, 1);
+    geoR.quad([x1 + o, eY, z0 - o], [x0 - o, eY, z0 - o], [x0 - o, ytop, zm], [x1 + o, ytop, zm], 0, 0, 1, 0.5, 0.7);
+    g.add(new THREE.Mesh(geoR.build(), mRoof));
+    // pignons et liseré : couleur du mur et du rebord du kit (la couleur du toit pour les maisons recolorées)
+    const rc = roofColors[b.roof] || roofColors.red;
+    const kitted = !!kitColor(ks);
+    const gableCol = (kitted && kitColor(ks, 'mur', -0.12)) || rc[1];
+    const eaveCol = ks === 'house' || ks === 'house2' || ks === 'bighouse' || ks === 'tower' || ks === 'gate' || !kitted ? rc[1] : kitColor(ks, 'rebord', -0.35) || rc[1];
+    const mkCol = (col) => { const m = frontDepth(new THREE.MeshBasicMaterial({ color: new THREE.Color(col) }), zf); this.tinted.push(m); m.userData.ownTint = true; m.userData.base = new THREE.Color(col); return m; };
+    const gableMat = mkCol(gableCol), eaveMat = mkCol(eaveCol);
+    const gg = new THREE.BufferGeometry();
+    gg.setAttribute('position', new THREE.Float32BufferAttribute([x1 + o, eY, z1 + o, x1 + o, eY, z0 - o, x1 + o, ytop, zm, x0 - o, eY, z0 - o, x0 - o, eY, z1 + o, x0 - o, ytop, zm], 3));
+    g.add(new THREE.Mesh(gg, gableMat));
+    // bande de mur sous le débord du toit (cachée par le rebord, sauf de très près)
+    const band = new THREE.BufferGeometry();
+    band.setAttribute('position', new THREE.Float32BufferAttribute([x0, wallH, z1, x1, wallH, z1, x1, eY, z1, x0, wallH, z1, x1, eY, z1, x0, eY, z1], 3));
+    g.add(new THREE.Mesh(band, gableMat));
+    // liseré sous le toit
+    const eave = new THREE.Mesh(new THREE.BoxGeometry(b.w + 2 * o, 0.1, 0.1), eaveMat); eave.position.set((x0 + x1) / 2, eY - 0.05, z1 + o); g.add(eave);
+    // ombre portée au sol devant le bâtiment
+    const sh = new Geo(); const S = this.S.rects.shadow;
+    flat(sh, x0 - 0.1, z1 - 0.2, x1 + 0.1, z1 + 0.45, 0.012, [S.u0, S.v0 + (S.v1 - S.v0) * 0.4, S.u1, S.v1]);
+    g.add(new THREE.Mesh(sh.build(), this.mat.shadow));
+    g.userData.b = b; g.userData.front = mFront; g.userData.fkey = fkey;
+    g.position.y = hb;
+    this.root.add(g); this.buildingMeshes.push(g);
+    this.fenetresBat(g);
   }
   /** pose un bâtiment en fausse 3D : géométries fusionnées du modèle, matériaux sans lumière (éclairage cuit),
    *  profondeur de façade, teinte de l'heure */
@@ -1157,30 +1173,27 @@ export class WorldView {
     g.userData.b = b; g.userData.modele = mod.nom;
     return g;
   }
-  buildWindowsGroup() {
-    // à la nuit tombée, fenêtres et portes s'allument (façades de nuit non teintées)
-    this.nightGroup = new THREE.Group(); this.root.add(this.nightGroup);
-    const cache = new Map();
-    for (const g of this.buildingMeshes) {
-      const b = g.userData.b; if (!b || g.userData.modele) continue;
-      const key = g.userData.fkey;
-      if (!cache.has(key)) {
-        const ks = b.kitStyle || b.style;
-        const day = facade(ks, b.w, b.h, b.door, false, b.x * 7 + b.y), night = facade(ks, b.w, b.h, b.door, true, b.x * 7 + b.y);
-        // ne garder que les pixels qui changent (fenêtres)
-        const c = document.createElement('canvas'); c.width = day.width; c.height = day.height;
-        const x = c.getContext('2d'); const dd = day.getContext('2d').getImageData(0, 0, c.width, c.height), nd = night.getContext('2d').getImageData(0, 0, c.width, c.height);
-        const out = x.createImageData(c.width, c.height);
-        for (let i = 0; i < dd.data.length; i += 4) { if (dd.data[i] !== nd.data[i] || dd.data[i + 1] !== nd.data[i + 1] || dd.data[i + 2] !== nd.data[i + 2]) { out.data[i] = nd.data[i]; out.data[i + 1] = nd.data[i + 1]; out.data[i + 2] = nd.data[i + 2]; out.data[i + 3] = 255; } }
-        x.putImageData(out, 0, 0);
-        cache.set(key, new THREE.MeshBasicMaterial({ map: tex(c), transparent: true, alphaTest: 0.5 }));
-      }
-      const wallH = b.h * Math.tan(EL);
-      const geo = new Geo(); geo.quad([b.x, 0, b.y + b.d + 0.01], [b.x + b.w, 0, b.y + b.d + 0.01], [b.x + b.w, wallH, b.y + b.d + 0.01], [b.x, wallH, b.y + b.d + 0.01], 0, 0, 1, 1, 1);
-      const wm = new THREE.Mesh(geo.build(), cache.get(key).clone()); wm.position.y = g.userData.hb || 0; g.userData.win = wm; this.nightGroup.add(wm);
+  buildWindowsGroup() { /* les fenêtres de nuit sont posées avec chaque bâtiment (fenetresBat) */ }
+  /** à la nuit tombée, fenêtres et portes s'allument (façades de nuit non teintées) */
+  fenetresBat(g) {
+    const b = g.userData.b; if (!b || g.userData.modele) return;
+    const cache = this._fenetres, key = g.userData.fkey;
+    if (!cache.has(key)) {
+      const ks = b.kitStyle || b.style;
+      const day = facade(ks, b.w, b.h, b.door, false, b.x * 7 + b.y), night = facade(ks, b.w, b.h, b.door, true, b.x * 7 + b.y);
+      // ne garder que les pixels qui changent (fenêtres)
+      const c = document.createElement('canvas'); c.width = day.width; c.height = day.height;
+      const x = c.getContext('2d'); const dd = day.getContext('2d').getImageData(0, 0, c.width, c.height), nd = night.getContext('2d').getImageData(0, 0, c.width, c.height);
+      const out = x.createImageData(c.width, c.height);
+      for (let i = 0; i < dd.data.length; i += 4) { if (dd.data[i] !== nd.data[i] || dd.data[i + 1] !== nd.data[i + 1] || dd.data[i + 2] !== nd.data[i + 2]) { out.data[i] = nd.data[i]; out.data[i + 1] = nd.data[i + 1]; out.data[i + 2] = nd.data[i + 2]; out.data[i + 3] = 255; } }
+      x.putImageData(out, 0, 0);
+      cache.set(key, new THREE.MeshBasicMaterial({ map: tex(c), transparent: true, alphaTest: 0.5 }));
     }
-    this.nightGroup.visible = false;
+    const wallH = b.h * Math.tan(EL);
+    const geo = new Geo(); geo.quad([b.x, 0, b.y + b.d + 0.01], [b.x + b.w, 0, b.y + b.d + 0.01], [b.x + b.w, wallH, b.y + b.d + 0.01], [b.x, wallH, b.y + b.d + 0.01], 0, 0, 1, 1, 1);
+    const wm = new THREE.Mesh(geo.build(), cache.get(key).clone()); wm.position.y = g.userData.hb || 0; g.userData.win = wm; this.nightGroup.add(wm);
   }
+
 
   /* ---------------- personnages, objets ---------------- */
   actor(id, o) {
