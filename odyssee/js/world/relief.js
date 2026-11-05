@@ -125,8 +125,8 @@ export const pente = (W, x, y) => !!W.pentes && x >= 0 && y >= 0 && x < W.w && y
  * o.roche : falaise de roche au bord droit (canyons, déserts).
  */
 export function plateau(W, cells, niv, o = {}) {
-  const R = o.roche ? new Set() : contourNaturel(W, cells, niv);
-  if (o.roche) for (const [x, y] of cells) if (W.in(x, y)) R.add(key(x, y));
+  const R = o.roche || o.brut ? new Set() : contourNaturel(W, cells, niv);
+  if (o.roche || o.brut) for (const [x, y] of cells) if (W.in(x, y)) R.add(key(x, y));
   // tout ce qui est sur le plateau monte avec lui (bâtiments et portes compris) ; seules les parois épargnent le décor protégé
   for (const k of R) { const [x, y] = k.split(',').map(Number); W.setHeight(x, y, niv); marquer(W, k, o.roche ? 0 : 1); }
   const avant = new Map();   // sol d'origine des cases devenues paroi
@@ -364,14 +364,48 @@ export function montagne(W, x0, y0, plan, o = {}) {
 export function massif(W, cells, o = {}) {
   const R = [];
   for (const [x, y] of cells) { const t = W.get(x, y); if (t === T.TREE || t === T.PINE || (o.tout && t !== T.BUILD && t !== T.DOOR)) { W.set(x, y, T.CAVEWALL); R.push([x, y]); } }
-  // distance au pied (cases qui ne sont pas de la roche)
-  const d = new Map(), q = [];
-  for (const [x, y] of R) if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => W.get(x + a, y + b) !== T.CAVEWALL)) { d.set(key(x, y), 0); q.push([x, y]); }
-  for (let i = 0; i < q.length; i++) {
-    const [x, y] = q[i], k = d.get(key(x, y));
-    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) { const kk = key(x + a, y + b); if (W.get(x + a, y + b) === T.CAVEWALL && !d.has(kk)) { d.set(kk, k + 1); q.push([x + a, y + b]); } }
+  if (!R.length) return R;
+  // distance au pied (cases qui ne sont pas de la roche), en grille d'entiers sur le rectangle du massif
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const [x, y] of R) { if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
+  const w = x1 - x0 + 1, h = y1 - y0 + 1, d = new Int32Array(w * h).fill(-1), q = new Int32Array(w * h);
+  let n = 0;
+  for (const [x, y] of R) if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => W.get(x + a, y + b) !== T.CAVEWALL)) { const i = (y - y0) * w + (x - x0); d[i] = 0; q[n++] = i; }
+  for (let k = 0; k < n; k++) {
+    const i = q[k], x = i % w, y = (i / w) | 0;
+    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+      const u = x + a, v = y + b; if (u < 0 || v < 0 || u >= w || v >= h) continue;
+      const j = v * w + u; if (d[j] >= 0 || W.get(u + x0, v + y0) !== T.CAVEWALL) continue;
+      d[j] = d[i] + 1; q[n++] = j;
+    }
   }
   const pas = o.pas || 4, base = o.base ?? 0;
-  for (const [x, y] of R) W.setHeight(x, y, base + 1 + Math.min(o.max ?? 2, Math.floor((d.get(key(x, y)) ?? 0) / pas)));
+  for (const [x, y] of R) { const k = d[(y - y0) * w + (x - x0)]; W.setHeight(x, y, base + 1 + Math.min(o.max ?? 2, Math.floor(Math.max(0, k) / pas))); }
   return R;
+}
+
+/**
+ * une montagne en vrai relief sur les cases `cells` (forêt devenue roche) : la hauteur monte avec la distance au pied
+ * (o.pente niveaux par case), plafonnée par un relief de crêtes et de masses (bruit à graine fixe o.g) ; o.max : plus haut
+ * niveau ; o.palier : hauteurs arrondies (2 : tables et mesas aux bords abrupts) ; o.base : niveau du pied. Renvoie les
+ * cases de roche.
+ */
+export function reliefMontagne(W, cells, o = {}) {
+  if (!cells.length) return [];
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const [x, y] of cells) { if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
+  x0--; y0--; x1++; y1++;
+  const w = x1 - x0 + 1, h = y1 - y0 + 1, at = (x, y) => (y - y0) * w + (x - x0), d = new Float32Array(w * h);
+  for (const [x, y] of cells) d[at(x, y)] = 1e9;
+  for (let y = y0 + 1; y <= y1; y++) for (let x = x0 + 1; x < x1; x++) { const p = at(x, y); if (d[p]) d[p] = Math.min(d[p], d[p - 1] + 1, d[p - w] + 1, d[p - w - 1] + 1.41, d[p - w + 1] + 1.41); }
+  for (let y = y1 - 1; y >= y0; y--) for (let x = x1 - 1; x > x0; x--) { const p = at(x, y); if (d[p]) d[p] = Math.min(d[p], d[p + 1] + 1, d[p + w] + 1, d[p + w + 1] + 1.41, d[p + w - 1] + 1.41); }
+  const g = o.g ?? 7, pente = o.pente ?? 0.55, max = o.max ?? 8, pal = o.palier ?? 1, base = o.base ?? 0;
+  for (const [x, y] of cells) {
+    const crete = 1 - Math.abs(2 * bruit(x, y, o.echelle ?? 40, g) - 1), masse = bruit(x, y, (o.echelle ?? 40) * 2.2, g + 1), detail = bruit(x, y, 9, g + 2);
+    const cible = 1 + crete * (o.crete ?? 4) + masse * (o.masse ?? 3) + detail * 1.4;
+    let H = Math.max(1, Math.min(max, Math.floor(d[at(x, y)] * pente) + 1, Math.floor(cible)));
+    if (pal > 1) H = Math.max(1, Math.round(H / pal) * pal);
+    W.set(x, y, T.CAVEWALL); W.setHeight(x, y, base + H);
+  }
+  return cells;
 }

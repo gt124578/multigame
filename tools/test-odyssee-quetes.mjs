@@ -67,7 +67,8 @@ try {
   // la Forêt des Torii est sur la carte du monde (à l'ouest de la route 7)
   ok(!maps.torii, 'la Forêt des Torii n\'est plus une carte à part');
   await beat('monde', 'q:tor1'); await beat('monde', 'q:tor2');
-  const torii = (d) => d.x >= 204 && d.x <= 281 && d.y >= 152 && d.y <= 197;
+  const { TORII } = await import('../odyssee/js/world/plan.js'), [tdx, tdy] = maps.monde.w > 440 ? [TORII.dx, TORII.dy] : [0, 0];
+  const torii = (d) => d.x >= 204 + tdx && d.x <= 281 + tdx && d.y >= 152 + tdy && d.y <= 197 + tdy;
   const [stele] = deco('monde', 'stele').filter(torii); await use('monde', stele.x, stele.y);
   ok(S('kagura') === 2 && bag.talisman === 3, 'kagura : trois talismans');
   const temple = Object.keys(maps).find((k) => k.startsWith('kagura:tower'));

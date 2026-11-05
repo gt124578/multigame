@@ -170,6 +170,32 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   et ses dresseurs gardent leurs anciens identifiants (`grue:tour…`, `mapId` de `buildTown`) : un bâtiment déplacé garde ainsi son intérieur.
   Mine de Pierrefort (trois niveaux, échelles, rails) : `odyssee/js/world/mine.js`. Villes agrandies : `fermer`, emprises `GRAND`,
   `lotir: { n }` pose des maisons habitées dans l'herbe libre sans couper de passage ; un garde se tient dans le couloir de sortie.
+  Grande région (1200 × 1392 cases, `CARTE_VERSION` de `region.js`) : plan en blocs de 24 cases dans `odyssee/js/world/plan.js`
+  (`VILLES` : emprise, centre, thème, quartiers, sorties et leurs gardes ; `TERR` : territoire de chaque route ; `CHAINE` : la Chaîne
+  Céleste ; `TORII`, `LUNAIRE` : décalages des lieux faits main). Une ville = l'ancienne ville au centre (identifiants inchangés)
+  et des quartiers générés autour (`grandeVille` de `quartiers.js`) : contour naturel (lisière qui ondule, côte et plage),
+  identité par thème (`THEMES` : rivière et ponts, ville haute sur une colline à un ou deux niveaux, bâtiments remarquables
+  `REPERES` — auberge, boulangerie, chapelle, mairie, gare, maison de thé —, décor bâti, quartiers en plus), rues en grille
+  irrégulière (chaussées asphaltées à marquage et trottoirs pour les villes `style: 'ville'`, terre battue ailleurs), îlots
+  trouvés par remplissage et recoupés de ruelles, quartiers (maisons avec clôture, portillon, haie, potager et verger ;
+  parc, place et monument, marché, jardins, ferme, verger, bosquet, champ de fleurs, jardin zen, carrière, étang, oasis,
+  usines, centrale, affaires, esplanade, port), promenade au bord de l'eau, panneaux de rue, passants ; `combler` transforme
+  les grands aplats vides en squares, `relier` raccorde portes, habitants et objets aux rues (plus court chemin, escaliers
+  compris) et retire les habitants ajoutés restés enfermés. Une route = un tracé qui serpente dans son territoire
+  (`grandeRoute` de `chemins.js` : `ouvrirPaysage` ouvre autour du sentier une bande de 18 à 36 cases — prairies, carrés
+  d'herbes hautes, bosquets, fleurs, rochers, collines boisées, pitons —, une lisière de forêt sépare toujours deux morceaux
+  du tracé et la forêt garde trois cases au bord du territoire ; `bande: [min, variation]` règle la largeur ; paysages par
+  bloc, impasses récompensées, raccourci à Coupe / Éclate-Roc / Surf, dresseurs `route:dN`, objets `route:oN`). Les blocs
+  restés en forêt à la fin (`lieux.js`) : lieu à découvrir s'il touche une route (sentier depuis la route, hameau, ferme, lac,
+  marais, ruines, colline, verger, cabane, source, campement, prairie ; identifiants `lieu:c,r:…`), sinon paysage de fond
+  (lacs cachés, crêtes rocheuses, pinèdes) ; puis les côtes (anses, plages, falaises), jamais près des tourbillons.
+  Montagnes en vrai relief : `chaine()` de `region.js` (Chaîne Céleste : crêtes en gradins jusqu'au niveau 10, vallées de
+  pins, lacs d'altitude, neige sur les cimes — `W.neige`, lu par le rendu des roches) et `reliefMontagne` de `relief.js`
+  (Hauts d'Ocre, mesas du désert, parois du canyon : `palier: 2` pour des tables aux bords abrupts). Les lieux faits main à l'ancienne échelle (îles de l'Est, Forêt des Torii, Mont Lunaire) sont
+  construits dans un brouillon puis recopiés avec leur décalage (`atelier.js`). Les objets des anciennes cartes gardent leurs
+  identifiants (`anciens-objets.js`, file vérifiée à la construction). Paroles des habitants : `voix.js`. Une sauvegarde d'avant
+  la grande région repart du Centre de la dernière ville visitée (`migration.js`, `state.carte`) : `node tools/test-odyssee-migration.mjs`.
+  Rendu : bâtiments posés bloc par bloc à l'approche (`poserBatimentsBloc` de `world3d.js`), morceaux lointains défaits.
   Décor ajouté hors planches (`odyssee/js/data/decor-plus.js`) : `python3 tools/odyssee-automne.py` (arbres d'automne),
   `tools/odyssee-mine.py` (étais, wagonnets…), `tools/odyssee-desert.py` (cactus).
   Métropole : Bourse (`odyssee/js/core/bourse.js`, pricers et entretien de Pierre) et Casino (`odyssee/js/core/casino.js` ;

@@ -51,7 +51,8 @@ const SANCT = [[73, 40, 44, 25], [130, 40, 44, 10], [171, 40, 44, 15], [226, 40,
 /** Lugia Obscur : où il dort, sur l'autel du Sanctuaire */
 export const LUGIA_ALTAR = { map: 'sanctuaire', x: 12, y: 4 };
 
-export function addStory({ W, maps, towns, routes, legends, trainerNpc }) {
+export function addStory(ctx) {
+  const { W, maps, towns, routes, legends, trainerNpc } = ctx;
   const R = routes;
   /** case libre la plus proche (praticable, sans PNJ, objet ni porte) ; évite les sentiers quand c'est possible */
   const free = (m, x, y, avoidPath = true) => {
@@ -188,23 +189,29 @@ export function addStory({ W, maps, towns, routes, legends, trainerNpc }) {
     maps.repaire = rep;
     // des sbires bloquent l'entrée de Mirage tant que le Chef n'est pas battu
     const G = towns.G;
+    let gt2x = G.x + 2, gt2y = G.y + 12;
     const gt = W.npc({ id: 'mirage:sbire-garde', x: G.x + 2, y: G.y + 9, sprite: 'eclipse_m', dir: 'left', text: ['Halte ! Mirage est sous le contrôle de la Team Éclipse.', 'Personne ne passe tant que le Chef n\'en a pas fini dans notre repaire, là-bas, sur la route 6 !'] });
-    // toute la lisière ouest de la ville est gardée (la route 6 y arrive en large)
-    const west = []; for (let y = G.y; y < G.y + G.h; y++) if (walkable(W.get(G.x, y))) west.push([G.x, y]);
+    // toute la lisière ouest de la ville est gardée (la route 6 y arrive en large) ; grande ville : ses portes de l'ouest
+    const west = [];
+    if (G.sorties) { for (const s of G.sorties) if (s.dir === 'w') west.push(...s.tiles); }
+    else for (let y = G.y; y < G.y + G.h; y++) if (walkable(W.get(G.x, y))) west.push([G.x, y]);
+    if (G.sorties) { const s = G.sorties.find((q) => q.dir === 'w'); [gt.x, gt.y] = s.poste; const s2 = G.sorties.filter((q) => q.dir === 'w')[1]; if (s2) [gt2x, gt2y] = s2.poste; }
     gt.gate = { open: (f) => !!f.eclipse, badges: 4, tiles: west };
     W.gates.push({ npc: gt.id, ...gt.gate });
-    const gt2 = W.npc({ id: 'mirage:sbire-garde2', x: G.x + 2, y: G.y + 12, sprite: 'eclipse_f', dir: 'left', text: ['Le Chef Nocturne prépare quelque chose d\'énorme. Circule !'] });
+    const gt2 = W.npc({ id: 'mirage:sbire-garde2', x: gt2x, y: gt2y, sprite: 'eclipse_f', dir: 'left', text: ['Le Chef Nocturne prépare quelque chose d\'énorme. Circule !'] });
     gt2.gate = { open: (f) => !!f.eclipse, badges: 4, tiles: [] };
   }
 
   /* ======================== Acte 6 · le Sanctuaire des Marées ======================== */
   {
     // îlot au sud du Cap Mirage, entre le continent et l'archipel : on y va en surfant
-    W.blob(280.5, 207, 7, 4.5, T.SAND, rng(99), [T.WATER]);
-    const b = W.building('cave', 278, 203);
+    // (ctx.ilot : position de l'entrée de la grotte sur la grande carte ; 278, 203 sur l'ancienne)
+    const [IX, IY] = ctx.ilot ? [ctx.ilot[0] - 278, ctx.ilot[1] - 203] : [0, 0];
+    W.blob(280.5 + IX, 207 + IY, 7, 4.5, T.SAND, rng(99), [T.WATER]);
+    const b = W.building('cave', 278 + IX, 203 + IY);
     W.rect(b.doorX - 1, b.doorY + 1, b.doorX + 1, b.doorY + 3, T.SAND);
     W.prop('statue', b.doorX - 2, b.doorY + 2); W.prop('statue', b.doorX + 2, b.doorY + 2);
-    W.zone(271, 200, 290, 213, { name: 'Îlot des Marées', music: 'sanctuary' });
+    W.zone(271 + IX, 200 + IY, 290 + IX, 213 + IY, { name: 'Îlot des Marées', music: 'sanctuary' });
     const s = new GameMap('sanctuaire', 25, 34, { outdoor: false, fill: T.CAVEWALL, floor: 'cave', music: 'sanctuary', name: 'Sanctuaire des Marées', battleBg: 'cave' });
     s.edge = T.CAVEWALL;
     s.rect(11, 24, 13, 31, T.CAVE); s.rect(3, 16, 21, 26, T.CAVE); s.rect(11, 11, 13, 16, T.CAVE); s.set(12, 10, T.CAVE); s.rect(5, 2, 19, 9, T.CAVE);
@@ -376,15 +383,16 @@ function cavePortal(W, pts, t0) {
  * obstacle, couloir de 3 tuiles, clairière 3 × 3 avec les objets. Ne creuse que des arbres et ne touche aucune autre zone.
  */
 function secretPocket(W, pts, t0, side, obs, items) {
-  for (let tries = 0; tries < 24; tries++) {
+  for (let tries = 0; tries < 40; tries++) {
     const t = t0 + (tries % 2 ? 1 : -1) * Math.ceil(tries / 2) * 0.015;
     const p = along(pts, t);
     let dx = p.nx * side, dy = p.ny * side;
     if (Math.abs(dx) > Math.abs(dy)) { dx = Math.sign(dx); dy = 0; } else { dy = Math.sign(dy); dx = 0; }
     let x = Math.round(p.x), y = Math.round(p.y), k = 0;
-    while (k++ < 14 && W.get(x, y) !== T.TREE && W.get(x, y) !== T.PINE) { x += dx; y += dy; }
+    let passe = false;   // le chemin vers le recoin ne traverse aucun téléporteur (passage vers un lieu annexe)
+    while (k++ < 34 && W.get(x, y) !== T.TREE && W.get(x, y) !== T.PINE) { if (W.warpAt(x, y)) passe = true; x += dx; y += dy; }
     const before = W.get(x - dx, y - dy);
-    if (k >= 14 || !walkable(before) || before === T.TALL || before === T.DARKTALL) continue;
+    if (passe || k >= 34 || !walkable(before) || before === T.TALL || before === T.DARKTALL) continue;
     if (W.items.some((it) => it.x === x - dx && it.y === y - dy) || W.npcs.some((n) => n.x === x - dx && n.y === y - dy)) continue;   // l'entrée reste libre
     const ex = x, ey = y;
     const set = [];

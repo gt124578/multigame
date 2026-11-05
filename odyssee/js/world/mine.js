@@ -29,14 +29,16 @@ function echelle(m, x, y, to, jour = false) { m.deco.push({ k: jour ? 'echelle_j
 export function addMine({ W, maps, towns, trainerNpc, ENC }) {
   const C = towns.C, enc = ENC.grotte;
   /* ---------------- dehors : le chemin de la mine, au nord de Pierrefort ---------------- */
-  const px = C.x + 45;   // colonne du chemin : la sortie nord de la ville, entre le Centre et la Maison des Mineurs
-  W.rect(px, C.y - 6, px + 1, C.y + 9, T.PATH, [T.TREE, T.PINE, T.GRASS, T.FLOWER, T.TALL]);
-  W.rect(px - 3, C.y - 7, px + 4, C.y - 4, T.GRASS, [T.TREE, T.PINE]); W.rect(px, C.y - 7, px + 1, C.y - 4, T.PATH);
-  const porte = W.building('cave', px - 2, C.y - 10);
-  massif(W, polygone([[px - 12, C.y - 24], [px + 14, C.y - 26], [px + 17, C.y - 14], [px + 10, C.y - 5], [px + 4, C.y - 8], [px - 4, C.y - 8], [px - 11, C.y - 4], [px - 15, C.y - 14]]));
-  W.zone(px - 15, C.y - 26, px + 17, C.y - 4, { name: 'Mine de Pierrefort', music: 'route', theme: 'canyon', roche: 'terre', prio: 0 });
-  W.sign(px + 3, C.y - 5, 'MINE DE PIERREFORT\nGaleries fermées au fond : éboulement.');
-  W.prop('wagonnet', px - 3, C.y - 5); W.prop('lampe_mine', px - 1, C.y - 7); W.prop('caisses', px + 4, C.y - 6);
+  // colonne du chemin et rangée du bord nord de la ville : la sortie nord (C.mine, posée par la grande ville), sinon
+  // l'ancienne sortie du centre, entre le Centre et la Maison des Mineurs
+  const [px, cy0] = C.mine || [C.x + 45, C.y];
+  W.rect(px, cy0 - 6, px + 1, cy0 + 9, T.PATH, [T.TREE, T.PINE, T.GRASS, T.FLOWER, T.TALL]);
+  W.rect(px - 3, cy0 - 7, px + 4, cy0 - 4, T.GRASS, [T.TREE, T.PINE]); W.rect(px, cy0 - 7, px + 1, cy0 - 4, T.PATH);
+  const porte = W.building('cave', px - 2, cy0 - 10);
+  massif(W, polygone([[px - 12, cy0 - 24], [px + 14, cy0 - 26], [px + 17, cy0 - 14], [px + 10, cy0 - 5], [px + 4, cy0 - 8], [px - 4, cy0 - 8], [px - 11, cy0 - 4], [px - 15, cy0 - 14]]));
+  W.zone(px - 15, cy0 - 26, px + 17, cy0 - 4, { name: 'Mine de Pierrefort', music: 'route', theme: 'canyon', roche: 'terre', prio: 0 });
+  W.sign(px + 3, cy0 - 5, 'MINE DE PIERREFORT\nGaleries fermées au fond : éboulement.');
+  W.prop('wagonnet', px - 3, cy0 - 5); W.prop('lampe_mine', px - 1, cy0 - 7); W.prop('caisses', px + 4, cy0 - 6);
 
   /* ---------------- niveau 1 : les galeries hautes ---------------- */
   const m1 = niveau('mine1', 42, 30, 'Mine de Pierrefort — galeries hautes'); m1.encounter = enc;
@@ -91,7 +93,7 @@ export function addMine({ W, maps, towns, trainerNpc, ENC }) {
   for (const m of [m1, m2, m3]) { m.townId = 'pierre'; maps[m.id] = m; }
 
   /* ---------------- le chef mineur et le paléontologue, à l'entrée ---------------- */
-  W.npc({ id: 'mine:albin', x: px + 3, y: C.y - 7, sprite: 'montagnard', dir: 'left', talk: async (A) => {
+  W.npc({ id: 'mine:albin', x: px + 3, y: cy0 - 7, sprite: 'montagnard', dir: 'left', talk: async (A) => {
     const s = A.step('mine'), who = 'Albin, chef mineur';
     if (s === 'fin') { await A.say(['La mine respire de nouveau. Merci, petit.', 'Basalte serait fier de voir quelqu\'un descendre aussi bas.'], who); return; }
     if (!s) {
@@ -100,7 +102,7 @@ export function addMine({ W, maps, towns, trainerNpc, ENC }) {
     }
     await A.say(A.has('fossile-dome') ? 'Tu l\'as ! Montre-le donc au Dr Silex.' : 'Le fossile est tout au fond, au-delà de l\'éboulement. Prends de quoi t\'éclairer.', who);
   } });
-  W.npc({ id: 'mine:silex', x: px - 2, y: C.y - 6, sprite: 'scientifique', dir: 'right', talk: async (A) => {
+  W.npc({ id: 'mine:silex', x: px - 2, y: cy0 - 6, sprite: 'scientifique', dir: 'right', talk: async (A) => {
     const who = 'Dr Silex, paléontologue';
     if (A.step('mine') === 'fin') { await A.say('Prends soin de ton Kabuto. Il a quelques millions d\'années de retard à rattraper !', who); return; }
     if (!A.has('fossile-dome')) { await A.say(['Les fossiles de cette montagne sont d\'une qualité rare.', 'J\'ai de quoi ranimer un Pokémon fossile, si on m\'en rapporte un.'], who); return; }

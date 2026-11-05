@@ -189,7 +189,7 @@ for (let k = 0; k <= NB; k++) {
   if (k < NB) ok(doorOpen(seen, gymDoor(k)), `avec ${k} badge(s), l'arène ${k + 1} est accessible`);
   if (k < NB - 1) ok(!doorOpen(seen, gymDoor(k + 1)), `avec ${k} badge(s), l'arène ${k + 2} est encore fermée`);
   ok(doorOpen(seen, leagueDoor) === (k === NB), `Ligue ${k === NB ? 'ouverte' : 'fermée'} avec ${k} badge(s)`);
-  ok(!!seen[at(W, 212, 202)] === (k >= 8), `Cap des Étoiles ${k >= 8 ? 'ouvert' : 'fermé'} avec ${k} badge(s)`);
+  { const [cx, cy] = W.capEtoiles || [212, 202]; ok(!!seen[at(W, cx, cy)] === (k >= 8), `Cap des Étoiles ${k >= 8 ? 'ouvert' : 'fermé'} avec ${k} badge(s)`); }
 }
 // l'usine Poké Ball de Pierrefort reste fermée (portail gardé), même avec tous les badges et toutes les capacités
 { const u = [...W.warps].find(([, w]) => w.map === 'pierre:usine'); ok(!!u, 'usine Poké Ball posée à Pierrefort');
@@ -240,7 +240,8 @@ for (const q of legends) {
 { const porte = [...W.warps].find(([, w]) => w.map === 'grue:tour'); ok(!!porte, 'Tour Dorée posée sur la carte du monde');
   const [x, y] = porte[0].split(',').map(Number), bat = W.buildings.find((b) => b.name === 'Tour Dorée'), cen = W.buildings.find((b) => b.name === 'Tour Cendrée');
   ok(bat && bat.modele === 'pagode' && bat.w === 11 && bat.d === 11 && bat.doorX === bat.x + 5 && x === bat.doorX && y === bat.doorY, 'Tour Dorée : pagode 11 × 11, porte au milieu');
-  ok(W.zoneAt(x, y + 1)?.theme === 'automne' && x >= 166 && x <= 275 && y >= 152 && y <= 197, 'Tour Dorée : dans la Forêt des Torii');
+  { const { TORII } = await import('../odyssee/js/world/plan.js'), [a, b, c, d] = TORII.zone, dx = W.w > 440 ? TORII.dx : 0, dy = W.w > 440 ? TORII.dy : 0;
+    ok(W.zoneAt(x, y + 1)?.theme === 'automne' && x >= a + dx && x <= c + dx && y >= b + dy && y <= d + dy, 'Tour Dorée : dans la Forêt des Torii'); }
   ok(cen && Math.abs((bat.x + 5) - (cen.x + 5)) <= 45 && Math.abs(bat.y - cen.y) <= 6, 'Tour Dorée : à côté de la Tour Cendrée');
   const abilK = (k) => new Set(Object.entries(FIELD).filter(([f, d]) => d.badge <= k && FIELD_T[f] != null).map(([f]) => FIELD_T[f]));
   const [cx, cy] = [cen.doorX, cen.doorY];
@@ -273,7 +274,8 @@ for (const q of legends) {
 { const { GRAND } = await import('../odyssee/js/world/mapgen.js');
   const TAILLE = { house: [4, 3], house2: [5, 3], bighouse: [6, 4], center: [GRAND.center.w, GRAND.center.d], mart: [GRAND.mart.w, GRAND.mart.d], gym: [GRAND.gym.w, GRAND.gym.d] };
   const en3d = (b) => !!b.modele || (TAILLE[b.kind] && TAILLE[b.kind][0] === b.w && TAILLE[b.kind][1] === b.d);
-  const zones = [['Forêt des Torii', 160, 150, 280, 198], ...['Q', 'K', 'H', 'L'].map((k) => [towns[k].name, towns[k].x, towns[k].y, towns[k].x + towns[k].w, towns[k].y + towns[k].h])];
+  const { TORII: TO } = await import('../odyssee/js/world/plan.js');
+  const zones = [['Forêt des Torii', 160 + TO.dx, 150 + TO.dy, 280 + TO.dx, 198 + TO.dy], ...['Q', 'K', 'H', 'L'].map((k) => [towns[k].name, towns[k].x, towns[k].y, towns[k].x + towns[k].w, towns[k].y + towns[k].h])];
   for (const [nom, x0, y0, x1, y1] of zones) for (const b of W.buildings.filter((b) => b.x >= x0 && b.x < x1 && b.y >= y0 && b.y < y1 && b.kind !== 'cave')) ok(en3d(b), `${nom} : ${b.name || b.kind} (${b.x},${b.y}) a un modèle 3D`); }
 // les arènes des îles (Port-Granit, Cendrelune, Fort-Écaille) ont la grande emprise (GRAND.gym, modèle areneCour)
 { const { GRAND } = await import('../odyssee/js/world/mapgen.js');

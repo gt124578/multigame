@@ -10,7 +10,8 @@ import { ITEMS, itemName, applyItem, canUseOn, useCandy, formatFindItem, formatO
 import { SPECIES } from './data/species.js';
 import { MOVES } from './data/moves.js';
 import { SAUVAGE, R } from './data/remplacants.js';
-import { STARTERS, STARTER_CHOICES, STARTER_TABLE, starterSlot, RIVAL_NAME, BADGES, LEADERS, FIELD } from './world/region.js';
+import { STARTERS, STARTER_CHOICES, STARTER_TABLE, starterSlot, RIVAL_NAME, BADGES, LEADERS, FIELD, CARTE_VERSION } from './world/region.js';
+import { migrerCarte } from './world/migration.js';
 import { BattleView } from './ui/battleView.js';
 import { Hud } from './ui/hud.js';
 import { partyScreen, bagScreen, dexScreen, mapScreen, cardScreen, shopScreen, pcScreen, naturePcScreen, moveRelearnerScreen, optionsScreen, pokedexRegisterScene, TYPE_FR, questsScreen, trophiesScreen, showTrophyToast, hofScreen, pantheonScreen, friendsScreen } from './ui/screens.js';
@@ -179,7 +180,7 @@ export class Game {
       party: [], box: [], bag: { potion: 1 }, dex: { seen: [], caught: [], seenCount: {} }, time: 0, visited: ['aube'], repel: 0,
       cleared: {}, surf: false, explored: [], journal: {},
       pvp: { totalWins: 0, totalLosses: 0, totalDraws: 0, currentStreak: 0, bestStreak: 0, players: {}, trophies: {} },
-      lastCenter: { map: 'aube:maison', x: 4, y: 5, dir: 'up' }, ...this.world.start,
+      lastCenter: { map: 'aube:maison', x: 4, y: 5, dir: 'up' }, ...this.world.start, carte: CARTE_VERSION,
     };
   }
   save(silent = false) {
@@ -205,6 +206,9 @@ export class Game {
   }
 
   async start(state) {
+    // partie d'avant le remaniement de la carte du monde : elle reprend au Centre de la dernière ville visitée
+    // (world/migration.js) ; badges, équipe, objets, quêtes et dresseurs battus ne bougent pas
+    const repriseVille = migrerCarte(state, this.world);
     // ancienne partie arrêtée sur une carte qui n'existe plus (lieu déplacé sur la carte du monde) ou dans un décor
     // qui a changé (falaise, arbre) : on la reprend sur la case libre la plus proche
     const mv = this.world.moved?.[state.map];
@@ -225,7 +229,12 @@ export class Game {
     this.link?.hello();
     this.view.update(0, this.player.x, this.player.y); await this.view.solPret?.();   // le sol généré est prêt avant d'ouvrir l'écran
     await this.ui.fade(false, 400);
-    if (!state.flags.intro) { state.flags.intro = true; this.busy = true; await this.ui.say(['Une douce lumière filtre à travers les rideaux...', `Aujourd'hui, ${state.name}, ton aventure commence !`, 'Le Prof. Saule t\'attend à son laboratoire, au sud-est du village.', 'Appuie sur H à tout moment pour revoir les touches.']); this.busy = false; }
+    if (!state.flags.intro) { state.flags.intro = true; this.busy = true; await this.ui.say(['Une douce lumière filtre à travers les rideaux...', `Aujourd'hui, ${state.name}, ton aventure commence !`, 'Le Prof. Saule t\'attend à son laboratoire, le grand bâtiment blanc au cœur du village.', 'Appuie sur H à tout moment pour revoir les touches.']); this.busy = false; }
+    else if (repriseVille) {
+      this.busy = true;
+      await this.ui.say(['La région d\'Odyssée s\'est agrandie pendant ton absence : les villes ont poussé, les routes serpentent plus loin.', `Tu reprends ton voyage au ${repriseVille.centerId ? 'Centre de soins de ' + repriseVille.name : 'calme de ta maison'}.`]);
+      this.busy = false; this.save(true);
+    }
   }
   hour() { if (this.eclipseOn()) return 0.5; if (this.hourOverride != null) return this.hourOverride; const d = new Date(); return d.getHours() + d.getMinutes() / 60; }
   /** la nuit violette, entre la victoire contre Nocturne au repaire et le réveil de Lugia */

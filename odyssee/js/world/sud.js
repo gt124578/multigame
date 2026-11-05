@@ -3,10 +3,12 @@
 // Sept villes à arène : Métropole (Normal, la mégapole aux gratte-ciel, sa Bourse et son Casino), Port-Lisière (Vol),
 // Marais-Noir (Poison), Dunes d'Ocre (Sol), Forge-Acier (Acier), Rosebrume (Fée) et Ombreval (Ténèbres).
 // Avec les cinq arènes du nord, cela fait douze Champions sur le continent, plus les trois frères de l'archipel.
-import { T } from './tiles.js';
+import { T, walkable } from './tiles.js';
 import { room } from './interiors.js';
-import { bande, massif, plateau, boucher, sinueuse } from './relief.js';
+import { bande, massif, plateau, boucher, sinueuse, reliefMontagne } from './relief.js';
 import { rng, along, nearestWalkable, GRAND } from './mapgen.js';
+import { VILLES, TERR, BLOC, porte, arrivee } from './plan.js';
+import { grandeVille, bruit } from './quartiers.js';
 
 // rencontres : [espèce, niveau min, niveau max, poids]
 export const ENC_SUD = {
@@ -93,27 +95,37 @@ function modeInterior(id) {
 }
 
 /**
- * construit les Terres du Sud dans la grande carte (440 × 520) : mer intérieure, pont, villes, routes.
- * ctx : { W, maps, towns, R, routeTrainer, routeItem, buildTown, ENC }
+ * construit les Terres du Sud dans la grande carte (plan.js) : le Pont de l'Austral, sept villes agrandies et leurs routes.
+ * ctx : { W, maps, towns, routes, G2 (grande route de region.js), routeTrainer, routeItem, buildTown, poserBatiment, ENC, PONT }
  */
 export function buildSud(ctx) {
-  const { W, towns, R, routeTrainer, routeItem, buildTown, ENC } = ctx;
+  const { W, towns, G2, routeTrainer, routeItem, ENC } = ctx;
   Object.assign(ENC, ENC_SUD);
-  // la mer du Sud devient un détroit sur toute la largeur ; les Terres du Sud dessous, bordées d'eau à l'est et au sud
-  W.rect(0, 268, 439, 292, T.WATER);
-  W.rect(424, 293, 439, 519, T.WATER); W.rect(0, 508, 439, 519, T.WATER);
+  const ville = (def, k) => grandeVille(W, ctx.maps, def, VILLES[k], { buildTown: ctx.buildTown, poserBatiment: ctx.poserBatiment });
   // Pont de l'Austral : de la route 10 jusqu'au Sud, au-dessus du détroit (il faut les huit premiers badges)
-  W.rect(99, 252, 100, 267, T.PATH); W.rect(99, 268, 100, 293, T.BRIDGE); W.set(101, 256, T.GRASS); W.set(98, 254, T.GRASS);
-  W.npc({ id: 'sud:garde-pont', x: 101, y: 256, sprite: 'garde', dir: 'left', gate: { badges: 8, tiles: [[99, 256], [100, 256]] }, text: ['Le Pont de l\'Austral mène aux Terres du Sud et à Métropole.', 'On ne laisse passer que les dresseurs aux huit badges : les cinq du continent et ceux des trois frères.'] });
-  W.gates.push({ npc: 'sud:garde-pont', badges: 8, tiles: [[99, 256], [100, 256]] });
-  W.sign(98, 254, 'PONT DE L\'AUSTRAL\nTerres du Sud — Métropole', 'sign');
-  W.zone(96, 254, 103, 293, { name: 'Pont de l\'Austral', music: 'route2', prio: 1 });
-  ctx.routes?.push({ id: 'pont', name: 'Pont de l\'Austral', pts: [[99.5, 252], [99.5, 294]] });   // tracé sur la carte (C)
+  const [px, py] = ctx.PONT;
+  let y = py + 1;
+  while (W.get(px, y) !== T.WATER && y < py + 200) { W.set(px, y, T.PATH); W.set(px + 1, y, T.PATH); y++; }
+  // le garde se tient au bord de l'eau, juste avant les planches : personne ne passe sur le pont sans lui
+  const gy = y - 1;
+  W.set(px + 2, gy, T.GRASS); W.set(px - 1, gy - 2, T.GRASS);
+  const y0 = y; while (W.get(px, y) === T.WATER || W.get(px, y) === T.WHIRL) { W.set(px, y, T.BRIDGE); W.set(px + 1, y, T.BRIDGE); y++; }
+  const y1 = y; for (let k = 0; k < 4; k++) { for (const x of [px - 2, px - 1, px + 2, px + 3]) W.set(x, y + k, T.TREE); W.set(px, y + k, T.PATH); W.set(px + 1, y + k, T.PATH); }
+  W.npc({ id: 'sud:garde-pont', x: px + 2, y: gy, sprite: 'garde', dir: 'left', gate: { badges: 8, tiles: [[px, gy], [px + 1, gy]] }, text: ['Le Pont de l\'Austral mène aux Terres du Sud et à Métropole.', 'On ne laisse passer que les dresseurs aux huit badges : les cinq du continent et ceux des trois frères.'] });
+  W.gates.push({ npc: 'sud:garde-pont', badges: 8, tiles: [[px, gy], [px + 1, gy]] });
+  W.sign(px - 1, gy - 2, 'PONT DE L\'AUSTRAL\nTerres du Sud — Métropole', 'sign');
+  W.zone(px - 4, gy - 2, px + 5, y1, { name: 'Pont de l\'Austral', music: 'route2', prio: 1 });
+  ctx.routes?.push({ id: 'pont', name: 'Pont de l\'Austral', pts: [[px + 0.5, py], [px + 0.5, y1 + 3]] });   // tracé sur la carte (C)
+  void y0;
 
-  const r13 = R('r13', 'Route 13', [[99.5, 294], [99.5, 300], [99.5, 307]], { w: 9, grass: 0.4, trees: 0.03, taperStart: false }, 'r13');
-  // la rive sud du détroit reste boisée : on n'y accoste pas en surfant (seul le pont y mène)
-  for (let x = 90; x <= 110; x++) if (x < 99 || x > 100) { W.set(x, 293, T.TREE); W.set(x, 294, T.TREE); }
+  const r13 = G2({ id: 'r13', nom: 'Route 13', de: { x: px, y: y1 + 3, dir: 's' }, vers: arrivee('SM', 'r13'), effile: [false, true], long: 2, graine: 1301, w: 9, grass: 0.4, trees: 0.03, branches: 0, dresseurs: 0, promeneurs: 0, paysages: ['prairie'] }, 'r13');
   routeTrainer(W, r13, 0.5, 1, 3, 'Topdresseuse', 'Céleste', [[203, 52], [508, 52], [53, 53]]);
+
+  // près du pont, la rive sud est bordée de rochers : on n'y accoste pas en surfant (seul le pont y mène)
+  for (let yy = y1 - 6; yy <= y1 + 16; yy++) for (let xx = px - 16; xx <= px + 17; xx++) {
+    if (W.get(xx, yy) !== T.WATER) continue;
+    if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => { const t = W.get(xx + a, yy + b); return walkable(t) && t !== T.BRIDGE; })) W.set(xx, yy, T.ROCK);
+  }
 
   /* ---------- Métropole (Margot, Normal) ---------- */
   const M = towns.SM = {
@@ -144,7 +156,7 @@ export function buildSud(ctx) {
       { id: 'garde-sud', x: 46, y: 59, sprite: 'garde', dir: 'left', gate: { badges: 14, tiles: [[44, 60], [45, 60]] }, text: ['La route 20 file vers Ombreval, dans les ténèbres du sud.', 'Elle est fermée tant que tu n\'as pas treize badges… Fais le tour par l\'est !'] },
     ],
   };
-  buildTown(W, ctx.maps, M);
+  ville(M, 'SM');
   // chaussées : les avenues sont asphaltées (trottoirs pavés de part et d'autre), passages piétons aux carrefours
   {
     const H2 = [14, 30, 46], V2 = [20, 44, 70], asph = new Set();
@@ -166,7 +178,7 @@ export function buildSud(ctx) {
   }
 
   /* ---------- route 14 → Port-Lisière ---------- */
-  const r14 = R('r14', 'Route 14', [[151, 336.5], [165, 336.5], [176, 329.5], [190, 336.5], [201, 336.5]], { w: 11, grass: 0.8, trees: 0.04, rocks: 0.03, flowers: 0.02 }, 'r14');
+  const r14 = G2({ id: 'r14', nom: 'Route 14', de: porte('SM', 'r14'), vers: arrivee('SP', 'r14'), long: 11, graine: 1401, w: 11, grass: 0.8, trees: 0.04, rocks: 0.03, flowers: 0.02, paysages: ['plateau', 'prairie', 'rochers', 'fleurs', 'etang'], branches: 0.45, raccourci: 'coupe', anciens: 4, panneaux: ['ROUTE 14\n→ Port-Lisière', 'ROUTE 14\n← Métropole'] }, 'r14');
   routeTrainer(W, r14, 0.2, 1, 3, 'Pilote', 'Hugo', [[22, 53], [279, 54]]);
   routeTrainer(W, r14, 0.4, -1, 4, 'Topdresseur', 'Ilan', [[528, 54], [397, 54], [178, 55]]);
   routeTrainer(W, r14, 0.6, 1, 4, 'Fillette', 'Nora', [[521, 54], [22, 55]]);
@@ -185,11 +197,10 @@ export function buildSud(ctx) {
     npcs: [{ id: 'pilote', x: 11, y: 12, sprite: 'topdresseur', move: 'wander', text: ['Aurèle a fait trois fois le tour de la région en deltaplane.', 'Ses Pokémon Vol ne craignent que la Glace, l\'Électrik et la Roche.'] },
       { id: 'garde', x: 47, y: 16, sprite: 'garde', dir: 'up', gate: { badges: 10, tiles: [[48, 14], [48, 15]] }, text: ['Le marais, à l\'est, est dangereux. Il faut le Badge Rafale.'] }],
   };
-  buildTown(W, ctx.maps, P);
+  ville(P, 'SP');
 
   /* ---------- route 15 → Marais-Noir (marécage, passerelles) ---------- */
-  W.blob(262, 330, 6, 4, T.WATER, rngLite(15)); W.blob(285, 322, 5, 3, T.WATER, rngLite(16));
-  const r15 = R('r15', 'Route 15', [[251, 336.5], [256, 336.5], [264, 330.5], [278, 322.5], [290, 318.5], [301, 318.5]], { w: 12, grass: 1.1, tall: T.DARKTALL, trees: 0.06, bridge: true, theme: 'forest' }, 'r15', 'forest');
+  const r15 = G2({ id: 'r15', nom: 'Route 15', de: porte('SP', 'r15'), vers: arrivee('SN', 'r15'), long: 10, graine: 1501, w: 12, grass: 1.1, tall: T.DARKTALL, trees: 0.06, theme: 'forest', ombre: 0.75, paysages: ['etang', 'riviere', 'etang', 'bosquet', 'prairie'], branches: 0.45, raccourci: 'surf', anciens: 5, voix: 'marais', panneaux: ['ROUTE 15\n→ Marais-Noir', null] }, 'r15', 'forest');
   routeTrainer(W, r15, 0.15, -1, 4, 'Ninja', 'Hayate', [[49, 56], [453, 57]]);
   routeTrainer(W, r15, 0.35, 1, 4, 'Médium', 'Bérénice', [[195, 57], [342, 57], [89, 57]]);
   routeTrainer(W, r15, 0.55, -1, 3, 'Pêcheur', 'Albin', [[195, 57], [453, 58]]);
@@ -208,29 +219,12 @@ export function buildSud(ctx) {
     ],
     npcs: [{ id: 'garde', x: 19, y: 35, sprite: 'garde', dir: 'up', gate: { badges: 11, tiles: [[17, 36], [18, 36]] }, text: ['Au sud, les Dunes d\'Ocre. Le Badge Venin d\'abord !'] }],
   };
-  buildTown(W, ctx.maps, N);
+  ville(N, 'SN');
 
   /* ---------- route 16 → Dunes d'Ocre (désert) ---------- */
   // un vrai désert : sable à perte de vue entre des mesas de roche ocre, cactus, crêtes de dunes dont on se laisse glisser
-  const r16 = R('r16', 'Route 16', sinueuse([[318.5, 343], [319, 348], [326, 353], [334, 356], [342, 366], [352, 368], [363, 372.5]]), { w: 13, grass: 0.35, trees: 0, rocks: 0.04, ground: T.SAND, overwrite: false, theme: 'desert' }, 'r16');
-  {
-    const r = rng(1616), ville = (x, y) => [towns.SN, { x: 363, y: 360, w: 46, h: 38 }].some((t) => x >= t.x - 2 && x <= t.x + t.w + 1 && y >= t.y - 2 && y <= t.y + t.h + 1);
-    for (const [x, y] of bande(r16, 0, 11, 0, 0.04, 0.97)) {
-      if (ville(x, y) || W.get(x, y) !== T.TREE) continue;
-      W.set(x, y, T.SAND);
-      const q = r(); if (q < 0.035) W.prop(q < 0.022 ? 'cactus' : 'cactus2', x, y); else if (q < 0.045) W.set(x, y, T.ROCK);
-    }
-    // au-delà du sable, des mesas de roche ocre ferment le désert (toute la forêt de la zone disparaît)
-    // une cuvette ovale aux bords irréguliers (pas un rectangle) : au-delà, la forêt reprend
-    const mesa = []; for (let y = 318; y <= 392; y++) for (let x = 288; x <= 382; x++) {
-      const q = ((x - 336) / 46) ** 2 + ((y - 357) / 34) ** 2 + (Math.sin(x * 0.31 + y * 0.17) + Math.sin(y * 0.23 - x * 0.11)) * 0.06;
-      if (q <= 1 && !ville(x, y) && W.get(x, y) === T.TREE) mesa.push([x, y]);
-    }
-    massif(W, mesa, { pas: 3 });
-    for (const [t, o] of [[0.3, 6], [0.5, -7], [0.75, 6], [0.62, 8]]) { const p = along(r16, t), x = Math.round(p.x + p.nx * o), y = Math.round(p.y + p.ny * o); if (W.get(x, y) === T.SAND) W.prop('rocher_grand', x, y); }
-    ctx.ledges?.(W, r16, [0.22, 0.6], { reach: 7 });
-  }
-  W.zone(296, 326, 372, 382, { name: 'Route 16', music: 'route', enc: ENC.r16, theme: 'desert', route: 'r16', prio: 0 });
+  const r16 = G2({ id: 'r16', nom: 'Route 16', de: porte('SN', 'r16'), vers: arrivee('SD', 'r16'), long: 14, graine: 1601, w: 13, grass: 0.35, trees: 0, rocks: 0.04, ground: T.SAND, theme: 'desert', paysages: ['rebords', 'rochers', 'prairie', 'rebords'], branches: 0.4, anciens: 4, voix: 'desert', impasses: ['ruines', 'campement', 'source', 'clairiere'], arbres: ['cactus', 'cactus2'], panneaux: ['ROUTE 16\nDésert : prévoyez de l\'eau !', null] }, 'r16');
+  desert(W, r16, TERR.r16, 1616);
   routeTrainer(W, r16, 0.2, 1, 4, 'Montagnard', 'Caravane', [[28, 59], [105, 59]]);
   routeTrainer(W, r16, 0.45, -1, 4, 'Randonneuse', 'Sahra', [[232, 60], [51, 60], [344, 60]]);
   routeTrainer(W, r16, 0.7, 1, 3, 'Topdresseur', 'Mirage', [[330, 61], [553, 61]]);
@@ -251,22 +245,12 @@ export function buildSud(ctx) {
     ],
     npcs: [{ id: 'garde', x: 20, y: 35, sprite: 'garde', dir: 'up', gate: { badges: 12, tiles: [[18, 36], [19, 36]] }, text: ['La route 17 descend vers Forge-Acier. Il te faut le Badge Dune.'] }],
   };
-  buildTown(W, ctx.maps, D);
+  ville(D, 'SD');
 
-  /* ---------- route 17 → Forge-Acier ---------- */
-  // le Canyon d'Ocre : la route descend au fond d'une gorge entre deux parois de roche ocre, grimpe sur une corniche
-  // le long de la paroi nord, puis redescend vers Forge-Acier
-  const r17 = R('r17', 'Route 17 — Canyon d\'Ocre', sinueuse([[381.5, 398], [381, 404], [374, 410], [364, 414], [352, 417], [344, 421], [334, 425.5]]), { w: 10, grass: 0.5, trees: 0, rocks: 0.05, theme: 'canyon' }, 'r17');
-  {
-    const ville = (x, y) => [towns.SD, { x: 288, y: 412, w: 46, h: 38 }].some((t) => x >= t.x - 2 && x <= t.x + t.w + 1 && y >= t.y - 2 && y <= t.y + t.h + 1);
-    massif(W, bande(r17, 4.6, 13, 0, 0.03, 0.97).filter(([x, y]) => !ville(x, y)), { tout: true, pas: 2, max: 3 });
-    // la corniche : un tronçon du chemin passe sur une vire, au-dessus du fond de la gorge
-    const p = along(r17, 0.5), cote = p.ny < 0 ? 1 : -1;   // côté nord de la route
-    plateau(W, [...bande(r17, 0, 2.2, 0, 0.36, 0.62), ...bande(r17, 2.2, 4.6, cote, 0.36, 0.62)].filter(([x, y]) => W.get(x, y) !== T.CAVEWALL), 1, { roche: true });   // falaise de roche ocre
-    for (const [x, y] of bande(r17, 0, 4.6, 0)) if (W.get(x, y) === T.TREE) W.set(x, y, T.GRASS);   // pas d'arbres au fond de la gorge
-    const m = along(r17, 0.5); boucher(W, bande(r17, 0, 5, 0).map(([x, y]) => x + ',' + y), nearestWalkable(W, m.x, m.y), T.ROCK);
-  }
-  W.zone(308, 380, 398, 440, { name: 'Canyon d\'Ocre', music: 'route', enc: ENC.r17, theme: 'canyon', route: 'r17', prio: 0 });
+  /* ---------- route 17 → Forge-Acier : le Canyon d'Ocre ---------- */
+  // la route descend au fond d'une gorge entre des parois de roche ocre, grimpe sur des corniches, puis rejoint Forge-Acier
+  const r17 = G2({ id: 'r17', nom: 'Route 17 — Canyon d\'Ocre', de: porte('SD', 'r17'), vers: arrivee('SF', 'r17'), long: 12, graine: 1701, w: 10, grass: 0.5, trees: 0, rocks: 0.05, theme: 'canyon', paysages: ['rochers', 'plateau', 'rochers', 'prairie'], branches: 0.4, anciens: 4, voix: 'desert', impasses: ['ruines', 'belvedere', 'campement'] }, 'r17');
+  canyon(W, TERR.r17);
   routeTrainer(W, r17, 0.25, -1, 4, 'Ouvrier', 'Boulon', [[82, 62], [437, 63]]);
   routeTrainer(W, r17, 0.5, 1, 4, 'Topdresseuse', 'Alice', [[303, 63], [208, 63], [227, 64]]);
   routeTrainer(W, r17, 0.72, -1, 3, 'Ouvrier', 'Écrou', [[598, 63], [530, 64]]);
@@ -284,10 +268,10 @@ export function buildSud(ctx) {
     ],
     npcs: [{ id: 'garde', x: 2, y: 15, sprite: 'garde', dir: 'up', gate: { badges: 13, tiles: [[1, 13], [1, 14]] }, text: ['Rosebrume, à l\'ouest, ne reçoit que les porteurs du Badge Rouage.'] }],
   };
-  buildTown(W, ctx.maps, F);
+  ville(F, 'SF');
 
   /* ---------- route 18 → Rosebrume (prairie fleurie) ---------- */
-  const r18 = R('r18', 'Route 18', [[287, 425.5], [266, 428], [246, 437], [230, 440], [218, 440.5]], { w: 12, grass: 0.8, trees: 0.04, flowers: 0.1 }, 'r18');
+  const r18 = G2({ id: 'r18', nom: 'Route 18', de: porte('SF', 'r18'), vers: arrivee('SR', 'r18'), long: 12, graine: 1801, w: 12, grass: 0.8, trees: 0.04, flowers: 0.1, paysages: ['fleurs', 'prairie', 'fleurs', 'etang', 'plateau', 'riviere'], branches: 0.45, raccourci: 'coupe', anciens: 4, arbres: ['cerisier', 'erable'], panneaux: ['ROUTE 18\n← Rosebrume', 'ROUTE 18\n→ Forge-Acier'] }, 'r18');
   routeTrainer(W, r18, 0.2, 1, 4, 'Fillette', 'Capucine', [[36, 65], [184, 65]]);
   routeTrainer(W, r18, 0.42, -1, 4, 'Dame Kimono', 'Sakura', [[210, 66], [700, 66]]);
   routeTrainer(W, r18, 0.62, 1, 4, 'Topdresseur', 'Florent', [[683, 66], [303, 66], [670, 66]]);
@@ -305,10 +289,10 @@ export function buildSud(ctx) {
     ],
     npcs: [{ id: 'garde', x: 2, y: 14, sprite: 'garde', dir: 'up', gate: { badges: 14, tiles: [[1, 12], [1, 13]] }, text: ['Ombreval, plus à l\'ouest, est plongée dans la nuit.', 'Il faut le Badge Féérie pour y aller.'] }],
   };
-  buildTown(W, ctx.maps, Ro);
+  ville(Ro, 'SR');
 
   /* ---------- route 19 → Ombreval (forêt sombre) ---------- */
-  const r19 = R('r19', 'Route 19', [[169, 440.5], [150, 445], [130, 452], [114, 458], [103, 460.5]], { w: 13, grass: 1.2, tall: T.DARKTALL, trees: 0.12, theme: 'forest' }, 'r19', 'forest');
+  const r19 = G2({ id: 'r19', nom: 'Route 19', de: porte('SR', 'r19'), vers: arrivee('SO', 'r19'), long: 12, graine: 1901, w: 13, grass: 1.2, tall: T.DARKTALL, trees: 0.12, theme: 'forest', ombre: 0.5, paysages: ['bosquet', 'prairie', 'etang', 'bosquet'], branches: 0.5, anciens: 4, voix: 'bois', panneaux: ['ROUTE 19\n← Ombreval', null] }, 'r19', 'forest');
   routeTrainer(W, r19, 0.2, -1, 4, 'Médium', 'Séléné', [[197, 68], [302, 68]]);
   routeTrainer(W, r19, 0.4, 1, 4, 'Voleur', 'Arsène', [[262, 68], [430, 69]]);
   routeTrainer(W, r19, 0.6, -1, 4, 'Topdresseuse', 'Nuit', [[359, 69], [461, 69], [510, 69]]);
@@ -326,14 +310,60 @@ export function buildSud(ctx) {
     ],
     npcs: [{ id: 'veuve', x: 12, y: 20, sprite: 'dame', move: 'turn', text: ['Après Corbin, il ne te restera que la Ligue Céleste.', 'Prends la route 20, au nord : elle remonte droit vers Métropole.'] }],
   };
-  buildTown(W, ctx.maps, O);
+  ville(O, 'SO');
 
   // route 20 : d'Ombreval à Métropole (raccourci du retour, fermé côté Métropole tant qu'on n'a pas treize badges)
-  const r20 = R('r20', 'Route 20', [[71.5, 447], [71.5, 425], [85, 405], [99.5, 390], [99.5, 369]], { w: 12, grass: 0.9, trees: 0.06, rocks: 0.03 }, 'r20');
+  const r20 = G2({ id: 'r20', nom: 'Route 20', de: porte('SO', 'r20'), vers: arrivee('SM', 'r20'), long: 13, graine: 2001, w: 12, grass: 0.9, trees: 0.06, rocks: 0.03, paysages: ['prairie', 'rochers', 'plateau', 'etang', 'fleurs'], branches: 0.4, anciens: 3 }, 'r20');
   routeTrainer(W, r20, 0.25, 1, 4, 'Topdresseur', 'Valentin', [[229, 71], [576, 71], [442, 71]]);
   routeTrainer(W, r20, 0.55, -1, 4, 'Topdresseuse', 'Garance', [[560, 72], [354, 71], [477, 72]]);
   routeTrainer(W, r20, 0.8, 1, 3, 'Karatéka', 'Masao', [[429, 72], [461, 72]]);
   routeItem(W, r20, 0.4, -1, 6, 'full-restore'); routeItem(W, r20, 0.7, 1, 5, 'elixir');
+
+  // les Hauts d'Ocre : une crête de roche au cœur des Terres du Sud (entre les routes du nord et celles du sud)
+  // (forme naturelle tirée d'un bruit : des avancées, des baies de forêt ; des vallées de sable et des oasis entre les mesas)
+  const crete = [], sables = [];
+  for (let y = 40 * BLOC; y < 48 * BLOC; y++) for (let x = 10 * BLOC; x < 34 * BLOC; x++) {
+    const q = ((x - 22 * BLOC) / (11.5 * BLOC)) ** 2 + ((y - 44 * BLOC) / (2.6 * BLOC)) ** 2 + (bruit(x, y, 30, 601) - 0.5) * 1.3 + (bruit(x, y, 9, 602) - 0.5) * 0.25;
+    if (q >= 1 || W.get(x, y) !== T.TREE) continue;
+    if (q < 0.75 && Math.abs(2 * bruit(x, y, 26, 603) - 1) < 0.11) sables.push([x, y]); else crete.push([x, y]);
+  }
+  for (const [x, y] of sables) W.set(x, y, T.SAND);
+  reliefMontagne(W, crete, { g: 611, pente: 0.5, max: 6, crete: 3, masse: 3, palier: 2, echelle: 34 });
+  { const R0 = rngLite(77); for (let k = 0, f = 0; k < 400 && f < 6; k++) { const [x, y] = sables[Math.floor(R0() * sables.length)] || []; if (x == null) break; let ok = true; for (let j = -3; j <= 3 && ok; j++) for (let i = -4; i <= 4; i++) if (W.get(x + i, y + j) !== T.SAND) { ok = false; break; } if (!ok) continue; W.blob(x, y, 2.5, 1.8, T.WATER, R0, [T.SAND]); for (const [a, b] of [[-4, 0], [4, -1], [0, 3], [-2, -3]]) if (W.get(x + a, y + b) === T.SAND) W.prop('palm', x + a, y + b); f++; } }
+  // (zone de fond : les routes voisines gardent la leur là où elles se touchent)
+  W.zones.unshift({ x0: 10 * BLOC, y0: 41 * BLOC, x1: 34 * BLOC - 1, y1: 47 * BLOC - 1, name: 'Hauts d\'Ocre', music: 'route', theme: 'desert', prio: -2 });
+}
+/** le désert de la route 16 : le sable mange la forêt au bord du sentier (cactus, rochers), au-delà des mesas de roche ocre */
+function desert(W, pts, terr, graine) {
+  const r = rng(graine), res = pts.res, sable = new Set();
+  for (const [x, y] of bande(pts, 0, 11, 0, 0.02, 0.98)) {
+    if (W.get(x, y) !== T.TREE) continue;
+    if (!terr.some(([c0, r0, c1, r1]) => x >= c0 * 24 && x < (c1 + 1) * 24 && y >= r0 * 24 && y < (r1 + 1) * 24) || auBord(x, y, terr)) continue;
+    W.set(x, y, T.SAND); sable.add(x + ',' + y); res.cells.add(x + ',' + y);
+    const q = r(); if (q < 0.035) W.prop(q < 0.022 ? 'cactus' : 'cactus2', x, y); else if (q < 0.045) W.set(x, y, T.ROCK);
+  }
+  const mesa = [];
+  for (const [c0, r0, c1, r1] of terr) for (let y = r0 * 24; y < (r1 + 1) * 24; y++) for (let x = c0 * 24; x < (c1 + 1) * 24; x++) {
+    const t = W.get(x, y); if (!(t === T.TREE || t === T.PINE) || auBord(x, y, terr, 30)) continue;
+    // entre les mesas, des cuvettes de sable (on les voit d'en haut, on n'y descend pas)
+    if (bruit(x, y, 14, graine + 3) > 0.7) { W.set(x, y, T.SAND); continue; }
+    mesa.push([x, y]);
+  }
+  reliefMontagne(W, mesa, { g: graine, pente: 0.6, max: 6, crete: 2.5, masse: 3, palier: 2, echelle: 28 });
+}
+/** lisière : près du bord de son territoire, un massif laisse la forêt mordre sur la roche (bord ondulé, pas de rectangle) */
+function auBord(x, y, terr, amp = 4) {
+  let d = 0;
+  for (const [c0, r0, c1, r1] of terr) d = Math.max(d, Math.min(x - c0 * 24, (c1 + 1) * 24 - 1 - x, y - r0 * 24, (r1 + 1) * 24 - 1 - y));
+  const prof = 2 + amp * (amp > 4 ? bruit(x, y, 17, 707) : (Math.sin(x * 0.11 + y * 0.04) + Math.sin(y * 0.09 - x * 0.06) + 2) / 2);
+  return d < prof;
+}
+/** le Canyon d'Ocre : de hautes parois de roche ocre de part et d'autre de la route 17 */
+function canyon(W, terr) {
+  const roc = [];
+  for (const [c0, r0, c1, r1] of terr) for (let y = r0 * 24; y < (r1 + 1) * 24; y++) for (let x = c0 * 24; x < (c1 + 1) * 24; x++) { const t = W.get(x, y); if ((t === T.TREE || t === T.PINE) && !auBord(x, y, terr, 30)) roc.push([x, y]); }
+  // de hautes parois en gradins serrés (le canyon), des tables de roche ocre au-delà
+  reliefMontagne(W, roc, { g: 1717, pente: 0.9, max: 7, crete: 3.5, masse: 3, palier: 1, echelle: 30 });
 }
 /** petit générateur pour les étendues d'eau (indépendant des graines de la carte) */
 function rngLite(seed) { let s = seed * 2654435761 >>> 0 || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
