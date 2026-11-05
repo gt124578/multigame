@@ -87,7 +87,11 @@ export function grandeRoute(W, S, ctx) {
   const echant = []; for (let i = 0; i <= 200; i++) echant.push(along(pts, i / 200));
   const tBloc = chemin.map(([c, rr]) => { let best = 0, bd = 1e9; for (let i = 0; i <= 200; i++) { const p = echant[i], d = Math.hypot(p.x - (c * BLOC + 12), p.y - (rr * BLOC + 12)); if (d < bd) { bd = d; best = i / 200; } } return best; });
   const dansBloc = ([c, rr], x, y) => x >= c * BLOC && y >= rr * BLOC && x < (c + 1) * BLOC && y < (rr + 1) * BLOC;
-  const casesBloc = (b) => [...cells].map((k) => k.split(',').map(Number)).filter(([x, y]) => dansBloc(b, x, y));
+  let parBloc = null;   // cases du couloir rangées par bloc (calculé une fois, après les impasses)
+  const casesBloc = (b) => {
+    if (!parBloc) { parBloc = new Map(); for (const k of cells) { const [x, y] = k.split(',').map(Number), kb = Math.floor(x / BLOC) + ',' + Math.floor(y / BLOC); if (!parBloc.has(kb)) parBloc.set(kb, []); parBloc.get(kb).push([x, y]); } }
+    return parBloc.get(b[0] + ',' + b[1]) || [];
+  };
   const loin = (x, y, d = 2.6) => { const v = info.get(key(x, y)); return v && v.d > d; };
   const herbe = S.ground ?? T.GRASS;
 

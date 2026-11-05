@@ -232,7 +232,8 @@ function mailbox(W, B, b, def) {
     : b.name && /^Maison (de|d')/.test(b.name) ? `BOÎTE AUX LETTRES\n${b.name.replace(/^Maison /, 'Famille ')}.`
       : `BOÎTE AUX LETTRES\nFamille ${fam}.${who ? '\n' + who : ''}`);
   // sur le côté de la maison, contre le mur de la façade (à droite si possible, sinon à gauche), sinon près de la porte
-  const libre = (x, y) => { const t = W.get(x, y); return (t === T.GRASS || t === T.FLOWER) && !W.npcs.some((n) => n.x === x && n.y === y) && !W.signs.has(x + ',' + y); };
+  if (W._npcN !== W.npcs.length) { W._npcPos = new Set(W.npcs.map((n) => n.x + ',' + n.y)); W._npcN = W.npcs.length; }
+  const libre = (x, y) => { const t = W.get(x, y); return (t === T.GRASS || t === T.FLOWER) && !W._npcPos.has(x + ',' + y) && !W.signs.has(x + ',' + y); };
   for (const [x, y] of [[B.x + B.w, B.doorY], [B.x - 1, B.doorY], [B.x + B.w, B.doorY - 1], [B.x - 1, B.doorY - 1]]) if (libre(x, y)) { W.sign(x, y, text, 'mailbox'); return; }
   for (const dx of [B.w - B.door <= 1 ? -1 : 1, -1, 1]) {
     const x = B.doorX + dx, y = B.doorY + 1;
@@ -1254,10 +1255,24 @@ function rochesHautes(W, cells) {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const kk = (x + dx) + ',' + (y + dy); if (S.has(kk) && !dist.has(kk)) { dist.set(kk, d + 1); base.set(kk, b); q.push([x + dx, y + dy]); } }
   }
 }
-/** une grande ville perchée (bitume) : toute la ville un niveau plus haut, falaise de roche au sud, escaliers à chaque porte */
+/** une grande ville perchée (bitume) : toute la ville un niveau plus haut, falaise de roche au sud, escaliers à chaque porte.
+ *  (Comme plateau(…, { roche: true }) de relief.js, en grilles : la ville entière compte des dizaines de milliers de cases) */
 function relever(W, t) {
   const v = t.ville; if (!v) return;
-  plateau(W, rectangle(v.x, v.y, v.x + v.w - 1, v.y + v.h - 1), 1, { roche: true });
+  const X = v.x, Y = v.y, X1 = v.x + v.w - 1, Y1 = v.y + v.h - 1;
+  const CHEMIN = (q) => q === T.PATH || q === T.PAVE || q === T.STAIRS;
+  const PROT = (q) => q === T.BUILD || q === T.DOOR || q === T.BRIDGE || q === T.CAVEDOOR || q === T.SIGN || q === T.MAT;
+  for (let y = Y; y <= Y1; y++) for (let x = X; x <= X1; x++) { W.setHeight(x, y, 1); if (W.pentes) W.pentes[y * W.w + x] = 0; }
+  // la paroi sous le bord sud ; des marches là où une rue franchit le bord
+  for (let x = X; x <= X1; x++) {
+    const q = W.get(x, Y1 + 1); if (!W.in(x, Y1 + 1) || PROT(q) || W.height(x, Y1 + 1) >= 1) continue;
+    W.set(x, Y1 + 1, T.CLIFF); W.setHeight(x, Y1 + 1, 0);
+    if (CHEMIN(W.get(x, Y1)) && (CHEMIN(W.get(x, Y1 + 2)) || CHEMIN(q))) { W.set(x, Y1 + 1, T.STAIRS); if (!CHEMIN(W.get(x, Y1 + 2)) && W.get(x, Y1 + 2) !== T.WATER) W.set(x, Y1 + 2, T.PATH); }
+  }
+  // bords nord, est et ouest : la case du bord devient une marche quand la route continue plus bas
+  const bord = (x, y, dx, dy) => { if (CHEMIN(W.get(x, y)) && W.get(x, y) !== T.STAIRS && W.height(x + dx, y + dy) === 0 && CHEMIN(W.get(x + dx, y + dy))) W.set(x, y, T.STAIRS); };
+  for (let x = X; x <= X1; x++) bord(x, Y, 0, -1);
+  for (let y = Y; y <= Y1; y++) { bord(X, y, -1, 0); bord(X1, y, 1, 0); }
 }
 
 /** barrières de bois brunes le long des chemins des routes, par tronçons, comme sur DS. Une case ne reçoit une barrière

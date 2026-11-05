@@ -364,14 +364,22 @@ export function montagne(W, x0, y0, plan, o = {}) {
 export function massif(W, cells, o = {}) {
   const R = [];
   for (const [x, y] of cells) { const t = W.get(x, y); if (t === T.TREE || t === T.PINE || (o.tout && t !== T.BUILD && t !== T.DOOR)) { W.set(x, y, T.CAVEWALL); R.push([x, y]); } }
-  // distance au pied (cases qui ne sont pas de la roche)
-  const d = new Map(), q = [];
-  for (const [x, y] of R) if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => W.get(x + a, y + b) !== T.CAVEWALL)) { d.set(key(x, y), 0); q.push([x, y]); }
-  for (let i = 0; i < q.length; i++) {
-    const [x, y] = q[i], k = d.get(key(x, y));
-    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) { const kk = key(x + a, y + b); if (W.get(x + a, y + b) === T.CAVEWALL && !d.has(kk)) { d.set(kk, k + 1); q.push([x + a, y + b]); } }
+  if (!R.length) return R;
+  // distance au pied (cases qui ne sont pas de la roche), en grille d'entiers sur le rectangle du massif
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const [x, y] of R) { if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
+  const w = x1 - x0 + 1, h = y1 - y0 + 1, d = new Int32Array(w * h).fill(-1), q = new Int32Array(w * h);
+  let n = 0;
+  for (const [x, y] of R) if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => W.get(x + a, y + b) !== T.CAVEWALL)) { const i = (y - y0) * w + (x - x0); d[i] = 0; q[n++] = i; }
+  for (let k = 0; k < n; k++) {
+    const i = q[k], x = i % w, y = (i / w) | 0;
+    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+      const u = x + a, v = y + b; if (u < 0 || v < 0 || u >= w || v >= h) continue;
+      const j = v * w + u; if (d[j] >= 0 || W.get(u + x0, v + y0) !== T.CAVEWALL) continue;
+      d[j] = d[i] + 1; q[n++] = j;
+    }
   }
   const pas = o.pas || 4, base = o.base ?? 0;
-  for (const [x, y] of R) W.setHeight(x, y, base + 1 + Math.min(o.max ?? 2, Math.floor((d.get(key(x, y)) ?? 0) / pas)));
+  for (const [x, y] of R) { const k = d[(y - y0) * w + (x - x0)]; W.setHeight(x, y, base + 1 + Math.min(o.max ?? 2, Math.floor(Math.max(0, k) / pas))); }
   return R;
 }
