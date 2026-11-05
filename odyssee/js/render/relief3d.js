@@ -24,8 +24,8 @@ const params = () => { try { return new URLSearchParams(location.search); } catc
 export const facettesActives = () => !params().has('r3plat');
 let MAT_FAC = null;
 export function matFacettes() { return MAT_FAC || (MAT_FAC = new THREE.MeshBasicMaterial({ vertexColors: true })); }
-export const modePente = () => params().has('r3pente');
-const penteRoche = () => params().has('r3proche');   // les montagnes aussi en vraies pentes de roche
+export const modePente = () => params().get('r3pente') !== '0';   // par défaut : vraies pentes là où le relief est doux
+const penteRoche = () => params().get('r3proche') !== '0';   // les montagnes de roche (hors neige, canyon, volcan) aussi
 export function relief3dActif() { return params().has('relief3d'); }
 const num = (k, d) => { const v = params().get(k); return v == null || v === '' || isNaN(+v) ? d : +v; };
 
@@ -39,7 +39,8 @@ const PENTE_DOUCE_MAX = 1.6;            // … entre deux replats où l'on march
 const WD = 0.16 * LV;                // l'eau est un peu plus basse que la berge
 const RAVIN = -3.2 * LV;             // fond d'un ravin
 const DOUX = 1.5;                    // largeur (cases) d'une pente douce entre deux replats d'un niveau d'écart
-const ROC = num('r3roc', 0.42);   // largeur de la pente d'un gradin de roche (cases)
+const ROC = num('r3roc', 0.42);   // largeur de la paroi d'un gradin de roche abrupt (neige, canyon, volcan)
+const ROC_PENTE = num('r3rocp', 0.95);   // … d'un gradin de roche en pente (montagnes ordinaires)
 const GAMMA_STRATES = num('r3g', 1.8);   // > 1 : strates espacées en haut, serrées vers le pied (perspective)
 const PAS_STRATES = num('r3s', 9);
 const SERRE = num('r3p', 1.7);   // > 1 : la texture de la paroi se tasse vers le pied (perspective) ; 1 : régulière
@@ -339,7 +340,7 @@ export class Relief3D {
 
   /** bande de pente entre une case haute et une case basse voisine (dir : direction de la haute vers la basse) :
    *  [retrait dans la haute, retrait dans la basse], en cases */
-  bande(sh, sl, dir, dl) {
+  bande(sh, sl, dir, dl, roc = ROC) {
     if (dl < 0.01 || LIBRE(sh) || LIBRE(sl)) return [0, 0];
     let a = 0, b = 0;
     if (sl === V) b = 0.12;
@@ -347,8 +348,8 @@ export class Relief3D {
     else if (sh === EAU) a = 0.2;
     else if (sh === B) b = Math.min(0.98, DOUX * Math.min(1.5, dl));
     else if (sl === B) a = Math.min(0.98, DOUX * Math.min(1.5, dl));
-    else if (sh === R) a = ROC;
-    else if (sl === R) b = ROC;
+    else if (sh === R) a = roc;
+    else if (sl === R) b = roc;
     else { const w = DOUX * Math.min(1.5, Math.max(0.6, dl)); a = b = w / 2; }
     // versant tourné vers le nord (la case basse est au nord) : jamais assez raide pour cacher ce qui est derrière
     if (dir === 0) {
@@ -357,6 +358,16 @@ export class Relief3D {
     }
     return [a, b];
   }
+  /** le relief de la case est-il abrupt (parois) : neige, canyon, désert, volcan, ou bord d'un ravin */
+  abrupt(x, y) {
+    const th = this.m.zoneAt?.(x, y)?.theme, b = this.base;
+    if (th === 'snow' || th === 'canyon' || th === 'desert' || th === 'volcanic') return true;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (b.in(x + i, y + j) && ravin(b, x + i, y + j)) return true;
+    return false;
+  }
+  largRoc(x, y) { return modePente() && penteRoche() && !this.abrupt(x, y) ? ROC_PENTE : ROC; }
+  /** cette case se dessine-t-elle en vraie pente (true) ou avec une paroi (false) ? */
+  enPente(p, x, y) { return modePente() && (p.levre ? !this.abrupt(x, y) : penteRoche() && (p.t === 1 || p.t === 6) && !this.abrupt(x, y)); }
   /** retraits (nord, est, sud, ouest) du replat d'une case ; null pour une case libre (paroi, marche) */
   retraits(x, y) {
     const i = this.cell(x, y), s = this.sorte[i];
@@ -367,8 +378,8 @@ export class Relief3D {
         const j = this.cell(x + dx, y + dy), Ln = this.niv[j], sn = this.sorte[j];
         let v;
         if (Math.abs(L - Ln) < 1e-4) v = 0;
-        else if (L > Ln) v = this.bande(s, sn, d, (L - Ln) / LV)[0];
-        else v = this.bande(sn, s, (d + 2) % 4, (Ln - L) / LV)[1];
+        else if (L > Ln) v = this.bande(s, sn, d, (L - Ln) / LV, this.largRoc(x, y))[0];
+        else v = this.bande(sn, s, (d + 2) % 4, (Ln - L) / LV, this.largRoc(x, y))[1];
         this.ins[i * 4 + d] = v;
       });
       // un replat garde au moins un peu de place
@@ -545,7 +556,7 @@ export class Relief3D {
       if (!ks.some((k) => D.ht[k] >= 0 && D.hbas[k] >= 0)) continue;
       const cx = b.x0 + Math.floor(i / RN), cz = b.z0 + Math.floor(j / RN), ck = cx + ',' + cz;
       let p = cache.get(ck); if (!p) { p = this.paroiDe(cx, cz); cache.set(ck, p); }
-      if (modePente() && (p.levre || penteRoche())) continue;
+      if (this.enPente(p, cx, cz)) continue;
       const lc = p.levre ? rgb(p.levre).map((v) => (v / 255) ** 2.2) : [0, 0, 0];
       for (const [q, k] of ks.entries()) {
         const a = i + (q === 1 || q === 2 ? 1 : 0), c = j + (q < 2 ? 1 : 0), x = b.x0 + a / RN, z = b.z0 + c / RN;
@@ -606,7 +617,7 @@ export class Relief3D {
       const cx = b.x0 + Math.floor(i / RN), cz = b.z0 + Math.floor(Math.max(r0.j0, 0) / RN);
       const pz = this.paroiDe(cx, cz + 1);
       if (pz.t >= MURS.length) continue;   // les marches gardent leur dessin
-      if (modePente() && (pz.levre || penteRoche())) continue;
+      if (this.enPente(pz, cx, cz + 1)) continue;
       const pal = PALS[MURS[pz.t]] || PALS.montagne;
       const T0 = P3(r0.t, i, r0.j0), B0 = P3(r0.b, i, r0.j1), T1 = P3(r1.t, i + 1, r1.j0), B1 = P3(r1.b, i + 1, r1.j1);
       // la lèvre (herbe, neige) reste visible : les facettes commencent un peu sous le haut de la paroi
