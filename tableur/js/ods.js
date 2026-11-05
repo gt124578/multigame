@@ -95,10 +95,33 @@ function styleDonnees(nom, z) {
   }
   const dec = (/\.(0+)/.exec(sec) || [, ''])[1].length;
   const groupe = /#,##0|0,000/.test(sec) ? ' number:grouping="true"' : '';
-  const nombre = '<number:number number:decimal-places="' + dec + '" number:min-decimal-places="' + dec + '" number:min-integer-digits="1"' + groupe + '/>';
-  if (/%/.test(sec)) return { type: 'percentage', xml: '<number:percentage-style style:name="' + nom + '">' + nombre + '<number:text>%</number:text></number:percentage-style>' };
+  // Virgules finales (« #,##0, ») : affichage en milliers, en millions…
+  const echelle = (/[0#?](,+)(?![0#?])/.exec(sec.replace(/"[^"]*"/g, '')) || [, ''])[1].length;
+  const nombre = '<number:number number:decimal-places="' + dec + '" number:min-decimal-places="' + dec + '" number:min-integer-digits="1"' + groupe + (echelle ? ' number:display-factor="' + 1000 ** echelle + '"' : '') + '/>';
+  // Texte autour du nombre (« 0.0 "ans" », « "x" 0.00 ») gardé tel quel
+  const autour = (s0) => {
+    const t = s0.replace(/\[[^\]]*\]/g, '').replace(/\\(.)/g, '"$1"');
+    const brut = t.replace(/"[^"]*"/g, (q) => '\u0001'.repeat(q.length));
+    const i = brut.search(/[0#?]/), j = Math.max(brut.lastIndexOf('0'), brut.lastIndexOf('#'), brut.lastIndexOf('?'));
+    if (i < 0) return ['', ''];
+    const net = (x) => x.replace(/"([^"]*)"/g, '$1').replace(/^[,.]+/, '').replace(/_./g, ' ').replace(/\*./g, '');
+    return [net(t.slice(0, i)), net(t.slice(j + 1))];
+  };
+  const texteNombre = (s0) => { const [a, b] = autour(s0); return (a ? '<number:text>' + ech(a) + '</number:text>' : '') + nombre + (b.trim() ? '<number:text>' + ech(b) + '</number:text>' : ''); };
+  if (/%/.test(sec)) {
+    // Pourcentage : texte avant le nombre (« +2,5 % »), section des négatifs (en rouge) si elle existe
+    const avant = (s0) => { const t = s0.replace(/\[[^\]]*\]/g, '').replace(/"([^"]*)"/g, '$1'); const i = t.search(/[0#?]/); return i > 0 ? t.slice(0, i) : ''; };
+    const corps = (s0) => (avant(s0) ? '<number:text>' + ech(avant(s0)) + '</number:text>' : '') + nombre + '<number:text>%</number:text>';
+    const secs = z.split(';');
+    if (secs.length > 1) {
+      const neg = secs[1], r = /\[(Red|Rouge)\]/i.test(neg);
+      return { type: 'percentage', nomFinal: nom + 'N', xml: '<number:percentage-style style:name="' + nom + 'P">' + corps(sec) + '</number:percentage-style><number:percentage-style style:name="' + nom + 'N">' + (r ? '<style:text-properties fo:color="#ff0000"/>' : '') + corps(neg) + '<style:map style:condition="value()&gt;=0" style:apply-style-name="' + nom + 'P"/></number:percentage-style>' };
+    }
+    return { type: 'percentage', xml: '<number:percentage-style style:name="' + nom + '">' + corps(sec) + '</number:percentage-style>' };
+  }
   if (/E\+/i.test(sec)) return { type: 'float', xml: '<number:number-style style:name="' + nom + '"><number:scientific-number number:decimal-places="' + dec + '" number:min-integer-digits="1" number:min-exponent-digits="2"/></number:number-style>' };
-  const devise = /€|\$|£|CHF/.exec(sec);
+  // Un symbole seul entre guillemets est une devise ; « "k€" » reste du texte
+  const devise = /€|\$|£|CHF/.exec(sec.replace(/"([^"]*)"/g, (q, t) => (/^\s*(€|\$|£|CHF)\s*$/.test(t) ? t : '')));
   if (devise) {
     const avant = sec.indexOf(devise[0]) < sec.search(/[0#]/);
     const sym = '<number:currency-symbol>' + ech(devise[0]) + '</number:currency-symbol>';
@@ -107,8 +130,20 @@ function styleDonnees(nom, z) {
     return { type: 'currency', devise: devise[0] === '€' ? 'EUR' : devise[0] === '$' ? 'USD' : devise[0] === '£' ? 'GBP' : 'CHF', xml: '<number:currency-style style:name="' + nom + (rouge ? 'P' : '') + '">' + corps + '</number:currency-style>' + neg, nomFinal: rouge ? nom + 'N' : nom };
   }
   if (/^[#,0.]+$/.test(sec.trim()) || /0/.test(sec)) {
-    if (rouge) return { type: 'float', nomFinal: nom + 'N', xml: '<number:number-style style:name="' + nom + 'P">' + nombre + '</number:number-style><number:number-style style:name="' + nom + 'N"><style:text-properties fo:color="#ff0000"/><number:text>-</number:text>' + nombre + '<style:map style:condition="value()&gt;=0" style:apply-style-name="' + nom + 'P"/></number:number-style>' };
-    return { type: 'float', xml: '<number:number-style style:name="' + nom + '">' + nombre + '</number:number-style>' };
+    const secs = z.split(';');
+    if (secs.length > 1) {
+      // Sections des négatifs (« (#,##0) », en rouge…) et du zéro (« "-" ») comme dans Excel
+      const net = (x) => x.replace(/\[[^\]]*\]/g, '');
+      const negatif = /[0#?]/.test(net(secs[1])) ? texteNombre(net(secs[1])) : '<number:text>' + ech(net(secs[1]).replace(/"([^"]*)"/g, '$1')) + '</number:text>';
+      const zero = secs[2] !== undefined ? (/[0#?]/.test(net(secs[2])) ? texteNombre(net(secs[2])) : '<number:text>' + ech(net(secs[2]).replace(/"([^"]*)"/g, '$1').replace(/_./g, ' ')) + '</number:text>') : '';
+      const r = /\[(Red|Rouge)\]/i.test(secs[1]);
+      return { type: 'float', nomFinal: nom + 'N', xml: '<number:number-style style:name="' + nom + 'P">' + texteNombre(sec) + '</number:number-style>'
+        + (zero ? '<number:number-style style:name="' + nom + 'Z">' + zero + '</number:number-style>' : '')
+        + '<number:number-style style:name="' + nom + 'N">' + (r ? '<style:text-properties fo:color="#ff0000"/>' : '') + negatif
+        + (zero ? '<style:map style:condition="value()=0" style:apply-style-name="' + nom + 'Z"/>' : '')
+        + '<style:map style:condition="value()&gt;' + (zero ? '' : '=') + '0" style:apply-style-name="' + nom + 'P"/></number:number-style>' };
+    }
+    return { type: 'float', xml: '<number:number-style style:name="' + nom + '">' + texteNombre(sec) + '</number:number-style>' };
   }
   if (z === '@') return { type: 'string', xml: '<number:text-style style:name="' + nom + '"><number:text-content/></number:text-style>' };
   return null;
@@ -461,14 +496,16 @@ function lireFormats(xml) {
     let code = '';
     const duree = /number:truncate-on-overflow="false"/.test(m[2]);
     // Section des positifs rangée dans un autre style (« value()>=0 ») : ce style-ci est celui des négatifs
-    const map = /<style:map\b[^>]*style:condition="value\(\)(?:&gt;|>)=0"[^>]*style:apply-style-name="([^"]+)"/.exec(corps);
+    const map = /<style:map\b[^>]*style:condition="value\(\)(?:&gt;|>)=?0"[^>]*style:apply-style-name="([^"]+)"/.exec(corps);
+    const mapZero = /<style:map\b[^>]*style:condition="value\(\)=0"[^>]*style:apply-style-name="([^"]+)"/.exec(corps);
     const rouge = /<style:text-properties\b[^>]*fo:color="#ff0000"/i.test(corps);
-    if (map) maps.push([nom, map[1], rouge]);
+    if (map) maps.push([nom, map[1], rouge, mapZero && mapZero[1]]);
     for (const e of corps.matchAll(/<number:([a-z-]+)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/number:\1>)/g)) {
       const [, el, at, txt] = e, long = /number:style="long"/.test(at);
       if (el === 'number' || el === 'scientific-number') {
         const d = +(attr(at, 'number:decimal-places') ?? 2), g = /number:grouping="true"/.test(at);
-        code += (g ? '#,##0' : '0') + (d ? '.' + '0'.repeat(d) : '') + (el === 'scientific-number' ? 'E+00' : '');
+        const fac = +(attr(at, 'number:display-factor') || 1), virg = fac > 1 ? ','.repeat(Math.round(Math.log10(fac) / 3)) : '';
+        code += (g ? '#,##0' : '0') + (d ? '.' + '0'.repeat(d) : '') + virg + (el === 'scientific-number' ? 'E+00' : '');
       } else if (el === 'text') { const t = entites(txt || ''); code += /^[\s/.:,\-%€$]*$/.test(t) ? t : '"' + t + '"'; }
       else if (el === 'currency-symbol') code += entites(txt || '€');
       else if (el === 'day') code += long ? 'dd' : 'd';
@@ -482,9 +519,9 @@ function lireFormats(xml) {
     }
     if (code) out.set(nom, code.trim());
   }
-  for (const [nom, pos, rouge] of maps) {
-    const p = out.get(pos), n = out.get(nom);
-    if (p && n) out.set(nom, p + ';' + (rouge ? '[Red]' : '') + n);
+  for (const [nom, pos, rouge, zero] of maps) {
+    const p = out.get(pos), n = out.get(nom), z = zero && out.get(zero);
+    if (p && n) out.set(nom, p + ';' + (rouge ? '[Red]' : '') + n + (z ? ';' + z : ''));
   }
   return out;
 }
@@ -797,7 +834,7 @@ export function lireStylesOds(XLSX, octets) {
           if (nv && validations.has(nv) && rep <= 1024) { if (!cellulesVal.has(nv)) cellulesVal.set(nv, []); for (let k = 0; k < rep; k++) for (let q = 0; q < n; q++) cellulesVal.get(nv).push((r + q) + ',' + (col + k)); }
           // Formule avec une autre feuille ou des références absolues : SheetJS ne convertit pas [$Feuille.A1] ni [.$B$4] ; on garde la nôtre
           const fo = attr(cm[0], 'table:formula');
-          if (fo && /\[\$?'?[^.\]]+'?\.|\[\.?\$/.test(fo)) for (let q = 0; q < n; q++) res.formules.set(r + q + ',' + col, depuisOpenFormula(fo, nom));
+          if (fo && /\[\$?'?[^.\]]+'?\.|\[[^\]]*\$/.test(fo)) for (let q = 0; q < n; q++) res.formules.set(r + q + ',' + col, depuisOpenFormula(fo, nom));
           col += rep;
         }
       }

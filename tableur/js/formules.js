@@ -964,8 +964,7 @@ const PALETTE_FORMAT = ['#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', '
 /** Couleur imposée par le format de nombre pour cette valeur (section choisie comme pour l'affichage), ou null. */
 export function couleurFormat(v, z) {
   if (typeof v !== 'number' || !z || !z.includes('[')) return null;
-  const sections = z.split(';');
-  const f = sections.length > 1 && v < 0 ? sections[1] : sections.length > 2 && v === 0 ? sections[2] : sections[0];
+  const f = sectionPour(v, z).f;
   const m = /\[([A-Za-zéè]+)(\d*)\]/.exec(f);
   if (!m) return null;
   const nom = m[1].toLowerCase();
@@ -995,14 +994,40 @@ function formaterFraction(n, f) {
 }
 
 /** Formate un nombre selon un motif Excel simple (0.00, #,##0, 0%, 0.0E+00, « # ##0,00 € »). */
+// Sections d'un format, sans couper dans les textes entre guillemets
+function sectionsFormat(fmt) {
+  const out = []; let cur = '', g = false;
+  for (let i = 0; i < fmt.length; i++) {
+    const ch = fmt[i];
+    if (ch === '"') g = !g;
+    if (ch === '\\' && !g) { cur += ch + (fmt[i + 1] ?? ''); i++; continue; }
+    if (ch === ';' && !g) { out.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+const RE_CONDITION = /\[(<=|>=|<>|<|>|=)\s*(-?[\d.]+)\]/;
+/** Section d'un format pour une valeur : positif;négatif;zéro;texte, ou conditions « [<1000]0;[>=1000]#,##0,"k" ». */
+export function sectionPour(n, fmt) {
+  const sections = sectionsFormat(fmt);
+  if (sections.some((x) => RE_CONDITION.test(x))) {
+    const teste = (x) => { const m = RE_CONDITION.exec(x); if (!m) return null; const v = +m[2]; return { '<': n < v, '>': n > v, '=': n === v, '<=': n <= v, '>=': n >= v, '<>': n !== v }[m[1]]; };
+    for (let i = 0; i < Math.min(2, sections.length); i++) if (teste(sections[i])) return { f: sections[i].replace(RE_CONDITION, ''), signe: true };
+    const autre = sections.length > 2 ? sections[2] : sections.find((x) => !RE_CONDITION.test(x)) ?? sections[sections.length - 1];
+    return { f: autre.replace(RE_CONDITION, ''), signe: true };
+  }
+  if (sections.length > 1 && n < 0) return { f: sections[1], abs: true };
+  if (sections.length > 2 && n === 0) return { f: sections[2] };
+  return { f: sections[0] };
+}
 export function formaterNombre(n, fmt) {
   if (typeof n !== 'number') return versTexte(n);
-  // Sections : positif;négatif;zéro
-  const sections = fmt.split(';');
-  let f = sections[0];
+  // Sections : positif;négatif;zéro (ou à conditions)
+  const choix = sectionPour(n, fmt);
+  let f = choix.f;
   let neg = n < 0;
-  if (sections.length > 1 && neg) { f = sections[1]; neg = false; n = -n; }
-  else if (sections.length > 2 && n === 0) f = sections[2];
+  if (choix.abs) { neg = false; n = -n; }
   if (f === 'General' || f === 'Standard' || f === '') return nombreVersTexte(neg ? -Math.abs(n) : n).replace('.', OPTIONS.decimal);
   f = f.replace(/\[[^\]]*\]/g, '').replace(/_./g, ' ').replace(/\*./g, '');
   if (f.includes('/') && /[?#0]\s*\/\s*[?#0\d]/.test(f)) { const fr = formaterFraction(neg ? -Math.abs(n) : n, f); if (fr !== null) return fr; }
@@ -1014,6 +1039,11 @@ export function formaterNombre(n, fmt) {
   for (let i = f.length - 1; i >= 0; i--) if (/[0#?]/.test(f[i])) { dernier = i; break; }
   let prefixe = f.slice(0, premier), coeur = f.slice(premier, dernier + 1), suffixe = f.slice(dernier + 1);
   let x = Math.abs(n);
+  // Virgules après le dernier chiffre : divisent par 1 000 chacune (« #,##0,, » affiche des millions)
+  const echelle = /^,+/.exec(suffixe);
+  if (echelle) { x /= Math.pow(1000, echelle[0].length); suffixe = suffixe.slice(echelle[0].length); }
+  const echelleDec = /,+(?=\.)/.exec(coeur);
+  if (echelleDec) { x /= Math.pow(1000, echelleDec[0].length); coeur = coeur.replace(/,+(?=\.)/, ''); }
   const pct = f.includes('%');
   if (pct) x *= 100;
   // Notation scientifique : le E+00 se trouve dans le cœur ou le suffixe
@@ -1035,11 +1065,15 @@ export function formaterNombre(n, fmt) {
   let [ip, dp = ''] = x.toFixed(nbDec).split('.');
   const minEnt = (entiers.match(/0/g) || []).length;
   ip = ip.padStart(minEnt, '0');
-  if (minEnt === 0 && ip === '0' && nbDec > 0) ip = '';
+  // « ? » : un espace à la place d'un chiffre absent (alignement des colonnes, zéro comptable « "-"?? »)
+  const interro = (entiers.match(/\?/g) || []).length;
+  if (minEnt === 0 && ip === '0') ip = '';
+  if (interro && ip.length < interro + minEnt) ip = ip.padStart(interro + minEnt, ' ');
   if (milliers) ip = ip.replace(/\B(?=(\d{3})+(?!\d))/g, OPTIONS.milliers);
   const decMotif = dec.replace(/[^0#?]/g, '');
   let dpOut = dp;
   for (let i = decMotif.length - 1; i >= 0; i--) { if (decMotif[i] === '#' && dpOut[i] === '0' && dpOut.length === i + 1) dpOut = dpOut.slice(0, -1); else break; }
+  if (decMotif.includes('?')) { let k = dpOut.length - 1; const t = dpOut.split(''); while (k >= 0 && decMotif[k] === '?' && t[k] === '0') { t[k] = ' '; k--; } dpOut = t.join(''); }
   let out = prefixe + ip + (dpOut ? OPTIONS.decimal + dpOut : '') + suffixe;
   if (sci) out += (exp < 0 ? 'E-' : 'E+') + String(Math.abs(exp)).padStart(sci[2].length, '0');
   out = out.replace(/\u0001/g, () => litteraux.shift() ?? '');
@@ -1444,6 +1478,421 @@ const FONCTIONS = {
   SHEETS: { fn: (a, ctx) => ctx.nbFeuilles() },
 };
 
+// ---------------------------------------------------------------------------
+// Fonctions pour la finance, l'actuariat et la comptabilité (titres, coupons, amortissements),
+// lois inverses et tests, régression, LET / LAMBDA, tableaux dynamiques, bases de données
+// ---------------------------------------------------------------------------
+
+// Inverse d'une fonction de répartition croissante (dichotomie sur [lo, hi], élargi au besoin)
+function inverseCdf(cdf, p, lo, hi) {
+  if (!(p >= 0 && p <= 1)) throw err(ERR.NUM);
+  let a = lo, b = hi;
+  for (let k = 0; k < 200 && cdf(b) < p; k++) { a = b; b *= 2; }
+  for (let i = 0; i < 300; i++) {
+    const m = (a + b) / 2;
+    if (cdf(m) < p) a = m; else b = m;
+    if (b - a < 1e-15 * Math.max(1, Math.abs(m))) break;
+  }
+  return (a + b) / 2;
+}
+const tCdf = (t, k) => { const x = k / (k + t * t); return t >= 0 ? 1 - 0.5 * betaIncReg(k / 2, 0.5, x) : 0.5 * betaIncReg(k / 2, 0.5, x); };
+function tInv(p, k) {
+  if (p <= 0 || p >= 1 || k < 1) throw err(ERR.NUM);
+  if (p === 0.5) return 0;
+  const x = inverseCdf((t) => tCdf(t, k), Math.max(p, 1 - p), 0, 10);
+  return p < 0.5 ? -x : x;
+}
+const fCdf = (x, d1, d2) => (x <= 0 ? 0 : betaIncReg(d1 / 2, d2 / 2, d1 * x / (d1 * x + d2)));
+const chiCdf = (x, k) => gammaIncReg(k / 2, x / 2);
+const lnComb = (n, k) => lnGamma(n + 1) - lnGamma(k + 1) - lnGamma(n - k + 1);
+const valeursNum = (v) => aplat([v]).filter((x) => typeof x === 'number');
+
+// Dates des coupons : on recule depuis l'échéance par pas de 12 / fréquence mois (fin de mois gardée)
+function dateCoupon(maturite, mois) {
+  const d = dateUTC(maturite), fin = d.j === joursDansMois(d.a, d.m);
+  const tot = d.m - 1 + mois, an = d.a + Math.floor(tot / 12), mo = ((tot % 12) + 12) % 12 + 1;
+  return serie(an, mo, fin ? joursDansMois(an, mo) : Math.min(d.j, joursDansMois(an, mo)));
+}
+function coupons(a) {
+  const s = Math.floor(N(a[0])), m = Math.floor(N(a[1])), f = entier(a[2]), base = entier(opt(a[3], 0));
+  if (![1, 2, 4].includes(f) || base < 0 || base > 4 || s >= m) throw err(ERR.NUM);
+  const pas = 12 / f;
+  let k = 1, pcd = dateCoupon(m, -pas);
+  while (pcd > s) { k++; pcd = dateCoupon(m, -pas * k); }
+  const ncd = dateCoupon(m, -pas * (k - 1));
+  const jours360 = (d1, d2, europe) => fractionAnnee(d1, d2, europe ? 4 : 0) * 360;
+  const E = base === 1 ? ncd - pcd : base === 3 ? 365 / f : 360 / f;
+  const A = base === 0 ? jours360(pcd, s, false) : base === 4 ? jours360(pcd, s, true) : s - pcd;
+  const DSC = base === 0 || base === 4 ? E - A : ncd - s;
+  return { s, m, f, base, n: k, pcd, ncd, E, A, DSC };
+}
+function prixTitre(c, taux, rend, rembourse) {
+  const { n, E, A, DSC, f } = c, cp = 100 * taux / f;
+  if (n === 1) return (rembourse + cp) / (1 + DSC / E * rend / f) - cp * A / E;
+  let p = rembourse / Math.pow(1 + rend / f, n - 1 + DSC / E);
+  for (let k = 1; k <= n; k++) p += cp / Math.pow(1 + rend / f, k - 1 + DSC / E);
+  return p - cp * A / E;
+}
+function dureeTitre(c, taux, rend) {
+  const { n, E, DSC, f } = c, cp = 100 * taux / f;
+  let pv = 0, t = 0;
+  for (let k = 1; k <= n; k++) {
+    const tk = (k - 1 + DSC / E), flux = cp + (k === n ? 100 : 0), v = flux / Math.pow(1 + rend / f, tk);
+    pv += v; t += tk * v;
+  }
+  return t / pv / f;
+}
+const fa = (d1, d2, base) => fractionAnnee(Math.floor(N(d1)), Math.floor(N(d2)), base);
+
+// Amortissement dégressif à taux variable (VDB) : tableau des dotations par période, puis la part de [début, fin]
+function vdb(cout, residu, duree, debut, fin, facteur, sansBascule) {
+  if (cout < 0 || residu < 0 || duree <= 0 || debut < 0 || fin < debut || fin > duree || facteur <= 0) throw err(ERR.NUM);
+  const n = Math.ceil(duree), dot = [];
+  let valeur = cout;
+  for (let p = 0; p < n; p++) {
+    const restant = duree - p;
+    let d = Math.min(valeur * facteur / duree, Math.max(0, valeur - residu));
+    if (!sansBascule) { const lin = restant > 0 ? (valeur - residu) / restant : 0; if (lin > d) d = lin; }
+    d = Math.max(0, Math.min(d, valeur - residu));
+    dot.push(d); valeur -= d;
+  }
+  let total = 0;
+  for (let p = 0; p < n; p++) { const part = Math.max(0, Math.min(fin, p + 1) - Math.max(debut, p)); total += dot[p] * part; }
+  return total;
+}
+
+// Week-ends de NB.JOURS.OUVRES.INTL : numéro (1 à 7, 11 à 17) ou chaîne « 0000011 » (lundi → dimanche)
+function weekEnd(x) {
+  const ferme = new Set(); // jours JS (0 = dimanche)
+  if (x === undefined || x === null) return new Set([0, 6]);
+  if (typeof x === 'string') {
+    if (!/^[01]{7}$/.test(x) || x === '1111111') throw err(ERR.VALEUR);
+    for (let i = 0; i < 7; i++) if (x[i] === '1') ferme.add((i + 1) % 7);
+    return ferme;
+  }
+  const n = entier(x);
+  const paires = { 1: [6, 0], 2: [0, 1], 3: [1, 2], 4: [2, 3], 5: [3, 4], 6: [4, 5], 7: [5, 6] };
+  if (paires[n]) return new Set(paires[n]);
+  if (n >= 11 && n <= 17) return new Set([n - 11]);
+  throw err(ERR.NUM);
+}
+
+// Régression multiple par les moindres carrés (DROITEREG, TENDANCE…) : X sans la colonne de constante
+function regression(ys, xs, constante) {
+  const Y = matrice(ys).flat().map((v) => N(v));
+  let X;
+  if (xs === undefined || xs === null) X = Y.map((_, i) => [i + 1]);
+  else {
+    const m = matNombres(xs), ly = matrice(ys).length;
+    X = m.length === Y.length ? m : m[0].length === Y.length && ly === 1 ? transposer(m) : m.length === 1 && m[0].length === Y.length ? transposer(m) : m;
+    if (X.length !== Y.length) throw err(ERR.REF);
+  }
+  const n = Y.length, k = X[0].length;
+  const Xc = X.map((l) => (constante ? [...l, 1] : [...l]));
+  const p = Xc[0].length;
+  const XtX = Array.from({ length: p }, (_, i) => Array.from({ length: p }, (_, j) => Xc.reduce((s, l) => s + l[i] * l[j], 0)));
+  const XtY = Array.from({ length: p }, (_, i) => Xc.reduce((s, l, r) => s + l[i] * Y[r], 0));
+  const inv = inverser(XtX);
+  const b = inv.map((l) => l.reduce((s, x, j) => s + x * XtY[j], 0));
+  const pred = Xc.map((l) => l.reduce((s, x, j) => s + x * b[j], 0));
+  const my = Y.reduce((s, y) => s + y, 0) / n;
+  const ssres = Y.reduce((s, y, i) => s + (y - pred[i]) ** 2, 0);
+  const sstot = constante ? Y.reduce((s, y) => s + (y - my) ** 2, 0) : Y.reduce((s, y) => s + y * y, 0);
+  const df = n - k - (constante ? 1 : 0);
+  const sey = df > 0 ? Math.sqrt(ssres / df) : 0;
+  const se = inv.map((l, i) => Math.sqrt(Math.max(0, l[i])) * sey);
+  return { b, se, r2: sstot ? 1 - ssres / sstot : 1, sey, F: df > 0 && ssres > 0 ? ((sstot - ssres) / k) / (ssres / df) : Infinity, df, ssreg: sstot - ssres, ssres, k, X };
+}
+function droitereg(a, logarithme) {
+  const constante = a[2] === undefined ? true : B(a[2]), stats = a[3] === undefined ? false : B(a[3]);
+  const ys = logarithme ? matrice(a[0]).map((l) => l.map((v) => { const x = N(v); if (x <= 0) throw err(ERR.NUM); return Math.log(x); })) : a[0];
+  const r = regression(ys, a[1], constante);
+  const coef = [...r.b.slice(0, r.k).reverse(), constante ? r.b[r.k] : 0];
+  const ser = [...r.se.slice(0, r.k).reverse(), constante ? r.se[r.k] : err(ERR.NA)];
+  const out = [logarithme ? coef.map(Math.exp) : coef];
+  if (stats) {
+    const NA = err(ERR.NA), w = coef.length, ligne = (...v) => [...v, ...Array(w - v.length).fill(NA)];
+    out.push(ser, ligne(r.r2, r.sey), ligne(r.F, r.df), ligne(r.ssreg, r.ssres));
+  }
+  return out;
+}
+function tendance(a, croissance) {
+  const constante = a[3] === undefined ? true : B(a[3]);
+  const ys = croissance ? matrice(a[0]).map((l) => l.map((v) => Math.log(N(v)))) : a[0];
+  const r = regression(ys, a[1], constante);
+  const nx = a[2] === undefined ? r.X : (() => { const m = matNombres(a[2]); return m[0].length === r.k ? m : transposer(m); })();
+  const vals = nx.map((l) => { let s = constante ? r.b[r.k] : 0; for (let j = 0; j < r.k; j++) s += l[j] * r.b[j]; return croissance ? Math.exp(s) : s; });
+  const forme = a[2] !== undefined ? matrice(a[2]) : matrice(a[0]);
+  return forme.length === 1 && r.k === 1 ? [vals] : vals.map((v) => [v]);
+}
+
+// Fonctions de base de données (BDSOMME…) : base avec ligne d'en-têtes, champ (nom ou numéro), critères (OU entre lignes)
+function bd(a) {
+  const base = matrice(a[0]), crit = matrice(a[2]);
+  if (base.length < 1 || crit.length < 1) throw err(ERR.VALEUR);
+  const entetes = base[0].map((x) => String(x ?? '').trim().toLowerCase());
+  let col = -1;
+  if (a[1] !== undefined && a[1] !== null) {
+    const f = scal(a[1]);
+    col = typeof f === 'number' ? f - 1 : entetes.indexOf(String(f).trim().toLowerCase());
+    if (col < 0 || col >= entetes.length) throw err(ERR.VALEUR);
+  }
+  const cc = crit[0].map((x) => entetes.indexOf(String(x ?? '').trim().toLowerCase()));
+  const lignesCrit = crit.slice(1).map((l) => l.map((x, j) => (x === null || x === '' || cc[j] < 0 ? null : { j: cc[j], t: compilerCritere(x) })).filter(Boolean));
+  const garde = base.slice(1).filter((l) => !lignesCrit.length || lignesCrit.some((cs) => cs.every((c) => c.t(l[c.j]))));
+  return { lignes: garde, col };
+}
+const bdValeurs = (a) => { const { lignes, col } = bd(a); return col < 0 ? lignes.map(() => 1) : lignes.map((l) => l[col]); };
+const bdNombres = (a) => bdValeurs(a).filter((x) => typeof x === 'number');
+
+// Conversion d'unités (CONVERT) : facteurs vers une unité de base par famille ; préfixes du système international
+const UNITES = {
+  masse: { g: 1, kg: 1000, lbm: 453.59237, ozm: 28.349523125, u: 1.66053906660e-24, grain: 0.06479891, stone: 6350.29318, ton: 907184.74, uk_ton: 1016046.9088, LTON: 1016046.9088, sg: 14593.90294 },
+  distance: { m: 1, mi: 1609.344, Nmi: 1852, in: 0.0254, ft: 0.3048, yd: 0.9144, ang: 1e-10, ell: 1.143, ly: 9.4607304725808e15, parsec: 3.08567758149137e16, pc: 3.08567758149137e16, Pica: 0.0254 / 6, survey_mi: 1609.347219 },
+  temps: { sec: 1, s: 1, mn: 60, min: 60, hr: 3600, day: 86400, d: 86400, yr: 31557600 },
+  pression: { Pa: 1, p: 1, atm: 101325, at: 101325, mmHg: 133.322, psi: 6894.757293, Torr: 133.3223684 },
+  force: { N: 1, dyn: 1e-5, dy: 1e-5, lbf: 4.4482216152605, pond: 0.00980665 },
+  energie: { J: 1, e: 1e-7, c: 4.184, cal: 4.1868, eV: 1.602176634e-19, ev: 1.602176634e-19, HPh: 2684519.537696, hh: 2684519.537696, Wh: 3600, wh: 3600, flb: 0.0421401100938, BTU: 1055.05585262, btu: 1055.05585262 },
+  puissance: { W: 1, w: 1, HP: 745.69987158227, h: 745.69987158227, PS: 735.49875 },
+  volume: { l: 0.001, L: 0.001, lt: 0.001, m3: 1, tsp: 4.92892159375e-6, tbs: 1.478676478125e-5, oz: 2.95735295625e-5, cup: 2.365882365e-4, pt: 4.73176473e-4, us_pt: 4.73176473e-4, uk_pt: 5.6826125e-4, qt: 9.46352946e-4, uk_qt: 1.1365225e-3, gal: 3.785411784e-3, uk_gal: 4.54609e-3, barrel: 0.158987294928, bushel: 0.03523907016688, ft3: 0.028316846592, in3: 1.6387064e-5, yd3: 0.764554857984, mi3: 4.16818182544058e9 },
+  surface: { m2: 1, ha: 10000, ar: 100, uk_acre: 4046.8564224, us_acre: 4046.87260987425, ft2: 0.09290304, in2: 6.4516e-4, yd2: 0.83612736, mi2: 2589988.110336, Nmi2: 3429904 },
+  vitesse: { 'm/s': 1, 'm/sec': 1, 'm/h': 1 / 3600, 'm/hr': 1 / 3600, mph: 0.44704, kn: 1852 / 3600, admkn: 0.514773333 },
+  information: { bit: 1, byte: 8 },
+};
+const PREFIXES = { Y: 1e24, Z: 1e21, E: 1e18, P: 1e15, T: 1e12, G: 1e9, M: 1e6, k: 1e3, h: 1e2, da: 1e1, d: 1e-1, c: 1e-2, m: 1e-3, u: 1e-6, n: 1e-9, p: 1e-12, f: 1e-15, a: 1e-18, z: 1e-21, y: 1e-24, ki: 1024, Mi: 1024 ** 2, Gi: 1024 ** 3, Ti: 1024 ** 4 };
+function unite(u) {
+  for (const [fam, t] of Object.entries(UNITES)) if (t[u] !== undefined) return { fam, k: t[u] };
+  for (const [p, k] of Object.entries(PREFIXES)) if (u.startsWith(p)) { const r = u.slice(p.length); for (const [fam, t] of Object.entries(UNITES)) if (t[r] !== undefined) { const puiss = /2$/.test(r) && fam === 'surface' ? 2 : /3$/.test(r) && fam === 'volume' ? 3 : 1; return { fam, k: t[r] * Math.pow(k, puiss) }; } }
+  return null;
+}
+function convertirUnite(x, de, vers) {
+  const temp = { C: (v) => v, cel: (v) => v, F: (v) => (v - 32) * 5 / 9, fah: (v) => (v - 32) * 5 / 9, K: (v) => v - 273.15, kel: (v) => v - 273.15, Rank: (v) => (v - 491.67) * 5 / 9, Reau: (v) => v * 1.25 };
+  const tempInv = { C: (v) => v, cel: (v) => v, F: (v) => v * 9 / 5 + 32, fah: (v) => v * 9 / 5 + 32, K: (v) => v + 273.15, kel: (v) => v + 273.15, Rank: (v) => (v + 273.15) * 9 / 5, Reau: (v) => v * 0.8 };
+  if (temp[de] || temp[vers]) { if (!temp[de] || !tempInv[vers]) throw err(ERR.NA); return tempInv[vers](temp[de](x)); }
+  const a = unite(de), b = unite(vers);
+  if (!a || !b || a.fam !== b.fam) throw err(ERR.NA);
+  return x * a.k / b.k;
+}
+
+// LAMBDA : une fonction écrite dans la formule, avec ses paramètres et les variables visibles à sa création
+class Lambda {
+  constructor(params, corps, portees) { this.params = params; this.corps = corps; this.portees = portees; }
+}
+const NON_FOURNI = Symbol('omis');
+function appelerLambda(ctx, f, valeurs) {
+  if (!(f instanceof Lambda)) throw err(ERR.VALEUR);
+  if (valeurs.length > f.params.length) throw err(ERR.VALEUR);
+  const portee = new Map();
+  f.params.forEach((p, i) => portee.set(p, i < valeurs.length ? valeurs[i] : NON_FOURNI));
+  const sauve = ctx.portees;
+  ctx.portees = [...f.portees, portee];
+  try { return ctx.evaluer(f.corps); } finally { ctx.portees = sauve; }
+}
+const nomParam = (n) => {
+  if (n && n.k === 'tref' && !n.table && /^\[[^\[\]]+\]$/.test(n.spec)) return n.spec.slice(1, -1).trim().toUpperCase(); // paramètre facultatif [b]
+  if (!n || n.k !== 'nom') throw err(ERR.VALEUR);
+  return n.v.toUpperCase();
+};
+// Valeur d'un élément pour un appel de lambda : un nombre, un texte… (pas une plage)
+const element = (v) => (v instanceof Plage ? v.scalaire() : v);
+
+// Sous-total : sans les autres SOUS.TOTAL de la plage ; 101 à 111 laissent aussi de côté les lignes masquées
+function valeursSousTotal(args, sansMasquees) {
+  const out = [];
+  for (const p of args) {
+    if (!(p instanceof Plage)) { out.push(...aplat([p])); continue; }
+    const ctx = p.ctx, C = ctx.classeur, fe = C.feuilles && C.feuilles[p.feuille], b = p.bornes();
+    for (let r = b.r1; r <= b.r2; r++) {
+      if (fe && fe.filtrees && fe.filtrees.has(r)) continue;
+      if (sansMasquees && fe && fe.hauteurs && fe.hauteurs[r] === 0) continue;
+      for (let c = b.c1; c <= b.c2; c++) {
+        const cel = C.cellule(p.feuille, r, c);
+        if (cel && cel.f != null && /\b(SUBTOTAL|SOUS\.TOTAL|AGGREGATE|AGREGAT)\s*\(/i.test(cel.f)) continue;
+        out.push(ctx.valeur(p.feuille, r, c));
+      }
+    }
+  }
+  return [out];
+}
+
+Object.assign(FONCTIONS, {
+  SUBTOTAL: { fn: (a) => { const n = entier(a[0]), code = n % 100; const noms = { 1: 'AVERAGE', 2: 'COUNT', 3: 'COUNTA', 4: 'MAX', 5: 'MIN', 6: 'PRODUCT', 7: 'STDEV', 8: 'STDEVP', 9: 'SUM', 10: 'VAR', 11: 'VARP' }; const f = FONCTIONS[noms[code]]; if (!f || (n > 11 && n < 101) || n > 111) throw err(ERR.VALEUR); return f.fn(valeursSousTotal(a.slice(1), n > 100)); } },
+  // ----- Titres, coupons, escompte -----
+  COUPPCD: { fn: (a) => coupons(a).pcd },
+  COUPNCD: { fn: (a) => coupons(a).ncd },
+  COUPNUM: { fn: (a) => coupons(a).n },
+  COUPDAYS: { fn: (a) => coupons(a).E },
+  COUPDAYBS: { fn: (a) => coupons(a).A },
+  COUPDAYSNC: { fn: (a) => coupons(a).DSC },
+  PRICE: { fn: (a) => { const t = N(a[2]), y = N(a[3]), rd = N(a[4]); if (t < 0 || y < 0 || rd <= 0) throw err(ERR.NUM); return prixTitre(coupons([a[0], a[1], a[5], a[6]]), t, y, rd); } },
+  YIELD: { fn: (a) => { const t = N(a[2]), pr = N(a[3]), rd = N(a[4]); if (t < 0 || pr <= 0 || rd <= 0) throw err(ERR.NUM); const c = coupons([a[0], a[1], a[5], a[6]]); return resoudre((y) => prixTitre(c, t, y, rd) - pr, t || 0.05, -0.99, 10); } },
+  DURATION: { fn: (a) => { const t = N(a[2]), y = N(a[3]); if (t < 0 || y < 0) throw err(ERR.NUM); return dureeTitre(coupons([a[0], a[1], a[4], a[5]]), t, y); } },
+  MDURATION: { fn: (a) => { const t = N(a[2]), y = N(a[3]), f = entier(a[4]); if (t < 0 || y < 0) throw err(ERR.NUM); return dureeTitre(coupons([a[0], a[1], a[4], a[5]]), t, y) / (1 + y / f); } },
+  ACCRINT: { fn: (a) => { const taux = N(a[3]), par = a[4] === undefined ? 1000 : N(a[4]); if (taux <= 0 || par <= 0) throw err(ERR.NUM); const base = entier(opt(a[6], 0)); return par * taux * fa(a[0], a[2], base); } },
+  ACCRINTM: { fn: (a) => { const taux = N(a[2]), par = a[3] === undefined ? 1000 : N(a[3]); if (taux <= 0 || par <= 0) throw err(ERR.NUM); return par * taux * fa(a[0], a[1], entier(opt(a[4], 0))); } },
+  DISC: { fn: (a) => { const pr = N(a[2]), rd = N(a[3]); if (pr <= 0 || rd <= 0) throw err(ERR.NUM); return (rd - pr) / rd / fa(a[0], a[1], entier(opt(a[4], 0))); } },
+  INTRATE: { fn: (a) => { const inv = N(a[2]), rd = N(a[3]); if (inv <= 0 || rd <= 0) throw err(ERR.NUM); return (rd - inv) / inv / fa(a[0], a[1], entier(opt(a[4], 0))); } },
+  RECEIVED: { fn: (a) => { const inv = N(a[2]), d = N(a[3]); const x = 1 - d * fa(a[0], a[1], entier(opt(a[4], 0))); if (inv <= 0 || d <= 0 || x <= 0) throw err(ERR.NUM); return inv / x; } },
+  PRICEDISC: { fn: (a) => { const d = N(a[2]), rd = N(a[3]); if (d <= 0 || rd <= 0) throw err(ERR.NUM); return rd - d * rd * fa(a[0], a[1], entier(opt(a[4], 0))); } },
+  YIELDDISC: { fn: (a) => { const pr = N(a[2]), rd = N(a[3]); if (pr <= 0 || rd <= 0) throw err(ERR.NUM); return (rd - pr) / pr / fa(a[0], a[1], entier(opt(a[4], 0))); } },
+  PRICEMAT: { fn: (a) => { const base = entier(opt(a[5], 0)), t = N(a[3]), y = N(a[4]); const dim = fa(a[2], a[1], base), dsm = fa(a[0], a[1], base), ac = fa(a[2], a[0], base); return (100 + dim * t * 100) / (1 + dsm * y) - ac * t * 100; } },
+  YIELDMAT: { fn: (a) => { const base = entier(opt(a[5], 0)), t = N(a[3]), pr = N(a[4]); const dim = fa(a[2], a[1], base), dsm = fa(a[0], a[1], base), ac = fa(a[2], a[0], base); return ((1 + dim * t) - (pr / 100 + ac * t)) / (pr / 100 + ac * t) / dsm; } },
+  TBILLPRICE: { fn: (a) => { const dsm = Math.floor(N(a[1])) - Math.floor(N(a[0])), d = N(a[2]); if (dsm <= 0 || dsm > 365 || d <= 0) throw err(ERR.NUM); return 100 * (1 - d * dsm / 360); } },
+  TBILLYIELD: { fn: (a) => { const dsm = Math.floor(N(a[1])) - Math.floor(N(a[0])), pr = N(a[2]); if (dsm <= 0 || dsm > 365 || pr <= 0) throw err(ERR.NUM); return (100 - pr) / pr * 360 / dsm; } },
+  TBILLEQ: { fn: (a) => { const dsm = Math.floor(N(a[1])) - Math.floor(N(a[0])), d = N(a[2]); if (dsm <= 0 || dsm > 365 || d <= 0) throw err(ERR.NUM); if (dsm <= 182) return 365 * d / (360 - d * dsm); const pr = 100 * (1 - d * dsm / 360), t = dsm / 365; return (-2 * t + 2 * Math.sqrt(t * t - (2 * t - 1) * (1 - 100 / pr))) / (2 * t - 1); } },
+  DOLLARDE: { fn: (a) => { const x = N(a[0]), f = entier(a[1]); if (f < 0) throw err(ERR.NUM); if (f === 0) throw err(ERR.DIV0); const e = Math.trunc(x), p = Math.pow(10, Math.ceil(Math.log10(f))); return e + (x - e) * p / f; } },
+  DOLLARFR: { fn: (a) => { const x = N(a[0]), f = entier(a[1]); if (f < 0) throw err(ERR.NUM); if (f === 0) throw err(ERR.DIV0); const e = Math.trunc(x), p = Math.pow(10, Math.ceil(Math.log10(f))); return e + (x - e) * f / p; } },
+  ISPMT: { fn: (a) => { const r = N(a[0]), p = N(a[1]), n = N(a[2]), pv = N(a[3]); if (!n) throw err(ERR.DIV0); return pv * r * (p / n - 1); } },
+  // ----- Amortissements -----
+  VDB: { fn: (a) => vdb(N(a[0]), N(a[1]), N(a[2]), N(a[3]), N(a[4]), a[5] === undefined ? 2 : N(a[5]), a[6] === undefined ? false : B(a[6])) },
+  AMORLINC: { fn: (a) => {
+    const cout = N(a[0]), achat = Math.floor(N(a[1])), premiere = Math.floor(N(a[2])), residu = N(a[3]), per = entier(a[4]), taux = N(a[5]), base = entier(opt(a[6], 0));
+    if (cout < 0 || residu < 0 || taux <= 0 || per < 0 || residu > cout) throw err(ERR.NUM);
+    const annuite = cout * taux, premier = fractionAnnee(achat, premiere, base) * taux * cout;
+    const pleines = Math.floor((cout - residu - premier) / annuite);
+    if (per === 0) return premier;
+    if (per <= pleines) return annuite;
+    if (per === pleines + 1) return Math.max(0, cout - residu - annuite * pleines - premier);
+    return 0;
+  } },
+  AMORDEGRC: { fn: (a) => {
+    let cout = N(a[0]); const achat = Math.floor(N(a[1])), premiere = Math.floor(N(a[2])), residu = N(a[3]), per = entier(a[4]), base = entier(opt(a[6], 0));
+    let taux = N(a[5]);
+    if (cout < 0 || residu < 0 || taux <= 0 || per < 0) throw err(ERR.NUM);
+    const vie = 1 / taux, coef = vie < 3 ? 1 : vie < 5 ? 1.5 : vie <= 6 ? 2 : 2.5;
+    taux *= coef;
+    let dot = Math.round(fractionAnnee(achat, premiere, base) * taux * cout);
+    cout -= dot;
+    let reste = cout - residu;
+    for (let n = 0; n < per; n++) {
+      dot = Math.round(taux * cout);
+      reste -= dot;
+      if (reste < 0) return per - n <= 1 ? Math.round(cout * 0.5) : 0;
+      cout -= dot;
+    }
+    return dot;
+  } },
+  // ----- Jours ouvrés avec week-ends au choix -----
+  'NETWORKDAYS.INTL': { fn: (a) => { let d1 = Math.floor(N(a[0])), d2 = Math.floor(N(a[1])); const we = weekEnd(a[2] === undefined ? undefined : scal(a[2])), feries = new Set(a[3] ? nombres([a[3]]).map(Math.floor) : []); const signe = d1 > d2 ? -1 : 1; if (d1 > d2) [d1, d2] = [d2, d1]; let n = 0; for (let d = d1; d <= d2; d++) if (!we.has(dateUTC(d).d.getUTCDay()) && !feries.has(d)) n++; return n * signe; } },
+  'WORKDAY.INTL': { fn: (a) => { let d = Math.floor(N(a[0])), n = entier(a[1]); const we = weekEnd(a[2] === undefined ? undefined : scal(a[2])), feries = new Set(a[3] ? nombres([a[3]]).map(Math.floor) : []); const pas = n < 0 ? -1 : 1; n = Math.abs(n); while (n > 0) { d += pas; if (!we.has(dateUTC(d).d.getUTCDay()) && !feries.has(d)) n--; } return d; } },
+  // ----- Lois inverses, autres lois -----
+  'T.INV': { fn: (a) => tInv(N(a[0]), N(a[1])) },
+  'T.INV.2T': { fn: (a) => { const p = N(a[0]); if (p <= 0 || p > 1) throw err(ERR.NUM); return Math.abs(tInv(p / 2, N(a[1]))); } },
+  TINV: { fn: (a) => FONCTIONS['T.INV.2T'].fn(a) },
+  'CHISQ.INV': { fn: (a) => { const p = N(a[0]), k = N(a[1]); if (p < 0 || p >= 1 || k < 1) throw err(ERR.NUM); return inverseCdf((x) => chiCdf(x, k), p, 0, Math.max(10, k * 4)); } },
+  'CHISQ.INV.RT': { fn: (a) => { const p = N(a[0]); if (p <= 0 || p > 1) throw err(ERR.NUM); return FONCTIONS['CHISQ.INV'].fn([1 - p, a[1]]); } },
+  CHIINV: { fn: (a) => FONCTIONS['CHISQ.INV.RT'].fn(a) },
+  'F.DIST': { fn: (a) => { const x = N(a[0]), d1 = N(a[1]), d2 = N(a[2]); if (x < 0 || d1 < 1 || d2 < 1) throw err(ERR.NUM); if (B(a[3])) return fCdf(x, d1, d2); if (x === 0) return d1 < 2 ? Infinity : d1 === 2 ? 1 : 0; return Math.exp(0.5 * (d1 * Math.log(d1 * x) + d2 * Math.log(d2) - (d1 + d2) * Math.log(d1 * x + d2)) - Math.log(x) - (lnGamma(d1 / 2) + lnGamma(d2 / 2) - lnGamma((d1 + d2) / 2))); } },
+  'F.DIST.RT': { fn: (a) => { const x = N(a[0]), d1 = N(a[1]), d2 = N(a[2]); if (x < 0 || d1 < 1 || d2 < 1) throw err(ERR.NUM); return 1 - fCdf(x, d1, d2); } },
+  FDIST: { fn: (a) => FONCTIONS['F.DIST.RT'].fn(a) },
+  'F.INV': { fn: (a) => { const p = N(a[0]), d1 = N(a[1]), d2 = N(a[2]); if (p < 0 || p >= 1 || d1 < 1 || d2 < 1) throw err(ERR.NUM); return inverseCdf((x) => fCdf(x, d1, d2), p, 0, 10); } },
+  'F.INV.RT': { fn: (a) => { const p = N(a[0]); if (p <= 0 || p > 1) throw err(ERR.NUM); return FONCTIONS['F.INV'].fn([1 - p, a[1], a[2]]); } },
+  FINV: { fn: (a) => FONCTIONS['F.INV.RT'].fn(a) },
+  'GAMMA.INV': { fn: (a) => { const p = N(a[0]), al = N(a[1]), be = N(a[2]); if (p < 0 || p >= 1 || al <= 0 || be <= 0) throw err(ERR.NUM); return inverseCdf((x) => gammaIncReg(al, x / be), p, 0, al * be * 4 + 10); } },
+  GAMMAINV: { fn: (a) => FONCTIONS['GAMMA.INV'].fn(a) },
+  'BETA.INV': { fn: (a) => { const p = N(a[0]), al = N(a[1]), be = N(a[2]), A = a[3] === undefined ? 0 : N(a[3]), Bb = a[4] === undefined ? 1 : N(a[4]); if (p < 0 || p > 1 || al <= 0 || be <= 0 || A >= Bb) throw err(ERR.NUM); let lo = 0, hi = 1; for (let i = 0; i < 200; i++) { const m = (lo + hi) / 2; if (betaIncReg(al, be, m) < p) lo = m; else hi = m; } return A + (lo + hi) / 2 * (Bb - A); } },
+  BETAINV: { fn: (a) => FONCTIONS['BETA.INV'].fn(a) },
+  BETADIST: { fn: (a) => FONCTIONS['BETA.DIST'].fn([a[0], a[1], a[2], true, a[3], a[4]]) },
+  'BINOM.INV': { fn: (a) => { const n = Math.floor(N(a[0])), p = N(a[1]), al = N(a[2]); if (n < 0 || p < 0 || p > 1 || al <= 0 || al >= 1) throw err(ERR.NUM); let s = 0; for (let k = 0; k <= n; k++) { s += Math.exp(lnComb(n, k) + (k ? k * Math.log(p) : 0) + (n - k ? (n - k) * Math.log(1 - p) : 0)); if (s >= al - 1e-12) return k; } return n; } },
+  CRITBINOM: { fn: (a) => FONCTIONS['BINOM.INV'].fn(a) },
+  'BINOM.DIST.RANGE': { fn: (a) => { const n = Math.floor(N(a[0])), p = N(a[1]), s1 = Math.floor(N(a[2])), s2 = a[3] === undefined ? s1 : Math.floor(N(a[3])); if (p < 0 || p > 1 || s1 < 0 || s2 > n || s1 > s2) throw err(ERR.NUM); let t = 0; for (let k = s1; k <= s2; k++) t += Math.exp(lnComb(n, k) + (k ? k * Math.log(p) : 0) + (n - k ? (n - k) * Math.log(1 - p) : 0)); return t; } },
+  'NEGBINOM.DIST': { fn: (a) => { const f = Math.floor(N(a[0])), s = Math.floor(N(a[1])), p = N(a[2]); if (f < 0 || s < 1 || p < 0 || p > 1) throw err(ERR.NUM); if (B(a[3])) return betaIncReg(s, f + 1, p); return Math.exp(lnComb(f + s - 1, s - 1) + s * Math.log(p) + (f ? f * Math.log(1 - p) : 0)); } },
+  NEGBINOMDIST: { fn: (a) => FONCTIONS['NEGBINOM.DIST'].fn([a[0], a[1], a[2], false]) },
+  'HYPGEOM.DIST': { fn: (a) => { const k = Math.floor(N(a[0])), n = Math.floor(N(a[1])), K = Math.floor(N(a[2])), Np = Math.floor(N(a[3])); if (k < 0 || n < 0 || K < 0 || n > Np || K > Np || k > n || k > K) throw err(ERR.NUM); const pm = (i) => (i < Math.max(0, n - Np + K) ? 0 : Math.exp(lnComb(K, i) + lnComb(Np - K, n - i) - lnComb(Np, n))); if (!B(a[4])) return pm(k); let s = 0; for (let i = 0; i <= k; i++) s += pm(i); return Math.min(1, s); } },
+  HYPGEOMDIST: { fn: (a) => FONCTIONS['HYPGEOM.DIST'].fn([a[0], a[1], a[2], a[3], false]) },
+  LOGINV: { fn: (a) => FONCTIONS['LOGNORM.INV'].fn(a) },
+  'CONFIDENCE.T': { fn: (a) => { const al = N(a[0]), s = N(a[1]), n = Math.floor(N(a[2])); if (al <= 0 || al >= 1 || s <= 0 || n < 2) throw err(n === 1 ? ERR.DIV0 : ERR.NUM); return Math.abs(tInv(al / 2, n - 1)) * s / Math.sqrt(n); } },
+  // ----- Tests -----
+  'Z.TEST': { fn: (a) => { const v = nombres([a[0]]), x = N(a[1]); const n = v.length; if (n < 2) throw err(ERR.DIV0); const m = v.reduce((s, y) => s + y, 0) / n; const s = a[2] === undefined ? Math.sqrt(variance(v, false)) : N(a[2]); return 1 - normSDist((m - x) / (s / Math.sqrt(n))); } },
+  ZTEST: { fn: (a) => FONCTIONS['Z.TEST'].fn(a) },
+  'T.TEST': { fn: (a) => {
+    const queues = entier(a[2]), type = entier(a[3]);
+    if (![1, 2].includes(queues) || ![1, 2, 3].includes(type)) throw err(ERR.NUM);
+    let t, df;
+    if (type === 1) {
+      const x = aplat([a[0]]), y = aplat([a[1]]); if (x.length !== y.length) throw err(ERR.NA);
+      const d = []; for (let i = 0; i < x.length; i++) if (typeof x[i] === 'number' && typeof y[i] === 'number') d.push(x[i] - y[i]);
+      const n = d.length; if (n < 2) throw err(ERR.DIV0); const m = d.reduce((s, v) => s + v, 0) / n; t = m / Math.sqrt(variance(d, false) / n); df = n - 1;
+    } else {
+      const x = nombres([a[0]]), y = nombres([a[1]]), n1 = x.length, n2 = y.length; if (n1 < 2 || n2 < 2) throw err(ERR.DIV0);
+      const m1 = x.reduce((s, v) => s + v, 0) / n1, m2 = y.reduce((s, v) => s + v, 0) / n2, v1 = variance(x, false), v2 = variance(y, false);
+      if (type === 2) { const sp = ((n1 - 1) * v1 + (n2 - 1) * v2) / (n1 + n2 - 2); t = (m1 - m2) / Math.sqrt(sp * (1 / n1 + 1 / n2)); df = n1 + n2 - 2; }
+      else { const q1 = v1 / n1, q2 = v2 / n2; t = (m1 - m2) / Math.sqrt(q1 + q2); df = (q1 + q2) ** 2 / (q1 * q1 / (n1 - 1) + q2 * q2 / (n2 - 1)); }
+    }
+    const p1 = 1 - tCdf(Math.abs(t), df);
+    return queues === 1 ? p1 : 2 * p1;
+  } },
+  TTEST: { fn: (a) => FONCTIONS['T.TEST'].fn(a) },
+  'F.TEST': { fn: (a) => { const x = nombres([a[0]]), y = nombres([a[1]]); if (x.length < 2 || y.length < 2) throw err(ERR.DIV0); const v1 = variance(x, false), v2 = variance(y, false); if (!v2 || !v1) throw err(ERR.DIV0); const c = fCdf(v1 / v2, x.length - 1, y.length - 1); return 2 * Math.min(c, 1 - c); } },
+  FTEST: { fn: (a) => FONCTIONS['F.TEST'].fn(a) },
+  'CHISQ.TEST': { fn: (a) => { const A = matrice(a[0]), E = matrice(a[1]); if (A.length !== E.length || A[0].length !== E[0].length) throw err(ERR.NA); let x = 0; for (let i = 0; i < A.length; i++) for (let j = 0; j < A[0].length; j++) { const e = N(E[i][j]); if (e <= 0) throw err(ERR.DIV0); x += (N(A[i][j]) - e) ** 2 / e; } const r = A.length, c = A[0].length, df = r > 1 && c > 1 ? (r - 1) * (c - 1) : r * c - 1; if (df < 1) throw err(ERR.NA); return 1 - chiCdf(x, df); } },
+  CHITEST: { fn: (a) => FONCTIONS['CHISQ.TEST'].fn(a) },
+  'PERCENTRANK.INC': { fn: (a) => { const r = FONCTIONS.PERCENTRANK.fn(a.slice(0, 2)); const k = a[2] === undefined ? 3 : entier(a[2]); if (k < 1) throw err(ERR.NUM); return Math.floor(r * 10 ** k + 1e-9) / 10 ** k; } },
+  'PERCENTRANK.EXC': { fn: (a) => { const v = nombres([a[0]]).sort((x, y) => x - y), x = N(a[1]), n = v.length; if (!n || x < v[0] || x > v[n - 1]) throw err(ERR.NA); let i = 0; while (i < n - 1 && v[i + 1] <= x) i++; const pos = v[i] === x ? i + 1 : i + 1 + (x - v[i]) / (v[i + 1] - v[i]); const k = a[2] === undefined ? 3 : entier(a[2]); return Math.floor(pos / (n + 1) * 10 ** k + 1e-9) / 10 ** k; } },
+  PROB: { fn: (a) => { const x = aplat([a[0]]), p = aplat([a[1]]); if (x.length !== p.length) throw err(ERR.NA); const lo = N(a[2]), hi = a[3] === undefined ? lo : N(a[3]); let tot = 0, s = 0; for (let i = 0; i < x.length; i++) { const q = N(p[i]); if (q < 0 || q > 1) throw err(ERR.NUM); tot += q; if (typeof x[i] === 'number' && x[i] >= lo && x[i] <= hi) s += q; } if (Math.abs(tot - 1) > 1e-7) throw err(ERR.NUM); return s; } },
+  // ----- Régression -----
+  LINEST: { fn: (a) => droitereg(a, false) },
+  LOGEST: { fn: (a) => droitereg(a, true) },
+  TREND: { fn: (a) => tendance(a, false) },
+  GROWTH: { fn: (a) => tendance(a, true) },
+  // ----- Bases de données -----
+  DSUM: { fn: (a) => bdNombres(a).reduce((s, x) => s + x, 0) },
+  DAVERAGE: { fn: (a) => { const v = bdNombres(a); if (!v.length) throw err(ERR.DIV0); return v.reduce((s, x) => s + x, 0) / v.length; } },
+  DCOUNT: { fn: (a) => (a[1] === undefined || a[1] === null ? bd(a).lignes.filter((l) => l.some((x) => typeof x === 'number')).length : bdNombres(a).length) },
+  DCOUNTA: { fn: (a) => (a[1] === undefined || a[1] === null ? bd(a).lignes.length : bdValeurs(a).filter((x) => x !== null && x !== '').length) },
+  DMAX: { fn: (a) => { const v = bdNombres(a); return v.length ? Math.max(...v) : 0; } },
+  DMIN: { fn: (a) => { const v = bdNombres(a); return v.length ? Math.min(...v) : 0; } },
+  DPRODUCT: { fn: (a) => bdNombres(a).reduce((s, x) => s * x, 1) },
+  DGET: { fn: (a) => { const v = bdValeurs(a); if (!v.length) throw err(ERR.VALEUR); if (v.length > 1) throw err(ERR.NUM); return v[0]; } },
+  DSTDEV: { fn: (a) => Math.sqrt(variance(bdNombres(a), false)) },
+  DSTDEVP: { fn: (a) => Math.sqrt(variance(bdNombres(a), true)) },
+  DVAR: { fn: (a) => variance(bdNombres(a), false) },
+  DVARP: { fn: (a) => variance(bdNombres(a), true) },
+  // ----- Tableaux -----
+  RANDARRAY: { volatile: true, fn: (a) => { const l = a[0] === undefined ? 1 : entier(a[0]), c = a[1] === undefined ? 1 : entier(a[1]), mi = a[2] === undefined ? 0 : N(a[2]), ma = a[3] === undefined ? 1 : N(a[3]), ent = a[4] === undefined ? false : B(a[4]); if (l < 1 || c < 1 || mi > ma) throw err(ERR.VALEUR); return Array.from({ length: l }, () => Array.from({ length: c }, () => (ent ? Math.floor(mi + Math.random() * (Math.floor(ma) - Math.ceil(mi) + 1)) : mi + Math.random() * (ma - mi)))); } },
+  SORTBY: { fn: (a) => { const m = matrice(a[0]); const cles = []; for (let i = 1; i < a.length; i += 2) cles.push({ v: aplat([a[i]]), o: a[i + 1] === undefined ? 1 : entier(a[i + 1]) }); for (const k of cles) if (k.v.length !== m.length && !(m.length === 1 && k.v.length === m[0].length)) throw err(ERR.VALEUR); if (m.length === 1 && m[0].length > 1 && cles[0] && cles[0].v.length === m[0].length) { const idx = m[0].map((_, i) => i).sort((x, y) => { for (const k of cles) { const c = comparer(k.v[x], k.v[y]); if (c) return c * k.o; } return x - y; }); return [idx.map((i) => m[0][i])]; } const idx = m.map((_, i) => i).sort((x, y) => { for (const k of cles) { const c = comparer(k.v[x], k.v[y]); if (c) return c * k.o; } return x - y; }); return idx.map((i) => m[i]); } },
+  TAKE: { fn: (a) => { const m = matrice(a[0]); const l = a[1] === undefined ? m.length : entier(a[1]), c = a[2] === undefined ? m[0].length : entier(a[2]); if (!l || !c) throw err(ERR.VALEUR); const lignes = l > 0 ? m.slice(0, l) : m.slice(l); return lignes.map((x) => (c > 0 ? x.slice(0, c) : x.slice(c))); } },
+  DROP: { fn: (a) => { const m = matrice(a[0]); const l = a[1] === undefined ? 0 : entier(a[1]), c = a[2] === undefined ? 0 : entier(a[2]); const lignes = l >= 0 ? m.slice(l) : m.slice(0, l); const out = lignes.map((x) => (c >= 0 ? x.slice(c) : x.slice(0, c))); if (!out.length || !out[0].length) throw err(ERR.VALEUR); return out; } },
+  VSTACK: { fn: (a) => { const ms = a.filter((x) => x !== undefined).map(matrice); const w = Math.max(...ms.map((m) => Math.max(...m.map((l) => l.length)))); return ms.flatMap((m) => m.map((l) => [...l, ...Array(w - l.length).fill(err(ERR.NA))])); } },
+  HSTACK: { fn: (a) => { const ms = a.filter((x) => x !== undefined).map(matrice); const h = Math.max(...ms.map((m) => m.length)); return Array.from({ length: h }, (_, i) => ms.flatMap((m) => (m[i] ? m[i] : Array(m[0].length).fill(err(ERR.NA))))); } },
+  TOCOL: { fn: (a) => { let m = matrice(a[0]); const ign = a[1] === undefined ? 0 : entier(a[1]), parCol = a[2] === undefined ? false : B(a[2]); if (parCol) m = transposer(m); return m.flat().filter((v) => !((ign === 1 || ign === 3) && (v === null || v === '')) && !((ign === 2 || ign === 3) && v instanceof ErreurFormule)).map((v) => [v]); } },
+  TOROW: { fn: (a) => [FONCTIONS.TOCOL.fn(a).map((l) => l[0])] },
+  WRAPROWS: { fn: (a) => { const v = matrice(a[0]).flat(), n = entier(a[1]), pad = a[2] === undefined ? err(ERR.NA) : scal(a[2]); if (n < 1) throw err(ERR.NUM); const out = []; for (let i = 0; i < v.length; i += n) { const l = v.slice(i, i + n); while (l.length < n) l.push(pad); out.push(l); } return out; } },
+  WRAPCOLS: { fn: (a) => transposer(FONCTIONS.WRAPROWS.fn(a)) },
+  CHOOSECOLS: { fn: (a) => { const m = matrice(a[0]), w = m[0].length; const cs = a.slice(1).flatMap((x) => aplat([x])).map((x) => { const k = entier(x); if (!k || Math.abs(k) > w) throw err(ERR.VALEUR); return k > 0 ? k - 1 : w + k; }); return m.map((l) => cs.map((c) => l[c])); } },
+  CHOOSEROWS: { fn: (a) => { const m = matrice(a[0]), h = m.length; return a.slice(1).flatMap((x) => aplat([x])).map((x) => { const k = entier(x); if (!k || Math.abs(k) > h) throw err(ERR.VALEUR); return m[k > 0 ? k - 1 : h + k]; }); } },
+  EXPAND: { fn: (a) => { const m = matrice(a[0]); const l = a[1] === undefined || a[1] === null ? m.length : entier(a[1]), c = a[2] === undefined || a[2] === null ? m[0].length : entier(a[2]); if (l < m.length || c < m[0].length) throw err(ERR.VALEUR); const pad = a[3] === undefined ? err(ERR.NA) : scal(a[3]); return Array.from({ length: l }, (_, i) => Array.from({ length: c }, (_, j) => (m[i] && j < m[i].length ? m[i][j] : pad))); } },
+  // ----- LET, LAMBDA et leurs compagnes -----
+  LET: { paresseux: true, fn: (args, ev, ctx) => {
+    if (args.length < 3 || args.length % 2 === 0) throw err(ERR.VALEUR);
+    const portee = new Map(), sauve = ctx.portees;
+    ctx.portees = [...(sauve || []), portee];
+    try {
+      for (let i = 0; i < args.length - 1; i += 2) portee.set(nomParam(args[i]), ev(args[i + 1]));
+      return ev(args[args.length - 1]);
+    } finally { ctx.portees = sauve; }
+  } },
+  LAMBDA: { paresseux: true, fn: (args, ev, ctx) => { if (!args.length) throw err(ERR.VALEUR); return new Lambda(args.slice(0, -1).map(nomParam), args[args.length - 1], [...(ctx.portees || [])]); } },
+  ISOMITTED: { paresseux: true, fn: (args, ev, ctx) => { const n = args[0]; if (!n || n.k !== 'nom') return false; for (let i = (ctx.portees || []).length - 1; i >= 0; i--) { const p = ctx.portees[i]; if (p.has(n.v.toUpperCase())) return p.get(n.v.toUpperCase()) === NON_FOURNI; } return false; } },
+  MAP: { paresseux: true, fn: (args, ev, ctx) => { const f = ev(args[args.length - 1]); const ms = args.slice(0, -1).map((x) => matrice(ev(x))); const h = Math.max(...ms.map((m) => m.length)), w = Math.max(...ms.map((m) => m[0].length)); return Array.from({ length: h }, (_, i) => Array.from({ length: w }, (_, j) => { try { return scal(appelerLambda(ctx, f, ms.map((m) => (m[i] && m[i][j] !== undefined ? m[i][j] : (m.length === 1 && m[0].length === 1 ? m[0][0] : err(ERR.NA)))))); } catch (e) { if (e instanceof ErreurFormule) return e; throw e; } })); } },
+  REDUCE: { paresseux: true, fn: (args, ev, ctx) => { let acc = args[0] && args[0].k !== 'vide' ? ev(args[0]) : 0; const m = matrice(ev(args[1])), f = ev(args[2]); for (const l of m) for (const v of l) acc = appelerLambda(ctx, f, [acc, v]); return acc; } },
+  SCAN: { paresseux: true, fn: (args, ev, ctx) => { let acc = args[0] && args[0].k !== 'vide' ? ev(args[0]) : 0; const m = matrice(ev(args[1])), f = ev(args[2]); return m.map((l) => l.map((v) => { acc = scal(appelerLambda(ctx, f, [acc, v])); return acc; })); } },
+  BYROW: { paresseux: true, fn: (args, ev, ctx) => { const m = matrice(ev(args[0])), f = ev(args[1]); return m.map((l) => [scal(appelerLambda(ctx, f, [[l]]))]); } },
+  BYCOL: { paresseux: true, fn: (args, ev, ctx) => { const m = matrice(ev(args[0])), f = ev(args[1]); return [m[0].map((_, j) => scal(appelerLambda(ctx, f, [m.map((l) => [l[j]])])))]; } },
+  MAKEARRAY: { paresseux: true, fn: (args, ev, ctx) => { const l = entier(ev(args[0])), c = entier(ev(args[1])), f = ev(args[2]); if (l < 1 || c < 1) throw err(ERR.VALEUR); return Array.from({ length: l }, (_, i) => Array.from({ length: c }, (_, j) => scal(appelerLambda(ctx, f, [i + 1, j + 1])))); } },
+  // ----- Informations, conversions -----
+  FORMULATEXT: { fn: (a, ctx) => { const p = a[0]; if (!(p instanceof Plage)) throw err(ERR.NA); const cel = ctx.classeur.cellule(p.feuille, p.r1, p.c1); if (!cel || cel.f == null) throw err(ERR.NA); return cel.f; } },
+  ISFORMULA: { fn: (a, ctx) => { const p = a[0]; if (!(p instanceof Plage)) return false; const cel = ctx.classeur.cellule(p.feuille, p.r1, p.c1); return !!(cel && cel.f != null); } },
+  'ERROR.TYPE': { fn: (a) => { const v = scal(a[0]); if (!(v instanceof ErreurFormule)) throw err(ERR.NA); return { '#NULL!': 1, '#DIV/0!': 2, '#VALUE!': 3, '#REF!': 4, '#NAME?': 5, '#NUM!': 6, '#N/A': 7, '#SPILL!': 9, '#CYCLE!': 14 }[v.code] || 8; } },
+  CONVERT: { fn: (a) => convertirUnite(N(a[0]), S(a[1]), S(a[2])) },
+  PERCENTOF: { fn: (a) => { const t = nombres([a[1]]).reduce((s, x) => s + x, 0); if (!t) throw err(ERR.DIV0); return nombres([a[0]]).reduce((s, x) => s + x, 0) / t; } },
+});
+/** Outils statistiques pour l'utilitaire d'analyse (lois et inverses, régression). */
+export const STATS = { tInv, tCdf, fCdf, chiCdf, normSInv, normSDist, lnGamma, inverser, regression, quantile, variance };
+// Les fonctions qui reçoivent une erreur en argument (TYPE.ERREUR) ne doivent pas la propager
+FONCTIONS['ERROR.TYPE'].paresseux = true;
+FONCTIONS['ERROR.TYPE'].fn = (args, ev) => { let v; try { v = scal(ev(args[0])); } catch (e) { if (e instanceof ErreurFormule) v = e; else throw e; } if (!(v instanceof ErreurFormule)) throw err(ERR.NA); return { '#NULL!': 1, '#DIV/0!': 2, '#VALUE!': 3, '#REF!': 4, '#NAME?': 5, '#NUM!': 6, '#N/A': 7, '#SPILL!': 9, '#CYCLE!': 14 }[v.code] || 8; };
+
 /** Noms français → anglais. */
 export const ALIAS = {
   SI: 'IF', 'SI.CONDITIONS': 'IFS', SIERREUR: 'IFERROR', 'SI.NON.DISP': 'IFNA', CHOISIR: 'CHOOSE', 'SI.MULTIPLE': 'SWITCH',
@@ -1487,6 +1936,26 @@ export const ALIAS = {
   'FRACTION.ANNEE': 'YEARFRAC', DATEDIF: 'DATEDIF', 'NB.JOURS.OUVRES': 'NETWORKDAYS', 'SERIE.JOUR.OUVRE': 'WORKDAY',
   CELLULE: 'CELL', FEUILLE: 'SHEET', FEUILLES: 'SHEETS', TYPE: 'TYPE', N: 'N', T: 'T',
 };
+
+Object.assign(ALIAS, {
+  'TRI.MODIFIE': 'MIRR', 'INTERET.ACC': 'ACCRINT', 'INTERET.ACC.MAT': 'ACCRINTM', 'PRIX.TITRE': 'PRICE', 'RENDEMENT.TITRE': 'YIELD', DUREE: 'DURATION', 'DUREE.MODIFIEE': 'MDURATION',
+  'VALEUR.ENCAISSEMENT': 'PRICEDISC', 'PRIX.TITRE.ECHEANCE': 'PRICEMAT', 'RENDEMENT.SIMPLE': 'YIELDDISC', 'RENDEMENT.TITRE.ECHEANCE': 'YIELDMAT', 'TAUX.ESCOMPTE': 'DISC',
+  'TAUX.INTERET': 'INTRATE', 'VALEUR.NOMINALE': 'RECEIVED', 'TAUX.ESCOMPTE.R': 'TBILLEQ', 'PRIX.BON.TRESOR': 'TBILLPRICE', 'RENDEMENT.BON.TRESOR': 'TBILLYIELD',
+  'NB.JOURS.COUPON.PREC': 'COUPDAYBS', 'NB.JOURS.COUPONS': 'COUPDAYS', 'NB.JOURS.COUPON.SUIV': 'COUPDAYSNC', 'DATE.COUPON.SUIV': 'COUPNCD', 'NB.COUPONS': 'COUPNUM', 'DATE.COUPON.PREC': 'COUPPCD',
+  'PRIX.DEC': 'DOLLARDE', 'PRIX.FRAC': 'DOLLARFR', ISPMT: 'ISPMT', VDB: 'VDB', AMORLINC: 'AMORLINC', AMORDEGRC: 'AMORDEGRC',
+  'NB.JOURS.OUVRES.INTL': 'NETWORKDAYS.INTL', 'SERIE.JOUR.OUVRE.INTL': 'WORKDAY.INTL',
+  'LOI.STUDENT.INVERSE.N': 'T.INV', 'LOI.STUDENT.INVERSE.BILATERALE': 'T.INV.2T', 'LOI.STUDENT.INVERSE': 'TINV', 'TEST.STUDENT': 'TTEST',
+  'LOI.KHIDEUX.INVERSE': 'CHISQ.INV', 'LOI.KHIDEUX.INVERSE.DROITE': 'CHISQ.INV.RT', 'KHIDEUX.INVERSE': 'CHIINV', 'TEST.KHIDEUX': 'CHITEST',
+  'LOI.F.N': 'F.DIST', 'LOI.F.DROITE': 'F.DIST.RT', 'LOI.F': 'FDIST', 'INVERSE.LOI.F.N': 'F.INV', 'INVERSE.LOI.F.DROITE': 'F.INV.RT', 'INVERSE.LOI.F': 'FINV', 'TEST.F': 'FTEST',
+  'LOI.GAMMA.INVERSE.N': 'GAMMA.INV', 'LOI.GAMMA.INVERSE': 'GAMMAINV', 'BETA.INVERSE.N': 'BETA.INV', 'BETA.INVERSE': 'BETAINV', 'LOI.BETA': 'BETADIST',
+  'LOI.BINOMIALE.INVERSE': 'BINOM.INV', 'CRITERE.LOI.BINOMIALE': 'CRITBINOM', 'LOI.BINOMIALE.SERIE': 'BINOM.DIST.RANGE', 'LOI.BINOMIALE.NEG.N': 'NEGBINOM.DIST', 'LOI.BINOMIALE.NEG': 'NEGBINOMDIST',
+  'LOI.HYPERGEOMETRIQUE.N': 'HYPGEOM.DIST', 'LOI.HYPERGEOMETRIQUE': 'HYPGEOMDIST', 'LOI.LOGNORMALE.INVERSE': 'LOGINV', 'INTERVALLE.CONFIANCE.STUDENT': 'CONFIDENCE.T', 'TEST.Z': 'ZTEST',
+  TENDANCE: 'TREND', CROISSANCE: 'GROWTH', DROITEREG: 'LINEST', LOGREG: 'LOGEST', 'RANG.POURCENTAGE.INCLURE': 'PERCENTRANK.INC', 'RANG.POURCENTAGE.EXCLURE': 'PERCENTRANK.EXC', PROBABILITE: 'PROB',
+  BDSOMME: 'DSUM', BDMOYENNE: 'DAVERAGE', BDNB: 'DCOUNT', BDNBVAL: 'DCOUNTA', BDMAX: 'DMAX', BDMIN: 'DMIN', BDLIRE: 'DGET', BDPRODUIT: 'DPRODUCT', BDECARTYPE: 'DSTDEV', BDECARTYPEP: 'DSTDEVP', BDVAR: 'DVAR', BDVARP: 'DVARP',
+  'TABLEAU.ALEA': 'RANDARRAY', TRIERPAR: 'SORTBY', PRENDRE: 'TAKE', EXCLURE: 'DROP', 'ASSEMB.V': 'VSTACK', 'ASSEMB.H': 'HSTACK', 'ORGA.LIGNES': 'WRAPROWS', 'ORGA.COLS': 'WRAPCOLS',
+  CHOISIRCOLS: 'CHOOSECOLS', CHOISIRLIGNES: 'CHOOSEROWS', DEVELOPPER: 'EXPAND', 'DÉVELOPPER': 'EXPAND', ESTOMIS: 'ISOMITTED',
+  FORMULETEXTE: 'FORMULATEXT', ESTFORMULE: 'ISFORMULA', 'TYPE.ERREUR': 'ERROR.TYPE', CONVERT: 'CONVERT', POURCENTAGEDE: 'PERCENTOF',
+});
 
 /** Résout un nom de fonction (anglais, français, préfixe _xlfn.) vers sa définition. */
 export function fonction(nom) {
@@ -1579,8 +2048,33 @@ export class Evaluateur {
     return { r2, c2 };
   }
 
-  /** Valeur d'une cellule (formule évaluée si besoin). */
+  /**
+   * Valeur d'une cellule (formule évaluée si besoin). Avec le calcul itératif (classeur.iteration.actif), une référence
+   * circulaire reprend la valeur du tour précédent, et le calcul recommence jusqu'à ce que les valeurs ne bougent plus
+   * (écart maximal) ou jusqu'au nombre de tours permis, comme dans Excel.
+   */
   valeur(f, r, c) {
+    if (this.enCours.size) return this.valeurBrute(f, r, c);
+    this.cycleVu = false;
+    let v = this.valeurBrute(f, r, c);
+    const it = this.classeur.iteration;
+    if (this.cycleVu && it && it.actif) {
+      const max = Math.max(1, Math.min(32767, +it.max || 100)), seuil = it.ecart === undefined ? 0.001 : +it.ecart;
+      for (let n = 1; n < max; n++) {
+        const avant = new Map(this.cache);
+        this.precedents = avant; this.cache.clear(); this.cycleVu = false;
+        v = this.valeurBrute(f, r, c);
+        let ecart = 0;
+        for (const [k, x] of this.cache) { const y = avant.get(k); if (typeof x === 'number' && typeof y === 'number') ecart = Math.max(ecart, Math.abs(x - y)); }
+        if (ecart < seuil) break;
+      }
+      this.dernierCycle = this.precedents;
+      this.precedents = null; this.cycleVu = false;
+    }
+    return v;
+  }
+
+  valeurBrute(f, r, c) {
     if (!this.indexPret && !this.enCours.size && !this.enConstruction.size) this.construireIndex();
     const cel = this.classeur.cellule(f, r, c);
     // Cellule vide (ou valeur gardée d'une ancienne formule matricielle) : peut-être dans le débordement d'une formule
@@ -1596,7 +2090,11 @@ export class Evaluateur {
     if (cel.f == null) return cel.v === undefined ? null : cel.v;
     const cle = f + ',' + r + ',' + c;
     if (this.cache.has(cle)) return this.cache.get(cle);
-    if (this.enCours.has(cle)) return err(ERR.CYCLE);
+    if (this.enCours.has(cle)) {
+      const it = this.classeur.iteration;
+      if (it && it.actif) { this.cycleVu = true; const p = (this.precedents && this.precedents.get(cle)) ?? (this.dernierCycle && this.dernierCycle.get(cle)); return typeof p === 'number' ? p : typeof cel.cache === 'number' ? cel.cache : 0; }
+      return err(ERR.CYCLE);
+    }
     this.enCours.add(cle);
     const sauve = this.courant;
     let v;
@@ -1624,6 +2122,7 @@ export class Evaluateur {
         if (Array.isArray(v)) v = v[0] && v[0][0] !== undefined ? v[0][0] : null;
       }
       if (v instanceof Plage) v = v.scalaire();
+      if (v instanceof Lambda) v = err(ERR.VALEUR, 'LAMBDA sans appel');
       if (v === undefined) v = null;
     } catch (e) {
       if (e instanceof ErreurFormule) v = e;
@@ -1717,6 +2216,8 @@ export class Evaluateur {
       case 'err': throw err(n.v);
       case 'ref': return this.plageDepuisToken({ feuille: n.feuille, v: n.plage, debord: n.debord });
       case 'nom': {
+        // Variable de LET ou paramètre de LAMBDA
+        if (this.portees && this.portees.length) { const k = n.v.toUpperCase(); for (let i = this.portees.length - 1; i >= 0; i--) if (this.portees[i].has(k)) { const v = this.portees[i].get(k); if (v === NON_FOURNI) return null; return v; } }
         const def = this.classeur.nom(n.v, this.courant.feuille);
         if (def === undefined && this.classeur.tableau && this.classeur.tableau(n.v)) return this.plageTableau(n.v, '[#Données]');
         if (def === undefined) throw err(ERR.NOM, n.v);
@@ -1731,6 +2232,14 @@ export class Evaluateur {
       case 'bin': return this.binaire(n);
       case 'fn': {
         let def = fonction(n.nom);
+        // Une LAMBDA rangée dans une variable de LET ou dans un nom défini s'appelle comme une fonction
+        if (!def) {
+          let f = null;
+          const k = n.nom.toUpperCase();
+          if (this.portees) for (let i = this.portees.length - 1; i >= 0 && !f; i--) if (this.portees[i].has(k)) f = this.portees[i].get(k);
+          if (!f) { const d = this.classeur.nom(n.nom, this.courant.feuille); if (typeof d === 'string' && /^=?\s*(_xlfn\.)?LAMBDA\s*\(/i.test(d)) f = this.evaluer(analyser(d.startsWith('=') ? d : '=' + d)); }
+          if (f instanceof Lambda) return appelerLambda(this, f, n.args.map((a) => (a.k === 'vide' ? null : this.evaluer(a))));
+        }
         if (!def && this.classeur.udf) { const u = this.classeur.udf(n.nom); if (u) def = { nom: n.nom, fn: u }; }
         if (!def) { const e = err(ERR.NOM, n.nom); if (this.classeur.macros) e.vba = true; throw e; }
         // Dans les arguments d'une fonction, les plages s'évaluent en tableau (pas d'intersection implicite).
@@ -1852,7 +2361,10 @@ const XLFN = new Set(['IFS', 'SWITCH', 'IFNA', 'XLOOKUP', 'XMATCH', 'MAXIFS', 'M
   'FORECAST.LINEAR', 'STDEV.S', 'STDEV.P', 'VAR.S', 'VAR.P', 'NORM.DIST', 'NORM.INV', 'NORM.S.DIST', 'NORM.S.INV', 'LOGNORM.DIST', 'LOGNORM.INV', 'EXPON.DIST',
   'POISSON.DIST', 'BINOM.DIST', 'GAMMA.DIST', 'CHISQ.DIST', 'CHISQ.DIST.RT', 'T.DIST', 'T.DIST.2T', 'T.DIST.RT', 'BETA.DIST', 'WEIBULL.DIST', 'GAMMALN.PRECISE',
   'CONFIDENCE.NORM', 'PERCENTILE.INC', 'PERCENTILE.EXC', 'QUARTILE.INC', 'QUARTILE.EXC', 'RANK.EQ', 'RANK.AVG', 'MODE.SNGL', 'CEILING.MATH', 'FLOOR.MATH',
-  'COVARIANCE.P', 'COVARIANCE.S']);
+  'COVARIANCE.P', 'COVARIANCE.S', 'NETWORKDAYS.INTL', 'WORKDAY.INTL', 'T.INV', 'T.INV.2T', 'T.TEST', 'CHISQ.INV', 'CHISQ.INV.RT', 'CHISQ.TEST', 'F.DIST', 'F.DIST.RT',
+  'F.INV', 'F.INV.RT', 'F.TEST', 'GAMMA.INV', 'BETA.INV', 'BINOM.INV', 'NEGBINOM.DIST', 'HYPGEOM.DIST', 'CONFIDENCE.T', 'Z.TEST', 'PERCENTRANK.INC', 'PERCENTRANK.EXC',
+  'BINOM.DIST.RANGE', 'LET', 'LAMBDA', 'MAP', 'REDUCE', 'SCAN', 'BYROW', 'BYCOL', 'MAKEARRAY', 'ISOMITTED', 'RANDARRAY', 'SORTBY', 'TAKE', 'DROP', 'VSTACK', 'HSTACK',
+  'TOCOL', 'TOROW', 'WRAPROWS', 'WRAPCOLS', 'CHOOSECOLS', 'CHOOSEROWS', 'EXPAND', 'FORMULATEXT', 'ISFORMULA', 'PERCENTOF']);
 const ALIAS_INVERSE = {};
 for (const [fr, en] of Object.entries(ALIAS)) if (!ALIAS_INVERSE[en] && !FONCTIONS[fr]) ALIAS_INVERSE[en] = fr;
 
@@ -1866,8 +2378,12 @@ export function convertirFormule(formule, sens, ctx = {}) {
   const src = formule.slice(1);
   let toks;
   try { toks = tokeniser(src, sens === 'fr' ? 'en' : undefined); } catch { return formule; }
+  // Paramètres de LET et LAMBDA : Excel les écrit « _xlpm.x » dans le fichier
+  const params = sens === 'en' && /\b(LET|LAMBDA)\s*\(/i.test(src) ? parametresLambda(toks) : null;
   let out = '', pos = 0, accolades = 0;
   for (const t of toks) {
+    if (t.t === T.NOM && sens === 'fr' && /^_xlpm\./i.test(t.v)) { out += src.slice(pos, t.pos) + t.v.slice(6); pos = t.fin; continue; }
+    if (t.t === T.NOM && params && params.has(t.v.toUpperCase())) { out += src.slice(pos, t.pos) + '_xlpm.' + t.v; pos = t.fin; continue; }
     out += src.slice(pos, t.pos);
     const brut = src.slice(t.pos, t.fin);
     if (t.t === T.ACCO) accolades++; else if (t.t === T.ACCF) accolades--;
@@ -1886,6 +2402,25 @@ export function convertirFormule(formule, sens, ctx = {}) {
   }
   out += src.slice(pos);
   return '=' + out;
+}
+
+// Noms des paramètres déclarés par LET (arguments impairs sauf le dernier) et LAMBDA (tous sauf le dernier)
+function parametresLambda(toks) {
+  const params = new Set(), pile = [];
+  toks.forEach((t, i) => {
+    if (t.t === T.FONCTION) { pile.push({ nom: t.v.replace(/^_XLFN\./, ''), arg: 0, debut: i + 1 }); return; }
+    if (t.t === T.PARO) { pile.push({ nom: '(', arg: 0 }); return; }
+    const haut = pile[pile.length - 1];
+    if (!haut) return;
+    const fin = t.t === T.SEP || t.t === T.PARF;
+    if (fin && (haut.nom === 'LET' || haut.nom === 'LAMBDA')) {
+      const seul = i - haut.debut === 1 && toks[haut.debut].t === T.NOM;
+      if (seul && t.t === T.SEP && (haut.nom === 'LAMBDA' || haut.arg % 2 === 0)) params.add(toks[haut.debut].v.toUpperCase());
+    }
+    if (t.t === T.SEP) { haut.arg++; haut.debut = i + 1; }
+    if (t.t === T.PARF) pile.pop();
+  });
+  return params;
 }
 
 /** Remplace les références structurées d'une formule : fn(table, spec) → texte (ou null pour garder). */

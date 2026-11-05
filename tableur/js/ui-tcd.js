@@ -72,7 +72,9 @@ export function installerTCD(api) {
         <label>Source <input id="tcd-source" value="${ech(spec.source)}" spellcheck="false"></label>
         <div class="outil-titre">Champs</div>
         <p class="aide-petite">Choisissez où va chaque champ ; les valeurs sont calculées pour chaque croisement de lignes et de colonnes.</p>
-        <div class="tcd-champs">${champs.map((ch) => `<label><span>${ech(ch)}</span><select data-champ="${ech(ch)}">${opt([['', '—'], ...ZONES], zoneDe(ch))}</select></label>`).join('')}</div>
+        <div class="tcd-champs">${champs.map((ch) => `<label><span>${ech(ch)}</span><select data-champ="${ech(ch)}">${opt([['', '—'], ...ZONES], zoneDe(ch))}</select></label>`).join('')}
+          ${(spec.calcules || []).map((cf, i) => `<label title="${ech(cf.formule)}"><span>ƒ ${ech(cf.nom)}</span><select data-champ="${ech(cf.nom)}">${opt([['', '—'], ['valeurs', 'Valeurs']], zoneDe(cf.nom))}</select><button class="petit" data-calc-modif="${i}" title="Modifier la formule">✎</button><button class="petit" data-calc-suppr="${i}" title="Supprimer">✕</button></label>`).join('')}</div>
+        <div class="outil-actions"><button id="tcd-calcule" class="petit">+ Champ calculé…</button></div>
         ${ZONES.map(([z, t]) => `<div class="outil-titre">${t}</div>${(spec[z] || []).length ? (spec[z] || []).map((x, i, a) => element(z, x, i, a.length)).join('') : '<p class="aide-petite">—</p>'}`).join('')}
         <div class="outil-titre">Options</div>
         <label class="case"><input type="checkbox" id="tcd-tl"${spec.totauxLignes !== false ? ' checked' : ''}> Total général des lignes</label>
@@ -106,6 +108,21 @@ export function installerTCD(api) {
     }
     for (const [id, prop] of [['tcd-tl', 'totauxLignes'], ['tcd-tc', 'totauxColonnes'], ['tcd-st', 'sousTotaux']]) $(id).addEventListener('change', (e) => changer(() => { spec[prop] = e.target.checked ? undefined : false; }));
     $('tcd-if').addEventListener('change', (e) => changer(() => { spec.ignorerFiltrees = e.target.checked || undefined; }));
+    // Champs calculés : nom puis formule sur les autres champs
+    const demanderCalcule = (cf) => {
+      const nom = prompt('Nom du champ calculé :', cf ? cf.nom : 'Marge');
+      if (!nom || !nom.trim()) return;
+      const formule = prompt('Formule, avec les noms des champs (ex. =Ventes-Coûts, =\'Prix unitaire\'*Quantité) :', cf ? cf.formule : '=' + (champs[1] || champs[0] || ''));
+      if (!formule) return;
+      changer(() => {
+        spec.calcules = spec.calcules || [];
+        if (cf) { const ancien = cf.nom; cf.nom = nom.trim(); cf.formule = formule; for (const v of spec.valeurs) if (v.champ === ancien) v.champ = cf.nom; }
+        else { spec.calcules.push({ nom: nom.trim(), formule }); spec.valeurs.push({ champ: nom.trim(), fn: 'somme', affichage: 'normal' }); }
+      });
+    };
+    $('tcd-calcule').addEventListener('click', () => demanderCalcule(null));
+    panneau.querySelectorAll('[data-calc-modif]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); demanderCalcule(spec.calcules[+b.dataset.calcModif]); }));
+    panneau.querySelectorAll('[data-calc-suppr]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); changer(() => { const [cf] = spec.calcules.splice(+b.dataset.calcSuppr, 1); spec.valeurs = spec.valeurs.filter((v) => v.champ !== cf.nom); }); }));
     $('tcd-actualiser').addEventListener('click', () => { api.memoriser(); actualiser(); });
     $('tcd-tout').addEventListener('click', toutActualiser);
     $('tcd-nouveau').addEventListener('click', () => { courant = null; creation = null; construireCreation(panneau, true); });

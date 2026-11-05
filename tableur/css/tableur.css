@@ -561,3 +561,23 @@ body.pinceau #grille-conteneur { cursor: copy; }
 .objet-redim { position: absolute; z-index: 5; width: 12px; height: 12px; background: var(--papier); border: 2px solid var(--accent); border-radius: 3px; cursor: nwse-resize; pointer-events: auto; }
 @media (pointer: coarse) { .objet-redim { width: 22px; height: 22px; margin: -5px 0 0 -5px; border-radius: 50%; } }
 .editeur-forme { position: fixed; z-index: 60; margin: 0; padding: 0; border: none; outline: 2px solid var(--accent); background: transparent; resize: none; overflow: hidden; white-space: pre-wrap; }
+
+/* Plan (grouper) : boutons + / − dans les en-têtes, niveaux 1 2 3 dans le coin */
+.plan-bouton { position: absolute; z-index: 2; width: 13px; height: 13px; min-width: 0; padding: 0; font: 600 11px/11px system-ui, sans-serif; border: 1px solid #8b95a3; border-radius: 2px; background: var(--papier); color: var(--texte); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.plan-bouton:hover, .plan-niveau:hover { border-color: var(--accent); color: var(--accent); }
+#coin { display: flex; align-items: center; justify-content: center; gap: 1px; }
+.plan-niveau { width: 12px; height: 15px; min-width: 0; padding: 0; font: 600 10px/13px system-ui, sans-serif; border: 1px solid #8b95a3; border-radius: 2px; background: var(--papier); color: var(--texte); cursor: pointer; }
+@media (pointer: coarse) { .plan-bouton { width: 17px; height: 17px; font-size: 13px; } .plan-niveau { width: 13px; height: 18px; position: relative; } .plan-bouton::after, .plan-niveau::after { content: ""; position: absolute; inset: -6px -2px; } /* zone d'appui plus large que le dessin */ }
+.st-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 2px 10px; max-height: 180px; overflow: auto; margin-bottom: 8px; }
+.sc-liste { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.sc-item.choisi { border-color: var(--accent); background: var(--accent-clair); }
+.sc-vals { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+.sc-val { display: flex; align-items: center; gap: 6px; }
+.sc-val span { min-width: 34px; font-family: var(--mono); font-size: 12px; color: var(--texte-2); }
+.sc-val input { width: 100%; min-width: 0; }
+table.espion { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.espion th, table.espion td { border-bottom: 1px solid var(--bord-doux); padding: 3px 4px; text-align: left; }
+table.espion td.n { text-align: right; font-variant-numeric: tabular-nums; }
+table.espion td.f { font-family: var(--mono); color: var(--texte-2); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.lien { border: none; background: none; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; min-width: 0; height: auto; }
+#entetes-lignes.avec-plan .entete-lig { padding-left: 13px; box-sizing: border-box; }

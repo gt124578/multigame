@@ -12,8 +12,11 @@ const opt = (liste, val) => liste.map(([k, t]) => `<option value="${ech(k)}"${St
 // Formats de nombre proposés par catégorie
 const DATES = ['dd/mm/yyyy', 'd/m/yy', 'dd/mm/yy', 'd mmmm yyyy', 'dddd d mmmm yyyy', 'mmm-yy', 'mmmm yyyy', 'yyyy-mm-dd', 'dd/mm/yyyy hh:mm'];
 const HEURES = ['hh:mm', 'hh:mm:ss', 'h:mm AM/PM', '[h]:mm:ss', 'mm:ss'];
+// Formats personnalisés courants en finance
+const PERSO = [['#,##0,"k€"', 'Milliers : 1 235k€'], ['#,##0.0,,"M€"', 'Millions : 1,2M€'], ['#,##0.00_);(#,##0.00)', 'Négatifs entre parenthèses'], ['#,##0;[Red](#,##0);"-"', 'Rouge entre parenthèses, zéro « - »'],
+  ['0.00%;[Red]-0.00%', 'Pourcentage, négatif en rouge'], ['+0.0%;-0.0%;0.0%', 'Variation signée (+2,5 %)'], ['[<1000]0;[<1000000]#,##0,"k";#,##0.0,,"M"', 'Abrégé (950 · 12k · 1,2M)'], ['0.00x', 'Multiple (2,50x)'], ['# ##0 "€/an"', 'Unité en texte'], ['000000', 'Zéros à gauche (001234)']];
 const SYMBOLES = [['€', '€ (après)'], ['$', '$ (avant)'], ['£', '£ (avant)'], ['CHF', 'CHF (après)'], ['', 'Aucun']];
-const CATEGORIES = [['standard', 'Standard'], ['nombre', 'Nombre'], ['monetaire', 'Monétaire'], ['pourcentage', 'Pourcentage'], ['date', 'Date'], ['heure', 'Heure'], ['scientifique', 'Scientifique'], ['fraction', 'Fraction'], ['texte', 'Texte'], ['perso', 'Personnalisée']];
+const CATEGORIES = [['standard', 'Standard'], ['nombre', 'Nombre'], ['monetaire', 'Monétaire'], ['comptabilite', 'Comptabilité'], ['pourcentage', 'Pourcentage'], ['date', 'Date'], ['heure', 'Heure'], ['scientifique', 'Scientifique'], ['fraction', 'Fraction'], ['texte', 'Texte'], ['perso', 'Personnalisée']];
 
 /** Code de format d'après les choix de l'onglet Nombre. */
 export function codeFormat(o) {
@@ -23,6 +26,12 @@ export function codeFormat(o) {
   switch (o.categorie) {
     case 'nombre': return neg(base);
     case 'monetaire': { const b = '#,##0' + d; const s = o.symbole ?? '€'; const m = !s ? b : ['$', '£'].includes(s) ? s + b : b + ' ' + s; return neg(m); }
+    case 'comptabilite': {
+      const s = o.symbole ?? '€', sym = !s ? '' : ['$', '£'].includes(s) ? null : ' ' + s, av = ['$', '£'].includes(s) ? s : '';
+      const q = '?'.repeat(dec);
+      if (sym === null) return '_-' + av + '* #,##0' + d + '_-;-' + av + '* #,##0' + d + '_-;_-' + av + '* "-"' + q + '_-;_-@_-';
+      return '_-* #,##0' + d + sym + '_-;-* #,##0' + d + sym + '_-;_-* "-"' + q + sym + '_-;_-@_-';
+    }
     case 'pourcentage': return '0' + d + '%';
     case 'scientifique': return '0' + d + 'E+00';
     case 'date': return o.date || 'dd/mm/yyyy';
@@ -43,6 +52,7 @@ export function lireCode(z) {
   o.milliers = premier.includes(',');
   o.negatifs = /;\[Red\]-/.test(z) ? 'rouge' : /;\[Red\]/.test(z) ? 'rougeSansSigne' : /;\(/.test(z) ? 'parentheses' : 'moins';
   if (z === '@') o.categorie = 'texte';
+  else if (/^_-/.test(z) && /\* /.test(premier)) { o.categorie = 'comptabilite'; o.symbole = /€/.test(z) ? '€' : /\$/.test(z) ? '$' : /£/.test(z) ? '£' : /CHF/.test(z) ? 'CHF' : ''; }
   else if (/%$/.test(premier)) o.categorie = 'pourcentage';
   else if (/E\+0/i.test(premier)) o.categorie = 'scientifique';
   else if (/\?\/|\/\?|\/\d/.test(premier) && !/[dmy]/i.test(premier)) { o.categorie = 'fraction'; o.fraction = z; }
@@ -110,14 +120,15 @@ export function installerDialogues(api) {
         const c = etat.categorie;
         contenu.innerHTML = `<div class="fc-nombre"><div class="fc-cats">${CATEGORIES.map(([k, t]) => `<button data-cat="${k}" class="${k === c ? 'choisi' : ''}">${t}</button>`).join('')}</div>
           <div class="fc-reglages"><div class="fc-apercu">Exemple : <b id="fc-ex">${ech(apercuNombre())}</b></div>
-          ${['nombre', 'monetaire', 'pourcentage', 'scientifique'].includes(c) ? `<label>Décimales <input type="number" id="fc-dec" min="0" max="10" value="${etat.decimales}"></label>` : ''}
+          ${['nombre', 'monetaire', 'comptabilite', 'pourcentage', 'scientifique'].includes(c) ? `<label>Décimales <input type="number" id="fc-dec" min="0" max="10" value="${etat.decimales}"></label>` : ''}
           ${c === 'nombre' ? `<label class="case"><input type="checkbox" id="fc-mil"${etat.milliers ? ' checked' : ''}> Séparateur de milliers (1 234)</label>` : ''}
-          ${c === 'monetaire' ? `<label>Symbole <select id="fc-sym">${opt(SYMBOLES, etat.symbole)}</select></label>` : ''}
+          ${c === 'monetaire' || c === 'comptabilite' ? `<label>Symbole <select id="fc-sym">${opt(SYMBOLES, etat.symbole)}</select></label>` : ''}
           ${['nombre', 'monetaire'].includes(c) ? `<label>Négatifs <select id="fc-neg">${opt([['moins', '-1 234,10'], ['rouge', '-1 234,10 en rouge'], ['rougeSansSigne', '1 234,10 en rouge'], ['parentheses', '(1 234,10)']], etat.negatifs)}</select></label>` : ''}
           ${c === 'date' ? `<div class="fc-liste">${DATES.map((d) => `<button data-z="${ech(d)}" data-cle="date" class="${d === etat.date ? 'choisi' : ''}">${ech(formater(typeof v0 === 'number' ? v0 : 45366.5, d))}</button>`).join('')}</div>` : ''}
           ${c === 'heure' ? `<div class="fc-liste">${HEURES.map((d) => `<button data-z="${ech(d)}" data-cle="heure" class="${d === etat.heure ? 'choisi' : ''}">${ech(formater(typeof v0 === 'number' ? v0 : 0.6045, d))}</button>`).join('')}</div>` : ''}
           ${c === 'fraction' ? `<div class="fc-liste">${[['# ?/?', 'Un chiffre (1/4)'], ['# ??/??', 'Deux chiffres (21/25)'], ['# ?/2', 'Demis'], ['# ?/4', 'Quarts'], ['# ?/8', 'Huitièmes'], ['# ??/100', 'Centièmes']].map(([d, t]) => `<button data-z="${d}" data-cle="fraction" class="${d === etat.fraction ? 'choisi' : ''}">${t}</button>`).join('')}</div>` : ''}
-          ${c === 'perso' ? `<label>Code <input id="fc-code" value="${ech(etat.code || codeFormat({ ...etat, categorie: 'nombre' }))}" spellcheck="false"></label><p class="aide-petite">0 chiffre, # chiffre facultatif, , milliers, . décimales, % pourcentage, "texte", [Red] couleur, ; sections positif;négatif;zéro, jj/mm/aaaa ou dd/mm/yyyy, hh:mm.</p>` : ''}
+          ${c === 'perso' ? `<div class="fc-liste">${PERSO.map(([d, t]) => `<button data-z="${ech(d)}" data-cle="code" title="${ech(d)}" class="${d === etat.code ? 'choisi' : ''}">${ech(t)}</button>`).join('')}</div>` : ''}
+          ${c === 'perso' ? `<label>Code <input id="fc-code" value="${ech(etat.code || codeFormat({ ...etat, categorie: 'nombre' }))}" spellcheck="false"></label><p class="aide-petite">0 chiffre, # chiffre facultatif, ? espace à la place d'un chiffre, , milliers (et après le dernier chiffre : ÷ 1 000), . décimales, % pourcentage, "texte", [Red] couleur, ; sections positif;négatif;zéro, [<1000] condition, jj/mm/aaaa ou dd/mm/yyyy, hh:mm.</p>` : ''}
           ${c === 'texte' ? '<p class="aide-petite">La saisie est gardée telle quelle (pas de calcul, pas de conversion en nombre ou en date).</p>' : ''}
           ${c === 'standard' ? '<p class="aide-petite">Affichage automatique, sans format particulier.</p>' : ''}
           </div></div>`;
@@ -503,7 +514,7 @@ export function installerDialogues(api) {
   // ---------------------------------------------------------------------------
   function modeles(liste, choisir) {
     const boite = ouvrir('Nouveau d\'après un modèle', `<p class="aide-petite">Un classeur neuf, déjà rempli d'exemples : il suffit de remplacer les données. Les formules et les couleurs suivent.</p>
-      <div class="galerie-modeles">${liste.map((m) => `<button class="carte-modele" data-cle="${ech(m.cle)}"><span class="icone">${m.icone}</span><b>${ech(m.nom)}</b><span>${ech(m.desc)}</span></button>`).join('')}</div>`, null, { large: true });
+      ${[['', 'Au quotidien'], ['finance', 'Finance, comptabilité et actuariat']].map(([g, t]) => `<div class="outil-titre">${t}</div><div class="galerie-modeles">${liste.filter((m) => (m.groupe || '') === g).map((m) => `<button class="carte-modele" data-cle="${ech(m.cle)}"><span class="icone">${m.icone}</span><b>${ech(m.nom)}</b><span>${ech(m.desc)}</span></button>`).join('')}</div>`).join('')}`, null, { large: true });
     boite.querySelectorAll('.carte-modele').forEach((b) => b.addEventListener('click', () => { fermer(); choisir(b.dataset.cle); }));
   }
 

@@ -28,10 +28,15 @@ export const MODELES = [
   { cle: 'presence', nom: 'Liste de présence', desc: 'Noms × dates, P / A / R au choix dans une liste, totaux et absences en rouge.', icone: '✅' },
   { cle: 'heures', nom: 'Feuille d\'heures', desc: 'Arrivée, pause, départ : heures du jour, total de la semaine et heures supplémentaires.', icone: '⏱' },
   { cle: 'taches', nom: 'Liste de tâches', desc: 'Tâche, responsable, échéance, statut et priorité ; retards en rouge, tâches finies grisées.', icone: '📋' },
+  { cle: 'emprunt', nom: 'Tableau d\'amortissement', desc: 'Emprunt à échéances constantes : mensualité, assurance, intérêts et capital à chaque échéance, coût total du crédit.', icone: '🏦', groupe: 'finance' },
+  { cle: 'projet', nom: 'Rentabilité d\'un projet', desc: 'Flux sur 10 ans : VAN, TRI, TRI modifié, délai de récupération actualisé, indice de profitabilité.', icone: '📈', groupe: 'finance' },
+  { cle: 'resultat', nom: 'Compte de résultat', desc: 'N et N-1, soldes intermédiaires (EBE, résultat d\'exploitation, net), variations et graphique en cascade.', icone: '📊', groupe: 'finance' },
+  { cle: 'mortalite', nom: 'Table de mortalité et commutations', desc: 'qx (Makeham, à remplacer par votre table), lx, Dx, Nx, Cx, Mx, rentes ä(x), assurances A(x), espérance de vie.', icone: '⚱', groupe: 'finance' },
+  { cle: 'chainladder', nom: 'Provisions : Chain Ladder', desc: 'Triangle de règlements cumulés, facteurs de développement, charge ultime et provision pour sinistres (IBNR).', icone: '🔺', groupe: 'finance' },
 ];
 
 export function creerModele(cle) {
-  return ({ budget, facture, notes, planning, presence, heures, taches }[cle] || (() => Classeur.nouveau()))();
+  return ({ budget, facture, notes, planning, presence, heures, taches, emprunt, projet, resultat, mortalite, chainladder }[cle] || (() => Classeur.nouveau()))();
 }
 
 function budget() {
@@ -231,5 +236,184 @@ function taches() {
     { id: id(), type: 'valeur', plage: 'E5:E200', op: '=', v1: 'Haute', style: { couleur: '#c00000', gras: true } }];
   Object.assign(f.largeurs, { 0: 240, 1: 120, 2: 100, 3: 100, 4: 90, 5: 240 });
   f.figer = { r: 4, c: 0 };
+  return c;
+}
+
+const L = (k) => { let t = ''; k++; while (k > 0) { const m = (k - 1) % 26; t = String.fromCharCode(65 + m) + t; k = Math.floor((k - 1) / 26); } return t; };
+const PCT = '0.00%';
+
+function emprunt() {
+  const c = base('Tableau d\'amortissement'), f = c.feuilles[0];
+  c.renommerFeuille(0, 'Emprunt');
+  titre(c, 0, 0, 0, 'Tableau d\'amortissement d\'un emprunt');
+  ecrire(c, 0, 2, 0, [['Montant emprunté', 200000], ['Taux annuel', '3,5%'], ['Durée (années)', 20], ['Échéances par an', 12], ['Première échéance', '=DATE(ANNEE(AUJOURDHUI());MOIS(AUJOURDHUI())+1;5)'], ['Assurance (% du capital par an)', '0,30%']]);
+  c.format(0, 2, 1, EUROS); c.format(0, 3, 1, PCT); c.format(0, 6, 1, 'dd/mm/yyyy'); c.format(0, 7, 1, PCT);
+  surPlage(c, 0, 2, 1, 7, 1, { fond: '#fff2cc', bordures: { b: 'thin' }, bordCouleur: '#d6c26e' });
+  ecrire(c, 0, 2, 3, [['Échéance hors assurance', '=VPM(B4/B6;B5*B6;-B3)'], ['Assurance par échéance', '=B3*B8/B6'], ['Échéance totale', '=E3+E4'], ['Total des intérêts', '=SOMME(E12:E371)'], ['Total de l\'assurance', '=E4*B5*B6'], ['Coût total du crédit', '=E6+E7']]);
+  formatPlage(c, 0, 2, 4, 7, 4, EUROS);
+  surPlage(c, 0, 2, 3, 7, 3, { align: 'right' }); surPlage(c, 0, 4, 3, 4, 4, { gras: true, fond: VERT_CLAIR }); surPlage(c, 0, 7, 3, 7, 4, { gras: true });
+  ecrire(c, 0, 10, 0, [['N°', 'Date', 'Capital restant dû', 'Échéance', 'Intérêts', 'Capital remboursé', 'Capital restant après']]);
+  surPlage(c, 0, 10, 0, 10, 6, { gras: true, fond: VERT, couleur: '#ffffff', align: 'center', renvoi: true });
+  for (let r = 11; r < 371; r++) {
+    const k = r + 1, si = (x) => '=SI(A' + k + '="";"";' + x + ')';
+    c.saisir(0, r, 0, r === 11 ? '=SI($B$5*$B$6>=1;1;"")' : '=SI(A' + r + '="";"";SI(A' + r + '+1<=$B$5*$B$6;A' + r + '+1;""))');
+    c.saisir(0, r, 1, si('MOIS.DECALER($B$7;(A' + k + '-1)*12/$B$6)'));
+    c.saisir(0, r, 2, si(r === 11 ? '$B$3' : 'G' + r));
+    c.saisir(0, r, 3, si('$E$3'));
+    c.saisir(0, r, 4, si('C' + k + '*$B$4/$B$6'));
+    c.saisir(0, r, 5, si('D' + k + '-E' + k));
+    c.saisir(0, r, 6, si('MAX(0;C' + k + '-F' + k + ')'));
+    c.format(0, r, 1, 'dd/mm/yyyy'); for (let q = 2; q <= 6; q++) c.format(0, r, q, EUROS);
+  }
+  surPlage(c, 0, 11, 0, 370, 0, { align: 'center', couleur: '#595959' });
+  f.mfc = [{ id: id(), type: 'formule', plage: 'A12:G371', formule: '=ET($A12<>"";MOD($A12;$B$6)=0)', style: { fond: VERT_CLAIR } }];
+  Object.assign(f.largeurs, { 0: 220, 1: 100, 2: 140, 3: 130, 4: 120, 5: 140, 6: 150 });
+  f.hauteurs[10] = 36;
+  f.figer = { r: 11, c: 0 };
+  f.miseEnPage = { orientation: 'portrait', ajuster: { l: 1, h: 0 }, titresLignes: '11:11' };
+  return c;
+}
+
+function projet() {
+  const c = base('Rentabilité d\'un projet'), f = c.feuilles[0];
+  c.renommerFeuille(0, 'Projet');
+  titre(c, 0, 0, 0, 'Rentabilité d\'un investissement');
+  ecrire(c, 0, 2, 0, [['Taux d\'actualisation', '8%'], ['Taux de réinvestissement', '5%']]);
+  c.format(0, 2, 1, PCT); c.format(0, 3, 1, PCT);
+  surPlage(c, 0, 2, 1, 3, 1, { fond: '#fff2cc' });
+  ecrire(c, 0, 5, 0, [['Année', 'Investissement', 'Recettes', 'Dépenses', 'Flux net', 'Flux actualisé', 'Cumul actualisé']]);
+  surPlage(c, 0, 5, 0, 5, 6, { gras: true, fond: VERT, couleur: '#ffffff', align: 'center' });
+  for (let i = 0; i <= 10; i++) {
+    const r = 6 + i, k = r + 1;
+    c.saisir(0, r, 0, String(i));
+    if (i === 0) c.saisir(0, r, 1, '-150000');
+    if (i === 5) c.saisir(0, r, 1, '-20000');
+    if (i > 0) { c.saisir(0, r, 2, String(Math.round(40000 * Math.pow(1.04, i - 1)))); c.saisir(0, r, 3, String(Math.round(15000 * Math.pow(1.02, i - 1)))); }
+    c.saisir(0, r, 4, '=B' + k + '+C' + k + '-D' + k);
+    c.saisir(0, r, 5, '=E' + k + '/(1+$B$3)^A' + k);
+    c.saisir(0, r, 6, '=SOMME($F$7:F' + k + ')');
+    for (let q = 1; q <= 6; q++) c.format(0, r, q, '#,##0 €;[Red]-#,##0 €');
+  }
+  surPlage(c, 0, 6, 0, 16, 0, { align: 'center' });
+  ecrire(c, 0, 18, 0, [['Valeur actuelle nette (VAN)', '=VAN(B3;E8:E17)+E7'], ['Taux de rentabilité interne (TRI)', '=TRI(E7:E17)'], ['TRI modifié', '=TRI.MODIFIE(E7:E17;B3;B4)'],
+    ['Délai de récupération actualisé (années)', '=SIERREUR(INDEX(A7:A17;EQUIV(VRAI;G7:G17>=0;0));"au-delà de 10 ans")'], ['Indice de profitabilité', '=1+B19/-(B7+B12/(1+B3)^5)']]);
+  c.format(0, 18, 1, '#,##0 €;[Red]-#,##0 €'); c.format(0, 19, 1, PCT); c.format(0, 20, 1, PCT); c.format(0, 22, 1, '0.00');
+  surPlage(c, 0, 18, 0, 22, 0, { gras: true }); surPlage(c, 0, 18, 1, 22, 1, { fond: VERT_CLAIR, gras: true });
+  f.mfc = [{ id: id(), type: 'valeur', plage: 'G7:G17', op: '>=', v1: '0', style: { fond: '#c6efce', couleur: '#006100' } }, { id: id(), type: 'barres', plage: 'E7:E17', couleur: '#5b9bd5' }];
+  Object.assign(f.largeurs, { 0: 270, 1: 120, 2: 110, 3: 110, 4: 110, 5: 120, 6: 130 });
+  return c;
+}
+
+function resultat() {
+  const c = base('Compte de résultat'), f = c.feuilles[0];
+  c.renommerFeuille(0, 'Résultat');
+  titre(c, 0, 0, 0, 'Compte de résultat simplifié');
+  ecrire(c, 0, 2, 0, [['', 'Exercice N', 'Exercice N-1', 'Variation', 'Variation %']]);
+  surPlage(c, 0, 2, 0, 2, 4, { gras: true, fond: VERT, couleur: '#ffffff', align: 'center' });
+  // [libellé, N, N-1, type] : 'p' produit, 'c' charge, 't' solde (formule)
+  const lignes = [['Chiffre d\'affaires', 850000, 790000, 'p'], ['Achats consommés', 310000, 295000, 'c'], ['Charges externes', 120000, 112000, 'c'], ['Impôts et taxes', 15000, 14000, 'c'],
+    ['Charges de personnel', 240000, 228000, 'c'], ['Excédent brut d\'exploitation (EBE)', '=B4-B5-B6-B7-B8', '=C4-C5-C6-C7-C8', 't'], ['Dotations aux amortissements', 45000, 42000, 'c'],
+    ['Résultat d\'exploitation', '=B9-B10', '=C9-C10', 't'], ['Résultat financier', -8000, -9500, 'p'], ['Résultat courant avant impôts', '=B11+B12', '=C11+C12', 't'], ['Impôt sur les sociétés', '=MAX(0;B13)*25%', '=MAX(0;C13)*25%', 'c'], ['Résultat net', '=B13-B14', '=C13-C14', 't']];
+  lignes.forEach(([lib, n, n1, t], i) => {
+    const r = 3 + i, k = r + 1;
+    c.saisir(0, r, 0, lib); c.saisir(0, r, 1, String(n)); c.saisir(0, r, 2, String(n1));
+    c.saisir(0, r, 3, '=B' + k + '-C' + k); c.saisir(0, r, 4, '=SI(C' + k + '=0;"";(B' + k + '-C' + k + ')/ABS(C' + k + '))');
+    for (let q = 1; q <= 3; q++) c.format(0, r, q, '#,##0 €;[Red]-#,##0 €'); c.format(0, r, 4, '+0.0%;[Red]-0.0%;0.0%');
+    if (t === 't') surPlage(c, 0, r, 0, r, 4, { gras: true, fond: VERT_CLAIR, bordures: { h: 'thin' }, bordCouleur: '#a9d08e' });
+    else c.style(0, r, 0, { retrait: 1 });
+    // Pont pour le graphique en cascade (colonnes G:H) : charges en négatif
+    c.saisir(0, r, 6, lib.replace(/ \(EBE\)/, ''));
+    c.saisir(0, r, 7, t === 'c' ? '=-B' + k : '=B' + k);
+    c.format(0, r, 7, '#,##0 €;[Red]-#,##0 €');
+  });
+  c.saisir(0, 2, 6, 'Poste'); c.saisir(0, 2, 7, 'Montant N'); surPlage(c, 0, 2, 6, 2, 7, { gras: true, couleur: '#595959' });
+  const totaux = {}; lignes.forEach(([, , , t], i) => { totaux[i] = t === 't'; }); totaux[0] = true;
+  f.graphiques.push({ id: 'g' + id(), v: 2, type: 'cascade', plage: 'G3:H15', titre: 'Du chiffre d\'affaires au résultat net', x: 20, y: 400, w: 760, h: 320, legende: 'bas', totaux, etiquettes: 'valeur', formatY: '#,##0' });
+  Object.assign(f.largeurs, { 0: 260, 1: 120, 2: 120, 3: 110, 4: 100, 5: 24, 6: 220, 7: 110 });
+  f.miseEnPage = { orientation: 'paysage', ajuster: { l: 1, h: 1 } };
+  return c;
+}
+
+function mortalite() {
+  const c = base('Table de mortalité'), f = c.feuilles[0];
+  c.renommerFeuille(0, 'Commutations');
+  titre(c, 0, 0, 0, 'Table de mortalité et nombres de commutation');
+  c.saisir(0, 1, 0, 'qx calculé par la loi de Makeham (exemple) : collez votre table (TH 00-02, TF 00-02, TGH05…) dans la colonne C.'); c.style(0, 1, 0, { italique: true, couleur: '#595959' });
+  ecrire(c, 0, 2, 0, [['Taux technique', '1,5%'], ['Makeham A', '0,0002'], ['Makeham B', '0,00002'], ['Makeham c', '1,1'], ['l0', 100000]]);
+  c.format(0, 2, 1, PCT); surPlage(c, 0, 2, 1, 6, 1, { fond: '#fff2cc' });
+  const H = ['x', 'lx', 'qx', 'dx', 'Dx', 'Nx', 'Cx', 'Mx', 'ä(x)', 'A(x)', 'e(x)'];
+  ecrire(c, 0, 8, 0, [H]);
+  surPlage(c, 0, 8, 0, 8, 10, { gras: true, fond: VERT, couleur: '#ffffff', align: 'center' });
+  const d = 9, fin = d + 110; // x = 0 … 110
+  for (let x = 0; x <= 110; x++) {
+    const r = d + x, k = r + 1, kf = fin + 1;
+    c.saisir(0, r, 0, String(x));
+    c.saisir(0, r, 1, x === 0 ? '=$B$7' : '=B' + r + '*(1-C' + r + ')');
+    c.saisir(0, r, 2, x === 110 ? '1' : '=1-EXP(-$B$4-$B$5/LN($B$6)*$B$6^A' + k + '*($B$6-1))');
+    c.saisir(0, r, 3, '=B' + k + '*C' + k);
+    c.saisir(0, r, 4, '=B' + k + '*(1+$B$3)^-A' + k);
+    c.saisir(0, r, 5, '=SOMME(E' + k + ':E$' + kf + ')');
+    c.saisir(0, r, 6, '=D' + k + '*(1+$B$3)^-(A' + k + '+1)');
+    c.saisir(0, r, 7, '=SOMME(G' + k + ':G$' + kf + ')');
+    c.saisir(0, r, 8, '=SI(E' + k + '=0;"";F' + k + '/E' + k + ')');
+    c.saisir(0, r, 9, '=SI(E' + k + '=0;"";H' + k + '/E' + k + ')');
+    c.saisir(0, r, 10, x === 110 ? '0' : '=SI(B' + k + '=0;"";SOMME(B' + (k + 1) + ':B$' + kf + ')/B' + k + ')');
+    c.format(0, r, 1, '#,##0'); c.format(0, r, 2, '0.000000'); c.format(0, r, 3, '#,##0.0'); for (const q of [4, 5, 6, 7]) c.format(0, r, q, '#,##0.00'); c.format(0, r, 8, '0.0000'); c.format(0, r, 9, '0.0000'); c.format(0, r, 10, '0.00');
+  }
+  surPlage(c, 0, d, 0, fin, 0, { align: 'center', gras: true });
+  // Calculs pour un âge choisi
+  ecrire(c, 0, 2, 13, [['Âge', 65], ['Rente viagère à terme d\'avance ä(x)', '=RECHERCHEV(O3;A10:I120;9;FAUX)'], ['Assurance vie entière A(x)', '=RECHERCHEV(O3;A10:J120;10;FAUX)'],
+    ['Capital décès assuré', 10000], ['Prime unique', '=O5*O6'], ['Prime annuelle (vie entière)', '=O7/O4'], ['Espérance de vie résiduelle', '=RECHERCHEV(O3;A10:K120;11;FAUX)']]);
+  c.format(0, 3, 14, '0.0000'); c.format(0, 4, 14, '0.0000'); c.format(0, 5, 14, EUROS); c.format(0, 6, 14, EUROS); c.format(0, 7, 14, EUROS); c.format(0, 8, 14, '0.0 "ans"');
+  surPlage(c, 0, 2, 14, 2, 14, { fond: '#fff2cc' }); surPlage(c, 0, 5, 14, 5, 14, { fond: '#fff2cc' }); surPlage(c, 0, 6, 13, 7, 14, { gras: true });
+  f.graphiques.push({ id: 'g' + id(), v: 2, type: 'lignes', plage: 'A9:B120', titre: 'Survivants lx', x: 960, y: 230, w: 420, h: 260, legende: 'aucune' });
+  Object.assign(f.largeurs, { 0: 60, 1: 90, 2: 90, 3: 80, 4: 100, 5: 110, 6: 90, 7: 100, 8: 70, 9: 70, 10: 60, 11: 24, 12: 24, 13: 240, 14: 110 });
+  f.figer = { r: 9, c: 1 };
+  return c;
+}
+
+function chainladder() {
+  const c = base('Chain Ladder'), f = c.feuilles[0];
+  c.renommerFeuille(0, 'Triangle');
+  titre(c, 0, 0, 0, 'Provisions pour sinistres : méthode Chain Ladder');
+  c.saisir(0, 1, 0, 'Règlements cumulés par année de survenance (lignes) et année de développement (colonnes). Remplacez par vos données.'); c.style(0, 1, 0, { italique: true, couleur: '#595959' });
+  const tri = [[3209, 4372, 4411, 4428, 4435, 4456], [3367, 4659, 4696, 4720, 4730], [3871, 5345, 5338, 5420], [4239, 5917, 6020], [4929, 6794], [5217]];
+  const n = tri.length, an0 = 2019;
+  ecrire(c, 0, 3, 0, [['Survenance', ...Array.from({ length: n }, (_, j) => String(j + 1))]]);
+  tri.forEach((l, i) => { c.saisir(0, 4 + i, 0, String(an0 + i)); l.forEach((v, j) => c.saisir(0, 4 + i, 1 + j, String(v))); });
+  const r1 = 5, r2 = 4 + n; // lignes Excel 5 à 10
+  c.saisir(0, 11, 0, 'Facteurs de développement');
+  c.saisir(0, 12, 0, 'Facteurs cumulés jusqu\'à l\'ultime');
+  for (let j = 2; j <= n; j++) {
+    const a = L(j - 1), b = L(j);
+    c.saisir(0, 11, j, `=SOMMEPROD((${b}${r1}:${b}${r2}<>"")*${b}${r1}:${b}${r2})/SOMMEPROD((${b}${r1}:${b}${r2}<>"")*${a}${r1}:${a}${r2})`);
+    c.format(0, 11, j, '0.0000');
+  }
+  for (let j = 1; j <= n; j++) { const cols = []; for (let q = j + 1; q <= n; q++) cols.push(L(q) + '12'); c.saisir(0, 12, j, cols.length ? '=PRODUIT(' + cols.join(';') + ')' : '1'); c.format(0, 12, j, '0.0000'); }
+  // Triangle complété
+  c.saisir(0, 14, 0, 'Triangle complété'); c.style(0, 14, 0, { gras: true, couleur: VERT });
+  ecrire(c, 0, 15, 0, [['Survenance', ...Array.from({ length: n }, (_, j) => String(j + 1)), '', 'Payé à ce jour', 'Charge ultime', 'Provision (IBNR)']]);
+  for (let i = 0; i < n; i++) {
+    const r = 16 + i, k = r + 1, src = 5 + i;
+    c.saisir(0, r, 0, '=A' + src);
+    for (let j = 1; j <= n; j++) { const col = L(j); c.saisir(0, r, j, j === 1 ? '=' + col + src : `=SI(${col}${src}<>"";${col}${src};${L(j - 1)}${k}*${col}$12)`); c.format(0, r, j, '#,##0'); }
+    c.saisir(0, r, n + 2, `=INDEX(B${src}:${L(n)}${src};NB(B${src}:${L(n)}${src}))`);
+    c.saisir(0, r, n + 3, '=' + L(n) + k);
+    c.saisir(0, r, n + 4, '=' + L(n + 3) + k + '-' + L(n + 2) + k);
+    for (let q = n + 2; q <= n + 4; q++) c.format(0, r, q, '#,##0');
+  }
+  const rt = 16 + n;
+  c.saisir(0, rt, 0, 'Total');
+  for (let q = n + 2; q <= n + 4; q++) { c.saisir(0, rt, q, '=SOMME(' + L(q) + '17:' + L(q) + rt + ')'); c.format(0, rt, q, '#,##0'); }
+  surPlage(c, 0, rt, 0, rt, n + 4, { gras: true, fond: VERT_CLAIR, bordures: { h: 'thin' } });
+  surPlage(c, 0, 3, 0, 3, n, { gras: true, fond: VERT, couleur: '#ffffff', align: 'center' });
+  surPlage(c, 0, 15, 0, 15, n + 4, { gras: true, fond: VERT, couleur: '#ffffff', align: 'center', renvoi: true });
+  c.style(0, 15, n + 1, { fond: null });
+  surPlage(c, 0, 11, 0, 12, 0, { gras: true });
+  for (let i = 0; i < n; i++) for (let j = 1; j <= n; j++) c.format(0, 4 + i, j, '#,##0');
+  // Les montants projetés (absents du triangle d'origine) en bleu
+  f.mfc = [{ id: id(), type: 'formule', plage: 'B17:' + L(n) + (16 + n), formule: '=B5=""', style: { couleur: '#1f6fb5', italique: true } }];
+  Object.assign(f.largeurs, { 0: 230, [n + 1]: 24, [n + 2]: 120, [n + 3]: 120, [n + 4]: 120 });
+  f.hauteurs[15] = 36;
   return c;
 }

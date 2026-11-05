@@ -39,14 +39,53 @@ export const DROITS = [['selectionVerrouillees', 'selectLockedCells', 'Sélectio
   ['insererColonnes', 'insertColumns', 'Insérer des colonnes', false], ['insererLignes', 'insertRows', 'Insérer des lignes', false], ['supprimerColonnes', 'deleteColumns', 'Supprimer des colonnes', false],
   ['supprimerLignes', 'deleteRows', 'Supprimer des lignes', false], ['trier', 'sort', 'Trier', false], ['filtrer', 'autoFilter', 'Utiliser le filtre automatique', false], ['objets', 'objects', 'Modifier les objets', false]];
 
+// Saisie d'un scénario → valeur écrite dans le fichier (nombres avec un point, pourcentages en décimal)
+function valeurScenario(t) {
+  const x = String(t ?? '').trim(), m = /^([-+]?[\d\s\u202f]*[.,]?\d+)(%?)$/.exec(x);
+  if (!m) return x.replace(/^=/, '');
+  const n = +m[1].replace(/[\s\u202f]/g, '').replace(',', '.');
+  return String(m[2] ? n / 100 : n);
+}
+const aPlan = (f) => f.plan && ((f.plan.L && Object.keys(f.plan.L).length) || (f.plan.C && Object.keys(f.plan.C).length));
+
 export function ecrirePageXlsx(XLSX, octets, classeur) {
-  if (!classeur.feuilles.some((f) => f.miseEnPage || (f.protection && f.protection.active) || (f.sparklines && f.sparklines.length))) return octets;
+  const iteratif = classeur.iteration && classeur.iteration.actif;
+  if (!iteratif && !classeur.feuilles.some((f) => f.miseEnPage || (f.protection && f.protection.active) || (f.sparklines && f.sparklines.length) || aPlan(f) || (f.scenarios && f.scenarios.length) || (f.espions && f.espions.length))) return octets;
   const cfb = XLSX.CFB.read(octets, { type: 'array' });
   const norm = (p) => p.replace(/^Root Entry\//, '').replace(/^\//, '').toLowerCase();
+  // Calcul itératif : <calcPr iterate> dans le classeur
+  if (iteratif) {
+    const i = cfb.FullPaths.findIndex((p) => norm(p) === 'xl/workbook.xml');
+    if (i >= 0) {
+      let wb = dec(Uint8Array.from(cfb.FileIndex[i].content));
+      const it = classeur.iteration, el = '<calcPr calcId="191029" iterate="1" iterateCount="' + Math.round(+it.max || 100) + '" iterateDelta="' + (it.ecart === undefined ? 0.001 : +it.ecart) + '"/>';
+      if (/<calcPr\b[^>]*\/>/.test(wb)) wb = wb.replace(/<calcPr\b[^>]*\/>/, el);
+      else { const apres = wb.search(/<(oleSize|customWorkbookViews|pivotCaches|smartTagPr|smartTagTypes|webPublishing|fileRecoveryPr|webPublishObjects|extLst)[\s/>]/); wb = apres >= 0 ? wb.slice(0, apres) + el + wb.slice(apres) : wb.replace('</workbook>', el + '</workbook>'); }
+      cfb.FileIndex[i].content = enc(wb);
+    }
+  }
   classeur.feuilles.forEach((f, k) => {
     const i = cfb.FullPaths.findIndex((p) => norm(p) === 'xl/worksheets/sheet' + (k + 1) + '.xml');
     if (i < 0) return;
     let xml = dec(Uint8Array.from(cfb.FileIndex[i].content));
+    // Plan : SheetJS écrit outlineLevel sur les lignes et colonnes (et un attribut « level » qu'Excel ne connaît pas)
+    xml = xml.replace(/(<col\b[^>]*?)\slevel="\d+"/g, '$1');
+    if (aPlan(f)) {
+      const maxL = Math.max(0, ...Object.values(f.plan.L || {})), maxC = Math.max(0, ...Object.values(f.plan.C || {}));
+      const attrs = (maxL ? ' outlineLevelRow="' + maxL + '"' : '') + (maxC ? ' outlineLevelCol="' + maxC + '"' : '');
+      if (/<sheetFormatPr\b/.test(xml)) xml = xml.replace(/<sheetFormatPr\b([^>]*?)(\/?)>/, (t, a, f2) => '<sheetFormatPr' + a.replace(/\soutlineLevel(Row|Col)="\d+"/g, '') + attrs + f2 + '>');
+      else xml = poser(xml, 'sheetFormatPr', '<sheetFormatPr defaultRowHeight="15"' + attrs + '/>');
+    }
+    if (f.scenarios && f.scenarios.length) {
+      let el = '<scenarios current="0">';
+      for (const sc of f.scenarios) {
+        let cs = [];
+        try { cs = String(sc.cellules || '').split(/[;\s]+/).filter(Boolean).flatMap((t) => { const m = /^\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?$/i.exec(t.replace(/^.*!/, '')); if (!m) return []; const c1 = m[1].toUpperCase().split('').reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0), r1 = +m[2], c2 = m[3] ? m[3].toUpperCase().split('').reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) : c1, r2 = m[4] ? +m[4] : r1; const out = []; for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) { let l = ''; let k = c; while (k > 0) { const q = (k - 1) % 26; l = String.fromCharCode(65 + q) + l; k = Math.floor((k - 1) / 26); } out.push(l + r); } return out; }); } catch { cs = []; }
+        el += '<scenario name="' + ech(sc.nom) + '" locked="1" count="' + cs.length + '"' + (sc.commentaire ? ' comment="' + ech(sc.commentaire) + '"' : '') + '>' + cs.map((a, k) => '<inputCells r="' + a + '" val="' + ech(valeurScenario((sc.valeurs || [])[k])) + '"/>').join('') + '</scenario>';
+      }
+      xml = poser(xml, 'scenarios', el + '</scenarios>');
+    }
+    if (f.espions && f.espions.length) xml = poser(xml, 'cellWatches', '<cellWatches>' + f.espions.map((a) => '<cellWatch r="' + ech(String(a).replace(/\$/g, '')) + '"/>').join('') + '</cellWatches>');
     if (f.miseEnPage) {
       const R = mp(f), m = R.marges;
       const opts = [R.quadrillage && 'gridLines="1"', R.entetes && 'headings="1"', R.centrerH && 'horizontalCentered="1"', R.centrerV && 'verticalCentered="1"'].filter(Boolean);
@@ -102,6 +141,16 @@ export function ecrirePageXlsx(XLSX, octets, classeur) {
     cfb.FileIndex[i].content = enc(xml);
   });
   return new Uint8Array(XLSX.CFB.write(cfb, { fileType: 'zip', type: 'array' }));
+}
+
+/** Réglages de calcul du classeur (calcul itératif). */
+export function lireCalculXlsx(XLSX, octets) {
+  const cfb = XLSX.CFB.read(octets, { type: 'array' });
+  const i = cfb.FullPaths.findIndex((p) => p.replace(/^Root Entry\//, '').replace(/^\//, '').toLowerCase() === 'xl/workbook.xml');
+  if (i < 0) return null;
+  const m = /<calcPr\b[^>]*>/.exec(dec(Uint8Array.from(cfb.FileIndex[i].content)));
+  if (!m || !/^(1|true)$/.test(attr(m[0], 'iterate') || '')) return null;
+  return { actif: true, max: +(attr(m[0], 'iterateCount') || 100), ecart: +(attr(m[0], 'iterateDelta') || 0.001) };
 }
 
 /** Map chemin de feuille → { miseEnPage, protection } (les zones et titres d'impression viennent des noms définis). */
@@ -172,6 +221,20 @@ export function lirePageXlsx(XLSX, octets) {
       }
     }
     if (sparks.length) res.sparklines = sparks;
+    // Plan : niveaux des lignes et des colonnes
+    const plan = { L: {}, C: {} };
+    for (const rm of xml.matchAll(/<row\b[^>]*\soutlineLevel="(\d+)"[^>]*>/g)) { const r = +attr(rm[0], 'r') - 1, n = +rm[1]; if (n > 0 && r >= 0) plan.L[r] = n; }
+    for (const cm of xml.matchAll(/<col\b[^>]*\soutlineLevel="(\d+)"[^>]*>/g)) { const a = +attr(cm[0], 'min') - 1, b = +attr(cm[0], 'max') - 1, n = +cm[1]; if (n > 0) for (let c = a; c <= Math.min(b, a + 500); c++) plan.C[c] = n; }
+    if (Object.keys(plan.L).length || Object.keys(plan.C).length) res.plan = plan;
+    // Scénarios et fenêtre espion
+    const scs = [];
+    for (const sm of xml.matchAll(/<scenario\b([^>]*)>([\s\S]*?)<\/scenario>/g)) {
+      const ic = [...sm[2].matchAll(/<inputCells\b[^>]*>/g)];
+      scs.push({ nom: attr('<s ' + sm[1] + '>', 'name') || 'Scénario', cellules: ic.map((x) => attr(x[0], 'r')).join(';'), valeurs: ic.map((x) => String(attr(x[0], 'val') ?? '').replace(/^(-?\d+)\.(\d+)$/, '$1,$2')), commentaire: attr('<s ' + sm[1] + '>', 'comment') || '' });
+    }
+    if (scs.length) res.scenarios = scs;
+    const es = [...xml.matchAll(/<cellWatch\b[^>]*>/g)].map((x) => attr(x[0], 'r')).filter(Boolean);
+    if (es.length) res.espions = es;
     if (Object.keys(res).length) out.set(attr(m[0], 'name'), res);
   }
   return out;
