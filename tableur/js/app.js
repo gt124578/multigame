@@ -1416,8 +1416,8 @@ function prolongerSerie(src, k, decaler) {
   }
   return { ...cel };
 }
-function recopierVers(cible) { // poignée : étend la sélection vers cible (séries, formules décalées)
-  const s = selectionNormalisee();
+function recopierVers(cible) { // poignée : étend la sélection vers cible (séries, formules décalées), en hauteur puis en largeur
+  let s = selectionNormalisee();
   const f = feuille();
   memoriser();
   if (cible.r > s.r2 || cible.r < s.r1) {
@@ -1428,7 +1428,10 @@ function recopierVers(cible) { // poignée : étend la sélection vers cible (s�
       for (let r = debut; r <= fin; r++) f.set(r, c, prolongerSerie(src, r - s.r1, (cel, d) => ({ ...cel, f: decalerFormule(cel.f, d, 0), cache: undefined })));
     }
     selection = { r1: Math.min(s.r1, cible.r), c1: s.c1, r2: Math.max(s.r2, cible.r), c2: s.c2 };
-  } else if (cible.c > s.c2 || cible.c < s.c1) {
+    s = selectionNormalisee();
+  }
+  // En diagonale : le bloc déjà étendu vers le bas (ou le haut) est ensuite étendu vers la droite (ou la gauche)
+  if (cible.c > s.c2 || cible.c < s.c1) {
     const droite = cible.c > s.c2;
     for (let r = s.r1; r <= s.r2; r++) {
       const src = []; for (let c = s.c1; c <= s.c2; c++) { const x = f.get(r, c); src.push(x ? { ...x } : null); }
@@ -2500,7 +2503,7 @@ function rendreAide() {
 <ul>
 <li>Glisser le <b>bord de la sélection</b> la déplace (avec Ctrl : la copie). Double-clic sur la <b>poignée</b> : recopie jusqu'au bout des données voisines. Double-clic sur le bord d'un en-tête : largeur ou hauteur ajustée au contenu.</li>
 <li><b>Titre d'un graphique</b> : choisissez le graphique, puis cliquez sur son titre (« Titre du graphique » s'il est vide) ou sur un titre d'axe et écrivez ; Entrée pour valider.</li>
-<li><b>Poignée de recopie</b> : séries comme Excel (1, 2… ; janv., févr.… ; lundi, mardi… ; Trimestre 1, 2… ; une date avance d'un jour).</li>
+<li><b>Poignée de recopie</b> : vers le bas, sur le côté ou en diagonale (le bloc s'étend dans les deux sens à la fois) ; séries comme Excel (1, 2… ; janv., févr.… ; lundi, mardi… ; Trimestre 1, 2… ; une date avance d'un jour).</li>
 <li>Tout ce qui a un raccourci est aussi dans un menu : clic droit (appui long au doigt) sur une cellule, un graphique, une image ou un onglet, et le menu ⋯ de la barre d'outils.</li>
 <li><b>Graphiques, images et formes</b> : un clic (un appui) les choisit, on les glisse n'importe où ; la poignée du coin les redimensionne ; flèches pour les ajuster (Maj : au pixel), Alt en glissant pour les caler sur les cellules, Suppr pour les enlever.</li>
 <li><b>◇ Formes</b> : zone de texte, rectangle, flèche, bulle… Double-clic (au doigt : un second appui) pour écrire dedans, <code>Ctrl+Entrée</code> ou un clic ailleurs pour finir ; G, I, S, les couleurs et l'alignement de la barre s'appliquent à la forme choisie ; clic droit pour le remplissage, le contour et l'ordre.</li>
@@ -2511,7 +2514,7 @@ function rendreAide() {
 </ul>
 <h3>Prise en main</h3>
 <ul>
-<li>Tapez dans une cellule ; <code>Entrée</code> valide, <code>Tab</code> passe à droite, <code>F2</code> modifie, <code>Échap</code> annule, <code>Suppr</code> efface.</li>
+<li>Tapez dans une cellule ; <code>Entrée</code> valide, <code>Tab</code> passe à droite, <code>F2</code> modifie, <code>Échap</code> annule, <code>Suppr</code> efface (<code>Retour arrière</code> aussi, sur plusieurs cellules).</li>
 <li>Formules : <code>=SOMME(A1:A10)</code>, <code>=SI(B2&gt;0;"oui";"non")</code>, <code>=VPM(taux/12;n;-capital)</code>, <code>=LOI.NORMALE.STANDARD.N(1,96)</code>, <code>=RECHERCHEV(x;Table;2;FAUX)</code>… Noms anglais et français acceptés, séparateurs <code>;</code> ou <code>,</code>, virgule ou point décimal.</li>
 <li>Autres feuilles : <code>=Hypothèses!B2</code>, <code>='Ma feuille'!A1:A9</code>. Noms définis : zone à gauche de la barre de formule.</li>
 <li>Pendant la saisie d'une formule, cliquez ou glissez sur la grille pour insérer une référence.</li>
@@ -2622,8 +2625,9 @@ document.addEventListener('mousemove', (e) => {
   else if (glisse.mode === 'poignee') {
     const d = glisse.depart;
     const dr = cel.r < d.r1 ? d.r1 - cel.r : cel.r > d.r2 ? cel.r - d.r2 : 0, dc = cel.c < d.c1 ? d.c1 - cel.c : cel.c > d.c2 ? cel.c - d.c2 : 0;
-    glisse.cible = dr >= dc ? { r: cel.r, c: null } : { r: null, c: cel.c };
-    selection = dr >= dc ? { r1: Math.min(d.r1, cel.r), c1: d.c1, r2: Math.max(d.r2, cel.r), c2: d.c2 } : { r1: d.r1, c1: Math.min(d.c1, cel.c), r2: d.r2, c2: Math.max(d.c2, cel.c) };
+    // Vers le bas, le côté ou en diagonale (les deux à la fois)
+    glisse.cible = dr || dc ? { r: dr ? cel.r : null, c: dc ? cel.c : null } : null;
+    selection = { r1: Math.min(d.r1, cel.r), c1: Math.min(d.c1, cel.c), r2: Math.max(d.r2, cel.r), c2: Math.max(d.c2, cel.c) };
     rendre();
   } else if (glisse.mode === 'deplacer') {
     const d = glisse.depart, dr = Math.max(-d.r1, cel.r - glisse.cel0.r), dc = Math.max(-d.c1, cel.c - glisse.cel0.c);
@@ -2971,7 +2975,13 @@ conteneur.addEventListener('keydown', (e) => {
   if (k === 'End' && ctrl) { e.preventDefault(); return placerCurseur(Math.max(0, feuille().zone.r2), Math.max(0, feuille().zone.c2)); }
   if (k === 'PageDown' || k === 'PageUp') { e.preventDefault(); const n = Math.max(1, Math.floor((conteneur.clientHeight - HAUTEUR_DEFAUT) / HAUTEUR_DEFAUT) - 1); return placerCurseur(curseur.r + (k === 'PageDown' ? n : -n), curseur.c, e.shiftKey); }
   if (k === 'Delete') { e.preventDefault(); const s = selectionBornee(); memoriser(plageVerrouillee(s) ? null : 'cellules'); classeur.effacer(fi(), s.r1, s.c1, s.r2, s.c2); sauvegarderLocal(); return rendre(); }
-  if (k === 'Backspace') { e.preventDefault(); return commencerEdition(''); }
+  if (k === 'Backspace') {
+    e.preventDefault();
+    const s = selectionBornee();
+    // Plusieurs cellules choisies : leur contenu est effacé (comme Suppr) ; une seule : on la vide et on écrit dedans
+    if (s.r1 !== s.r2 || s.c1 !== s.c2) { memoriser(plageVerrouillee(s) ? null : 'cellules'); classeur.effacer(fi(), s.r1, s.c1, s.r2, s.c2); sauvegarderLocal(); return rendre(); }
+    return commencerEdition('');
+  }
   if (k === 'F2') { e.preventDefault(); return commencerEdition(); }
   if (k === 'F9') { e.preventDefault(); if (ctrl && e.altKey) { classeur.abandonnerCaches(); classeur.evaluateur.recalculerTout(); actualiserTablesDonnees(classeur); toast('Tout est recalculé (valeurs du fichier oubliées)'); return rendre(); } return recalculer(); }
   if (k === 'F5' && panneauCourant === 'macros') { e.preventDefault(); return executerMacroUI(); }
