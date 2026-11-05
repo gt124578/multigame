@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Sprezz : une feuille de calcul verte, cellule active cadrée -->
+  <rect width="64" height="64" rx="14" fill="#1f7a4d"/>
+  <rect x="11" y="12" width="42" height="40" rx="4" fill="#fff"/>
+  <rect x="11" y="12" width="42" height="10" rx="4" fill="#cfe9da"/>
+  <rect x="11" y="18" width="42" height="4" fill="#cfe9da"/>
+  <path d="M25 12v40M39 12v40M11 22h42M11 32h42M11 42h42" stroke="#1f7a4d" stroke-opacity=".35" stroke-width="2"/>
+  <rect x="24" y="31" width="16" height="12" fill="none" stroke="#1f7a4d" stroke-width="3.5"/>
+  <rect x="37" y="40" width="5" height="5" fill="#1f7a4d" stroke="#fff" stroke-width="1"/>
+</svg>
