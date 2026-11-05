@@ -330,7 +330,8 @@ export function buildSud(ctx) {
   for (const [x, y] of sables) W.set(x, y, T.SAND);
   reliefMontagne(W, crete, { g: 611, pente: 0.5, max: 6, crete: 3, masse: 3, palier: 2, echelle: 34 });
   { const R0 = rngLite(77); for (let k = 0, f = 0; k < 400 && f < 6; k++) { const [x, y] = sables[Math.floor(R0() * sables.length)] || []; if (x == null) break; let ok = true; for (let j = -3; j <= 3 && ok; j++) for (let i = -4; i <= 4; i++) if (W.get(x + i, y + j) !== T.SAND) { ok = false; break; } if (!ok) continue; W.blob(x, y, 2.5, 1.8, T.WATER, R0, [T.SAND]); for (const [a, b] of [[-4, 0], [4, -1], [0, 3], [-2, -3]]) if (W.get(x + a, y + b) === T.SAND) W.prop('palm', x + a, y + b); f++; } }
-  W.zone(10 * BLOC, 41 * BLOC, 34 * BLOC - 1, 47 * BLOC - 1, { name: 'Hauts d\'Ocre', music: 'route', theme: 'desert', prio: -2 });
+  // (zone de fond : les routes voisines gardent la leur là où elles se touchent)
+  W.zones.unshift({ x0: 10 * BLOC, y0: 41 * BLOC, x1: 34 * BLOC - 1, y1: 47 * BLOC - 1, name: 'Hauts d\'Ocre', music: 'route', theme: 'desert', prio: -2 });
 }
 /** le désert de la route 16 : le sable mange la forêt au bord du sentier (cactus, rochers), au-delà des mesas de roche ocre */
 function desert(W, pts, terr, graine) {
