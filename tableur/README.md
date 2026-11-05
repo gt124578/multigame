@@ -72,8 +72,10 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 - **Validation des données** : listes déroulantes (éléments ou plage), nombres entiers ou décimaux, dates, heures, longueur
   du texte, formule personnalisée ; message de saisie, alertes arrêt / avertissement / information, cellules non valides
   entourées ; lue et écrite au format d'Excel (listes prises sur une autre feuille comprises).
-- **Fichier** : bouton ⬇ pour télécharger une copie du classeur au format choisi ; `*` après le nom (onglet du classeur
-  et onglet du navigateur) tant que les modifications ne sont pas enregistrées.
+- **Fichier** : menu ▾ à côté d'Enregistrer (Enregistrer sous, télécharger une copie, **enregistrement automatique** à
+  cocher : avec Chrome ou Edge sur ordinateur, le fichier lié est réécrit quelques secondes après chaque modification) ;
+  `*` après le nom (onglet du classeur et onglet du navigateur) tant que les modifications ne sont pas enregistrées, et le
+  navigateur demande confirmation avant de fermer la page dans ce cas.
 - **Presse-papiers** : copier-coller avec Excel, LibreOffice et les pages web dans les deux sens (texte tabulé, cellules
   sur plusieurs lignes entre guillemets), sans demande d'autorisation au clavier.
 - **Saisie des formules** : proposition des fonctions (françaises et anglaises) et des noms définis pendant la frappe,

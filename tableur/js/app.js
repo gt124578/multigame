@@ -1912,6 +1912,54 @@ async function permissionFichier(h, mode = 'readwrite') {
   if ((await h.queryPermission({ mode })) === 'granted') return true;
   return (await h.requestPermission({ mode })) === 'granted';
 }
+// ----- Enregistrement automatique : le fichier lié sur le disque est réécrit quelques secondes après chaque modification -----
+let autoEnregistrer = (() => { try { return localStorage.getItem('sprezz-auto-enregistrer') === '1'; } catch { return false; } })();
+let timerAuto = null, autoEnCours = false;
+function majBoutonEnregistrer() {
+  const b = $('btn-enregistrer');
+  b.classList.toggle('auto', autoEnregistrer);
+  b.title = autoEnregistrer ? 'Enregistrement automatique activé : le fichier est réécrit après chaque modification (Ctrl+S pour enregistrer tout de suite)' : 'Enregistrer (Ctrl+S) ; Enregistrer sous : F12';
+}
+async function basculerAutoEnregistrement() {
+  if (autoEnregistrer) {
+    autoEnregistrer = false;
+    try { localStorage.setItem('sprezz-auto-enregistrer', '0'); } catch { /* rien */ }
+    majBoutonEnregistrer(); toast('Enregistrement automatique désactivé');
+    return;
+  }
+  if (!disque) return toast('Ce navigateur ne laisse pas un site réécrire un fichier : l\'enregistrement automatique marche avec Chrome ou Edge sur ordinateur. Votre travail reste quand même gardé dans le navigateur.', true);
+  // Il faut un fichier où écrire : sinon on le choisit tout de suite (Enregistrer sous)
+  if (!(await poigneeDe(classeur))) { await enregistrer(true); if (!classeur._poignee) return; }
+  autoEnregistrer = true;
+  try { localStorage.setItem('sprezz-auto-enregistrer', '1'); } catch { /* rien */ }
+  majBoutonEnregistrer();
+  toast('Enregistrement automatique activé : « ' + classeur.nomFichier + ' » sera réécrit après chaque modification');
+}
+function planifierAutoEnregistrement() {
+  if (!autoEnregistrer || !disque) return;
+  clearTimeout(timerAuto);
+  timerAuto = setTimeout(autoEnregistrement, 2500);
+}
+async function autoEnregistrement() {
+  if (autoEnCours) return planifierAutoEnregistrement();
+  if (edition) return planifierAutoEnregistrement(); // on attend la fin de la saisie
+  autoEnCours = true;
+  try {
+    for (const c of classeurs) {
+      if (!estModifie(c)) continue;
+      const h = await poigneeDe(c);
+      if (!h) continue; // jamais enregistré sur le disque : Ctrl+S demandera où
+      if (h.queryPermission && (await h.queryPermission({ mode: 'readwrite' })) !== 'granted') continue; // il faudra un Ctrl+S pour réautoriser
+      const type = extension(h.name);
+      if (!TYPES_FICHIER[type]) continue;
+      const v = c.version;
+      const w = await h.createWritable(); await w.write(ecrireClasseur(XLSX, c, { bookType: type })); await w.close();
+      c.enregistre = v;
+    }
+    rendreClasseurs(true);
+  } catch (e) { console.warn('Enregistrement automatique', e); }
+  finally { autoEnCours = false; }
+}
 /** Ctrl+S : réécrit le fichier d'origine ; F12 (sous = vrai) : choisir où et sous quel nom. Sans accès au disque : téléchargement. */
 async function enregistrer(sous = false) {
   if (edition) validerEdition();
@@ -1988,6 +2036,15 @@ async function menuOuvrir(x, y) {
     null, ['Enregistrer sous…', () => enregistrer(true), 'F12'], ['Télécharger une copie', () => telecharger()],
   ]);
 }
+function menuEnregistrer(x, y) {
+  ouvrirMenu(x, y, [
+    ['Enregistrer', () => enregistrer(), 'Ctrl+S'],
+    ['Enregistrer sous…', () => enregistrer(true), 'F12'],
+    ['Télécharger une copie', () => telecharger()],
+    null,
+    [(autoEnregistrer ? '☑ ' : '☐ ') + 'Enregistrement automatique', () => basculerAutoEnregistrement()],
+  ]);
+}
 function nouveauClasseur() {
   const c = Classeur.nouveau();
   c.nomFichier = nomLibreClasseur();
@@ -2045,6 +2102,7 @@ function deserialiserClasseur(data) {
 }
 let timerLocal;
 function sauvegarderLocal() {
+  planifierAutoEnregistrement();
   clearTimeout(timerLocal);
   timerLocal = setTimeout(() => {
     try { if (!classeur.calculManuel && classeur.feuilles.some((f) => f.tablesDonnees && f.tablesDonnees.length) && actualiserTablesDonnees(classeur)) rendre(); } catch (e) { console.warn(e); }
@@ -2734,6 +2792,7 @@ function rendreAide() {
 <li><b>Formules qui débordent</b> : <code>=TRIER(A2:B9;2;-1)</code>, <code>=UNIQUE(…)</code>, <code>=FILTRE(…)</code>, <code>=SEQUENCE(10)</code> remplissent les cellules voisines (cadre pointillé) ; <code>A1#</code> désigne tout le résultat ; <code>#SPILL!</code> si la place est prise.</li>
 <li><b>Analyse</b> (menu ⋯) : <b>Valeur cible</b> ; <b>Solveur</b> (maximiser, minimiser ou atteindre une valeur en changeant des cellules, avec contraintes ≤ ≥ = entier binaire ; exact pour les modèles linéaires) ; <b>Table de données</b> à une ou deux entrées, recalculée quand le modèle change.</li>
 <li><b>Finance et comptabilité</b> : formats <b>Comptabilité</b>, milliers (k€), millions (M€) et négatifs entre parenthèses dans la liste des formats ; <b>Plan</b> (⋯ › Plan, ou clic droit › Données › Grouper) : boutons + / − à côté des en-têtes et niveaux 1, 2, 3 dans le coin ; <b>Sous-totaux…</b> (clic droit › Données) : un total à chaque changement de valeur d'une colonne, avec le plan prêt à replier ; <b>Gestionnaire de scénarios</b> et <b>Utilitaire d'analyse</b> (⋯ › Analyse : statistiques descriptives, histogramme, régression, corrélation, moyenne mobile, tests t et F, ANOVA…) ; <b>Fenêtre espion</b> et <b>Calcul itératif</b> (⋯ › Formules) pour les modèles qui se citent eux-mêmes ; graphique <b>Cascade</b> ; <b>champs calculés</b> dans les tableaux croisés. Modèles (Nouveau ▾ › Finance et actuariat) : emprunt, rentabilité d'un projet, compte de résultat, table de mortalité, Chain Ladder.</li>
+<li><b>Enregistrer ▾</b> : Enregistrer sous, Télécharger une copie et <b>Enregistrement automatique</b> (à cocher ; avec Chrome ou Edge sur ordinateur, le fichier est réécrit quelques secondes après chaque modification, ↻ devant « Enregistrer »). Fermer la page avec des modifications non enregistrées (<b>*</b> après le nom) demande confirmation.</li>
 <li><b>Références en couleur</b> : pendant la saisie d'une formule, chaque référence (<code>B2</code>, <code>C2:D5</code>…) est écrite de la couleur du cadre qui l'entoure sur la grille ; la même référence garde la même couleur.</li>
 <li><b>Fonctions VBA dans les cellules</b> : comme « Insérer une fonction » d'Excel, le bouton <b>ƒx</b> les liste en tête (avec leurs arguments) et un clic écrit <code>=Nom(</code> dans la cellule choisie, ou dans la formule en cours ; dans le projet VBA, double-clic sur une fonction (ƒ) fait de même. En tapant <code>=Ex…</code>, elles se proposent avec les fonctions d'Excel, et la bulle montre leurs arguments. Pendant la saisie, <code>Ctrl+Z</code> / <code>Ctrl+Y</code> défont et refont la saisie elle-même (y compris les références cliquées).</li>
 <li><b>LET et LAMBDA</b> : <code>=LET(x;A1*2;x+1)</code>, <code>=MAP(A1:A9;LAMBDA(v;v*2))</code>, <code>=REDUCE(0;A1:A9;LAMBDA(s;v;s+v))</code> ; un nom défini <code>=LAMBDA(x;x*1,2)</code> devient une fonction (<code>=TTC(A1)</code>).</li>
@@ -3559,7 +3618,8 @@ $('btn-enregistrer').addEventListener('click', () => enregistrer());
     }
   });
 }
-$('btn-telecharger').addEventListener('click', () => telecharger());
+$('btn-enregistrer-menu').addEventListener('click', () => menuEnregistrer(...sousBouton('btn-enregistrer')));
+majBoutonEnregistrer();
 $('btn-gras').addEventListener('click', () => { if (!styleDansSaisie('gras')) basculerStyle('gras'); });
 $('btn-italique').addEventListener('click', () => { if (!styleDansSaisie('italique')) basculerStyle('italique'); });
 $('btn-souligne').addEventListener('click', () => { if (!styleDansSaisie('souligne')) basculerStyle('souligne'); });
@@ -3725,8 +3785,9 @@ document.addEventListener('drop', async (e) => {
 });
 window.addEventListener('beforeunload', (e) => {
   memoriserVue(); sauvegarderLocal();
-  // Un classeur modifié que le navigateur n'a pas pu garder (trop gros, stockage plein) serait perdu : on prévient
-  if (classeurs.some((c) => estModifie(c) && c._dansIdb === false && !c._dansLocal)) { e.preventDefault(); e.returnValue = ''; }
+  // Des modifications pas encore enregistrées dans un fichier : le navigateur demande « Quitter le site ? », comme Excel
+  // demande s'il faut enregistrer (le travail reste aussi gardé dans le navigateur, sauf s'il est trop gros)
+  if (classeurs.some((c) => estModifie(c))) { e.preventDefault(); e.returnValue = ''; }
 });
 
 // ---------------------------------------------------------------------------
