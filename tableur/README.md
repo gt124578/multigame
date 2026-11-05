@@ -72,6 +72,8 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 - **Validation des données** : listes déroulantes (éléments ou plage), nombres entiers ou décimaux, dates, heures, longueur
   du texte, formule personnalisée ; message de saisie, alertes arrêt / avertissement / information, cellules non valides
   entourées ; lue et écrite au format d'Excel (listes prises sur une autre feuille comprises).
+- **Fichier** : bouton ⬇ pour télécharger une copie du classeur au format choisi ; `*` après le nom (onglet du classeur
+  et onglet du navigateur) tant que les modifications ne sont pas enregistrées.
 - **Presse-papiers** : copier-coller avec Excel, LibreOffice et les pages web dans les deux sens (texte tabulé, cellules
   sur plusieurs lignes entre guillemets), sans demande d'autorisation au clavier.
 - **Saisie des formules** : proposition des fonctions (françaises et anglaises) et des noms définis pendant la frappe,
@@ -107,7 +109,11 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 - **Macros** : projet VBA comme dans l'éditeur d'Excel (`Alt+F11`) — un module de code par feuille (`Feuil1 (Hypothèses)`),
   `ThisWorkbook` et des modules standard nommés (créer, renommer, supprimer, exporter en `.bas`), avec la liste des procédures de
   chaque module ; boîte **Macros** (`Alt+F8`) pour exécuter, modifier, créer (en la nommant), renommer ou supprimer une macro
-  (renommer une macro, une fonction ou un module met à jour les appels, les boutons et les formules) ; exécution
+  (renommer une macro, une fonction ou un module met à jour les appels, les boutons et les formules) ; recherche dans tout le
+  projet (modules, macros, texte du code) ; module illisible signalé avec sa ligne ; `Type … End Type`, `Enum` (aussi
+  `Scen.Haut`), `Application.Caller`, `CVErr(xlErrNA)`, `Application.<fonction de feuille>` qui rend l'erreur au lieu
+  d'arrêter (comme `Application.VLookup`). Une Function VBA au nom anglais d'une fonction d'Excel (`Duration`) passe avant
+  celle-ci, comme dans Excel en français ; exécution
   (`F5`, la macro sous le curseur), journal `Debug.Print`, `MsgBox` / `InputBox`. Dans un module de feuille, `Range`, `Cells` et `Me`
   désignent la feuille ; `Feuil1.Range("A1")` (nom de code) et `Module1.MaMacro` (appel qualifié) sont compris.
 - **Tableaux structurés** (`Ctrl+L`) : `Tableau1[Prime]`, `[@Prix]`, `[#Tout]`, `[#En-têtes]`, `[#Totaux]` dans les formules

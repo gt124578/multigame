@@ -3,6 +3,7 @@
 import { Classeur } from './classeur.js';
 import { ErreurFormule, parseAdresse, parsePlage, colVersLettres, ERR, convertirFormule, adresse } from './formules.js';
 import { extraireModulesVBA } from './vbaextract.js';
+import { listerProcedures } from './projetvba.js';
 import { lireMasqueesXlsx, lireStylesXlsx, ecrireStylesXlsx, lireRichesXlsx } from './styles-xlsx.js';
 import { lireObjetsXlsx } from './objets-xlsx.js';
 import { lireVuesXlsx, ecrireVuesXlsx } from './vues-xlsx.js';
@@ -263,7 +264,14 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
 }
 
 /** Écrit le classeur : renvoie un Uint8Array (.xlsx, ou .xlsm si des macros ou un projet VBA existent). */
+/** Noms des Function VBA du classeur : elles gardent leur nom dans les formules écrites (Duration n'est pas DURATION). */
+function udfDe(classeur) {
+  const noms = new Set();
+  try { for (const m of classeur.modulesVBA()) for (const p of listerProcedures(m.code)) if (p.genre === 'Function') noms.add(p.nom.toUpperCase()); } catch { /* pas de VBA */ }
+  return noms.size ? (n) => noms.has(String(n).toUpperCase()) : null;
+}
 export function ecrireClasseur(XLSX, classeur, options = {}) {
+  const udfNoms = udfDe(classeur);
   if (options.bookType === 'ods') return ecrireOds(XLSX, classeur);
   const wb = XLSX.utils.book_new();
   wb.Workbook = { Sheets: [], Names: [], CalcPr: { fullCalcOnLoad: true }, Views: [{ activeTab: classeur.active }] };
@@ -274,7 +282,7 @@ export function ecrireClasseur(XLSX, classeur, options = {}) {
       const k = colVersLettres(c) + (r + 1);
       const o = {};
       let v = cel.f != null ? classeur.valeur(fi, r, c) : cel.v;
-      if (cel.f != null) { const tb = cel.f.includes('[') && classeur.tableauEn(fi, r, c); o.f = convertirFormule(cel.f, 'en', tb ? { table: tb.t.nom } : {}).slice(1); }
+      if (cel.f != null) { const tb = cel.f.includes('[') && classeur.tableauEn(fi, r, c); o.f = convertirFormule(cel.f, 'en', { ...(tb ? { table: tb.t.nom } : {}), udf: udfNoms }).slice(1); }
       if (v instanceof ErreurFormule) { if (cel.f == null) { o.t = 'e'; o.v = 0; o.w = v.code; } else { o.t = 'n'; } }
       else if (v == null) { if (cel.f == null && !cel.z && !cel.s) return; o.t = cel.f != null ? 'n' : 'z'; }
       else if (typeof v === 'number') { o.t = 'n'; o.v = v; }

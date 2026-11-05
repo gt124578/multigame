@@ -1244,6 +1244,31 @@ test('ods : formats finance (texte autour, milliers, parenthèses, zéro « - »
   egal([0, 1, 2, 3, 4, 5, 6].map((r) => e.texte(0, r, 0).trim()), avant.map((t) => t.trim()));
 });
 
+test('vba : fonctions des cellules (Type, Enum, Caller, CVErr, Application.X, nom anglais d\'Excel, relecture xlsx)', () => {
+  const c = Classeur.nouveau();
+  c.ajouterFeuille('StressTest');
+  c.ajouterModule('Choc');
+  c.definirCodeModule('module:Choc', [
+    'Private Type Hyp', '  taux As Double', '  flux(1 To 3) As Double', 'End Type',
+    'Enum Scen', '  Base = 0', '  Haut', 'End Enum',
+    'Function avecType() As Double', '  Dim h As Hyp, t(1 To 2) As Hyp', '  h.taux = 0.02: h.flux(2) = 5: t(2).taux = 1', '  avecType = h.taux + h.flux(2) + t(2).taux', 'End Function',
+    'Function enumeration() As Long', '  enumeration = Scen.Haut * 10 + Haut', 'End Function',
+    'Function ici() As String', '  ici = Application.Caller.Address(False, False)', 'End Function',
+    'Function absent(x As Double) As Variant', '  If x < 0 Then absent = CVErr(xlErrNA) Else absent = Application.VLookup(x, Range("Z1:Z2"), 1, False)', 'End Function',
+    'Function Duration(a As Double) As Double', '  Duration = a * 100 + Application.NormSDist(0)', 'End Function',
+  ].join('\n'));
+  const it = new InterpreteurVBA(c, {});
+  for (const m of c.modulesVBA()) if (m.code.trim()) it.charger(m.code, { nom: m.nom, genre: m.genre, feuille: m.feuille });
+  c.udf = creerUDF(it); c.evaluateur.invalider();
+  ['=avecType()', '=enumeration()', '=ici()', '=absent(-1)', '=absent(1)', '=Duration(2)', '=DUREE("1/1/2020";"1/1/2030";0,05;0,05;1)'].forEach((f, i) => c.saisir(1, i, 1, f));
+  const v = (r) => c.valeur(1, r, 1);
+  egal([v(0), v(1), v(2), v(3).code, v(4).code, v(5)], [6.02, 11, 'B3', '#N/A', '#N/A', 200.5]);
+  egal(typeof v(6), 'number');
+  // relu depuis un .xlsm : « Duration » reste la fonction VBA, DUREE reste celle d'Excel
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c, { bookType: 'xlsm' }), 'x.xlsm');
+  egal([e.feuilles[1].get(5, 1).f, e.feuilles[1].get(6, 1).f.slice(0, 7)], ['=Duration(2)', '=DUREE(']);
+});
+
 test('vba : renommer une macro, une fonction ou un module met à jour ce qui les cite', () => {
   const c = Classeur.nouveau();
   c.ajouterModule('Calculs'); c.ajouterModule('Boutons');
