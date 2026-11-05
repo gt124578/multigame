@@ -32,7 +32,8 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   const voix = [...(VILLES[V.theme] || []), ...(VILLES[V.theme] || []), ...GENERAL];
   let nv = Math.floor(r() * voix.length);
   const parole = () => voix[nv++ % voix.length];
-  const dans = (x, y) => x >= X + ep && y >= Y + ep && x <= X1 - ep && y <= Y1 - ep;
+  const ib = ep + (V.organique === false ? 0 : 2);   // la ceinture et ses bosses : on bâtit au-delà
+  const dans = (x, y) => x >= X + ib && y >= Y + ib && x <= X1 - ib && y <= Y1 - ib;
   const C = { x0: def.x, y0: def.y, x1: def.x + def.w - 1, y1: def.y + def.h - 1 };
   const R = { x0: C.x0 - 2, y0: C.y0 - 2, x1: C.x1 + 2, y1: C.y1 + 2 };   // le centre et son boulevard
   const dansR = (x, y) => x >= R.x0 && x <= R.x1 && y >= R.y0 && y <= R.y1;
@@ -42,21 +43,22 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   for (let y = Y; y <= Y1; y++) for (let x = X; x <= X1; x++) {
     const dn = y - Y, ds = Y1 - y, dw = x - X, de = X1 - x, d = Math.min(dn, ds, dw, de);
     const cote = d === dn ? 'n' : d === ds ? 's' : d === dw ? 'w' : 'e';
-    if (V.mer && V.mer.includes(cote) && d < ep + 6) { W.set(x, y, T.WATER); continue; }
+    if (V.mer && V.mer.includes(cote) && d < ep + 6) { W.set(x, y, V.digue && d === 0 ? T.ROCK : T.WATER); continue; }
     W.set(x, y, d < ep + (dansR(x, y) ? 0 : bosse(x, y)) ? T.TREE : sol);
   }
   W.zone(X, Y, X1, Y1, { name: def.name, music: def.music || 'town', town: def.id, theme: def.theme });
-  const sorties = [];
+  const sorties = [], rues = new Set();   // les cases de rue : on n'y bâtit rien
   for (const s of V.sorties || []) {
     const { dir, k } = s, cells = [], ext = [];
     for (let i = 0; i < ep + 4; i++) for (const j of [0, 1]) {
       const [x, y] = dir === 'n' ? [X + k + j, Y + i] : dir === 's' ? [X + k + j, Y1 - i] : dir === 'w' ? [X + i, Y + k + j] : [X1 - i, Y + k + j];
-      W.set(x, y, rue); cells.push([x, y]);
+      W.set(x, y, rue); cells.push([x, y]); rues.add(x + ',' + y);
     }
     for (const j of [0, 1]) ext.push(dir === 'n' ? [X + k + j, Y - 1] : dir === 's' ? [X + k + j, Y1 + 1] : dir === 'w' ? [X - 1, Y + k + j] : [X1 + 1, Y + k + j]);
     // la rangée gardée (dans la ceinture) et la case du garde (juste à l'intérieur)
     const g = ep - 1, tiles = [0, 1].map((j) => dir === 'n' ? [X + k + j, Y + g] : dir === 's' ? [X + k + j, Y1 - g] : dir === 'w' ? [X + g, Y + k + j] : [X1 - g, Y + k + j]);
     const poste = dir === 'n' ? [X + k + 2, Y + ep] : dir === 's' ? [X + k + 2, Y1 - ep] : dir === 'w' ? [X + ep, Y + k + 2] : [X1 - ep, Y + k + 2];
+    W.set(poste[0], poste[1], rue);   // la case du garde : à côté du couloir, toujours praticable
     const S = { ...s, cells, ext, tiles, poste, entree: ext[0], interieur: cells[cells.length - 2] };
     sorties.push(S);
     if (s.coupe) for (const [x, y] of tiles) W.set(x, y, T.CUT);
@@ -77,7 +79,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   buildTown(W, maps, def);
 
   /* 3. les rues : boulevard autour du centre, grille irrégulière, avenues depuis les portes */
-  const posee = (x, y) => { if (!dans(x, y)) return; const t = W.get(x, y); if (t === T.TREE || t === sol || t === T.GRASS || t === T.FLOWER) W.set(x, y, rue); };
+  const posee = (x, y) => { if (!dans(x, y)) return; const t = W.get(x, y); if (t === T.TREE || t === sol || t === T.GRASS || t === T.FLOWER) { W.set(x, y, rue); rues.add(x + ',' + y); } };
   for (let y = R.y0; y <= R.y1; y++) for (let x = R.x0; x <= R.x1; x++) if (x < C.x0 || x > C.x1 || y < C.y0 || y > C.y1) posee(x, y);
   const lignes = (a, b, pas0, pas1, evite0, evite1) => {
     const out = []; let v = a + 9 + Math.floor(r() * 5);
@@ -87,18 +89,18 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
     }
     return out;
   };
-  const xs = lignes(X + ep, X1 - ep, V.pasX?.[0] ?? 19, V.pasX?.[1] ?? 26, R.x0, R.x1);
-  const ys = lignes(Y + ep, Y1 - ep, V.pasY?.[0] ?? 15, V.pasY?.[1] ?? 20, R.y0, R.y1);
-  for (const x of xs) for (let y = Y + ep; y <= Y1 - ep; y++) if (!dansR(x, y) && !dansR(x + 1, y)) { posee(x, y); posee(x + 1, y); }
-  for (const y of ys) for (let x = X + ep; x <= X1 - ep; x++) if (!dansR(x, y) && !dansR(x, y + 1)) { posee(x, y); posee(x, y + 1); }
+  const xs = lignes(X + ib, X1 - ib, V.pasX?.[0] ?? 19, V.pasX?.[1] ?? 26, R.x0, R.x1);
+  const ys = lignes(Y + ib, Y1 - ib, V.pasY?.[0] ?? 15, V.pasY?.[1] ?? 20, R.y0, R.y1);
+  for (const x of xs) for (let y = Y + ib; y <= Y1 - ib; y++) if (!dansR(x, y) && !dansR(x + 1, y)) { posee(x, y); posee(x + 1, y); }
+  for (const y of ys) for (let x = X + ib; x <= X1 - ib; x++) if (!dansR(x, y) && !dansR(x, y + 1)) { posee(x, y); posee(x, y + 1); }
   // rues qui s'arrêtent contre le boulevard : raccordées
-  const avenue = (x, y, dx, dy) => { for (let i = 0; i < 400; i++) { if (!W.in(x, y) || (i > 2 && (W.get(x, y) === rue || W.get(x + dy, y + dx) === rue) && W.get(x, y) !== T.TREE)) break; if (dans(x, y) || dans(x + dy, y + dx)) { W.set(x, y, rue); W.set(x + dy, y + dx, rue); } x += dx; y += dy; } };
+  const avenue = (x, y, dx, dy) => { for (let i = 0; i < 400; i++) { if (!W.in(x, y) || (i > 2 && (W.get(x, y) === rue || W.get(x + dy, y + dx) === rue) && W.get(x, y) !== T.TREE)) break; if (dans(x, y) || dans(x + dy, y + dx)) { W.set(x, y, rue); W.set(x + dy, y + dx, rue); rues.add(x + ',' + y); rues.add((x + dy) + ',' + (y + dx)); } x += dx; y += dy; } };
   for (const s of sorties) { const [x, y] = s.interieur, v = { n: [0, 1], s: [0, -1], w: [1, 0], e: [-1, 0] }[s.dir]; avenue(x, y, v[0], v[1]); }
 
   /* 4. les îlots entre les rues */
   const bornes = (a, b, L) => { const o = []; let p = a; for (const v of L) { o.push([p, v - 1]); p = v + 2; } o.push([p, b]); return o; };
   const ilots = [];
-  for (const [x0, x1] of bornes(X + ep, X1 - ep, xs)) for (const [y0, y1] of bornes(Y + ep, Y1 - ep, ys)) {
+  for (const [x0, x1] of bornes(X + ib, X1 - ib, xs)) for (const [y0, y1] of bornes(Y + ib, Y1 - ib, ys)) {
     let b = { x0, y0, x1, y1 };
     if (!(b.x1 < R.x0 || b.x0 > R.x1 || b.y1 < R.y0 || b.y0 > R.y1)) {
       // îlot entamé par le centre : on garde le plus grand morceau autour
@@ -116,7 +118,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   /* 5. outils de pose */
   let nb = 0, nn = 0, no = 0;
   const occ = new Set(W.npcs.filter((n) => n.x >= X && n.y >= Y && n.x <= X1 && n.y <= Y1).map((n) => n.x + ',' + n.y));
-  const libre = (x0, y0, x1, y1) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const t = W.get(x, y); if (!(t === sol || t === T.GRASS || t === T.FLOWER || t === T.PAVE || t === T.PATH || t === T.SAND) || occ.has(x + ',' + y)) return false; } return true; };
+  const libre = (x0, y0, x1, y1) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const t = W.get(x, y); if (!(t === sol || t === T.GRASS || t === T.FLOWER || t === T.PAVE || t === T.PATH || t === T.SAND) || occ.has(x + ',' + y) || rues.has(x + ',' + y)) return false; } return true; };
   const maison = (x, y, M, o = {}) => {
     if (!libre(x, y, x + M.w - 1, y + M.d - 1)) return null;
     const npcs = o.vide ? [] : [{ x: 3, y: 4, sprite: o.sprite || pick(SPRITES), move: 'turn', text: o.text || parole() }];
@@ -131,7 +133,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
     occ.add(x + ',' + y);
     return W.npc({ id: `${def.id}:h${nn++}`, x, y, dir: o.dir || pick(['down', 'left', 'right', 'up']), sprite: o.sprite || pick(SPRITES), move: o.move || pick(['wander', 'turn', 'turn']), text: o.text || parole() });
   };
-  const prop = (k, x, y, o) => { const t = W.get(x, y); if ((t === sol || t === T.GRASS || t === T.FLOWER || t === T.PAVE || t === T.PATH) && !occ.has(x + ',' + y) && !W.signs.has(x + ',' + y)) W.prop(k, x, y, true, o); };
+  const prop = (k, x, y, o) => { const t = W.get(x, y); if ((t === sol || t === T.GRASS || t === T.FLOWER || t === T.PAVE || t === T.PATH) && !occ.has(x + ',' + y) && !rues.has(x + ',' + y) && !W.signs.has(x + ',' + y)) W.prop(k, x, y, true, o); };
   const objet = (x, y, item, qty = 1) => { if (walkable(W.get(x, y)) && W.get(x, y) !== T.DOOR) W.item(x, y, item, qty, `${def.id}:o${no++}`); };
   const rect = (x0, y0, x1, y1, t, only) => W.rect(x0, y0, x1, y1, t, only);
 
@@ -299,23 +301,24 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   }
 
   /* 7. tout relier : chaque porte, chaque habitant et chaque objet rejoint les rues ; les recoins isolés se referment */
-  relier(W, X, Y, X1, Y1, sorties[0]?.interieur || [def.x, def.y], rue);
+  relier(W, X, Y, X1, Y1, sorties.length ? sorties.flatMap((q) => q.cells) : [[def.x, def.y]], rue);
   return def;
 }
 
 /** relie à la ville tout ce qui doit l'être (devants de porte, habitants, objets) en taillant une ruelle droite vers la
  *  case reliée la plus proche ; ce qui reste isolé (bouts d'herbe) se referme en bosquet */
-export function relier(W, X, Y, X1, Y1, depart, rue = T.PATH) {
+export function relier(W, X, Y, X1, Y1, departs, rue = T.PATH) {
   const wW = X1 - X + 1, hH = Y1 - Y + 1, at = (x, y) => (y - Y) * wW + (x - X);
   const dedans = (x, y) => x >= X && y >= Y && x <= X1 && y <= Y1;
   const bloque = new Set(W.npcs.filter((n) => dedans(n.x, n.y) && n.move !== 'wander').map((n) => n.x + ',' + n.y));
-  const passe = (x, y) => walkable(W.get(x, y)) && W.get(x, y) !== T.DOOR && !bloque.has(x + ',' + y);
+  // les obstacles qu'une capacité ouvre (petit arbre, rocher fissuré) comptent comme un passage
+  const passe = (x, y) => { const t = W.get(x, y); return (walkable(t) || t === T.CUT || t === T.SMASH || t === T.BOULDER) && t !== T.DOOR && !bloque.has(x + ',' + y); };
   const vu = new Uint8Array(wW * hH);
   const remplir = (sx, sy) => {
     if (!dedans(sx, sy) || !passe(sx, sy) || vu[at(sx, sy)]) return; const q = [[sx, sy]]; vu[at(sx, sy)] = 1;
     while (q.length) { const [x, y] = q.pop(); for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const u = x + a, v = y + b; if (dedans(u, v) && !vu[at(u, v)] && passe(u, v) && W.height(u, v) === W.height(x, y)) { vu[at(u, v)] = 1; q.push([u, v]); } } }
   };
-  remplir(depart[0], depart[1]);
+  for (const [x, y] of departs) remplir(x, y);
   const besoins = [];
   for (const b of W.buildings) if (b.door >= 0 && dedans(b.doorX, b.doorY + 1)) besoins.push([b.doorX, b.doorY + 1]);
   for (const n of W.npcs) if (dedans(n.x, n.y)) besoins.push([n.x, n.y, 1]);

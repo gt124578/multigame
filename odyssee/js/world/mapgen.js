@@ -214,15 +214,26 @@ export function carveRoute(map, pts, o = {}) {
   const info = new Map();
   // bord irrégulier : demi-largeur bruitée le long de la route
   const wob = (s) => Math.sin(s * 0.21 + (o.seed || 1)) * 0.9 + Math.sin(s * 0.53 + 2 * (o.seed || 1)) * 0.6;
+  // distance de chaque case au tracé : chaque segment ne regarde que les cases de son voisinage (les longues routes
+  // sinueuses ont des centaines de segments) ; à distance égale, le premier segment l'emporte
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1, R = half + 3;
+  const bd = new Float64Array(bw * bh).fill(Infinity), bs = new Float64Array(bw * bh), bside = new Int8Array(bw * bh);
+  let acc = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const ax = pts[i - 1][0] + 0.5, ay = pts[i - 1][1] + 0.5, bx = pts[i][0] + 0.5, by = pts[i][1] + 0.5;
+    const segLen = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    const sx0 = Math.max(x0, Math.floor(Math.min(ax, bx) - R - 1)), sx1 = Math.min(x1, Math.ceil(Math.max(ax, bx) + R + 1));
+    const sy0 = Math.max(y0, Math.floor(Math.min(ay, by) - R - 1)), sy1 = Math.min(y1, Math.ceil(Math.max(ay, by) + R + 1));
+    for (let y = sy0; y <= sy1; y++) for (let x = sx0; x <= sx1; x++) {
+      const s2 = distSeg(x + 0.5, y + 0.5, ax, ay, bx, by), k = (y - y0) * bw + (x - x0);
+      if (s2.d < bd[k]) { bd[k] = s2.d; bs[k] = acc + s2.t * segLen; bside[k] = s2.side; }
+    }
+    acc += segLen;
+  }
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
     if (!map.in(x, y)) continue;
-    let best = null, acc = 0;
-    for (let i = 1; i < pts.length; i++) {
-      const s = distSeg(x + 0.5, y + 0.5, pts[i - 1][0] + 0.5, pts[i - 1][1] + 0.5, pts[i][0] + 0.5, pts[i][1] + 0.5);
-      const segLen = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-      if (!best || s.d < best.d) best = { d: s.d, s: acc + s.t * segLen, side: s.side };
-      acc += segLen;
-    }
+    const k = (y - y0) * bw + (x - x0); if (bd[k] === Infinity) continue;
+    const best = { d: bd[k], s: bs[k], side: bside[k] };
     let hw = half + wob(best.s);
     // le couloir se resserre aux extrémités pour ne pas entamer la bordure des villes
     const fromStart = best.s, fromEnd = total - best.s;
@@ -230,6 +241,7 @@ export function carveRoute(map, pts, o = {}) {
     if (o.taperEnd !== false) hw = Math.min(hw, 1.1 + fromEnd * 0.6);
     if (best.d <= hw) {
       const cur = map.get(x, y);
+      if (cur === T.BUILD || cur === T.DOOR || cur === T.CAVEDOOR || cur === T.SIGN || cur === T.BLOCK) continue;   // bâtiments et décor posés restent
       info.set(key(x, y), { d: best.d, s: best.s / total, side: best.side, hw });
       if (cur === T.WATER) { if (o.bridge && best.d <= 1.05) map.set(x, y, T.BRIDGE); continue; }
       if (cur === T.TREE || cur === T.PINE || o.overwrite) map.set(x, y, o.ground ?? T.GRASS);
@@ -283,6 +295,30 @@ export function nearestWalkable(map, x, y, avoid = new Set()) {
     if ((t === T.GRASS || t === T.PATH || t === T.TALL || t === T.SAND || t === T.CAVE || t === T.ASH || t === T.FLOOR || t === T.FLOWER || t === T.DARKTALL || t === T.SNOW || t === T.BRIDGE) && !avoid.has(key(nx, ny))) return [nx, ny];
   }
   return [Math.round(x), Math.round(y)];
+}
+
+/** case libre pour un dresseur, un promeneur ou un objet près d'une position : praticable (ni porte, ni marche, ni pont),
+ *  sans personne ni objet, loin des portes et téléporteurs, et qui ne bouche aucun passage (ses voisins restent reliés
+ *  sans elle) ; à défaut, la case praticable la plus proche */
+export function caseLibre(map, x, y) {
+  const occ = (a, b) => map.npcs.some((n) => n.x === a && n.y === b) || map.items.some((i) => i.x === a && i.y === b);
+  const SOL = new Set([T.GRASS, T.PATH, T.TALL, T.SAND, T.CAVE, T.ASH, T.FLOOR, T.FLOWER, T.DARKTALL, T.SNOW, T.PAVE]);
+  const libre = (a, b) => SOL.has(map.get(a, b)) && !occ(a, b) && !map.warpAt(a, b) && map.get(a, b) !== T.SIGN;
+  const pres = (a, b) => { for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) if (Math.abs(i) + Math.abs(j) <= 2 && (map.warpAt(a + i, b + j) || map.get(a + i, b + j) === T.DOOR)) return true; return false; };
+  const simple = (a, b) => {
+    const h = map.height(a, b), ok = (i, j) => (i || j) && walkable(map.get(a + i, b + j)) && !occ(a + i, b + j) && map.height(a + i, b + j) === h;
+    const ring = []; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (ok(i, j)) ring.push(i + ',' + j);
+    const four = ['0,-1', '1,0', '0,1', '-1,0'].filter((k) => ring.includes(k)); if (four.length <= 1) return four.length === 1;
+    const vu = new Set([four[0]]), q = [four[0]];
+    while (q.length) { const [i, j] = q.pop().split(',').map(Number); for (const [c, d] of [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]]) { const k = c + ',' + d; if (ring.includes(k) && !vu.has(k)) { vu.add(k); q.push(k); } } }
+    return four.every((k) => vu.has(k));
+  };
+  const X = Math.round(x), Y = Math.round(y);
+  for (let r = 0; r < 9; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+    const a = X + dx, b = Y + dy; if (libre(a, b) && !pres(a, b) && simple(a, b)) return [a, b];
+  }
+  return nearestWalkable(map, x, y);
 }
 
 /* ======================================================================

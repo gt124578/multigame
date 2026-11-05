@@ -18,12 +18,18 @@ const key = (x, y) => x + ',' + y;
  * Seules les cases de la zone sont recopiées ; tout ce qui a été posé (PNJ, objets…) l'est, où qu'il soit.
  */
 export function atelier(ctx, zone, dx, dy, construire, o = {}) {
-  const { W, maps, legends = [], routes = [], docks = {} } = ctx;
+  const { W, maps, legends = [], routes = [], docks = {}, towns = {} } = ctx;
   const [x0, y0, x1, y1] = zone;
   const S = new GameMap(W.id, o.w || 440, o.h || 520, { outdoor: true, fill: o.fond ?? T.TREE, name: W.name });
   S.anciensObjets = W.anciensObjets;   // la même file d'anciens identifiants (mapgen.js, item)
+  // copier : le brouillon part de ce que la grande carte porte déjà à cet endroit (terrain, hauteurs, relief)
+  if (o.copier) for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const X = x + dx, Y = y + dy; if (!W.in(X, Y) || !S.in(x, y)) continue;
+    S.set(x, y, W.get(X, Y)); S.setHeight(x, y, W.height(X, Y));
+    for (const nom of ['pentes', 'monts', 'ravins']) if (W[nom]) { S[nom] ||= new Uint8Array(S.w * S.h); S[nom][y * S.w + x] = W[nom][Y * W.w + X]; }
+  }
   if (o.preparer) o.preparer(S);
-  const avant = { maps: new Set(Object.keys(maps)), legends: legends.length, routes: routes.length, docks: new Set(Object.keys(docks)) };
+  const avant = { maps: new Set(Object.keys(maps)), legends: legends.length, routes: routes.length, docks: new Set(Object.keys(docks)), towns: new Set(Object.keys(towns)) };
   const res = construire(S);
 
   /* le terrain de la zone */
@@ -57,7 +63,8 @@ export function atelier(ctx, zone, dx, dy, construire, o = {}) {
   for (const [k, v] of S.objects) { const [x, y] = k.split(',').map(Number); W.objects.set(key(x + dx, y + dy), v); }
   for (const [k, v] of S.under) { const [x, y] = k.split(',').map(Number); W.under.set(key(x + dx, y + dy), v); }
   for (const z of S.zones) W.zones.push({ ...z, x0: z.x0 + dx, y0: z.y0 + dy, x1: z.x1 + dx, y1: z.y1 + dy });
-  for (const q of S.montagnes || []) (W.montagnes ||= []).push(q);
+  for (const q of S.montagnes || []) (W.montagnes ||= []).push({ ...q, sommet: [q.sommet[0] + dx, q.sommet[1] + dy], pied: [q.pied[0] + dx, q.pied[1] + dy], passerelles: q.passerelles.map(([a, b, c, d]) => [a + dx, b + dy, c + dx, d + dy]) });
+  for (const p of S.pockets || []) (W.pockets ||= []).push(p);
   /* les cartes, légendaires, tracés et quais nés pendant la construction */
   for (const id of Object.keys(maps)) {
     if (avant.maps.has(id)) continue;
@@ -67,5 +74,11 @@ export function atelier(ctx, zone, dx, dy, construire, o = {}) {
   for (let i = avant.legends; i < legends.length; i++) decale(legends[i]);
   for (let i = avant.routes; i < routes.length; i++) routes[i].pts = routes[i].pts.map(([x, y]) => [x + dx, y + dy]);
   for (const k of Object.keys(docks)) if (!avant.docks.has(k)) decale(docks[k]);
+  // les villes bâties dans le brouillon : leur coin et leurs portes repérées
+  for (const k of Object.keys(towns)) {
+    if (avant.towns.has(k)) continue;
+    const t = towns[k]; t.x += dx; t.y += dy;
+    for (const c of ['centerDoor', 'homeDoor', 'gymDoor']) if (t[c]) t[c] = [t[c][0] + dx, t[c][1] + dy];
+  }
   return res;
 }

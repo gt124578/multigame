@@ -32,14 +32,17 @@ function blockedSet(m) {
   return b;
 }
 
-/** exploration depuis pos : renvoie l'ensemble des tuiles atteignables */
+/** exploration depuis pos : renvoie l'ensemble des tuiles atteignables (une grille d'octets par carte, la grande carte
+ *  compte 1,7 million de cases ; `has('carte:x,y')` comme un ensemble) */
 function explore(pos) {
-  const seen = new Set(), q = [pos], blocked = new Map();
+  const vus = new Map(), grille = (id) => { let g = vus.get(id); if (!g) { const m = maps[id]; g = new Uint8Array(m.w * m.h); vus.set(id, g); } return g; };
+  const q = [pos];
+  const blocked = new Map();
   const bl = (id) => { if (!blocked.has(id)) blocked.set(id, blockedSet(maps[id])); return blocked.get(id); };
-  seen.add(key(pos.map, pos.x, pos.y));
+  { const m = maps[pos.map]; if (m.in(pos.x, pos.y)) grille(pos.map)[pos.y * m.w + pos.x] = 1; }
   while (q.length) {
     const p = q.pop(), m = maps[p.map];
-    const push = (map, x, y) => { const k = key(map, x, y); if (!seen.has(k)) { seen.add(k); q.push({ map, x, y }); } };
+    const push = (map, x, y) => { const mm = maps[map]; if (!mm.in(x, y)) return; const g = grille(map), i = y * mm.w + x; if (!g[i]) { g[i] = 1; q.push({ map, x, y }); } };
     const t0 = m.get(p.x, p.y);
     const w = m.warpAt(p.x, p.y);
     if (w && (t0 === T.DOOR || t0 === T.CAVEDOOR || t0 === T.MAT || w.step)) {
@@ -48,11 +51,12 @@ function explore(pos) {
     }
     const onWater = t0 === T.WATER;
     // le bateau : à côté d'un passeur, avec le permis, vers chaque quai que les badges ouvrent
-    if (p.map === 'monde' && st.bag['permis-bateau']) for (const n of m.npcs) if (n.script === 'ferry' && Math.abs(n.x - p.x) + Math.abs(n.y - p.y) === 1)
+    if (p.map === 'monde' && st.bag['permis-bateau']) for (const n of passeurs) if (Math.abs(n.x - p.x) + Math.abs(n.y - p.y) === 1)
       for (const d of Object.values(W.docks)) if (game.badgeCount() >= d.badges && (!d.show || d.show(st.flags))) push(d.map, d.x, d.y);
+    const B = bl(p.map);
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const x = p.x + dx, y = p.y + dy; if (!m.in(x, y)) continue;
-      const t = m.get(x, y), B = bl(p.map);
+      const t = m.get(x, y);
       if (B.has(x + ',' + y)) continue;
       if (t === T.LEDGE && dy === 1 && !onWater) { if (walkable(m.get(x, y + 1)) && !B.has(x + ',' + (y + 1))) push(p.map, x, y + 1); continue; }
       if (t === T.LEDGE_E && dx === 1) { if (walkable(m.get(x + 1, y))) push(p.map, x + 1, y); continue; }
@@ -67,8 +71,9 @@ function explore(pos) {
       if (pass) push(p.map, x, y);
     }
   }
-  return seen;
+  return { has: (k) => { const i = k.indexOf(':', k.length - 12 > 0 ? k.length - 14 : 0), j = k.lastIndexOf(':'), id = k.slice(0, j), [x, y] = k.slice(j + 1).split(',').map(Number); const g = vus.get(id), mm = maps[id]; void i; return !!(g && mm && mm.in(x, y) && g[y * mm.w + x]); } };
 }
+const passeurs = maps.monde.npcs.filter((n) => n.script === 'ferry');
 
 let pos = { map: W.start.map, x: W.start.x, y: W.start.y };
 const findNpc = (id) => { for (const [mid, m] of Object.entries(maps)) { const n = m.npcs.find((q) => q.id === id); if (n) return [mid, m, n]; } return null; };
