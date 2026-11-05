@@ -328,18 +328,25 @@ function desert(W, pts, terr, graine) {
   const r = rng(graine), res = pts.res, sable = new Set();
   for (const [x, y] of bande(pts, 0, 11, 0, 0.02, 0.98)) {
     if (W.get(x, y) !== T.TREE) continue;
-    if (!terr.some(([c0, r0, c1, r1]) => x >= c0 * 24 && x < (c1 + 1) * 24 && y >= r0 * 24 && y < (r1 + 1) * 24)) continue;
+    if (!terr.some(([c0, r0, c1, r1]) => x >= c0 * 24 && x < (c1 + 1) * 24 && y >= r0 * 24 && y < (r1 + 1) * 24) || auBord(x, y, terr)) continue;
     W.set(x, y, T.SAND); sable.add(x + ',' + y); res.cells.add(x + ',' + y);
     const q = r(); if (q < 0.035) W.prop(q < 0.022 ? 'cactus' : 'cactus2', x, y); else if (q < 0.045) W.set(x, y, T.ROCK);
   }
   const mesa = [];
-  for (const [c0, r0, c1, r1] of terr) for (let y = r0 * 24; y < (r1 + 1) * 24; y++) for (let x = c0 * 24; x < (c1 + 1) * 24; x++) if (W.get(x, y) === T.TREE) mesa.push([x, y]);
+  for (const [c0, r0, c1, r1] of terr) for (let y = r0 * 24; y < (r1 + 1) * 24; y++) for (let x = c0 * 24; x < (c1 + 1) * 24; x++) if (W.get(x, y) === T.TREE && !auBord(x, y, terr)) mesa.push([x, y]);
   massif(W, mesa, { pas: 3 });
+}
+/** lisière : près du bord de son territoire, un massif laisse la forêt mordre sur la roche (bord ondulé, pas de rectangle) */
+function auBord(x, y, terr) {
+  let d = 0;
+  for (const [c0, r0, c1, r1] of terr) d = Math.max(d, Math.min(x - c0 * 24, (c1 + 1) * 24 - 1 - x, y - r0 * 24, (r1 + 1) * 24 - 1 - y));
+  const prof = 2 + 4 * (Math.sin(x * 0.11 + y * 0.04) + Math.sin(y * 0.09 - x * 0.06) + 2) / 2;
+  return d < prof;
 }
 /** le Canyon d'Ocre : de hautes parois de roche ocre de part et d'autre de la route 17 */
 function canyon(W, terr) {
   const roc = [];
-  for (const [c0, r0, c1, r1] of terr) for (let y = r0 * 24; y < (r1 + 1) * 24; y++) for (let x = c0 * 24; x < (c1 + 1) * 24; x++) if (W.get(x, y) === T.TREE) roc.push([x, y]);
+  for (const [c0, r0, c1, r1] of terr) for (let y = r0 * 24; y < (r1 + 1) * 24; y++) for (let x = c0 * 24; x < (c1 + 1) * 24; x++) if (W.get(x, y) === T.TREE && !auBord(x, y, terr)) roc.push([x, y]);
   massif(W, roc, { pas: 2, max: 3 });
 }
 /** petit générateur pour les étendues d'eau (indépendant des graines de la carte) */
