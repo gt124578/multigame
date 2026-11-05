@@ -877,7 +877,7 @@ export class WorldView {
         else flat(Wl, x, y, x + 1, y + 1, 0.01, A.walltop);
       } else if (t === T.CAVEWALL) {
         // dehors (montagnes des entrées de grottes, bord du monde) : mêmes plateaux de roche que dans les grottes
-        const bioC = m.outdoor ? zone?.roche || bioDehors(theme) : this.biome;
+        const bioC = m.outdoor ? (m.neige?.[y * m.w + x] ? 'glace' : zone?.roche || bioDehors(theme)) : this.biome;
         if (m.outdoor && ravin(m, x, y)) {
           // le vide d'un ravin : sous la paroi du fond, la roche qui plonge ; plus bas, le noir
           // bords : la paroi du fond sous tout ce qui n'est pas le ravin au nord ; une lèvre là où un sentier le borde

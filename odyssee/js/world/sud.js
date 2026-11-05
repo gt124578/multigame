@@ -5,10 +5,10 @@
 // Avec les cinq arènes du nord, cela fait douze Champions sur le continent, plus les trois frères de l'archipel.
 import { T, walkable } from './tiles.js';
 import { room } from './interiors.js';
-import { bande, massif, plateau, boucher, sinueuse } from './relief.js';
+import { bande, massif, plateau, boucher, sinueuse, reliefMontagne } from './relief.js';
 import { rng, along, nearestWalkable, GRAND } from './mapgen.js';
 import { VILLES, TERR, BLOC, porte, arrivee } from './plan.js';
-import { grandeVille } from './quartiers.js';
+import { grandeVille, bruit } from './quartiers.js';
 
 // rencontres : [espèce, niveau min, niveau max, poids]
 export const ENC_SUD = {
@@ -320,8 +320,17 @@ export function buildSud(ctx) {
   routeItem(W, r20, 0.4, -1, 6, 'full-restore'); routeItem(W, r20, 0.7, 1, 5, 'elixir');
 
   // les Hauts d'Ocre : une crête de roche au cœur des Terres du Sud (entre les routes du nord et celles du sud)
-  const crete = []; for (let y = 42 * BLOC; y < 46 * BLOC; y++) for (let x = 11 * BLOC; x < 33 * BLOC; x++) { const q = ((x - 22 * BLOC) / (11 * BLOC)) ** 2 + ((y - 44 * BLOC) / (2.2 * BLOC)) ** 2 + Math.sin(x * 0.05) * 0.15; if (q < 1 && W.get(x, y) === T.TREE) crete.push([x, y]); }
-  massif(W, crete, { pas: 4, max: 3 });
+  // (forme naturelle tirée d'un bruit : des avancées, des baies de forêt ; des vallées de sable et des oasis entre les mesas)
+  const crete = [], sables = [];
+  for (let y = 40 * BLOC; y < 48 * BLOC; y++) for (let x = 10 * BLOC; x < 34 * BLOC; x++) {
+    const q = ((x - 22 * BLOC) / (11.5 * BLOC)) ** 2 + ((y - 44 * BLOC) / (2.6 * BLOC)) ** 2 + (bruit(x, y, 30, 601) - 0.5) * 1.3 + (bruit(x, y, 9, 602) - 0.5) * 0.25;
+    if (q >= 1 || W.get(x, y) !== T.TREE) continue;
+    if (q < 0.75 && Math.abs(2 * bruit(x, y, 26, 603) - 1) < 0.11) sables.push([x, y]); else crete.push([x, y]);
+  }
+  for (const [x, y] of sables) W.set(x, y, T.SAND);
+  reliefMontagne(W, crete, { g: 611, pente: 0.5, max: 6, crete: 3, masse: 3, palier: 2, echelle: 34 });
+  { const R0 = rngLite(77); for (let k = 0, f = 0; k < 400 && f < 6; k++) { const [x, y] = sables[Math.floor(R0() * sables.length)] || []; if (x == null) break; let ok = true; for (let j = -3; j <= 3 && ok; j++) for (let i = -4; i <= 4; i++) if (W.get(x + i, y + j) !== T.SAND) { ok = false; break; } if (!ok) continue; W.blob(x, y, 2.5, 1.8, T.WATER, R0, [T.SAND]); for (const [a, b] of [[-4, 0], [4, -1], [0, 3], [-2, -3]]) if (W.get(x + a, y + b) === T.SAND) W.prop('palm', x + a, y + b); f++; } }
+  W.zone(10 * BLOC, 41 * BLOC, 34 * BLOC - 1, 47 * BLOC - 1, { name: 'Hauts d\'Ocre', music: 'route', theme: 'desert', prio: -2 });
 }
 /** le désert de la route 16 : le sable mange la forêt au bord du sentier (cactus, rochers), au-delà des mesas de roche ocre */
 function desert(W, pts, terr, graine) {
@@ -333,21 +342,27 @@ function desert(W, pts, terr, graine) {
     const q = r(); if (q < 0.035) W.prop(q < 0.022 ? 'cactus' : 'cactus2', x, y); else if (q < 0.045) W.set(x, y, T.ROCK);
   }
   const mesa = [];
-  for (const [c0, r0, c1, r1] of terr) for (let y = r0 * 24; y < (r1 + 1) * 24; y++) for (let x = c0 * 24; x < (c1 + 1) * 24; x++) if (W.get(x, y) === T.TREE && !auBord(x, y, terr)) mesa.push([x, y]);
-  massif(W, mesa, { pas: 3 });
+  for (const [c0, r0, c1, r1] of terr) for (let y = r0 * 24; y < (r1 + 1) * 24; y++) for (let x = c0 * 24; x < (c1 + 1) * 24; x++) {
+    const t = W.get(x, y); if (!(t === T.TREE || t === T.PINE) || auBord(x, y, terr, 14)) continue;
+    // entre les mesas, des cuvettes de sable (on les voit d'en haut, on n'y descend pas)
+    if (bruit(x, y, 14, graine + 3) > 0.7) { W.set(x, y, T.SAND); continue; }
+    mesa.push([x, y]);
+  }
+  reliefMontagne(W, mesa, { g: graine, pente: 0.6, max: 6, crete: 2.5, masse: 3, palier: 2, echelle: 28 });
 }
 /** lisière : près du bord de son territoire, un massif laisse la forêt mordre sur la roche (bord ondulé, pas de rectangle) */
-function auBord(x, y, terr) {
+function auBord(x, y, terr, amp = 4) {
   let d = 0;
   for (const [c0, r0, c1, r1] of terr) d = Math.max(d, Math.min(x - c0 * 24, (c1 + 1) * 24 - 1 - x, y - r0 * 24, (r1 + 1) * 24 - 1 - y));
-  const prof = 2 + 4 * (Math.sin(x * 0.11 + y * 0.04) + Math.sin(y * 0.09 - x * 0.06) + 2) / 2;
+  const prof = 2 + amp * (amp > 4 ? bruit(x, y, 17, 707) : (Math.sin(x * 0.11 + y * 0.04) + Math.sin(y * 0.09 - x * 0.06) + 2) / 2);
   return d < prof;
 }
 /** le Canyon d'Ocre : de hautes parois de roche ocre de part et d'autre de la route 17 */
 function canyon(W, terr) {
   const roc = [];
-  for (const [c0, r0, c1, r1] of terr) for (let y = r0 * 24; y < (r1 + 1) * 24; y++) for (let x = c0 * 24; x < (c1 + 1) * 24; x++) if (W.get(x, y) === T.TREE && !auBord(x, y, terr)) roc.push([x, y]);
-  massif(W, roc, { pas: 2, max: 3 });
+  for (const [c0, r0, c1, r1] of terr) for (let y = r0 * 24; y < (r1 + 1) * 24; y++) for (let x = c0 * 24; x < (c1 + 1) * 24; x++) { const t = W.get(x, y); if ((t === T.TREE || t === T.PINE) && !auBord(x, y, terr, 12)) roc.push([x, y]); }
+  // de hautes parois en gradins serrés (le canyon), des tables de roche ocre au-delà
+  reliefMontagne(W, roc, { g: 1717, pente: 0.9, max: 7, crete: 3.5, masse: 3, palier: 1, echelle: 30 });
 }
 /** petit générateur pour les étendues d'eau (indépendant des graines de la carte) */
 function rngLite(seed) { let s = seed * 2654435761 >>> 0 || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }

@@ -23,7 +23,7 @@ import { addMine } from './mine.js';
 import { tourbillons, plateau, polygone, rectangle, sinueuse, boucher, massif, bande } from './relief.js';
 import { montLunaire, montGivre } from './montagnes.js';
 import { LARGEUR, HAUTEUR, BLOC, VILLES, TERR, TORII, LUNAIRE, CHAINE, porte, arrivee } from './plan.js';
-import { grandeVille } from './quartiers.js';
+import { grandeVille, bruit } from './quartiers.js';
 import { grandeRoute, boucherLocal } from './chemins.js';
 import { atelier } from './atelier.js';
 import { lieux } from './lieux.js';
@@ -1183,15 +1183,16 @@ function terres(W) {
   // la baie de l'Embarcadère de l'Aube (à droite de la route 1) et son chenal vers le détroit
   W.blob(132, 488, 24, 30, T.WATER, rng(2024)); W.rect(146, 500, 149, 700, T.WATER);
   // l'archipel : la Grande Île (Fort-Écaille), Cendrelune (le volcan), l'Île de Granit
-  const ile = (x0, y0, x1, y1, g) => {
+  // (côtes découpées : caps et anses tirés d'un bruit, jamais au-delà des ceintures de tourbillons : boîte [bx0, by0, bx1, by1])
+  const ile = (x0, y0, x1, y1, g, [bx0, by0, bx1, by1]) => {
     const r = 26;
-    for (let y = y0 - 4; y <= y1 + 4; y++) for (let x = x0 - 4; x <= x1 + 4; x++) {
+    for (let y = Math.max(by0, y0 - 12); y <= Math.min(by1, y1 + 12); y++) for (let x = Math.max(bx0, x0 - 12); x <= Math.min(bx1, x1 + 12); x++) {
       const dx = Math.max(x0 + r - x, 0, x - (x1 - r)), dy = Math.max(y0 + r - y, 0, y - (y1 - r));
-      const n = Math.sin(x * 0.21 + g) * 1.6 + Math.sin(y * 0.17 - g) * 1.6;
+      const n = -2 + 11 * bruit(x, y, 24, 300 + g) + 2.5 * bruit(x, y, 7, 310 + g) + Math.sin(x * 0.21 + g) * 1.2;
       if (Math.hypot(dx, dy) <= r + n) W.set(x, y, T.TREE);
     }
   };
-  ile(494, 568, 676, 796, 1); ile(684, 650, 812, 792, 2); ile(806, 578, 934, 712, 3);
+  ile(494, 568, 676, 796, 1, [482, 568, 690, 798]); ile(684, 650, 812, 792, 2, [682, 647, 812, 799]); ile(806, 578, 934, 712, 3, [806, 572, 934, 724]);
 }
 
 /** les blocs libres d'un territoire, à côté du tracé d'une route (pour y poser des lieux faits main) : { f, t, i } */
@@ -1235,32 +1236,51 @@ function tertre(W, pts, t, item, qty) {
 function chaine(W, towns) {
   const J = towns.J?.ville;
   if (J) for (let y = J.y; y < J.y + J.h; y++) for (let x = J.x; x < J.x + J.w; x++) W.setHeight(x, y, 4);
-  // bruit lisse (somme de sinus) : le contour de la chaîne, ses vallées, ses sommets
-  const n = (x, y, s, g) => (Math.sin(x / s + g) + Math.sin(y / (s * 1.3) - g * 0.7) + Math.sin((x + y) / (s * 0.8) + g * 1.9)) / 3;
   const dedans = (x, y) => CHAINE.some(([c0, r0, c1, r1]) => x >= c0 * BLOC && y >= r0 * BLOC && x < (c1 + 1) * BLOC && y < (r1 + 1) * BLOC);
-  const auBord = (x, y) => Math.min(...CHAINE.filter(([c0, r0, c1, r1]) => x >= c0 * BLOC && y >= r0 * BLOC && x < (c1 + 1) * BLOC && y < (r1 + 1) * BLOC)
-    .map(([c0, r0, c1, r1]) => Math.min(x - c0 * BLOC, y - r0 * BLOC, (c1 + 1) * BLOC - 1 - x, (r1 + 1) * BLOC - 1 - y)));
-  const cells = [], pins = [];
-  for (const [c0, r0, c1, r1] of CHAINE) for (let y = r0 * BLOC; y < (r1 + 1) * BLOC; y++) for (let x = c0 * BLOC; x < (c1 + 1) * BLOC; x++) {
-    const t = W.get(x, y); if (!(t === T.TREE || t === T.PINE) || (W.monts && W.monts[y * W.w + x])) continue;
-    // le pied de la chaîne : la forêt monte à l'assaut des pentes, en dents de scie (jamais un bord droit)
-    const d = auBord(x, y), lisiere = 4 + 26 * Math.max(0, (n(x, y, 26, 1.3) + 0.5) / 1.5) + 4 * (n(x, y, 7, 3.1) + 1) / 2;
-    if (d < lisiere) { if (r2(x, y) < 0.5) W.set(x, y, T.PINE); continue; }
-    // vallées de pins (en creux), le reste est roche
-    if (n(x, y, 22, 4.1) < -0.38) { W.set(x, y, T.PINE); pins.push([x, y]); continue; }
-    cells.push([x, y]);
+  const X0 = Math.min(...CHAINE.map((q) => q[0])) * BLOC, Y0 = Math.min(...CHAINE.map((q) => q[1])) * BLOC;
+  const X1 = (Math.max(...CHAINE.map((q) => q[2])) + 1) * BLOC - 1, Y1 = (Math.max(...CHAINE.map((q) => q[3])) + 1) * BLOC - 1;
+  const w = X1 - X0 + 1, h = Y1 - Y0 + 1, at = (x, y) => (y - Y0) * w + (x - X0);
+  const foret = (x, y) => { const t = W.get(x, y); return (t === T.TREE || t === T.PINE) && !(W.monts && W.monts[y * W.w + x]) && W.height(x, y) === 0; };
+  // 1. le pied : la forêt monte à l'assaut des pentes en dents de scie ; les vallées boisées (pins) entre les crêtes
+  const roc = new Uint8Array(w * h), pins = [];
+  const lisiere = new Float32Array(w * h).fill(1e9);
+  for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) if (!dedans(x, y)) lisiere[at(x, y)] = 0;
+  for (let y = Y0 + 1; y <= Y1; y++) for (let x = X0 + 1; x < X1; x++) { const p = at(x, y); lisiere[p] = Math.min(lisiere[p], lisiere[p - 1] + 1, lisiere[p - w] + 1, lisiere[p - w - 1] + 1.41, lisiere[p - w + 1] + 1.41); }
+  for (let y = Y1 - 1; y >= Y0; y--) for (let x = X1 - 1; x > X0; x--) { const p = at(x, y); lisiere[p] = Math.min(lisiere[p], lisiere[p + 1] + 1, lisiere[p + w] + 1, lisiere[p + w + 1] + 1.41, lisiere[p + w - 1] + 1.41); }
+  for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) {
+    if (!dedans(x, y) || !foret(x, y)) continue;
+    const pied = 3 + 16 * bruit(x, y, 23, 13) + 4 * bruit(x, y, 6, 14);
+    if (lisiere[at(x, y)] < pied) { if (r2(x, y) < 0.6) W.set(x, y, T.PINE); continue; }
+    // vallées : de longs couloirs boisés entre les crêtes (cols), où dorment des lacs d'altitude
+    const val = Math.abs(2 * bruit(x, y, 38, 41) - 1), large = 0.02 + 0.2 * bruit(x, y, 17, 43) * (1 - bruit(x, y, 70, 44));
+    if (val < large) { W.set(x, y, T.PINE); pins.push([x, y]); continue; }
+    roc[at(x, y)] = 1;
   }
-  massif(W, cells, { pas: 3, max: 3 });
-  // les sommets : la roche s'élève en crêtes loin des sentiers
-  for (const [x, y] of cells) { if (!dedans(x, y)) continue; const crete = Math.max(0, Math.round((n(x, y, 30, 2.2) + 0.2) * 4)); if (crete) W.setHeight(x, y, W.height(x, y) + crete); }
+  // 2. la roche : la distance au pied (dans la roche) et des crêtes (bruit en arêtes) donnent la hauteur ; gradins serrés
+  //    près du pied, sommets qui culminent à dix niveaux, neige au-dessus du septième
+  const d = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) d[i] = roc[i] ? 1e9 : 0;
+  for (let y = Y0 + 1; y <= Y1; y++) for (let x = X0 + 1; x < X1; x++) { const p = at(x, y); if (d[p]) d[p] = Math.min(d[p], d[p - 1] + 1, d[p - w] + 1, d[p - w - 1] + 1.41, d[p - w + 1] + 1.41); }
+  for (let y = Y1 - 1; y >= Y0; y--) for (let x = X1 - 1; x > X0; x--) { const p = at(x, y); if (d[p]) d[p] = Math.min(d[p], d[p + 1] + 1, d[p + w] + 1, d[p + w + 1] + 1.41, d[p + w - 1] + 1.41); }
+  const cells = [];
+  for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) {
+    const p = at(x, y); if (!roc[p]) continue;
+    const crete = 1 - Math.abs(2 * bruit(x, y, 44, 7) - 1), masse = bruit(x, y, 95, 8), detail = bruit(x, y, 9, 9);
+    const cible = 1.5 + crete * 5 + masse * 3.5 + detail * 1.6;
+    const H = Math.max(1, Math.min(10, Math.floor(d[p] * 0.55) + 1, Math.floor(cible)));
+    W.set(x, y, T.CAVEWALL); W.setHeight(x, y, H); cells.push([x, y]);
+  }
   rochesHautes(W, cells);
-  // des lacs d'altitude au creux des vallées
+  // 3. la neige des sommets : au-dessus du septième niveau (la limite des neiges ondule), la roche devient glace (W.neige)
+  if (!W.neige) W.neige = new Uint8Array(W.w * W.h);
+  for (const [x, y] of cells) if (W.height(x, y) >= 7 - Math.round(bruit(x, y, 13, 51) * 2)) W.neige[y * W.w + x] = 1;
+  // 4. des lacs d'altitude au creux des vallées
   const R0 = rng(4141);
-  for (let k = 0, fait = 0; k < 200 && fait < 6; k++) {
+  for (let k = 0, fait = 0; k < 300 && fait < 9; k++) {
     const [x, y] = pins[Math.floor(R0() * pins.length)] || []; if (x == null) break;
-    let ok = true; for (let j = -9; j <= 9 && ok; j++) for (let i = -13; i <= 13; i++) if (W.get(x + i, y + j) !== T.PINE) { ok = false; break; }
+    let ok = true; for (let j = -7; j <= 7 && ok; j++) for (let i = -10; i <= 10; i++) if (W.get(x + i, y + j) !== T.PINE) { ok = false; break; }
     if (!ok) continue;
-    W.blob(x, y, 7 + R0() * 4, 4 + R0() * 3, T.WATER, R0, [T.PINE]); fait++;
+    W.blob(x, y, 5 + R0() * 4, 3 + R0() * 2.5, T.WATER, R0, [T.PINE]); fait++;
   }
   W.zones.unshift({ x0: CHAINE[0][0] * BLOC, y0: CHAINE[0][1] * BLOC, x1: (CHAINE[0][2] + 1) * BLOC - 1, y1: (CHAINE[0][3] + 1) * BLOC - 1, name: 'Chaîne Céleste', music: 'route', prio: -1 });
 }

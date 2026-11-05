@@ -290,7 +290,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
     }
     return out;
   };
-  const LMAX = ville ? 34 : 30, HMAX = ville ? 26 : 22;
+  const LMAX = Math.max(ville ? 34 : 30, V.pasX?.[1] ?? 0), HMAX = Math.max(ville ? 26 : 22, V.pasY?.[1] ?? 0);
   let ilots = regions();
   for (let passe = 0; passe < 2; passe++) {
     let coupe = false;

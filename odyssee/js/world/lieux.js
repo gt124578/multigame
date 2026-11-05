@@ -60,7 +60,50 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
     nFond++;
   }
   fondDePaysage();
+  plages();
   return { lieux: nLieux, fond: nFond };
+
+  /** les côtes : là où la forêt tombe dans la mer loin de tout passage, une plage de sable (2 à 4 cases), des rochers,
+   *  parfois une falaise ; on la voit depuis la mer et d'en haut, elle ne relie rien */
+  function plages() {
+    const w = W.w, h = W.h, d = new Float32Array(w * h);
+    for (let i = 0; i < w * h; i++) { const t = W.t[i]; d[i] = (walkable(t) && t !== T.SAND) || t === T.BUILD || t === T.BRIDGE || t === T.CLIFF || t === T.STAIRS ? 0 : 1e9; }
+    for (let y = 1; y < h; y++) for (let x = 1; x < w - 1; x++) { const p = y * w + x; if (d[p]) d[p] = Math.min(d[p], d[p - 1] + 1, d[p - w] + 1, d[p - w - 1] + 1.41, d[p - w + 1] + 1.41); }
+    for (let y = h - 2; y >= 0; y--) for (let x = w - 2; x >= 1; x--) { const p = y * w + x; if (d[p]) d[p] = Math.min(d[p], d[p + 1] + 1, d[p + w] + 1, d[p + w + 1] + 1.41, d[p + w - 1] + 1.41); }
+    // distance à la mer (toute eau)
+    const m = new Float32Array(w * h);
+    const merDist = () => {
+      for (let i = 0; i < w * h; i++) m[i] = W.t[i] === T.WATER || W.t[i] === T.WHIRL ? 0 : 1e9;
+      for (let y = 1; y < h; y++) for (let x = 1; x < w - 1; x++) { const p = y * w + x; if (m[p]) m[p] = Math.min(m[p], m[p - 1] + 1, m[p - w] + 1, m[p - w - 1] + 1.41, m[p - w + 1] + 1.41); }
+      for (let y = h - 2; y >= 0; y--) for (let x = w - 2; x >= 1; x--) { const p = y * w + x; if (m[p]) m[p] = Math.min(m[p], m[p + 1] + 1, m[p + w] + 1, m[p + w + 1] + 1.41, m[p + w - 1] + 1.41); }
+    };
+    merDist();
+    const tb = new Float32Array(w * h);
+    for (let i = 0; i < w * h; i++) tb[i] = W.t[i] === T.WHIRL ? 0 : 1e9;
+    for (let y = 1; y < h; y++) for (let x = 1; x < w - 1; x++) { const p = y * w + x; if (tb[p]) tb[p] = Math.min(tb[p], tb[p - 1] + 1, tb[p - w] + 1, tb[p - w - 1] + 1.41, tb[p - w + 1] + 1.41); }
+    for (let y = h - 2; y >= 0; y--) for (let x = w - 2; x >= 1; x--) { const p = y * w + x; if (tb[p]) tb[p] = Math.min(tb[p], tb[p + 1] + 1, tb[p + w] + 1, tb[p + w + 1] + 1.41, tb[p + w - 1] + 1.41); }
+    // anses et criques : la mer mord la forêt du rivage, loin des passages (sept cases d'arbres au moins)
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const p = y * w + x; if (!FORET(W.t[p]) || W.height(x, y) !== 0 || d[p] < 7 || m[p] > 11 || tb[p] < 16) continue;
+      if (m[p] < 11 * (bruit(x, y, 19, 504) - 0.42) * 2.2 && !W.zoneAt(x, y)?.town) W.set(x, y, T.WATER);
+    }
+    merDist();
+    if (false) {
+    }
+    const roches = [];
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const p = y * w + x; if (!FORET(W.t[p]) || W.height(x, y) !== 0 || d[p] < 5 || m[p] > 5 || tb[p] < 16) continue;
+      // assez de mer devant (pas les petits lacs) : on regarde 8 cases plus loin dans la direction de l'eau la plus proche
+      let large = 0; for (let j = -6; j <= 6; j += 3) for (let i = -6; i <= 6; i += 3) if (W.get(x + i, y + j) === T.WATER || W.get(x + i, y + j) === T.WHIRL) large++;
+      if (large < 9) continue;
+      const larg = 1.5 + 3 * bruit(x, y, 21, 501);
+      const z = W.zoneAt(x, y); if (z?.town) continue;
+      if (bruit(x, y, 30, 502) > 0.72) { if (m[p] < 3.2 && d[p] >= 6) roches.push([x, y]); continue; }
+      if (m[p] <= larg) { W.set(x, y, T.SAND); if (bruit(x, y, 3, 503) > 0.86) W.set(x, y, T.ROCK); }
+    }
+    // falaises de bord de mer : des avancées de roche en gradins
+    if (roches.length) massif(W, roches, { pas: 1, max: 2 });
+  }
 
   /** les blocs restés en forêt, vus de loin (on n'y entre pas) : de grandes formes qui débordent d'un bloc à l'autre —
    *  lacs cachés, crêtes rocheuses en gradins, collines boisées, pinèdes — à quatre cases au moins de tout passage */
@@ -81,7 +124,7 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
     // des pinèdes partout dans la forêt (grandes taches, sans tenir compte des blocs)
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (W.get(x, y) === T.TREE && bruit(x, y, 16, 41) > 0.58 && !W.zoneAt(x, y)?.town) W.set(x, y, T.PINE);
     massif(W, roche, { pas: 2, max: 4 });
-    if (butte.length) plateau(W, butte, 1);
+    if (butte.length) plateau(W, butte, 1, { brut: true, marches: false });
   }
 
   /** un lieu à découvrir au bout d'un sentier */
@@ -109,16 +152,18 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
       if (q <= 1 && FORET(W.get(x, y))) clair.push([x, y]);
     }
     if (clair.length < 60) return false;
-    for (const [x, y] of s4) if (FORET(W.get(x, y))) { W.set(x, y, T.PATH); }
+    for (const [x, y] of clair) W.set(x, y, T.GRASS);
+    const sent = new Set(s4.map(([x, y]) => x + ',' + y));
+    for (const [x, y] of s4) if (FORET(W.get(x, y)) || W.get(x, y) === T.GRASS) { W.set(x, y, T.PATH); }
     // le sentier s'élargit un peu (bords d'herbe)
     for (const [x, y] of s4) for (const [a, b] of N4) if (FORET(W.get(x + a, y + b)) && bruit(x + a, y + b, 2, 31) > 0.5 && (dedans(x + a, y + b) || Math.floor((x + a) / B) !== c || Math.floor((y + b) / B) !== rr)) W.set(x + a, y + b, T.GRASS);
-    for (const [x, y] of clair) W.set(x, y, T.GRASS);
     W.zone(bx, by, bx + B - 1, by + B - 1, { name: NOMS[kind] ? NOMS[kind][(c * 7 + rr * 3) % NOMS[kind].length] : z.name, music: z.music, enc: z.enc, theme: z.theme, route: z.route, prio: 0, ombre: z.ombre });
     let no = 0, np = 0;
     const objet = (x, y, item = pick(LOTS)) => { const p = proche(x, y); if (p) { W.item(p[0], p[1], item, 1, `${id}:o${no++}`); occ.add(p.join(',')); } };
     const pnj = (x, y, o = {}) => { const p = proche(x, y); if (!p) return null; occ.add(p.join(',')); return W.npc({ id: `${id}:p${np++}`, x: p[0], y: p[1], dir: o.dir || 'down', sprite: o.sprite || pick(SPR), move: o.move || 'turn', text: o.text || pick([...ROUTES.general, ...(ROUTES[o.voix] || [])]) }); };
     const proche = (x, y) => { for (let d = 0; d < 6; d++) for (let j = -d; j <= d; j++) for (const i of [-d, d]) for (const [u, v] of [[x + i, y + j], [x + j, y + i]]) { const t = W.get(u, v); if (dedans(u, v) && (t === T.GRASS || t === T.PATH || t === T.FLOWER || t === T.SAND) && !occ.has(u + ',' + v) && !W.warpAt(u, v) && W.get(u, v - 1) !== T.DOOR) return [u, v]; } return null; };
-    const prop = (k, x, y) => { if (dedans(x, y) && W.get(x, y) === T.GRASS && !occ.has(x + ',' + y)) { W.prop(k, x, y); return true; } return false; };
+    const prop = (k, x, y) => { if (dedans(x, y) && W.get(x, y) === T.GRASS && !occ.has(x + ',' + y) && !sent.has(x + ',' + y)) { W.prop(k, x, y); return true; } return false; };
+    const cloture = (x, y) => { if (W.get(x, y) === T.GRASS && !sent.has(x + ',' + y) && !occ.has(x + ',' + y)) W.set(x, y, T.FENCE); };
     const maison = (x, y, o = {}) => {
       const w = o.w || 5, d = o.d || 5;
       for (let j = -1; j <= d; j++) for (let i = -1; i <= w; i++) if (!dedans(x + i, y + j) || W.get(x + i, y + j) !== T.GRASS || occ.has((x + i) + ',' + (y + j))) return null;
@@ -151,7 +196,7 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
       let n = 0;
       for (const [x, y] of L) if (maison(x, y, { name: 'Maison', modele: pick(['chalet', 'chalet', 'maisonL']), door: 1 })) n++;
       decor('puits', X - 1, Y - 1, 2, 2, 2);
-      for (let x = X - 8; x <= X + 8; x++) if (W.get(x, Y + 7) === T.GRASS && (x + Y) % 5) W.set(x, Y + 7, T.FENCE);
+      for (let x = X - 8; x <= X + 8; x++) if ((x + Y) % 5) cloture(x, Y + 7);
       prop('tonneau', X + 5, Y + 2); prop('caisses', X - 6, Y + 3);
       pnj(X + 1, Y + 2, { move: 'wander', text: ['Bienvenue au hameau ! On n\'a pas beaucoup de visiteurs, par ici.', 'Les gens de la ville ignorent jusqu\'à notre existence.'] });
       objet(X + 6, Y + 5);
@@ -160,7 +205,7 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
       decor('grange', X - 7, Y - 6, 6, 5, 4) || decor('moulin', X - 6, Y - 5, 4, 4, 6);
       maison(X + 1, Y - 6, { name: 'Ferme', modele: 'maisonExt', w: 7, d: 4, door: 1, sprite: 'montagnard', text: ['La terre est bonne, par ici. Mes Ponchiot creusent les sillons pour moi.'] });
       for (let y = Y + 1; y <= Y + 6; y += 2) for (let x = X - 7; x <= X + 7; x++) if (W.get(x, y) === T.GRASS && x !== X) W.set(x, y, T.FLOWER);
-      for (let x = X - 8; x <= X + 8; x++) if (W.get(x, Y) === T.GRASS && Math.abs(x - X) > 2 && Math.abs(x - X) < 7) W.set(x, Y, T.FENCE);
+      for (let x = X - 8; x <= X + 8; x++) if (Math.abs(x - X) > 2 && Math.abs(x - X) < 7) cloture(x, Y);
       pnj(X + 2, Y + 1, { sprite: 'jardinier', text: ['Attention où tu marches, ce sont mes navets !'] });
       objet(X - 4, Y + 6, pick(['oran-berry', 'sitrus-berry', 'oran-berry']));
     } else if (kind === 'lac') {
