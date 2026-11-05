@@ -171,7 +171,7 @@ input[type=color] { width: 30px; height: 26px; padding: 1px 2px; border: 1px sol
 .bouton-macro:hover { background: linear-gradient(#fff, #dbeafe); border-color: var(--accent); }
 .bouton-macro:active { background: #d1d5db; box-shadow: inset 0 1px 2px rgba(0,0,0,.25); }
 .bouton-macro.forme { border-radius: 6px; }
-.image-feuille { position: absolute; z-index: 3; pointer-events: auto; user-select: none; -webkit-user-drag: none; }
+.image-feuille { position: absolute; z-index: 5; pointer-events: auto; user-select: none; -webkit-user-drag: none; }
 .image-feuille.cliquable { cursor: pointer; }
 .cellule.note::after { content: ''; position: absolute; right: 0; top: 0; border-style: solid; border-width: 0 6px 6px 0; border-color: transparent #dc2626 transparent transparent; }
 .voile { position: fixed; inset: 0; background: rgba(17,24,39,.45); z-index: 80; display: flex; align-items: center; justify-content: center; padding: 12px; }
@@ -544,3 +544,20 @@ body.pinceau #grille-conteneur { cursor: copy; }
 .csv-apercu table { border-collapse: collapse; font-size: 12px; }
 .csv-apercu td { border: 1px solid var(--bord-doux); padding: 2px 6px; white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 .csv-apercu tr:first-child td { font-weight: 600; background: var(--fond-doux); }
+
+/* Galerie des modèles */
+.galerie-modeles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.carte-modele { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 12px; height: auto; white-space: normal; border: 1px solid var(--bord-doux); border-radius: 8px; background: var(--papier); cursor: pointer; }
+.carte-modele:hover, .carte-modele:focus-visible { border-color: #1f7a4d; box-shadow: 0 0 0 2px #1f7a4d33; }
+.carte-modele .icone { font-size: 26px; line-height: 1; }
+.carte-modele b { font-size: 14px; }
+.carte-modele span:last-child { font-size: 12px; color: var(--texte-2); line-height: 1.35; }
+@media (max-width: 600px) { .galerie-modeles { grid-template-columns: 1fr 1fr; gap: 8px; } .carte-modele { padding: 9px; } }
+
+/* Formes et zones de texte */
+.forme-feuille { overflow: visible; }
+.forme-feuille .forme-texte { pointer-events: none; }
+.forme-feuille.actif { outline: 1.5px dashed var(--accent); outline-offset: 2px; }
+.objet-redim { position: absolute; z-index: 5; width: 12px; height: 12px; background: var(--papier); border: 2px solid var(--accent); border-radius: 3px; cursor: nwse-resize; pointer-events: auto; }
+@media (pointer: coarse) { .objet-redim { width: 22px; height: 22px; margin: -5px 0 0 -5px; border-radius: 50%; } }
+.editeur-forme { position: fixed; z-index: 60; margin: 0; padding: 0; border: none; outline: 2px solid var(--accent); background: transparent; resize: none; overflow: hidden; white-space: pre-wrap; }

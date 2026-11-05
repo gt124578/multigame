@@ -913,34 +913,49 @@ function texteFormat(v, fmt) {
 
 /** Formate un numéro de série selon un motif de date (jj/mm/aaaa, dd-mmm-yyyy, hh:mm…). */
 export function formaterDate(serie, fmt) {
-  const d = serieVersDate(serie);
+  // Arrondi à la seconde, comme Excel (0,4583333 s'affiche 11:00 et non 10:59)
+  const d = serieVersDate(Math.round(serie * 86400) / 86400);
   const pad = (n, l = 2) => String(n).padStart(l, '0');
+  // Durées : [h], [mm], [ss] comptent au-delà de 24 h / 60 min (total des heures d'une semaine)
+  const totalSec = Math.round(Math.abs(serie) * 86400), ecoule = [];
+  const sansDurees = fmt.split(';')[0].replace(/\[(h+|m+|s+)\]/gi, (x, u) => {
+    const k = u[0].toLowerCase(), n = k === 'h' ? Math.floor(totalSec / 3600) : k === 'm' ? Math.floor(totalSec / 60) : totalSec;
+    ecoule.push((serie < 0 && !ecoule.length ? '-' : '') + pad(n, u.length));
+    return k === 'h' ? '\u0003' : k === 'm' ? '\u0004' : '\u0005';
+  });
   const moisNoms = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   const joursNoms = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
   const h24 = d.getUTCHours(), mi = d.getUTCMinutes(), s = d.getUTCSeconds();
-  let f = fmt.split(';')[0].replace(/\[[^\]]*\]/g, '').replace(/\\(.)/g, '$1').replace(/"([^"]*)"/g, '$1');
+  // Textes entre guillemets et caractères échappés : mis de côté pour que leurs lettres ne soient pas lues (« [h]"h"mm »)
+  const litteraux = [], noms = [];
+  // Noms de mois et de jours : posés à part, sinon le « m » de « novembre » ou le « d » de « décembre » serait remplacé
+  const nom = (t) => '\u0007' + String.fromCharCode(0xe000 + noms.push(t) - 1);
+  let f = sansDurees.replace(/"([^"]*)"|\\(.)/g, (x, a, b) => { litteraux.push(a ?? b); return '\u0006'; }).replace(/\[[^\]]*\]/g, '');
   // AM/PM : heures sur 12 ; le marqueur est mis de côté pour que ses lettres ne soient pas prises pour des mois
   const ampm = /AM\/PM|A\/P/i.exec(f);
   if (ampm) f = f.replace(ampm[0], '\u0002');
   const h = ampm ? (h24 % 12 || 12) : h24;
   // Les « m » juste après « h » ou avant « s » sont des minutes.
-  f = f.replace(/(h+[:.\s]*)m+/gi, (x) => x.replace(/m+/i, (mm) => '§'.repeat(mm.length)));
+  f = f.replace(/([h\u0003]+[:.\s\u0006]*)m+/gi, (x) => x.replace(/m+/i, (mm) => '§'.repeat(mm.length)));
   f = f.replace(/m+(?=[:.\s]*s)/gi, (mm) => '§'.repeat(mm.length));
   return f
     .replace(/yyyy|aaaa/gi, String(d.getUTCFullYear()))
     .replace(/yy|aa/gi, pad(d.getUTCFullYear() % 100))
-    .replace(/mmmm/gi, moisNoms[d.getUTCMonth()])
-    .replace(/mmm/gi, moisNoms[d.getUTCMonth()].slice(0, 3))
+    .replace(/mmmm/gi, () => nom(moisNoms[d.getUTCMonth()]))
+    .replace(/mmm/gi, () => nom(moisNoms[d.getUTCMonth()].slice(0, 3)))
     .replace(/mm/gi, pad(d.getUTCMonth() + 1))
     .replace(/(?<![a§])m(?![a§])/gi, String(d.getUTCMonth() + 1))
-    .replace(/dddd|jjjj/gi, joursNoms[d.getUTCDay()])
-    .replace(/ddd|jjj/gi, joursNoms[d.getUTCDay()].slice(0, 3))
+    .replace(/dddd|jjjj/gi, () => nom(joursNoms[d.getUTCDay()]))
+    .replace(/ddd|jjj/gi, () => nom(joursNoms[d.getUTCDay()].slice(0, 3)))
     .replace(/dd|jj/gi, pad(d.getUTCDate()))
     .replace(/(?<![a-z§])[dj](?![a-z§])/gi, String(d.getUTCDate()))
     .replace(/hh/gi, pad(h)).replace(/(?<![a-z])h(?![a-z])/gi, String(h))
     .replace(/§§/g, pad(mi)).replace(/§/g, String(mi))
     .replace(/ss/gi, pad(s)).replace(/(?<![a-z])s(?![a-z])/gi, String(s))
-    .replace('\u0002', ampm ? (ampm[0].length > 3 ? (h24 < 12 ? 'AM' : 'PM') : (h24 < 12 ? 'A' : 'P')) : '');
+    .replace('\u0002', ampm ? (ampm[0].length > 3 ? (h24 < 12 ? 'AM' : 'PM') : (h24 < 12 ? 'A' : 'P')) : '')
+    .replace(/[\u0003-\u0005]/g, () => ecoule.shift() ?? '')
+    .replace(/\u0006/g, () => litteraux.shift() ?? '')
+    .replace(/\u0007([\ue000-\uefff])/g, (x, k) => noms[k.charCodeAt(0) - 0xe000] ?? '');
 }
 
 // Couleurs des formats de nombre (« [Rouge] », « [Red] », « [Couleur10] »…)

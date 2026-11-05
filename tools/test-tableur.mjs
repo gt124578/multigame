@@ -22,6 +22,8 @@ import { solveur, lireContrainte, calculerTableDonnees, remplissageInstantane, a
 import { paginer, htmlPages, zonesImpression, mp, versExcel, depuisExcel } from '../tableur/js/impression.js';
 import { hacherMotDePasse, verifierShaMotDePasse } from '../tableur/js/page-xlsx.js';
 import { versOpenFormula, depuisOpenFormula } from '../tableur/js/ods.js';
+import { MODELES, creerModele } from '../tableur/js/modeles.js';
+import { nouvelleForme, formeHTML } from '../tableur/js/formes.js';
 import { decoderTexte, analyserCsv, detecterSeparateur, detecterDecimale, ecrireCsv } from '../tableur/js/csv.js';
 import crypto from 'node:crypto';
 
@@ -1251,6 +1253,108 @@ test('csv : encodage, séparateur, guillemets, écriture à la française', () =
   egal(ecrireCsv([['a;b', '1,5'], ['c"d', '']]), '"a;b";1,5\r\n"c""d";\r\n');
   const c = Classeur.nouveau(); c.saisir(0, 0, 0, '12,5'); c.saisir(0, 0, 1, '01/02/2024'); c.saisir(0, 1, 0, 'é;x');
   egal(new TextDecoder('utf-8', { ignoreBOM: true }).decode(ecrireClasseur(XLSX, c, { bookType: 'csv' })), '\uFEFF12,5;01/02/2024\r\n"é;x";\r\n');
+});
+
+test('ods : validations, mises en forme conditionnelles, mise en page, volets figés', () => {
+  const c = Classeur.nouveau(), f = c.feuilles[0];
+  for (let r = 0; r < 10; r++) c.saisir(0, r, 0, String(r * 10));
+  f.validations = [
+    { id: 'a', plage: 'B1:B20', type: 'liste', liste: 'Oui;Non', vides: true, erreur: { style: 'avertissement', titre: 'Attention', texte: 'Oui ou non' }, message: { titre: 'Choix', texte: 'Choisissez' } },
+    { id: 'b', plage: 'C1:C5', type: 'entier', op: '>=', v1: '3', erreur: { style: 'stop' } },
+    { id: 'c', plage: 'D1:D5', type: 'date', op: 'entre', v1: '01/01/2026', v2: '31/12/2026', erreur: { style: 'information' } },
+    { id: 'd', plage: 'E1', type: 'longueur', op: '<=', v1: '10', vides: false, erreur: { style: 'stop' } },
+    { id: 'e', plage: 'F1:F3', type: 'formule', formule: '=F1>A1', erreur: { style: 'stop' } },
+    { id: 'g', plage: 'G1:G3', type: 'liste', liste: '=$A$1:$A$3', fleche: false, erreur: { style: 'stop' } },
+  ];
+  f.mfc = [
+    { id: '1', type: 'valeur', plage: 'A1:A10', op: 'entre', v1: '20', v2: '40', style: { fond: '#ffc7ce' } },
+    { id: '2', type: 'texte', plage: 'B1:B10', op: 'commence', texte: 'O', style: { gras: true } },
+    { id: '3', type: 'top', plage: 'A1:A10', n: 3, bas: true, style: { couleur: '#ff0000' } },
+    { id: '4', type: 'doublons', plage: 'A1:A10', style: { italique: true } },
+    { id: '5', type: 'echelle', plage: 'A1:A10', couleurs: ['#ff0000', '#00ff00'] },
+    { id: '6', type: 'barres', plage: 'A1:A10', couleur: '#123456' },
+    { id: '7', type: 'icones', plage: 'A1:A10', jeu: '4Arrows', seuils: [10, 50, 80], iconeSeule: true },
+    { id: '8', type: 'moyenne', plage: 'A1:A10', dessous: true, style: { fond: '#eeeeee' } },
+  ];
+  f.figer = { r: 2, c: 1 };
+  f.miseEnPage = { orientation: 'paysage', papier: 'A3', ajuster: { l: 1, h: 0 }, centrerH: true, quadrillage: true, zone: 'A1:G10', titresLignes: '1:2' };
+  const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c, { bookType: 'ods' }), 'x.ods'), g = e.feuilles[0];
+  const sans = (l) => l.map(({ id, ...r }) => r);
+  egal(sans(g.validations), [
+    { plage: 'B1:B20', type: 'liste', liste: 'Oui;Non', erreur: { style: 'avertissement', titre: 'Attention', texte: 'Oui ou non' }, message: { titre: 'Choix', texte: 'Choisissez' } },
+    { plage: 'C1:C5', type: 'entier', op: '>=', v1: '3', erreur: { style: 'stop' } },
+    { plage: 'D1:D5', type: 'date', op: 'entre', v1: '01/01/2026', v2: '31/12/2026', erreur: { style: 'information' } },
+    { plage: 'E1', type: 'longueur', op: '<=', v1: '10', vides: false, erreur: { style: 'stop' } },
+    { plage: 'F1:F3', type: 'formule', formule: '=F1>A1', erreur: { style: 'stop' } },
+    { plage: 'G1:G3', type: 'liste', liste: '=$A$1:$A$3', fleche: false, erreur: { style: 'stop' } },
+  ]);
+  egal(sans(g.mfc).map((r) => [r.type, r.op, r.v1, r.v2, r.texte, r.n, r.bas, r.dessous, r.couleurs, r.couleur, r.jeu, r.seuils, r.iconeSeule, r.style]), [
+    ['valeur', 'entre', '20', '40', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { fond: '#ffc7ce' }],
+    ['texte', 'commence', undefined, undefined, 'O', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { gras: true }],
+    ['top', undefined, undefined, undefined, undefined, 3, true, undefined, undefined, undefined, undefined, undefined, undefined, { couleur: '#ff0000' }],
+    ['doublons', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { italique: true }],
+    ['echelle', undefined, undefined, undefined, undefined, undefined, undefined, undefined, ['#ff0000', '#00ff00'], undefined, undefined, undefined, undefined, undefined],
+    ['barres', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, '#123456', undefined, undefined, undefined, undefined],
+    ['icones', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, '4Arrows', [10, 50, 80], true, undefined],
+    ['moyenne', undefined, undefined, undefined, undefined, undefined, undefined, true, undefined, undefined, undefined, undefined, undefined, { fond: '#eeeeee' }],
+  ]);
+  egal([g.figer, g.miseEnPage], [{ r: 2, c: 1 }, { orientation: 'paysage', papier: 'A3', ajuster: { l: 1, h: 0 }, centrerH: true, quadrillage: true, zone: 'A1:G10', titresLignes: '1:2' }]);
+  // Références de tableau : écrites comme des plages ; formats de durée et sections négatives relus
+  const t = Classeur.nouveau();
+  t.saisir(0, 0, 0, 'Prix'); t.saisir(0, 1, 0, '3'); t.saisir(0, 2, 0, '4'); t.creerTableau(0, { r1: 0, c1: 0, r2: 2, c2: 0 }, { nom: 'T' });
+  t.saisir(0, 0, 2, '=SOMME(T[Prix])'); t.saisir(0, 1, 2, '=$A$2*2'); t.saisir(0, 2, 2, '1,5'); t.format(0, 2, 2, '[h]:mm'); t.saisir(0, 3, 2, '-5'); t.format(0, 3, 2, '#,##0.00 €;[Red]-#,##0.00 €');
+  const u = lireClasseur(XLSX, ecrireClasseur(XLSX, t, { bookType: 'ods' }), 'x.ods');
+  egal([u.feuilles[0].get(0, 2).f, u.feuilles[0].get(1, 2).f, u.texte(0, 0, 2), u.texte(0, 2, 2), u.texte(0, 3, 2)], ['=SOMME(A2:A3)', '=$A$2*2', '7', '36:00', '-5,00 €']);
+});
+
+test('formats : durées [h]:mm, noms de mois et de jours, texte entre guillemets', () => {
+  egal([formater(1.4583333, '[h]:mm'), formater(0.375, '[hh]:mm'), formater(1.5, '[mm]:ss'), formater(-0.5, '[h]:mm'), formater(1.4583333, 'hh:mm')], ['35:00', '09:00', '2160:00', '-12:00', '11:00']);
+  egal([formater(46330, 'dddd d mmmm yyyy'), formater(46360, 'ddd dd mmm'), formater(46242, 'mmmm yyyy'), formater(46330.4583333, 'hh"h"mm'), formater(46330, '"Le "dd/mm')],
+    ['mercredi 4 novembre 2026', 'ven 04 déc', 'août 2026', '11h00', 'Le 04/11']);
+});
+
+test('modèles : chaque modèle se calcule sans erreur et passe en xlsx et en ods', () => {
+  for (const m of MODELES) {
+    const c = creerModele(m.cle), f = c.feuilles[0];
+    f.cellules.forEach((cel, k) => { if (cel.f == null) return; const [r, col] = k.split(',').map(Number); const v = c.valeur(0, r, col); if (v instanceof ErreurFormule) throw new Error(m.cle + ' ' + k + ' ' + cel.f + ' → ' + v.code); });
+    for (const bookType of ['xlsx', 'ods']) {
+      const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c, { bookType }), 'x.' + bookType);
+      f.cellules.forEach((cel, k) => { const [r, col] = k.split(',').map(Number); if (c.texte(0, r, col) !== e.texte(0, r, col)) throw new Error(m.cle + ' ' + bookType + ' ' + k + ' « ' + c.texte(0, r, col) + ' » ≠ « ' + e.texte(0, r, col) + ' »'); });
+      egal([e.feuilles[0].mfc.length, e.feuilles[0].validations.length], [f.mfc.length, f.validations.length]);
+    }
+  }
+  const n = creerModele('notes');
+  egal([n.texte(0, 5, 6), n.texte(0, 5, 7), n.texte(0, 5, 8), n.texte(0, 9, 8)], ['13,67', '2', 'Assez bien', 'Insuffisant']);
+  const h = creerModele('heures');
+  egal([h.texte(0, 5, 5), h.texte(0, 13, 5), h.texte(0, 15, 5)], ['8:00', '23:30', '11:30']);
+  const fa = creerModele('facture');
+  egal([fa.texte(0, 21, 4), fa.texte(0, 22, 4), fa.texte(0, 23, 4)], ['181,00 €', '36,20 €', '217,20 €']);
+});
+
+test('formes et zones de texte : dessin, xlsx (vraies formes d\'Excel) et images natives', () => {
+  const c = Classeur.nouveau(), f = c.feuilles[0];
+  c.saisir(0, 0, 0, 'x');
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  f.images.push({ id: 'i1', src: png, titre: 'point', de: { c: 5, dx: 0, r: 2, dy: 0 }, w: 20, h: 20 });
+  f.images.push({ id: 'f1', ...nouvelleForme('texte'), texte: 'Bonjour\nla classe', gras: true, de: { c: 1, dx: 4, r: 1, dy: 4 } });
+  f.images.push({ id: 'f2', ...nouvelleForme('fleche'), texte: 'Suite', fond: '#70ad47', italique: true, align: 'right', de: { c: 1, dx: 0, r: 6, dy: 0 } });
+  f.images.push({ id: 'f3', ...nouvelleForme('ligne'), de: { c: 1, dx: 0, r: 12, dy: 0 }, h: 30, inverse: true, epaisseur: 3 });
+  f.images.push({ id: 'f4', ...nouvelleForme('etoile'), trait: 'aucun', de: { c: 4, dx: 0, r: 12, dy: 0 }, a: { c: 6, dx: 0, r: 16, dy: 0 } });
+  egal([formeHTML(f.images[1], 200, 60).includes('Bonjour'), formeHTML(f.images[4], 100, 100).includes('polygon'), formeHTML(f.images[3], 160, 30).includes('<line')], [true, true, true]);
+  const octets = ecrireClasseur(XLSX, c);
+  // Lues dans le dessin d'Excel seulement (sans la feuille cachée du Tableur)
+  const natifs = lireObjetsXlsx(XLSX, octets).get('Feuil1').images;
+  const resume = (o) => [o.id, o.forme || 'image', o.fond, o.trait, o.texte, o.gras, o.italique, o.align, o.valign, o.inverse, o.epaisseur];
+  egal(natifs.map(resume), [
+    ['i1', 'image', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+    ['f1', 'texte', '#ffffff', '#595959', 'Bonjour\nla classe', true, undefined, 'left', 'top', undefined, 1],
+    ['f2', 'fleche', '#70ad47', '#2f528f', 'Suite', undefined, true, 'right', 'middle', undefined, 1],
+    ['f3', 'ligne', 'aucun', '#4472c4', undefined, undefined, undefined, undefined, undefined, true, 3],
+    ['f4', 'etoile', '#4472c4', 'aucun', '', undefined, undefined, 'center', 'middle', undefined, 1],
+  ]);
+  egal([natifs[0].src.startsWith('data:image/png;base64,'), natifs[0].titre, natifs[4].a], [true, 'point', { c: 6, dx: 0, r: 16, dy: 0 }]);
+  const e = lireClasseur(XLSX, octets, 'x.xlsx');
+  egal(e.feuilles[0].images.map((o) => o.id), ['i1', 'f1', 'f2', 'f3', 'f4']);
 });
 
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);

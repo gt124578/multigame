@@ -1,9 +1,9 @@
 // Lecture et écriture de fichiers .xlsx / .xlsm / .csv avec SheetJS (passé en paramètre : window.XLSX ou require('xlsx')).
 
 import { Classeur } from './classeur.js';
-import { ErreurFormule, parseAdresse, colVersLettres, ERR, convertirFormule, adresse } from './formules.js';
+import { ErreurFormule, parseAdresse, parsePlage, colVersLettres, ERR, convertirFormule, adresse } from './formules.js';
 import { extraireModulesVBA } from './vbaextract.js';
-import { lireStylesXlsx, ecrireStylesXlsx, lireRichesXlsx } from './styles-xlsx.js';
+import { lireMasqueesXlsx, lireStylesXlsx, ecrireStylesXlsx, lireRichesXlsx } from './styles-xlsx.js';
 import { lireObjetsXlsx } from './objets-xlsx.js';
 import { lireVuesXlsx, ecrireVuesXlsx } from './vues-xlsx.js';
 import { lireTableauxXlsx, ecrireTableauxXlsx } from './tableaux-xlsx.js';
@@ -86,7 +86,8 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
       f.set(a.r, a.c, cel);
     }
     if (ws['!cols']) ws['!cols'].forEach((col, ci) => { if (!col) return; const px = col.wpx || (col.wch ? Math.round(col.wch * 7 + 5) : (col.width ? Math.round(col.width * 7 + 5) : null)); if (px) f.largeurs[ci] = px; if (col.hidden) f.largeurs[ci] = 0; });
-    if (ws['!rows']) ws['!rows'].forEach((row, ri) => { if (!row) return; const px = row.hpx || (row.hpt ? Math.round(row.hpt / 0.75) : null); if (px) f.hauteurs[ri] = px; if (row.hidden) f.hauteurs[ri] = 0; });
+    // Hauteurs en points (SheetJS donne parfois hpx = hpt)
+    if (ws['!rows']) ws['!rows'].forEach((row, ri) => { if (!row) return; const px = row.hpt ? Math.round(row.hpt / 0.75) : row.hpx; if (px) f.hauteurs[ri] = px; if (row.hidden) f.hauteurs[ri] = 0; });
     if (ws['!merges']) f.fusions = ws['!merges'].map((m) => ({ r1: m.s.r, c1: m.s.c, r2: m.e.r, c2: m.e.c }));
   });
   if (!classeur.feuilles.length) classeur.ajouterFeuille('Feuil1');
@@ -101,9 +102,21 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
           if (cel) { if (Object.keys(st).length) cel.s = { ...st, ...(cel.s || {}) }; if (_z) cel.z = _z; } else if (Object.keys(st).length || _z) f.set(r, c, { ...(Object.keys(st).length ? { s: { ...st } } : {}), ...(_z ? { z: _z } : {}) });
         }
         for (const [k, fo] of res.formules) { const [r, c] = k.split(',').map(Number); const cel = f.get(r, c); if (cel) cel.f = convertirFormule(fo, 'fr'); }
+        if (res.validations.length) f.validations = res.validations;
+        if (res.mfc.length) f.mfc = res.mfc;
+        if (res.figer) f.figer = res.figer;
+        if (res.miseEnPage) f.miseEnPage = res.miseEnPage;
+        if (res.cachee) f.cachee = true;
+        if (res.filtre && !f.filtre) { const p = parsePlage(res.filtre.split(' ')[0]); if (p) f.filtre = { ...p, criteres: {} }; }
+        for (const g of res.graphiques) if (!f.graphiques.some((x) => x.id === g.id)) f.graphiques.push(g);
+        for (const im of res.images) if (!f.images.some((x) => x.id === im.id)) f.images.push(im);
         f.recalculerZone();
       }
     } catch (e) { console.warn('Styles .ods non lus :', e); }
+  }
+  // Lignes et colonnes masquées par LibreOffice (hidden="true")
+  if (donnees.length > 4 && donnees[0] === 0x50 && donnees[1] === 0x4b && !/\.ods$/i.test(nomFichier)) {
+    try { for (const [nom, m] of lireMasqueesXlsx(XLSX, donnees)) { const f = classeur.feuille(nom); if (!f) continue; for (const r of m.lignes) f.hauteurs[r] = 0; for (const c of m.colonnes) f.largeurs[c] = 0; } } catch (e) { console.warn('Lignes masquées non lues :', e); }
   }
   // Styles (gras, couleurs, bordures) : lus directement dans le zip
   if (donnees.length > 4 && donnees[0] === 0x50 && donnees[1] === 0x4b) {
@@ -187,7 +200,8 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
       if (/^solver_/i.test(n.Name)) { lireNomSolveur(classeur, wb, n); continue; }
       // Un nom peut être propre à une feuille (même nom sur plusieurs feuilles, comme « MortTable »)
       const fi = n.Sheet !== undefined && n.Sheet !== null ? classeur.indexFeuille(wb.SheetNames[n.Sheet]) : null;
-      try { classeur.definirNom(n.Name, convertirFormule('=' + n.Ref, 'fr').slice(1), fi !== null && fi >= 0 ? fi : null); } catch { /* nom non géré */ }
+      const ref = String(n.Ref).replace(/(^|[:,(=+\-*/&;\s])\$(?=('[^']*'|[^!$:,()'\s]+)!)/g, '$1'); // « $Feuille! » des .ods
+      try { classeur.definirNom(n.Name, convertirFormule('=' + ref, 'fr').slice(1), fi !== null && fi >= 0 ? fi : null); } catch { /* nom non géré */ }
     }
   }
   // Boutons reliés à des macros et images posées sur les feuilles
@@ -210,7 +224,10 @@ export function lireClasseur(XLSX, donnees, nomFichier = 'Classeur.xlsx') {
     if (!f || !cle) continue;
     // La description complète gardée par le Tableur remplace celle relue dans le graphique Excel
     const i = f[cle].findIndex((x) => x.id === o.id);
-    if (i < 0) f[cle].push(o); else if (cle === 'graphiques') f[cle][i] = o;
+    if (i < 0) f[cle].push(o);
+    else if (cle === 'graphiques') f[cle][i] = o;
+    // Image ou forme relue dans le dessin d'Excel : sa position (et le texte d'une forme) peut avoir changé dans Excel
+    else if (cle === 'images') { const n = f[cle][i]; f[cle][i] = { ...o, de: n.de, ...(n.a ? { a: n.a } : {}), ...(n.forme ? { texte: n.texte } : {}) }; }
   }
   // Macros
   if (macrosLignes.length) classeur.macros = macrosLignes.join('\n');

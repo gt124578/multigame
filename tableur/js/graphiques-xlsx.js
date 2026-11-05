@@ -5,6 +5,7 @@
 
 import { preparerDonnees, PALETTES, normaliser } from './graphiques.js';
 import { colVersLettres, parsePlage, ErreurFormule } from './formules.js';
+import { PRST } from './formes.js';
 
 const dec = (u8) => new TextDecoder('utf-8').decode(u8);
 const enc = (s) => new TextEncoder().encode(s);
@@ -20,6 +21,7 @@ const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
 const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 const REL_DESSIN = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing';
 const REL_GRAPHIQUE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+const REL_IMAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
 
 /** Feuille et plage désignées par la plage d'un graphique (« Données!A1:C9 » ou « A1:C9 »). */
 export function feuilleEtPlage(classeur, f, plage) {
@@ -205,20 +207,52 @@ function ancreXml(f, g) {
   return coin('from', a, b) + coin('to', c, d);
 }
 
-/** Ajoute les graphiques au .xlsx écrit par SheetJS (les feuilles sont xl/worksheets/sheetK.xml dans l'ordre du classeur). */
+// Rectangle en pixels d'un objet ancré { de, a } ou { de, w, h } (images et formes)
+function rectAncre(f, o) {
+  const x = (c, dx) => { let s = 0; for (let i = 0; i < c; i++) s += f.largeurs[i] ?? LARGEUR_DEFAUT; return s + (dx || 0); };
+  const y = (r, dy) => { let s = 0; for (let i = 0; i < r; i++) s += f.hauteurs[i] ?? HAUTEUR_DEFAUT; return s + (dy || 0); };
+  const x1 = x(o.de.c, o.de.dx), y1 = y(o.de.r, o.de.dy);
+  if (o.a) return { x: x1, y: y1, w: Math.max(1, x(o.a.c, o.a.dx) - x1), h: Math.max(0, y(o.a.r, o.a.dy) - y1) };
+  return { x: x1, y: y1, w: o.w ?? 80, h: o.h ?? 24 };
+}
+const remplissage = (c) => (!c || c === 'aucun' ? '<a:noFill/>' : '<a:solidFill><a:srgbClr val="' + hex(c) + '"/></a:solidFill>');
+/** Forme ou zone de texte en DrawingML (xdr:sp), retrouvée à la relecture grâce à descr="tableur:id". */
+function formeXml(o, id, r) {
+  const ligne = o.forme === 'ligne';
+  const trait = o.trait === 'aucun' ? '<a:ln><a:noFill/></a:ln>' : '<a:ln w="' + Math.round((+o.epaisseur || 1) * EMU) + '">' + remplissage(o.trait || '#000000') + '</a:ln>';
+  const xfrm = '<a:xfrm' + (ligne && o.inverse ? ' flipV="1"' : '') + '><a:off x="' + Math.round(r.x * EMU) + '" y="' + Math.round(r.y * EMU) + '"/><a:ext cx="' + Math.round(r.w * EMU) + '" cy="' + Math.round(r.h * EMU) + '"/></a:xfrm>';
+  const sz = Math.round((o.taille || 15) * 0.75 * 100);
+  const rPr = '<a:rPr lang="fr-FR" sz="' + sz + '"' + (o.gras ? ' b="1"' : '') + (o.italique ? ' i="1"' : '') + (o.souligne ? ' u="sng"' : '') + '>' + remplissage(o.couleurTexte || '#000000') + '<a:latin typeface="' + ech(o.police || 'Calibri') + '"/></a:rPr>';
+  const algn = { left: 'l', center: 'ctr', right: 'r' }[o.align || 'center'];
+  const paras = String(o.texte || '').split('\n').map((l) => '<a:p><a:pPr algn="' + algn + '"/>' + (l ? '<a:r>' + rPr + '<a:t>' + ech(l) + '</a:t></a:r>' : '<a:endParaRPr lang="fr-FR" sz="' + sz + '"/>') + '</a:p>').join('');
+  const corps = ligne ? '' : '<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip" wrap="square" lIns="45720" tIns="45720" rIns="45720" bIns="45720" rtlCol="0" anchor="' + ({ top: 't', middle: 'ctr', bottom: 'b' }[o.valign || 'middle']) + '"/><a:lstStyle/>' + paras + '</xdr:txBody>';
+  return '<xdr:sp macro="' + ech(o.macro || '') + '" textlink=""><xdr:nvSpPr><xdr:cNvPr id="' + id + '" name="' + (o.forme === 'texte' ? 'Zone de texte ' : 'Forme ') + id + '" descr="tableur:' + ech(o.id) + '"/><xdr:cNvSpPr' + (o.forme === 'texte' ? ' txBox="1"' : '') + '/></xdr:nvSpPr>'
+    + '<xdr:spPr>' + xfrm + '<a:prstGeom prst="' + (PRST[o.forme] || 'rect') + '"><a:avLst/></a:prstGeom>' + (ligne ? '<a:noFill/>' : remplissage(o.fond)) + trait + '</xdr:spPr>' + corps + '</xdr:sp>';
+}
+const MIME_EXT = { 'image/png': 'png', 'image/jpeg': 'jpeg', 'image/gif': 'gif', 'image/svg+xml': 'svg', 'image/webp': 'webp', 'image/bmp': 'bmp' };
+function octetsDataUrl(src) {
+  const m = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(src || '');
+  if (!m) return null;
+  const brut = m[2] ? atob(m[3]) : decodeURIComponent(m[3]);
+  const u = new Uint8Array(brut.length); for (let i = 0; i < brut.length; i++) u[i] = brut.charCodeAt(i);
+  return { mime: m[1].toLowerCase(), octets: u };
+}
+
+/** Ajoute les graphiques, images et formes au .xlsx écrit par SheetJS (les feuilles sont xl/worksheets/sheetK.xml dans l'ordre du classeur). */
 export function ecrireGraphiquesXlsx(XLSX, octets, classeur) {
-  if (!classeur.feuilles.some((f) => f.graphiques && f.graphiques.length)) return octets;
+  if (!classeur.feuilles.some((f) => (f.graphiques && f.graphiques.length) || (f.images && f.images.length))) return octets;
   const cfb = XLSX.CFB.read(octets, { type: 'array' });
   const index = (chemin) => cfb.FullPaths.findIndex((p) => p.replace(/^Root Entry\//, '').replace(/^\//, '').toLowerCase() === chemin.toLowerCase());
   const lire = (chemin) => { const i = index(chemin); return i < 0 ? null : dec(Uint8Array.from(cfb.FileIndex[i].content)); };
-  const ecrire = (chemin, texte) => { const i = index(chemin); if (i >= 0) cfb.FileIndex[i].content = enc(texte); else XLSX.CFB.utils.cfb_add(cfb, '/' + chemin, enc(texte)); };
+  const ecrire = (chemin, texte) => { const brut = typeof texte === 'string' ? enc(texte) : texte; const i = index(chemin); if (i >= 0) cfb.FileIndex[i].content = brut; else XLSX.CFB.utils.cfb_add(cfb, '/' + chemin, brut); };
   let types = lire('[Content_Types].xml');
   if (!types) return octets;
-  let nGraph = 0, nDessin = 0;
+  let nGraph = 0, nDessin = 0, nImage = 0;
+  const extensions = new Set();
   while (index('xl/drawings/drawing' + (nDessin + 1) + '.xml') >= 0) nDessin++;
   while (index('xl/charts/chart' + (nGraph + 1) + '.xml') >= 0) nGraph++;
   classeur.feuilles.forEach((f, k) => {
-    if (!f.graphiques || !f.graphiques.length) return;
+    if ((!f.graphiques || !f.graphiques.length) && (!f.images || !f.images.length)) return;
     const cheminFeuille = 'xl/worksheets/sheet' + (k + 1) + '.xml';
     let xml = lire(cheminFeuille);
     if (!xml || xml.includes('<drawing ')) return;
@@ -233,10 +267,29 @@ export function ecrireGraphiquesXlsx(XLSX, octets, classeur) {
       ancres.push('<xdr:twoCellAnchor editAs="oneCell">' + ancreXml(f, g) + '<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="' + (i + 2) + '" name="Graphique ' + (i + 1) + '" descr="tableur:' + ech(g.id) + '"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>'
         + '<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="' + NS_C + '"><c:chart xmlns:c="' + NS_C + '" xmlns:r="' + NS_R + '" r:id="rId' + (i + 1) + '"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>');
     });
+    // Images (vraies images d'Excel) et formes, dans l'ordre de la feuille (le dernier passe devant)
+    let idObjet = 1000;
+    for (const o of f.images || []) {
+      if (!o.de) continue;
+      const r = rectAncre(f, o), ancre = ancreXml(f, r);
+      idObjet++;
+      if (o.forme) { ancres.push('<xdr:twoCellAnchor editAs="oneCell">' + ancre + formeXml(o, idObjet, r) + '<xdr:clientData/></xdr:twoCellAnchor>'); continue; }
+      const img = octetsDataUrl(o.src), ext = img && MIME_EXT[img.mime];
+      if (!ext) continue;
+      nImage++;
+      ecrire('xl/media/image' + nImage + '.' + ext, img.octets);
+      extensions.add(ext + '|' + img.mime);
+      const rid = 'rIdImg' + nImage;
+      relsDessin.push('<Relationship Id="' + rid + '" Type="' + REL_IMAGE + '" Target="../media/image' + nImage + '.' + ext + '"/>');
+      const transparent = o.transparentBlanc ? '<a:clrChange><a:clrFrom><a:srgbClr val="FFFFFF"/></a:clrFrom><a:clrTo><a:srgbClr val="FFFFFF"><a:alpha val="0"/></a:srgbClr></a:clrTo></a:clrChange>' : '';
+      ancres.push('<xdr:twoCellAnchor editAs="oneCell">' + ancre + '<xdr:pic macro="' + ech(o.macro || '') + '"><xdr:nvPicPr><xdr:cNvPr id="' + idObjet + '" name="Image ' + idObjet + '" descr="tableur:' + ech(o.id) + '"' + (o.titre ? ' title="' + ech(o.titre) + '"' : '') + '/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>'
+        + '<xdr:blipFill><a:blip xmlns:r="' + NS_R + '" r:embed="' + rid + '">' + transparent + '</a:blip><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>'
+        + '<xdr:spPr><a:xfrm><a:off x="' + Math.round(r.x * EMU) + '" y="' + Math.round(r.y * EMU) + '"/><a:ext cx="' + Math.round(r.w * EMU) + '" cy="' + Math.round(r.h * EMU) + '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:twoCellAnchor>');
+    }
     if (!ancres.length) return;
     nDessin++;
     const dessin = 'xl/drawings/drawing' + nDessin + '.xml';
-    ecrire(dessin, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="' + NS_A + '">' + ancres.join('') + '</xdr:wsDr>');
+    ecrire(dessin, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="' + NS_A + '" xmlns:r="' + NS_R + '">' + ancres.join('') + '</xdr:wsDr>');
     ecrire('xl/drawings/_rels/drawing' + nDessin + '.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + relsDessin.join('') + '</Relationships>');
     types = types.replace('</Types>', '<Override PartName="/' + dessin + '" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>');
     // Relation feuille → dessin
@@ -252,6 +305,7 @@ export function ecrireGraphiquesXlsx(XLSX, octets, classeur) {
     xml = suivant >= 0 ? xml.slice(0, suivant) + el + xml.slice(suivant) : xml.replace('</worksheet>', el + '</worksheet>');
     ecrire(cheminFeuille, xml);
   });
+  for (const e of extensions) { const [ext, mime] = e.split('|'); if (!new RegExp('Extension="' + ext + '"', 'i').test(types)) types = types.replace('</Types>', '<Default Extension="' + ext + '" ContentType="' + mime + '"/></Types>'); }
   ecrire('[Content_Types].xml', types);
   return new Uint8Array(XLSX.CFB.write(cfb, { fileType: 'zip', type: 'array' }));
 }

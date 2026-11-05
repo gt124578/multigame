@@ -4,6 +4,7 @@
 //
 // Position d'un objet : coin haut-gauche « de » et coin bas-droit « a », chacun { c, dx, r, dy }
 // (colonne et ligne de la cellule, décalage en pixels dans la cellule).
+import { DEPUIS_PRST } from './formes.js';
 
 const EMU_PAR_PX = 9525;
 const dec = (u8) => new TextDecoder('utf-8').decode(u8);
@@ -87,6 +88,42 @@ function enBase64(octets) {
 let compteur = 0;
 const nouvelId = () => 'o' + Date.now().toString(36) + (compteur++).toString(36);
 
+// Forme DrawingML (xdr:sp) → forme du Tableur
+function formeDepuisXml(corps) {
+  const spPr = (/<xdr:spPr>([\s\S]*?)<\/xdr:spPr>/.exec(corps) || [, ''])[1];
+  const prst = (/<a:prstGeom prst="([^"]+)"/.exec(spPr) || [, 'rect'])[1];
+  const boite = /<xdr:cNvSpPr\b[^>]*txBox="1"/.test(corps);
+  const forme = boite ? 'texte' : DEPUIS_PRST[prst] || (/<xdr:txBody>[\s\S]*?<a:t>/.test(corps) ? 'rect' : null);
+  if (!forme) return null;
+  const couleur = (xml) => { if (!xml) return null; if (/^\s*<a:noFill\/>/.test(xml)) return 'aucun'; const m = /<a:srgbClr val="([0-9A-Fa-f]{6})"/.exec(xml); return m ? '#' + m[1].toLowerCase() : null; };
+  const sansLigne = spPr.replace(/<a:ln\b[\s\S]*?<\/a:ln>/, '');
+  const fondXml = /(<a:noFill\/>|<a:solidFill>[\s\S]*?<\/a:solidFill>)/.exec(sansLigne.replace(/<a:prstGeom[\s\S]*?<\/a:prstGeom>/, '').replace(/<a:xfrm[\s\S]*?<\/a:xfrm>/, ''));
+  const ln = /<a:ln\b([^>]*)>([\s\S]*?)<\/a:ln>/.exec(spPr);
+  const style = /<xdr:style>([\s\S]*?)<\/xdr:style>/.exec(corps);
+  const o = { forme };
+  o.fond = (fondXml && couleur(fondXml[1])) || (style ? couleur((/<a:fillRef\b[\s\S]*?<\/a:fillRef>/.exec(style[1]) || [''])[0]) : null) || (forme === 'texte' ? '#ffffff' : forme === 'ligne' ? 'aucun' : '#4472c4');
+  o.trait = (ln && couleur(ln[2])) || (style ? couleur((/<a:lnRef\b[\s\S]*?<\/a:lnRef>/.exec(style[1]) || [''])[0]) : null) || (forme === 'texte' ? '#595959' : '#2f528f');
+  if (ln && /w="(\d+)"/.test(ln[1])) o.epaisseur = Math.round((+/w="(\d+)"/.exec(ln[1])[1] / 9525) * 4) / 4 || 1; else o.epaisseur = 1;
+  if (forme === 'ligne' && /<a:xfrm\b[^>]*flipV="1"/.test(spPr)) o.inverse = true;
+  const tx = /<xdr:txBody>([\s\S]*?)<\/xdr:txBody>/.exec(corps);
+  if (tx) {
+    o.texte = [...tx[1].matchAll(/<a:p>([\s\S]*?)<\/a:p>|<a:p\/>/g)].map((p) => [...(p[1] || '').matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)].map((t) => entites(t[1])).join('')).join('\n').replace(/\n+$/, '');
+    const rPr = /<a:rPr\b([^>]*?)(?:\/>|>([\s\S]*?)<\/a:rPr>)/.exec(tx[1]);
+    if (rPr) {
+      const sz = /sz="(\d+)"/.exec(rPr[1]); if (sz) o.taille = Math.round(+sz[1] / 100 / 0.75);
+      if (/\bb="1"/.test(rPr[1])) o.gras = true;
+      if (/\bi="1"/.test(rPr[1])) o.italique = true;
+      if (/\bu="sng"/.test(rPr[1])) o.souligne = true;
+      const c = couleur(rPr[2] || ''); if (c && c !== 'aucun') o.couleurTexte = c;
+      const lat = /<a:latin typeface="([^"]+)"/.exec(rPr[2] || ''); if (lat && !/^\+|^Calibri$/.test(lat[1])) o.police = entites(lat[1]);
+    }
+    if (!o.couleurTexte) o.couleurTexte = forme === 'texte' ? '#000000' : '#ffffff';
+    const algn = /<a:pPr\b[^>]*algn="(l|ctr|r)"/.exec(tx[1]); o.align = algn ? { l: 'left', ctr: 'center', r: 'right' }[algn[1]] : forme === 'texte' ? 'left' : 'center';
+    const anchor = /<a:bodyPr\b[^>]*anchor="(t|ctr|b)"/.exec(tx[1]); o.valign = anchor ? { t: 'top', ctr: 'middle', b: 'bottom' }[anchor[1]] : forme === 'texte' ? 'top' : 'middle';
+  }
+  return o;
+}
+
 /** Lit les boutons et images : Map nomFeuille → { boutons: [...], images: [...] }. */
 export function lireObjetsXlsx(XLSX, octets) {
   const cfb = XLSX.CFB.read(octets, { type: 'array' });
@@ -160,15 +197,18 @@ export function lireObjetsXlsx(XLSX, octets) {
           const mime = media && mimeDe(media.cible);
           const octetsImg = media && z.lire(media.cible);
           if (!mime || !octetsImg) continue;
-          images.push({ id: nouvelId(), src: 'data:' + mime + ';base64,' + enBase64(Uint8Array.from(octetsImg)), ...anc,
+          const cnv = corps.match(/<xdr:cNvPr\b[^>]*>/)?.[0] || '', descr = attr(cnv, 'descr') || '';
+          images.push({ id: descr.startsWith('tableur:') ? descr.slice(8) : nouvelId(), src: 'data:' + mime + ';base64,' + enBase64(Uint8Array.from(octetsImg)), ...anc,
             transparentBlanc: /<a:clrFrom><a:srgbClr val="FFFFFF"\/><\/a:clrFrom>/i.test(corps), macro: nomMacro(attr(pic[0], 'macro')) || undefined,
-            titre: attr(corps.match(/<xdr:cNvPr\b[^>]*>/)?.[0] || '', 'descr') || undefined });
+            titre: (descr.startsWith('tableur:') ? attr(cnv, 'title') : descr) || undefined });
           continue;
         }
         const sp = /<xdr:sp\b([^>]*)>/.exec(corps);
         if (sp) {
           const macro = nomMacro(attr(sp[0], 'macro'));
-          if (!macro) continue;
+          const descr = attr(corps.match(/<xdr:cNvPr\b[^>]*>/)?.[0] || '', 'descr') || '';
+          // Forme ou zone de texte (écrite par ce tableur, ou dessinée dans Excel sans macro)
+          if (!macro || descr.startsWith('tableur:')) { const o = formeDepuisXml(corps); if (o) images.push({ id: descr.startsWith('tableur:') ? descr.slice(8) : nouvelId(), ...anc, ...o, ...(macro ? { macro } : {}) }); continue; }
           const txt = [...corps.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)].map((x) => entites(x[1])).join(' ').trim();
           const fond = /<xdr:spPr>[\s\S]*?<a:solidFill><a:srgbClr val="([0-9A-Fa-f]{6})"/.exec(corps);
           boutons.push({ id: nouvelId(), texte: txt || 'Bouton', macro, ...anc, forme: true, fond: fond ? '#' + fond[1].toLowerCase() : undefined });
