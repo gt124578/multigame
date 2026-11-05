@@ -12,7 +12,7 @@ import { executerMacro, analyserVBA, InterpreteurVBA, creerUDF } from '../tableu
 import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from '../tableur/js/xlsxio.js';
 import { preparerDonnees, rendreGraphiqueSVG, normaliser, CATEGORIES, calculerTendance, sparklineSVG } from '../tableur/js/graphiques.js';
 import { decompresserOVBA } from '../tableur/js/vbaextract.js';
-import { listerProcedures, insererMacro, supprimerProcedure, ajouterAuProjet, decouperProjet } from '../tableur/js/projetvba.js';
+import { listerProcedures, insererMacro, supprimerProcedure, ajouterAuProjet, decouperProjet, renommerProcedure, renommerModuleProjet, renommerFonctionFormule } from '../tableur/js/projetvba.js';
 import { aesEcbDechiffrer, aesCbcDechiffrer, sha1, sha256, sha384, sha512, estChiffre, dechiffrerOffice, ErreurMotDePasse } from '../tableur/js/chiffrement.js';
 import { lireObjetsXlsx, nomMacro } from '../tableur/js/objets-xlsx.js';
 import * as graphiquesXlsx from '../tableur/js/graphiques-xlsx.js';
@@ -1242,6 +1242,26 @@ test('ods : formats finance (texte autour, milliers, parenthèses, zéro « - »
   const avant = fmts.map((_, i) => c.texte(0, i, 0)).concat(c.texte(0, 6, 0));
   const e = lireClasseur(XLSX, ecrireClasseur(XLSX, c, { bookType: 'ods' }), 'x.ods');
   egal([0, 1, 2, 3, 4, 5, 6].map((r) => e.texte(0, r, 0).trim()), avant.map((t) => t.trim()));
+});
+
+test('vba : renommer une macro, une fonction ou un module met à jour ce qui les cite', () => {
+  const c = Classeur.nouveau();
+  c.ajouterModule('Calculs'); c.ajouterModule('Boutons');
+  c.definirCodeModule('module:Calculs', 'Function lx(age)\n  lx = 1000 - age * 10 \' lx du jour\nEnd Function\n\nSub Remplir()\n  Range("A1").Value = lx(3)\n  MsgBox "Remplir lx"\nEnd Sub');
+  c.definirCodeModule('module:Boutons', 'Sub Go()\n  Remplir\n  Call Calculs.Remplir\n  Application.Run "Calculs.Remplir"\n  x.Remplir = 1\nEnd Sub');
+  c.feuilles[0].boutons.push({ id: 'b1', texte: 'Lancer', macro: 'Remplir' }, { id: 'b2', texte: 'Lancer', macro: 'Calculs.Remplir' });
+  c.saisir(0, 0, 1, '=lx(A1)+LX(2)&"lx("'); c.saisir(0, 1, 1, '=SOMME(lx(A2);1)');
+  const b = renommerProcedure(c, 'module:Calculs', 'Remplir', 'RemplirTable');
+  egal(c.moduleVBA('module:Boutons').code, 'Sub Go()\n  RemplirTable\n  Call Calculs.RemplirTable\n  Application.Run "Calculs.RemplirTable"\n  x.Remplir = 1\nEnd Sub');
+  egal(/MsgBox "Remplir lx"/.test(c.moduleVBA('module:Calculs').code) && /Sub RemplirTable\(\)/.test(c.moduleVBA('module:Calculs').code), true);
+  egal([c.feuilles[0].boutons.map((x) => x.macro), b.objets], [['RemplirTable', 'Calculs.RemplirTable'], 2]);
+  const b2 = renommerProcedure(c, 'module:Calculs', 'lx', 'survivants');
+  egal(c.moduleVBA('module:Calculs').code.split('\n').slice(0, 2), ['Function survivants(age)', "  survivants = 1000 - age * 10 ' lx du jour"]);
+  egal([c.feuilles[0].get(0, 1).f, b2.formules], ['=survivants(A1)+survivants(2)&"lx("', 2]);
+  egal(renommerFonctionFormule('=Feuil1!lx(1)+a.lx(2)+lx (3)', 'lx', 'y'), '=Feuil1!lx(1)+a.lx(2)+y (3)');
+  let refus = ''; try { renommerProcedure(c, 'module:Calculs', 'survivants', 'RemplirTable'); } catch (e) { refus = e.message; } egal(/existe déjà/.test(refus), true);
+  const m = renommerModuleProjet(c, 'Calculs', 'Actuariat');
+  egal([m.nom, c.moduleVBA('module:Boutons').code.split('\n')[2], c.feuilles[0].boutons[1].macro], ['Actuariat', '  Call Actuariat.RemplirTable', 'Actuariat.RemplirTable']);
 });
 
 test('mise en forme conditionnelle : jeux d\'icônes (et xlsx)', () => {

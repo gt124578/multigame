@@ -72,6 +72,8 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
 - **Validation des données** : listes déroulantes (éléments ou plage), nombres entiers ou décimaux, dates, heures, longueur
   du texte, formule personnalisée ; message de saisie, alertes arrêt / avertissement / information, cellules non valides
   entourées ; lue et écrite au format d'Excel (listes prises sur une autre feuille comprises).
+- **Presse-papiers** : copier-coller avec Excel, LibreOffice et les pages web dans les deux sens (texte tabulé, cellules
+  sur plusieurs lignes entre guillemets), sans demande d'autorisation au clavier.
 - **Saisie des formules** : proposition des fonctions (françaises et anglaises) et des noms définis pendant la frappe,
   bulle d'aide sur les arguments des fonctions courantes.
 - **Mise en forme conditionnelle** : valeur de la cellule, texte, premiers / derniers (nombre ou %), moyenne, doublons,
@@ -104,7 +106,8 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
   barre s'appliquent à la forme choisie. Écrites comme de vraies formes d'Excel (et de LibreOffice).
 - **Macros** : projet VBA comme dans l'éditeur d'Excel (`Alt+F11`) — un module de code par feuille (`Feuil1 (Hypothèses)`),
   `ThisWorkbook` et des modules standard nommés (créer, renommer, supprimer, exporter en `.bas`), avec la liste des procédures de
-  chaque module ; boîte **Macros** (`Alt+F8`) pour exécuter, modifier, créer (en la nommant) ou supprimer une macro ; exécution
+  chaque module ; boîte **Macros** (`Alt+F8`) pour exécuter, modifier, créer (en la nommant), renommer ou supprimer une macro
+  (renommer une macro, une fonction ou un module met à jour les appels, les boutons et les formules) ; exécution
   (`F5`, la macro sous le curseur), journal `Debug.Print`, `MsgBox` / `InputBox`. Dans un module de feuille, `Range`, `Cells` et `Me`
   désignent la feuille ; `Feuil1.Range("A1")` (nom de code) et `Module1.MaMacro` (appel qualifié) sont compris.
 - **Tableaux structurés** (`Ctrl+L`) : `Tableau1[Prime]`, `[@Prix]`, `[#Tout]`, `[#En-têtes]`, `[#Totaux]` dans les formules

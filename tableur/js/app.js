@@ -7,7 +7,7 @@ import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from './xls
 import { estChiffre, dechiffrerOffice, ErreurMotDePasse, sha512, sha384, sha256, sha1 } from './chiffrement.js';
 import { hacherMotDePasse, verifierShaMotDePasse, DROITS } from './page-xlsx.js';
 import { executerMacro, analyserVBA, ErreurVBA, InterpreteurVBA, creerUDF } from './vba.js';
-import { listerProcedures, procedureALaLigne, insererMacro, supprimerProcedure, ajouterAuProjet, nomVBAValide } from './projetvba.js';
+import { listerProcedures, procedureALaLigne, insererMacro, supprimerProcedure, ajouterAuProjet, nomVBAValide, renommerProcedure, renommerModuleProjet } from './projetvba.js';
 import { installerGraphiques } from './ui-graphiques.js';
 import { styleConditionnel, validationDe, valeurValide, iconeSVG } from './donnees.js';
 import { installerDonnees } from './ui-donnees.js';
@@ -1260,15 +1260,32 @@ function insererReference(r1, c1, r2, c2) {
 function texteSelection(valeursAffichees = true) {
   const s = selectionBornee();
   const lignes = [];
-  for (let r = s.r1; r <= s.r2; r++) { const l = []; for (let c = s.c1; c <= s.c2; c++) l.push(valeursAffichees ? afficherValeur(classeur.valeur(fi(), r, c), (feuille().get(r, c) || {}).z) : classeur.saisie(fi(), r, c)); lignes.push(l.join('\t')); }
+  // Comme Excel : une cellule qui contient une tabulation, un retour à la ligne ou un guillemet est mise entre guillemets
+  const champ = (t) => (/[\t\n\r"]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t);
+  for (let r = s.r1; r <= s.r2; r++) { const l = []; for (let c = s.c1; c <= s.c2; c++) l.push(champ(String(valeursAffichees ? afficherValeur(classeur.valeur(fi(), r, c), (feuille().get(r, c) || {}).z) : classeur.saisie(fi(), r, c)))); lignes.push(l.join('\t')); }
   return lignes.join('\n');
 }
-async function copier(couper = false) {
-  if (copierObjet(couper)) return;
+/** Texte tabulé venu d'Excel, de LibreOffice ou d'une page : lignes et colonnes, sans les lignes et colonnes vides de la fin. */
+function lireTexteTabule(texte) {
+  const t = texte.replace(/\r\n?/g, '\n');
+  // Champs entre guillemets (retours à la ligne dans une cellule) seulement si les guillemets vont par paires
+  let lignes = (t.match(/"/g) || []).length % 2 === 0 && /(^|[\t\n])"/.test(t) ? analyserCsv(t, '\t') : t.split('\n').map((l) => l.split('\t'));
+  while (lignes.length && lignes[lignes.length - 1].every((v) => v === '')) lignes.pop();
+  let largeur = 0;
+  for (const l of lignes) for (let j = l.length - 1; j >= 0; j--) if (l[j] !== '') { largeur = Math.max(largeur, j + 1); break; }
+  return lignes.map((l) => l.slice(0, Math.max(largeur, 1)));
+}
+function preparerCopie(couper) {
+  if (copierObjet(couper)) return null;
   pressePapierObjet = null;
   const s = selectionBornee();
   const texte = texteSelection();
   pressePapier = { classeur, feuille: feuille(), ...s, couper, texte, systeme: false };
+  return texte;
+}
+async function copier(couper = false) {
+  const texte = preparerCopie(couper);
+  if (texte == null) return;
   try { await navigator.clipboard.writeText(texte); pressePapier.systeme = true; } catch { /* presse-papiers système indisponible (mobile, permissions) */ }
   rendre();
 }
@@ -1279,15 +1296,27 @@ async function coller(texteSysteme) {
     // Le navigateur peut attendre indéfiniment une autorisation (mobile) : on n'attend pas plus d'une demi-seconde
     if (pressePapier && !pressePapier.systeme) texte = null;
     else {
-      try { texte = await Promise.race([navigator.clipboard.readText(), new Promise((ok) => setTimeout(() => ok(null), 500))]); }
+      let lecture = null;
+      try { lecture = navigator.clipboard.readText(); texte = await Promise.race([lecture, new Promise((ok) => setTimeout(() => ok(undefined), 500))]); }
       catch { texte = null; }
+      if (texte === undefined) {
+        // Le navigateur demande l'autorisation (ou montre sa bulle « Coller ») : sans copie interne, on colle dès qu'il répond
+        texte = null;
+        if (!pressePapier) {
+          const sel = JSON.stringify(selection);
+          toast('Autorisez l\'accès au presse-papiers, ou collez avec Ctrl+V');
+          lecture.then((t) => { if (t && JSON.stringify(selection) === sel) coller(t); }, () => {});
+          return;
+        }
+      }
+      if (texte == null && !pressePapier) { toast('Le navigateur ne laisse pas lire le presse-papiers ici : collez avec Ctrl+V (au doigt : appui long dans la barre de formule › Coller)'); return; }
     }
   }
   const dest = selectionNormalisee();
   if (feuilleProtegee()) {
     // Taille de ce qui est collé : la cible doit être entièrement déverrouillée
-    const lignes = texte ? texte.replace(/\r?\n$/, '').split(/\r?\n/) : null;
-    const h = pressePapier && !texte ? pressePapier.r2 - pressePapier.r1 : lignes ? lignes.length - 1 : 0, w = pressePapier && !texte ? pressePapier.c2 - pressePapier.c1 : lignes ? Math.max(...lignes.map((l) => l.split('\t').length)) - 1 : 0;
+    const lignes = texte ? lireTexteTabule(texte) : null;
+    const h = pressePapier && !texte ? pressePapier.r2 - pressePapier.r1 : lignes ? lignes.length - 1 : 0, w = pressePapier && !texte ? pressePapier.c2 - pressePapier.c1 : lignes ? Math.max(...lignes.map((l) => l.length)) - 1 : 0;
     memoriser(plageVerrouillee({ r1: dest.r1, c1: dest.c1, r2: Math.max(dest.r2, dest.r1 + h), c2: Math.max(dest.c2, dest.c1 + w) }) ? null : 'cellules');
   } else memoriser();
   // Copie interne prioritaire si le presse-papiers du système est vide, inaccessible ou n'a pas pu la recevoir
@@ -1326,9 +1355,14 @@ async function coller(texteSysteme) {
     selection = { r1: dest.r1, c1: dest.c1, r2: dest.r1 + nl * repL - 1, c2: dest.c1 + nc * repC - 1 };
     if (pressePapier) pressePapier.colle = true;
   } else if (texte != null && texte !== '') {
-    const lignes = texte.replace(/\r\n?/g, '\n').replace(/\n$/, '').split('\n');
-    lignes.forEach((l, i) => l.split('\t').forEach((v, j) => classeur.saisir(fi(), dest.r1 + i, dest.c1 + j, v)));
-    selection = { r1: dest.r1, c1: dest.c1, r2: dest.r1 + lignes.length - 1, c2: dest.c1 + Math.max(...lignes.map((l) => l.split('\t').length)) - 1 };
+    const lignes = lireTexteTabule(texte);
+    if (!lignes.length) return;
+    // Une ligne ou une colonne copiée, collée sur une plage plus grande qui en est un multiple : répétée, comme dans Excel
+    const nl = lignes.length, nc = Math.max(...lignes.map((l) => l.length));
+    const hd = dest.r2 - dest.r1 + 1, ld = dest.c2 - dest.c1 + 1;
+    const repL = hd > nl && hd % nl === 0 && hd < 100000 ? hd / nl : 1, repC = ld > nc && ld % nc === 0 && ld < 1000 ? ld / nc : 1;
+    for (let a = 0; a < repL; a++) for (let b = 0; b < repC; b++) lignes.forEach((l, i) => l.forEach((v, j) => classeur.saisir(fi(), dest.r1 + a * nl + i, dest.c1 + b * nc + j, v)));
+    selection = { r1: dest.r1, c1: dest.c1, r2: dest.r1 + nl * repL - 1, c2: dest.c1 + nc * repC - 1 };
   }
   curseur = { r: dest.r1, c: dest.c1 };
   sauvegarderLocal();
@@ -2053,6 +2087,7 @@ function rendreArbreVBA(forcer = true) {
       q.addEventListener('contextmenu', (e) => { e.preventDefault(); ouvrirMenu(e.clientX, e.clientY, [
         ...(p.macro ? [['▶ Exécuter', () => executerMacroUI(m.nom + '.' + p.nom)]] : []),
         ['Modifier', () => afficherModule(m.cle, p.ligne)],
+        ['Renommer…', () => renommerMacroUI(m.cle, p.nom)],
         null,
         ['Supprimer « ' + p.nom + ' »', () => supprimerMacroUI(m.cle, p.nom)],
       ]); });
@@ -2084,11 +2119,23 @@ function nouveauModuleUI() {
   try { const n = classeur.ajouterModule(nom.trim() || propose); if (panneauCourant !== 'macros') ouvrirPanneau('macros'); afficherModule('module:' + n); $('code-vba').focus(); sauvegarderLocal(); toast('Module « ' + n + ' » créé'); }
   catch (e) { toast(e.message, true); }
 }
+const bilanRenommage = (b) => { const t = [b.appels && b.appels + ' appel' + (b.appels > 1 ? 's' : ''), b.objets && b.objets + ' bouton' + (b.objets > 1 ? 's' : ''), b.formules && b.formules + ' formule' + (b.formules > 1 ? 's' : '')].filter(Boolean); return t.length ? ' (' + t.join(', ') + ' mis à jour)' : ''; };
 function renommerModuleUI(ancien) {
   const nom = prompt('Nouveau nom du module « ' + ancien + ' » :', ancien);
   if (nom == null || nom.trim() === ancien) return;
-  try { const n = classeur.renommerModule(ancien, nom); afficherModule('module:' + n); sauvegarderLocal(); }
+  try { const b = renommerModuleProjet(classeur, ancien, nom); afficherModule('module:' + b.nom); sauvegarderLocal(); rendre(); toast('Module renommé « ' + b.nom + ' »' + bilanRenommage(b)); }
   catch (e) { toast(e.message, true); }
+}
+/** Renomme une macro ou une fonction : sa déclaration, les appels dans tout le projet, les boutons et les formules. */
+function renommerMacroUI(cle, ancien) {
+  const nom = prompt('Nouveau nom de « ' + ancien + ' » (les appels, les boutons et les formules qui l\'utilisent suivent) :', ancien);
+  if (nom == null || nom.trim() === ancien) return false;
+  try {
+    const b = renommerProcedure(classeur, cle, ancien, nom);
+    afficherModule(classeur._moduleActif || cle); sauvegarderLocal(); rendre();
+    toast('« ' + ancien + ' » renommée « ' + nom.trim() + ' »' + bilanRenommage(b));
+    return nom.trim();
+  } catch (e) { toast(e.message, true); return false; }
 }
 function supprimerModuleUI(nom) {
   const m = classeur.moduleVBA('module:' + nom);
@@ -2310,7 +2357,7 @@ function rendreDialogueMacros() {
   if (!macros.length) { const v = document.createElement('div'); v.className = 'arbre-vide'; v.textContent = 'Aucune macro. Tapez un nom puis « Créer ».'; liste.appendChild(v); }
   macroChoisie = choisi;
   for (const el of liste.children) el.classList.toggle('choisi', !!choisi && el.dataset.q === choisi.qualifie);
-  $('macro-executer').disabled = !choisi; $('macro-modifier').disabled = !choisi; $('macro-supprimer').disabled = !choisi;
+  $('macro-executer').disabled = !choisi; $('macro-modifier').disabled = !choisi; $('macro-supprimer').disabled = !choisi; $('macro-renommer').disabled = !choisi;
   $('macro-creer').disabled = !texte || !!choisi;
 }
 function cibleCreation() {
@@ -2468,7 +2515,7 @@ function rendreAide() {
 <li>Formules : <code>=SOMME(A1:A10)</code>, <code>=SI(B2&gt;0;"oui";"non")</code>, <code>=VPM(taux/12;n;-capital)</code>, <code>=LOI.NORMALE.STANDARD.N(1,96)</code>, <code>=RECHERCHEV(x;Table;2;FAUX)</code>… Noms anglais et français acceptés, séparateurs <code>;</code> ou <code>,</code>, virgule ou point décimal.</li>
 <li>Autres feuilles : <code>=Hypothèses!B2</code>, <code>='Ma feuille'!A1:A9</code>. Noms définis : zone à gauche de la barre de formule.</li>
 <li>Pendant la saisie d'une formule, cliquez ou glissez sur la grille pour insérer une référence.</li>
-<li>Copier / couper / coller (<code>Ctrl+C/X/V</code>) décale les références relatives (<code>$A$1</code> reste fixe). Poignée en bas à droite : recopie et séries. <code>Ctrl+D</code> recopie vers le bas, <code>Ctrl+R</code> vers la droite.</li>
+<li>Copier / couper / coller (<code>Ctrl+C/X/V</code>) décale les références relatives, comme dans Excel : <code>=lx(A10)</code> collée une colonne à droite devient <code>=lx(B10)</code> ; pour garder la colonne, écrivez <code>=lx($A10)</code> (<code>F4</code> ajoute les <code>$</code>). Une plage copiée dans Excel ou LibreOffice se colle directement ici, et inversement. Poignée en bas à droite : recopie et séries. <code>Ctrl+D</code> recopie vers le bas, <code>Ctrl+R</code> vers la droite.</li>
 <li><b>Au doigt</b> (téléphone, tablette) : un appui sélectionne une cellule, un second appui la modifie (le clavier s'ouvre) ; glisser depuis la sélection l'étend, glisser ailleurs fait défiler ; un appui long ouvre le menu (copier, coller, insérer…) sur les cellules, les onglets, les boutons et les graphiques. Le bouton ☰ à gauche de la barre de formule masque les outils (masqués d'office en paysage). ↶ ↷ : annuler, rétablir.</li>
 <li><code>Ctrl+Z</code> / <code>Ctrl+Y</code> annuler / rétablir. <code>Ctrl+flèches</code> saute au bord d'un bloc. Clic droit : menu.</li>
 <li>Formats : <code>Ctrl+B/I/U</code>, couleurs, alignement, menu <b>Bordures</b>, formats de nombre, boutons de décimales : tout est lu et écrit dans le <code>.xlsx</code>.</li>
@@ -2506,9 +2553,9 @@ function rendreAide() {
 <ul>
 <li>Sous-ensemble de VBA : <code>Sub</code>/<code>Function</code>, <code>Dim</code>, tableaux, <code>If</code>, <code>Select Case</code>, <code>For</code>/<code>For Each</code>, <code>Do</code>/<code>While</code>, <code>With</code>, <code>On Error</code>, <code>Collection</code>, <code>Scripting.Dictionary</code>.</li>
 <li>Objets : <code>Worksheets("x")</code>, <code>ActiveSheet</code>, <code>Range</code>, <code>Cells</code>, <code>Rows</code>, <code>Columns</code>, <code>Offset</code>, <code>Resize</code>, <code>End(xlUp)</code>, <code>UsedRange</code>, <code>Value</code>, <code>Formula</code>, <code>NumberFormat</code>, <code>Font</code>, <code>Interior</code>, <code>WorksheetFunction.*</code>, <code>MsgBox</code>, <code>InputBox</code>, <code>Debug.Print</code> (sortie sous l'éditeur).</li>
-<li><b>Projet VBA</b> (bouton <b>VBA</b>, <code>Alt+F11</code>) : comme dans Excel, chaque feuille a son module de code (<code>Feuil1 (Hypothèses)</code>), le classeur a <code>ThisWorkbook</code>, et vous ajoutez des modules nommés avec <b>+ Module</b> (double-clic pour renommer, clic droit pour supprimer ou exporter en .bas). Sous chaque module s'affichent ses procédures : un clic y mène, un double-clic exécute une macro. Clic droit sur un onglet de feuille : <b>Visualiser le code</b>.</li>
+<li><b>Projet VBA</b> (bouton <b>VBA</b>, <code>Alt+F11</code>) : comme dans Excel, chaque feuille a son module de code (<code>Feuil1 (Hypothèses)</code>), le classeur a <code>ThisWorkbook</code>, et vous ajoutez des modules nommés avec <b>+ Module</b> (double-clic pour renommer, clic droit pour supprimer ou exporter en .bas). Sous chaque module s'affichent ses procédures : un clic y mène, un double-clic exécute une macro, clic droit › <b>Renommer…</b> change son nom partout (appels dans le code, boutons, formules qui utilisent une fonction) ; renommer un module met aussi à jour les appels <code>Module.Macro</code>. Clic droit sur un onglet de feuille : <b>Visualiser le code</b>.</li>
 <li>Dans un module de feuille, <code>Range</code>, <code>Cells</code> et <code>Me</code> désignent cette feuille. Une feuille s'appelle aussi par son nom de code : <code>Feuil1.Range("A1")</code> ; une procédure par son module : <code>Module1.MaMacro</code>.</li>
-<li><b>Macros</b> (<code>Alt+F8</code>) : la liste de toutes les macros du classeur. Tapez un nom puis <b>Créer</b> pour définir une nouvelle macro, ou choisissez-en une pour l'<b>Exécuter</b>, la <b>Modifier</b> ou la <b>Supprimer</b>. <b>+ Macro</b> crée une macro nommée dans le module affiché.</li>
+<li><b>Macros</b> (<code>Alt+F8</code>) : la liste de toutes les macros du classeur. Tapez un nom puis <b>Créer</b> pour définir une nouvelle macro, ou choisissez-en une pour l'<b>Exécuter</b>, la <b>Modifier</b>, la <b>Renommer</b> ou la <b>Supprimer</b>. <b>+ Macro</b> crée une macro nommée dans le module affiché.</li>
 <li><code>F5</code> exécute la macro où se trouve le curseur (ou celle choisie dans la liste) ; <code>Ctrl+Z</code> annule ses effets sur la feuille active.</li>
 <li><b>Boutons</b> : les boutons d'un fichier Excel (« Load Table »…) apparaissent sur la feuille et lancent leur macro. Clic droit pour changer le texte, la macro ou la place ; <b>🔘 Bouton</b> en crée un sur la sélection. Quand une macro demande une plage (<code>Application.InputBox … Type:=8</code>), la sélection en cours est proposée : sélectionnez la plage avant de cliquer.</li>
 <li>Les variables <code>Public</code> remplies par une macro restent en mémoire pour les fonctions VBA des cellules (comme dans Excel). Tant qu'elles ne sont pas remplies, les cellules gardent les valeurs enregistrées dans le fichier. <code>F9</code> recalcule, <code>Ctrl+Alt+F9</code> oublie les valeurs du fichier et recalcule tout.</li>
@@ -2935,9 +2982,11 @@ conteneur.addEventListener('keydown', (e) => {
   if (k === 'Escape') { pressePapier = null; return rendre(); }
   if (ctrl) {
     const K = k.toLowerCase();
-    if (K === 'c') { e.preventDefault(); return copier(false); }
-    if (K === 'x') { e.preventDefault(); return copier(true); }
-    if (K === 'v') { e.preventDefault(); return coller(); }
+    // Le navigateur envoie ensuite « copy », « cut » ou « paste » avec le presse-papiers, sans demander d'autorisation ;
+    // s'il ne le fait pas (certains navigateurs, hors d'un champ), on passe par l'API du presse-papiers.
+    if (K === 'c' && !e.altKey) return parClavier(() => copier(false));
+    if (K === 'x') return parClavier(() => copier(true));
+    if (K === 'v' && !e.altKey) return parClavier(() => coller());
     if (K === 'z') { e.preventDefault(); return annuler(); }
     if (K === 'y') { e.preventDefault(); return retablir(); }
     if (K === 'b') { e.preventDefault(); return basculerStyle('gras'); }
@@ -3051,7 +3100,19 @@ document.addEventListener('keydown', (e) => {
   const K = e.key.toLowerCase();
   if ((K === 'f' || K === 'h') && e.target.id !== 'code-vba') { e.preventDefault(); uiD.ouvrirRecherche(K === 'h'); }
 });
-conteneur.addEventListener('paste', (e) => { if (edition) return; e.preventDefault(); coller(e.clipboardData.getData('text/plain')); });
+let attenteClavier = null;
+function parClavier(action) { clearTimeout(attenteClavier); attenteClavier = setTimeout(() => { attenteClavier = null; action(); }, 80); }
+function surCopie(e, couper) {
+  if (edition) return;
+  clearTimeout(attenteClavier); attenteClavier = null;
+  e.preventDefault();
+  const texte = preparerCopie(couper);
+  if (texte != null) { e.clipboardData.setData('text/plain', texte); pressePapier.systeme = true; }
+  rendre();
+}
+conteneur.addEventListener('copy', (e) => surCopie(e, false));
+conteneur.addEventListener('cut', (e) => surCopie(e, true));
+conteneur.addEventListener('paste', (e) => { if (edition) return; clearTimeout(attenteClavier); attenteClavier = null; e.preventDefault(); coller(e.clipboardData.getData('text/plain')); });
 
 // ----- Éditeur de cellule -----
 editeur.lang = 'fr';
@@ -3352,6 +3413,7 @@ $('macros-dans').addEventListener('change', rendreDialogueMacros);
 $('macro-executer').addEventListener('click', () => { if (!macroChoisie) return; const q = macroChoisie.qualifie; fermerDialogueMacros(); executerMacroUI(q); });
 $('macro-modifier').addEventListener('click', () => { if (!macroChoisie) return; const p = macroChoisie; fermerDialogueMacros(); if (panneauCourant !== 'macros') ouvrirPanneau('macros'); afficherModule(p.cle, p.ligne + 1); });
 $('macro-creer').addEventListener('click', () => { const nom = $('macro-nom').value.trim(); if (!nomVBAValide(nom)) return toast('Nom de macro invalide : une lettre, puis des lettres, chiffres ou _ (sans espace ni tiret)', true); const cle = cibleCreation(); if (creerMacro(nom, cle)) fermerDialogueMacros(); });
+$('macro-renommer').addEventListener('click', () => { if (!macroChoisie) return; const p = macroChoisie, n = renommerMacroUI(p.cle, p.nom); if (n) { macroChoisie = null; $('macro-nom').value = p.module.genre === 'module' ? n : p.module.nom + '.' + n; rendreDialogueMacros(); } });
 $('macro-supprimer').addEventListener('click', () => { if (macroChoisie && supprimerMacroUI(macroChoisie.cle, macroChoisie.nom)) { macroChoisie = null; $('macro-nom').value = ''; rendreDialogueMacros(); } });
 $('macro-fermer').addEventListener('click', fermerDialogueMacros);
 $('dialogue-macros').addEventListener('mousedown', (e) => { if (e.target.id === 'dialogue-macros') fermerDialogueMacros(); });
