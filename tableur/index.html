@@ -21,7 +21,7 @@
         <button id="btn-ouvrir" title="Ouvrir un fichier .xlsx / .xlsm / .ods / .xls / .csv / .docx (tableaux) / .bas (module VBA) (Ctrl+O)">Ouvrir…</button><button id="btn-ouvrir-menu" class="fleche" title="Fichiers récents, enregistrer sous">▾</button>
         <input type="file" id="fichier-image" accept="image/*" hidden>
         <input type="file" id="fichier" accept=".xlsx,.xlsm,.xls,.csv,.tsv,.ods,.docx,.bas,.cls,.frm" multiple hidden>
-        <button id="btn-enregistrer" title="Enregistrer (Ctrl+S) ; Enregistrer sous : F12">Enregistrer</button>
+        <button id="btn-enregistrer" title="Enregistrer (Ctrl+S) ; Enregistrer sous : F12">Enregistrer</button><button id="btn-enregistrer-menu" class="fleche" title="Enregistrer sous, télécharger une copie, enregistrement automatique">▾</button>
         <select id="format-export" title="Format d'enregistrement">
           <option value="xlsx">.xlsx</option>
           <option value="xlsm">.xlsm (avec macros)</option>
@@ -111,7 +111,7 @@
         <button id="btn-bouton" title="Insérer un bouton qui lance une macro VBA (sur la sélection)">🔘 Bouton</button>
         <span class="sep"></span>
         <button id="btn-noms" title="Noms définis">Noms</button>
-        <button id="btn-fonctions" title="Liste des fonctions">ƒx</button>
+        <button id="btn-fonctions" title="Insérer une fonction : celles d'Excel et les fonctions VBA du classeur (Maj+F3)">ƒx</button>
         <button id="btn-macros-liste" title="Macros du classeur : exécuter, modifier, créer, supprimer (Alt+F8)">Macros</button>
         <button id="btn-macros" title="Éditeur de macros VBA : modules de chaque feuille et modules nommés (Alt+F11)">VBA</button>
         <button id="btn-aide" title="Aide">?</button>
@@ -161,8 +161,11 @@
               <button id="btn-nouvelle-macro" title="Créer une macro nommée dans le module affiché">+ Macro</button>
               <button id="btn-liste-macros" title="Toutes les macros du classeur (Alt+F8)">Macros…</button>
             </div>
+            <input id="recherche-vba" type="search" placeholder="🔍 Rechercher dans les modules et les macros (Ctrl+F)" autocomplete="off" spellcheck="false">
+            <div id="resultats-vba" class="resultats-vba" hidden></div>
             <div id="arbre-vba" class="arbre"></div>
           </div>
+          <div id="erreurs-vba" class="erreurs-vba" hidden></div>
           <div class="module-entete"><span class="module-label">Code :</span> <span id="module-titre">Module1</span></div>
           <div class="panneau-barre">
             <select id="liste-procedures" title="Macro à exécuter (celle où se trouve le curseur est choisie d'office)"></select>

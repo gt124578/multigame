@@ -37,6 +37,30 @@ export const Nothing = Symbol('Nothing');
 export const Empty = undefined;
 export const Null = null;
 
+/** Valeur convertie au type déclaré (case d'un tableau As Double…) ; une cellule (Range) donne sa valeur. */
+function versType(v, type, ligne) {
+  const t = String(type || '').toUpperCase();
+  if (v instanceof RangeVBA && !['RANGE', 'OBJECT', 'VARIANT'].includes(t)) v = v.valeur();
+  if (t === 'STRING') return texte(scalaire(v));
+  if (['INTEGER', 'LONG', 'BYTE', 'LONGLONG'].includes(t)) return arrondiBancaire(nombre(scalaire(v), ligne));
+  if (['DOUBLE', 'SINGLE', 'CURRENCY', 'DECIMAL', 'DATE'].includes(t)) return nombre(scalaire(v), ligne);
+  if (t === 'BOOLEAN') return booleen(scalaire(v), ligne);
+  if (t === 'VARIANT' && v instanceof RangeVBA) return v.valeur();
+  return v;
+}
+/** Copie d'un tableau (en VBA, « a = b » copie le tableau), cases converties au type déclaré de la variable. */
+function copierTableau(src, type, ligne) {
+  const t = new TableauVBA(src.dims.map((d) => ({ lb: d.lb, ub: d.ub })));
+  const T = String(type || '').toUpperCase();
+  const convertir = T && T !== 'VARIANT' && T !== 'OBJECT';
+  for (let i = 0; i < src.data.length; i++) t.data[i] = convertir ? versType(src.data[i], T, ligne) : src.data[i];
+  t.type = type || src.type;
+  return t;
+}
+
+/** Jeton cité dans un message d'erreur : « la fin de la ligne » plutôt que « nl ». */
+function decrireJeton(t) { return t.t === 'nl' ? 'la fin de la ligne' : t.t === 'eof' ? 'la fin du module' : String(t.v ?? t.t); }
+
 export class TableauVBA {
   /** dims : [{lb, ub}, …] */
   constructor(dims, base = 0) {
@@ -329,8 +353,10 @@ class ParseurVBA {
   attendreKw(v) { const t = this.next(); if (t.t !== 'kw' || t.v !== v) throw erreur(E_ARG, 'Attendu « ' + v + ' »', t.l); return t; }
   attendreOp(v) { const t = this.next(); if (t.t !== 'op' || t.v !== v) throw erreur(E_ARG, 'Attendu « ' + v + ' »', t.l); return t; }
   attendreId() { const t = this.next(); if (t.t !== 'id') throw erreur(E_ARG, 'Nom attendu', t.l); return t.v; }
+  /** Nom d'un membre de Type ou d'Enum : les mots réservés courants (Base, Type, Step…) y sont permis. */
+  idOuMotCle() { const t = this.next(); if (t.t === 'id' || t.t === 'kw') return t.v; throw erreur(E_ARG, 'Nom attendu', t.l); }
   finLigne() { while (this.peek().t === 'nl') this.next(); }
-  attendreNl() { const t = this.peek(); if (t.t !== 'nl' && t.t !== 'eof') throw erreur(E_ARG, 'Fin d\'instruction attendue, trouvé « ' + (t.v ?? t.t) + ' »', t.l); this.finLigne(); }
+  attendreNl() { const t = this.peek(); if (t.t !== 'nl' && t.t !== 'eof') throw erreur(E_ARG, 'Fin d\'instruction attendue, trouvé « ' + decrireJeton(t) + ' »', t.l); this.finLigne(); }
 
   programme() {
     const prog = { procedures: new Map(), globales: [], base: 0, explicit: false };
@@ -350,15 +376,25 @@ class ParseurVBA {
       while (this.estKw('PUBLIC') || this.estKw('PRIVATE') || this.estKw('STATIC') || this.estKw('GLOBAL') || this.estKw('FRIEND')) modif = this.next().v;
       if (this.estKw('SUB') || this.estKw('FUNCTION') || (this.estKw('PROPERTY'))) { const p = this.procedure(); p.prive = modif === 'PRIVATE'; prog.procedures.set(p.nom.toUpperCase(), p); continue; }
       if (this.estKw('DECLARE')) { while (this.peek().t !== 'nl' && this.peek().t !== 'eof') this.next(); this.attendreNl(); continue; }
-      if (this.estKw('TYPE') || this.estKw('ENUM')) { // Type / Enum : on garde les constantes d'un Enum
-        const quoi = this.next().v; const nom = this.attendreId(); this.attendreNl();
+      if (this.estKw('TYPE') || this.estKw('ENUM')) { // Enum : des constantes ; Type : des enregistrements (Dim s As MonType)
+        const quoi = this.next().v; const nom = this.idOuMotCle(); this.attendreNl();
         let val = 0;
+        const membres = [];
         while (!(this.estKw('END') && this.estKw(quoi, 1))) {
           if (this.peek().t === 'eof') throw erreur(E_ARG, 'End ' + quoi + ' manquant');
-          if (quoi === 'ENUM') { const id = this.attendreId(); if (this.estOp('=')) { this.next(); val = nombre(this.constante()); } prog.globales.push({ k: 'const', nom: id, expr: { k: 'lit', v: val }, l: this.peek().l }); val++; }
-          else while (this.peek().t !== 'nl') this.next();
+          if (this.peek().t === 'nl') { this.finLigne(); continue; }
+          if (quoi === 'ENUM') { const id = this.idOuMotCle(); if (this.estOp('=')) { this.next(); val = nombre(this.constante()); } prog.globales.push({ k: 'const', nom: id, expr: { k: 'lit', v: val }, l: this.peek().l }); membres.push({ nom: id, v: val }); val++; }
+          else {
+            const id = this.idOuMotCle(); let dims = null, type = null;
+            if (this.estOp('(')) { this.next(); dims = []; while (!this.estOp(')')) { const a = this.expression(); if (this.estKw('TO')) { this.next(); dims.push({ lb: a, ub: this.expression() }); } else dims.push({ lb: null, ub: a }); if (this.estOp(',')) this.next(); } this.attendreOp(')'); }
+            if (this.estKw('AS')) { this.next(); type = this.typeNom(); }
+            while (this.peek().t !== 'nl' && this.peek().t !== 'eof') this.next(); // « * 20 » d'un String fixe
+            membres.push({ nom: id, dims, type });
+          }
           this.attendreNl();
         }
+        if (quoi === 'TYPE') { prog.types = prog.types || new Map(); prog.types.set(nom.toUpperCase(), { nom, membres }); }
+        else { prog.enums = prog.enums || new Map(); prog.enums.set(nom.toUpperCase(), { nom, membres }); }
         this.next(); this.next(); this.attendreNl(); continue;
       }
       if (this.estKw('DIM') || this.estKw('CONST') || (modif && (this.peek().t === 'id'))) {
@@ -367,7 +403,7 @@ class ParseurVBA {
         else prog.globales.push(...this.declarationsDim());
         this.attendreNl(); continue;
       }
-      throw erreur(E_ARG, 'Instruction inattendue hors d\'une procédure : « ' + (t.v ?? t.t) + ' »', t.l);
+      throw erreur(E_ARG, 'Instruction inattendue hors d\'une procédure : « ' + decrireJeton(t) + ' »', t.l);
     }
     return prog;
   }
@@ -744,7 +780,7 @@ class ParseurVBA {
     else if (t.t === 'op' && t.v === '.') { base = { k: 'with', l }; }
     else if (t.t === 'id') { this.next(); base = { k: 'id', nom: t.v, l }; }
     else if (t.t === 'kw' && ['ERROR', 'PROPERTY', 'GET', 'TYPE', 'BASE', 'COMPARE', 'STEP', 'IN', 'EXPLICIT'].includes(t.v)) { this.next(); base = { k: 'id', nom: t.v, l }; }
-    else throw erreur(E_ARG, 'Expression attendue, trouvé « ' + (t.v ?? t.t) + ' »', l);
+    else throw erreur(E_ARG, 'Expression attendue, trouvé « ' + decrireJeton(t) + ' »', l);
     const chaine = [];
     for (;;) {
       if (this.estOp('.')) {
@@ -782,6 +818,38 @@ export class ObjetVBA {
   index(args, it) { throw erreur(E_MEMBRE, 'Objet non indexable'); }
   setIndex(args, v, it) { throw erreur(E_MEMBRE, 'Objet non indexable'); }
   *iterer() { throw erreur(E_MEMBRE, 'Cet objet ne prend pas en charge l\'énumération'); }
+}
+
+/** Variable d'un type défini par Type … End Type : ses champs (`s.taux`), tableaux compris (`s.flux(3)`). */
+class EnregistrementVBA extends ObjetVBA {
+  constructor(it, def) {
+    super(); this.def = def; this.champs = new Map();
+    for (const m of def.membres) {
+      let v;
+      if (m.dims) {
+        const portee = { vars: it.globales, parent: null };
+        v = new TableauVBA(m.dims.map((d) => ({ lb: d.lb ? nombre(it.evaluer(d.lb, portee)) : it.prog.base, ub: nombre(it.evaluer(d.ub, portee)) })));
+        v.type = m.type; remplirDefaut(v); it.remplirEnregistrements(v);
+      } else v = it.valeurDefaut(m.type);
+      this.champs.set(m.nom.toUpperCase(), v);
+    }
+  }
+  get typeName() { return this.def.nom; }
+  champ(nom) { const k = nom.toUpperCase(); if (!this.champs.has(k)) throw erreur(E_MEMBRE, 'Membre inconnu du type ' + this.def.nom + ' : ' + nom); return k; }
+  get(nom, args) { const v = this.champs.get(this.champ(nom)); if (args && args.length && v instanceof TableauVBA) return v.get(args.map((a) => nombre(a.v))); return v; }
+  set(nom, args, v) {
+    const k = this.champ(nom);
+    if (args && args.length) { const t = this.champs.get(k); if (!(t instanceof TableauVBA)) throw erreur(E_MEMBRE, nom + ' n\'est pas un tableau'); t.set(args.map((a) => nombre(a.v)), v); return; }
+    this.champs.set(k, v);
+  }
+  copie() { const c = Object.create(EnregistrementVBA.prototype); c.def = this.def; c.champs = new Map([...this.champs].map(([k, v]) => [k, v instanceof EnregistrementVBA ? v.copie() : v])); return c; }
+}
+
+/** Nom d'un Enum utilisé comme préfixe : `Scenario.Haut`. */
+class EnumVBA extends ObjetVBA {
+  constructor(def) { super(); this.def = def; }
+  get typeName() { return 'Enum'; }
+  get(nom) { const m = this.def.membres.find((x) => x.nom.toUpperCase() === nom.toUpperCase()); if (!m) throw erreur(E_MEMBRE, 'Membre inconnu de l\'Enum ' + this.def.nom + ' : ' + nom); return m.v; }
 }
 
 const posArgs = (args) => args.filter((a) => !a.nomme);
@@ -1278,10 +1346,10 @@ class WorksheetFunctionVBA extends ObjetVBA {
       try { r = def.paresseux ? def.fn(a.map((v) => ({ k: 'lit', v })), (n) => n.v, ev) : def.fn(a, ev); } finally { ev.courant = sauve; }
       if (r instanceof Plage) r = r.taille === 1 ? r.valeur(0, 0) : r.matrice();
       if (Array.isArray(r)) return TableauVBA.depuisMatrice(r);
-      if (r instanceof ErreurFormule) throw erreur(E_NOM, 'Erreur de la fonction ' + nom + ' : ' + r.code);
+      if (r instanceof ErreurFormule) { const x = erreur(E_NOM, 'Erreur de la fonction ' + nom + ' : ' + r.code); x.valeurErreur = r; throw x; }
       return r === null ? undefined : r;
     } catch (e) {
-      if (e instanceof ErreurFormule) throw erreur(E_NOM, 'Erreur de la fonction ' + nom + ' : ' + e.code);
+      if (e instanceof ErreurFormule) { const x = erreur(E_NOM, 'Erreur de la fonction ' + nom + ' : ' + e.code); x.valeurErreur = e; throw x; }
       throw e;
     }
   }
@@ -1311,10 +1379,21 @@ class ApplicationVBA extends ObjetVBA {
       case 'USERNAME': return 'Utilisateur';
       case 'PI': return Math.PI;
       case 'INTERNATIONAL': return 1;
-      case 'MATCH': case 'VLOOKUP': case 'SUM': case 'MAX': case 'MIN': case 'COUNTA': case 'COUNTIF': case 'SUMIF': case 'AVERAGE': case 'ROUND': case 'INDEX': case 'TRANSPOSE': case 'SUMPRODUCT':
-        return new WorksheetFunctionVBA(it).get(N, args, it);
+      case 'CALLER': {
+        // La cellule dont la formule appelle la fonction VBA en cours
+        const a = it.appelant;
+        if (!a) throw erreur(E_MEMBRE, 'Application.Caller : la macro n\'a pas été lancée depuis une cellule');
+        return new RangeVBA(it, a.feuille, a.r, a.c, a.r, a.c);
+      }
+      case 'THISCELL': { const a = it.appelant; return a ? new RangeVBA(it, a.feuille, a.r, a.c, a.r, a.c) : Nothing; }
     }
     if (N in this.props || Object.keys(this.props).some((k) => k.toUpperCase() === N)) return this.props[Object.keys(this.props).find((k) => k.toUpperCase() === N)];
+    // Application.VLookup, Application.Max, Application.NormSDist… : toutes les fonctions de feuille ;
+    // une erreur (#N/A…) est rendue comme valeur d'erreur au lieu d'arrêter la macro, comme dans Excel
+    if (fonctionFeuille(nom.replace(/_/g, '.'))) {
+      try { return new WorksheetFunctionVBA(it).get(N, args, it, true); }
+      catch (e) { if (e instanceof ErreurVBA && e.valeurErreur) return e.valeurErreur; throw e; }
+    }
     throw erreur(E_MEMBRE, 'Membre d\'Application non géré : ' + nom);
   }
   set(nom, args, v) {
@@ -1410,6 +1489,7 @@ const CONSTANTES = {
   VBCRITICAL: 16, VBQUESTION: 32, VBEXCLAMATION: 48, VBINFORMATION: 64, VBDEFAULTBUTTON2: 256,
   VBOK: 1, VBCANCEL: 2, VBABORT: 3, VBRETRY: 4, VBIGNORE: 5, VBYES: 6, VBNO: 7,
   VBBLACK: 0, VBRED: 255, VBGREEN: 65280, VBYELLOW: 65535, VBBLUE: 16711680, VBMAGENTA: 16711935, VBCYAN: 16776960, VBWHITE: 16777215,
+  XLERRDIV0: 2007, XLERRNA: 2042, XLERRNAME: 2029, XLERRNULL: 2000, XLERRNUM: 2036, XLERRREF: 2023, XLERRVALUE: 2015,
   XLUP: -4162, XLDOWN: -4121, XLTOLEFT: -4159, XLTORIGHT: -4161, XLNONE: -4142, XLCENTER: -4108, XLLEFT: -4131, XLRIGHT: -4152, XLGENERAL: 1,
   XLCALCULATIONAUTOMATIC: -4105, XLCALCULATIONMANUAL: -4135, XLASCENDING: 1, XLDESCENDING: 2, XLYES: 1, XLNO: 2, XLGUESS: 0,
   XLCONTINUOUS: 1, XLTHIN: 2, XLTHICK: 4, XLMEDIUM: -4138, XLSOLID: 1, XLAUTOMATIC: -4105, XLSHEETVISIBLE: -1, XLSHEETHIDDEN: 0, XLSHEETVERYHIDDEN: 2,
@@ -1470,6 +1550,7 @@ const FONCTIONS_VBA = {
   ISEMPTY: (a) => scalaire(a[0]) === undefined, ISNULL: (a) => scalaire(a[0]) === null, ISARRAY: (a) => a[0] instanceof TableauVBA, ISOBJECT: (a) => estObjet(a[0]) || a[0] === Nothing, ISMISSING: (a) => a[0] === undefined,
   ISDATE: (a) => { const v = scalaire(a[0]); if (typeof v === 'number') return true; try { FONCTIONS_VBA.CDATE([v]); return true; } catch { return false; } },
   ISERROR: (a) => a[0] instanceof ErreurFormule,
+  CVERR: (a) => { const n = nombre(a[0]); return new ErreurFormule({ 2000: '#NULL!', 2007: '#DIV/0!', 2015: '#VALUE!', 2023: '#REF!', 2029: '#NAME?', 2036: '#NUM!', 2042: '#N/A' }[n] || '#VALUE!'); },
   INSTR: (a) => { let d = 1, s, sub, mode = 0; if (typeof a[0] === 'number' && a.length >= 3) { d = a[0]; s = texte(a[1]); sub = texte(a[2]); mode = a[3] === undefined ? 0 : nombre(a[3]); } else { s = texte(a[0]); sub = texte(a[1]); mode = a[2] === undefined ? 0 : nombre(a[2]); } if (mode === 1) { s = s.toLowerCase(); sub = sub.toLowerCase(); } return s.indexOf(sub, d - 1) + 1; },
   INSTRREV: (a) => { let s = texte(a[0]), sub = texte(a[1]); const d = a[2] === undefined || a[2] === -1 ? s.length : nombre(a[2]); if ((a[3] !== undefined ? nombre(a[3]) : 0) === 1) { s = s.toLowerCase(); sub = sub.toLowerCase(); } return s.lastIndexOf(sub, d - sub.length) + 1; },
   REPLACE: (a) => { const s = texte(a[0]), anc = texte(a[1]), nouv = texte(a[2]); const d = a[3] === undefined ? 1 : nombre(a[3]); let n = a[4] === undefined ? -1 : nombre(a[4]); const mode = a[5] === undefined ? 0 : nombre(a[5]); let out = s.slice(d - 1); if (!anc) return out; const re = new RegExp(anc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), mode === 1 ? 'gi' : 'g'); return out.replace(re, (m) => (n === 0 ? m : (n--, nouv))); },
@@ -1525,6 +1606,7 @@ export class InterpreteurVBA {
     this.globales = new Map();
     this.prog = { procedures: new Map(), globales: [], base: 0, explicit: false };
     this.modulesCharges = new Map(); // NOM DU MODULE (majuscules) → { nom, genre, feuille }
+    this.types = new Map();          // Type … End Type : NOM → { nom, membres }
     this.limitePas = 5_000_000;
     this.pas = 0;
     this.selection = null;
@@ -1591,6 +1673,8 @@ export class InterpreteurVBA {
       if (!deja || !module || module.genre === 'module' || (deja.moduleInfo && deja.moduleInfo.genre !== 'module')) this.prog.procedures.set(k, p);
     }
     if (!module || module.genre === 'module' || prog.base) this.prog.base = prog.base;
+    if (prog.types) for (const [k, d] of prog.types) this.types.set(k, d);
+    if (prog.enums) for (const [k, d] of prog.enums) this.globales.set(k, { v: new EnumVBA(d), const: true });
     if (prog.explicit) this.prog.explicit = true;
     const portee = { vars: this.globales, parent: null };
     try { for (const g of prog.globales) this.executer(g, portee); }
@@ -1725,7 +1809,7 @@ export class InterpreteurVBA {
           if (s.dims.length === 0) v = new TableauVBA([{ lb: 0, ub: -1 }]); // tableau dynamique
           else v = new TableauVBA(s.dims.map((d) => ({ lb: d.lb ? nombre(this.evaluer(d.lb, portee)) : this.prog.base, ub: nombre(this.evaluer(d.ub, portee)) })));
           v.type = s.type;
-          remplirDefaut(v);
+          remplirDefaut(v); this.remplirEnregistrements(v);
         } else if (s.nouveau) v = this.creerObjet(s.type, s.l);
         else v = this.valeurDefaut(s.type);
         portee.vars.set(s.nom.toUpperCase(), { v, type: s.type });
@@ -1748,7 +1832,7 @@ export class InterpreteurVBA {
             else if (ancien.dims.length === 2 && t.dims.length === 2) { for (let i = t.dims[0].lb; i <= t.dims[0].ub; i++) for (let j = t.dims[1].lb; j <= t.dims[1].ub; j++) if (i >= ancien.dims[0].lb && i <= ancien.dims[0].ub && j >= ancien.dims[1].lb && j <= ancien.dims[1].ub) t.set([i, j], ancien.get([i, j])); }
           }
           if (ancien instanceof TableauVBA) t.type = ancien.type;
-          remplirDefaut(t, s.preserve && ancien instanceof TableauVBA);
+          remplirDefaut(t, s.preserve && ancien instanceof TableauVBA); this.remplirEnregistrements(t);
           this.affecter(sansIndex, t, portee, s.l, true);
         }
         return;
@@ -1840,9 +1924,15 @@ export class InterpreteurVBA {
     throw erreur(E_ARG, 'Instruction non gérée : ' + s.k, s.l);
   }
 
+  /** Les cases d'un tableau déclaré « As MonType » reçoivent chacune leur enregistrement. */
+  remplirEnregistrements(tab) {
+    const d = tab.type && this.types.get(String(tab.type).toUpperCase());
+    if (d) for (let i = 0; i < tab.data.length; i++) if (!(tab.data[i] instanceof EnregistrementVBA)) tab.data[i] = new EnregistrementVBA(this, d);
+  }
   valeurDefaut(type) {
     if (!type) return undefined;
     const t = type.toUpperCase();
+    if (this.types && this.types.has(t)) return new EnregistrementVBA(this, this.types.get(t));
     if (['INTEGER', 'LONG', 'DOUBLE', 'SINGLE', 'CURRENCY', 'BYTE', 'LONGLONG', 'DECIMAL', 'DATE'].includes(t)) return 0;
     if (t === 'STRING') return '';
     if (t === 'BOOLEAN') return false;
@@ -2040,7 +2130,11 @@ export class InterpreteurVBA {
         const g = this.objetGlobal(cible.base.nom, null, portee, ligne);
         if (g.trouve) { if (g.v instanceof ObjetVBA) { g.v.set('VALUE', null, v, this); return; } }
       }
-      if (slot && slot.type && !set) {
+      if (slot && slot.type && !set && (v instanceof TableauVBA || (slot.ref ? slot.ref.get() : slot.v) instanceof TableauVBA)) {
+        // Tableau typé (Dim t() As Double) : t = une fonction qui rend un tableau → copie, cases converties au type
+        if (!(v instanceof TableauVBA)) throw erreur(E_TYPE, 'Type incompatible : un tableau est attendu', ligne);
+        v = copierTableau(v, slot.type, ligne);
+      } else if (slot && slot.type && !set) {
         const t = slot.type.toUpperCase();
         if (t === 'STRING') v = texte(scalaire(v));
         else if (['INTEGER', 'LONG', 'BYTE', 'LONGLONG'].includes(t)) v = arrondiBancaire(nombre(scalaire(v), ligne));
@@ -2073,7 +2167,7 @@ export class InterpreteurVBA {
       if (!(objet instanceof ObjetVBA)) throw erreur(E_MEMBRE, 'Propriété non gérée : ' + dernier.nom, ligne);
       objet.set(dernier.nom, args, v, this);
     } else {
-      if (objet instanceof TableauVBA) objet.set(args.map((a) => nombre(a.v, ligne)), v);
+      if (objet instanceof TableauVBA) objet.set(args.map((a) => nombre(a.v, ligne)), objet.type ? versType(v, objet.type, ligne) : v instanceof RangeVBA ? v.valeur() : v);
       else if (objet instanceof ObjetVBA) objet.setIndex(args, v, this);
       else throw erreur(E_INDICE, 'Cette variable n\'est pas un tableau', ligne);
     }
@@ -2108,7 +2202,7 @@ export function creerUDF(it) {
   return (nom) => {
     const p = it.prog.procedures.get(nom.toUpperCase());
     if (!p || !p.fonction) return null;
-    return (args) => {
+    return (args, ev) => {
       const conv = (v) => {
         if (v instanceof Plage) { const b = v.bornes(); return new RangeVBA(it, v.feuille, b.r1, b.c1, b.r2, b.c2); }
         if (Array.isArray(v)) return TableauVBA.depuisMatrice(v);
@@ -2117,15 +2211,18 @@ export function creerUDF(it) {
       };
       it.pas = 0;
       let r;
+      const avant = it.appelant;
+      it.appelant = ev && ev.courant ? { feuille: ev.courant.feuille, r: ev.courant.r, c: ev.courant.c } : null;
       try { r = it.appelerProcedure(p, args.map((v) => ({ v: conv(v) }))); }
       catch (e) {
         const marquer = (x) => { x.vba = true; return x; };
-        if (e instanceof ErreurVBA) throw marquer(new ErreurFormule('#VALUE!', e.description));
+        if (e instanceof ErreurVBA) throw marquer(new ErreurFormule('#VALUE!', 'VBA, fonction ' + p.nom + (e.ligne ? ', ligne ' + e.ligne + (e.module ? ' de ' + e.module : '') : '') + ' : ' + e.description));
         if (e instanceof ErreurFormule) throw marquer(e);
         if (e instanceof SignalExit) r = undefined;
         else if (e instanceof RangeError) throw marquer(new ErreurFormule('#VALUE!', 'récursion'));
         else throw e;
-      }
+      } finally { it.appelant = avant; }
+      if (r instanceof ErreurFormule) throw r; // CVErr(xlErrNA)…
       if (r instanceof RangeVBA) r = r.valeur();
       if (r instanceof TableauVBA) return r.matrice();
       if (r instanceof ObjetVBA || r === Nothing) throw new ErreurFormule('#VALUE!', 'objet renvoyé');

@@ -133,6 +133,8 @@ input[type=color] { width: 30px; height: 26px; padding: 1px 2px; border: 1px sol
 @media (max-width: 520px) { .dialogue-corps { flex-direction: column; } .dialogue-boutons { flex-direction: row; flex-wrap: wrap; width: auto; padding-top: 0; } }
 #liste-fonctions, #liste-noms { overflow: auto; flex: 1; }
 .fonction { padding: 4px 6px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
+.fonctions-titre { padding: 6px 6px 3px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--sourd); }
+.fonction-vba b { color: #1f7a4d; }
 .fonction:hover { background: var(--accent-clair); }
 .fonction b { font-family: var(--mono); } .fonction small { color: var(--sourd); display: block; }
 .nom-defini { display: flex; gap: 6px; align-items: center; padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
@@ -145,7 +147,7 @@ input[type=color] { width: 30px; height: 26px; padding: 1px 2px; border: 1px sol
 .onglet { padding: 3px 12px; background: var(--fond-fort); border: 1px solid var(--bord); border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; white-space: nowrap; user-select: none; }
 .onglet.actif { background: var(--papier); color: var(--accent); font-weight: 600; }
 .onglet.cachee { opacity: .5; font-style: italic; }
-#statut { color: var(--sourd); font-size: 12px; white-space: nowrap; padding-left: 10px; }
+#statut { color: var(--sourd); font-size: 12px; white-space: nowrap; padding-left: 10px; max-width: 55vw; overflow: hidden; text-overflow: ellipsis; }
 
 .menu { position: fixed; z-index: 50; background: var(--papier); border: 1px solid var(--bord-fort); border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.15); padding: 4px; min-width: 190px; max-height: calc(100vh - 16px); max-width: calc(100vw - 16px); overflow: auto; box-sizing: border-box; }
 .menu div { padding: 5px 12px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; gap: 18px; align-items: center; }
@@ -174,6 +176,7 @@ input[type=color] { width: 30px; height: 26px; padding: 1px 2px; border: 1px sol
 .image-feuille { position: absolute; z-index: 5; pointer-events: auto; user-select: none; -webkit-user-drag: none; }
 .image-feuille.cliquable { cursor: pointer; }
 .cellule.note::after { content: ''; position: absolute; right: 0; top: 0; border-style: solid; border-width: 0 6px 6px 0; border-color: transparent #dc2626 transparent transparent; }
+.cellule.gardee::before { content: ""; position: absolute; left: 0; top: 0; border-style: solid; border-width: 6px 6px 0 0; border-color: #e8a317 transparent transparent transparent; }
 .voile { position: fixed; inset: 0; background: rgba(17,24,39,.45); z-index: 80; display: flex; align-items: center; justify-content: center; padding: 12px; }
 #dialogue-mdp .dialogue { padding: 18px 20px; width: min(420px, 100%); display: block; }
 #dialogue-mdp h3 { margin: 0 0 8px; font-size: 15px; }
@@ -581,3 +584,30 @@ table.espion td.n { text-align: right; font-variant-numeric: tabular-nums; }
 table.espion td.f { font-family: var(--mono); color: var(--texte-2); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.lien { border: none; background: none; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; min-width: 0; height: auto; }
 #entetes-lignes.avec-plan .entete-lig { padding-left: 13px; box-sizing: border-box; }
+
+/* Recherche dans le projet VBA, modules illisibles */
+#recherche-vba { width: calc(100% - 12px); box-sizing: border-box; margin: 4px 6px; flex: none; padding: 4px 6px; font: inherit; font-size: 12px; border: 1px solid var(--bord); border-radius: 4px; background: var(--fond, #fff); color: inherit; }
+.resultats-vba { flex: 1 1 auto; min-height: 0; margin: 0 6px 6px; overflow-y: auto; border: 1px solid var(--bord); border-radius: 4px; margin-bottom: 4px; font-size: 12px; background: var(--fond, #fff); }
+.resultats-vba .rv-total { padding: 3px 6px; color: #777; font-size: 11px; border-bottom: 1px solid var(--bord); }
+.resultats-vba .rv-item { display: flex; gap: 6px; align-items: baseline; padding: 3px 6px; cursor: pointer; }
+.resultats-vba .rv-item:hover { background: rgba(31, 122, 77, .1); }
+.resultats-vba .rv-ic { width: 12px; text-align: center; color: #1f7a4d; flex: none; }
+.resultats-vba .rv-txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, Consolas, monospace; }
+.resultats-vba .rv-ou { color: #888; font-size: 11px; flex: none; }
+#projet-vba.cherche #arbre-vba { display: none; }
+.resultats-vba mark { background: #ffe680; color: inherit; border-radius: 2px; }
+.erreurs-vba { margin: 4px 0; padding: 6px 8px; border: 1px solid #e0a0a0; background: #fdf0f0; color: #8a1f1f; border-radius: 4px; font-size: 12px; }
+.erreurs-vba > div + div { margin-top: 4px; }
+@media (pointer: coarse) { .resultats-vba .rv-item { padding: 8px 6px; } #recherche-vba { font-size: 16px; } }
+
+/* Références colorées dans la formule en cours de saisie (même couleur que leur cadre sur la grille) */
+#barre-formule { position: relative; }
+.saisie-miroir { position: absolute; pointer-events: none; overflow: hidden; color: var(--texte); background: var(--papier); border-style: solid; border-color: transparent; margin: 0; }
+textarea.colore { color: transparent !important; background: transparent !important; caret-color: var(--texte); }
+#saisie-formule.colore { position: relative; z-index: 1; }
+textarea.colore::selection { color: transparent; background: rgba(37, 99, 235, .25); }
+/* Cadre (sélection, références colorées, copie…) dont le début est caché sous les en-têtes : pas de bord à cet endroit */
+.coupe-haut { border-top-color: transparent !important; }
+.coupe-gauche { border-left-color: transparent !important; }
+/* Enregistrement automatique activé */
+#btn-enregistrer.auto::before { content: "↻ "; color: var(--accent); font-weight: 600; }

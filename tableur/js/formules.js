@@ -14,6 +14,7 @@ export class ErreurFormule extends Error {
   constructor(code, detail) {
     super(code + (detail ? ' ' + detail : ''));
     this.code = code;
+    this.detail = detail || '';
   }
 }
 
@@ -425,6 +426,14 @@ export function versNombre(v) {
     if (/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(s)) { const n = parseFloat(s); return pct ? n / 100 : n; }
     const d = Date.parse(v);
     if (!Number.isNaN(d) && /\d{4}-\d{2}-\d{2}/.test(v)) return dateVersSerie(new Date(d));
+    // Date écrite à la française (« 1/1/2020 », « 15/03/26 », « 15/03/2026 14:30 ») : comme Excel, elle compte comme sa date
+    let m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(v.trim());
+    if (m) {
+      const j = +m[1], mo = +m[2]; let a = +m[3]; if (m[3].length === 2) a += a < 30 ? 2000 : 1900;
+      if (mo >= 1 && mo <= 12 && j >= 1 && j <= new Date(Date.UTC(a, mo, 0)).getUTCDate()) return Math.round(dateVersSerie(new Date(Date.UTC(a, mo - 1, j)))) + ((+m[4] || 0) * 3600 + (+m[5] || 0) * 60 + (+m[6] || 0)) / 86400;
+    }
+    m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(v.trim());
+    if (m && +m[2] < 60) return (+m[1] * 3600 + +m[2] * 60 + (+m[3] || 0)) / 86400;
     throw err(ERR.VALEUR, '« ' + v + ' » n\'est pas un nombre');
   }
   if (Array.isArray(v)) return versNombre(v[0] && v[0][0]);
@@ -1958,6 +1967,11 @@ Object.assign(ALIAS, {
 });
 
 /** Résout un nom de fonction (anglais, français, préfixe _xlfn.) vers sa définition. */
+/** Le nom tel qu'Excel en français l'écrit (SOMME, MAX, DUREE) : une Function VBA de ce nom n'y serait pas appelée. */
+export function estNomFrancais(nom) {
+  const n = String(nom).toUpperCase().replace(/^_XLFN\.|^_XLWS\./, '');
+  return ALIAS[n] !== undefined || (FONCTIONS[n] !== undefined && !ALIAS_INVERSE[n]);
+}
 export function fonction(nom) {
   let n = nom.toUpperCase();
   if (n.startsWith('_XLFN.')) n = n.slice(6);
@@ -1994,7 +2008,9 @@ export class Evaluateur {
     this.enConstruction = new Set();
   }
 
-  invalider() { if (this.classeur.calculManuel && !this.forcer) return; this.cache.clear(); this.debords.clear(); this.index.clear(); this.indexPret = false; }
+  invalider() { if (this.classeur.calculManuel && !this.forcer) return; this.cache.clear(); this.debords.clear(); this.index.clear(); this.indexPret = false; if (this.gardees) this.gardees.clear(); }
+  /** Erreur VBA masquée par la valeur enregistrée dans le fichier (voir valeurBrute), pour la signaler sur la cellule. */
+  erreurGardee(f, r, c) { return this.gardees ? this.gardees.get(f + ',' + r + ',' + c) || null : null; }
   recalculerTout() { this.forcer = true; try { this.invalider(); } finally { this.forcer = false; } }
 
   /**
@@ -2134,7 +2150,13 @@ export class Evaluateur {
     }
     // Une fonction VBA qui ne peut pas encore répondre (table pas chargée, macro absente) : comme Excel à l'ouverture,
     // on garde la valeur enregistrée dans le fichier tant que la cellule n'a pas été recalculée pour de bon.
-    if (v instanceof ErreurFormule && v.vba && cel.cache !== undefined && cel.cache !== null && !(cel.cache instanceof ErreurFormule)) v = cel.cache;
+    // Seulement tant que le code VBA est celui du fichier : une fois le code modifié ici, l'erreur se voit (comme Excel,
+    // qui remet le projet à zéro quand on modifie le code).
+    const codeDuFichier = !this.classeur.vbaCode || this.classeur._codeFichier === undefined || this.classeur.vbaCode === this.classeur._codeFichier;
+    if (v instanceof ErreurFormule && v.vba && codeDuFichier && cel.cache !== undefined && cel.cache !== null && !(cel.cache instanceof ErreurFormule)) {
+      (this.gardees || (this.gardees = new Map())).set(cle, v);
+      v = cel.cache;
+    } else if (this.gardees) this.gardees.delete(cle);
     this.cache.set(cle, v);
     return v;
   }
@@ -2231,7 +2253,11 @@ export class Evaluateur {
       case 'inter': { const v = this.evaluer(n.a); if (v instanceof Plage) return v.scalaire(); if (Array.isArray(v)) return v[0] && v[0][0] !== undefined ? v[0][0] : null; return v; }
       case 'bin': return this.binaire(n);
       case 'fn': {
-        let def = fonction(n.nom);
+        // Une Function VBA du classeur passe avant la fonction d'Excel du même nom anglais
+        // (dans Excel en français, « =Duration(…) » appelle la fonction VBA : DURATION s'y écrit DUREE)
+        if (!this.classeur.udf && !this.classeur._udfEssaye && this.classeur.constructor.chargeurUDF) this.classeur.constructor.chargeurUDF(this.classeur);
+        let def = this.classeur.udf && !estNomFrancais(n.nom) ? (() => { const u = this.classeur.udf(n.nom); return u ? { nom: n.nom, fn: u } : null; })() : null;
+        if (!def) def = fonction(n.nom);
         // Une LAMBDA rangée dans une variable de LET ou dans un nom défini s'appelle comme une fonction
         if (!def) {
           let f = null;
@@ -2394,8 +2420,13 @@ export function convertirFormule(formule, sens, ctx = {}) {
     else if (t.t === T.TREF) out += (t.table || (sens === 'en' && ctx.table) || '') + ecrireSpec(t.spec, sens);
     else if (t.t === T.FONCTION) {
       let nom = t.v.replace(/^_XLFN\.|^_XLWS\./, '');
-      if (sens === 'fr') nom = ALIAS_INVERSE[nom] || brut.replace(/\s*\($/, '').replace(/^_xlfn\.|^_xlws\./i, '');
-      else { const def = fonction(nom); if (def) { nom = def.nom; if (XLFN.has(nom)) nom = '_xlfn.' + nom; } }
+      const ecrit = brut.replace(/\s*\($/, '').replace(/^_xlfn\.|^_xlws\./i, '');
+      // Une fonction VBA garde son nom tel quel : Excel écrit ses fonctions en majuscules (DURATION), une Function VBA
+      // comme elle est déclarée (Duration) ; dans l'autre sens, un nom anglais qui est aussi une Function VBA du classeur reste anglais
+      const vba = sens === 'fr' ? /[a-z]/.test(ecrit) || (ctx.udf && ctx.udf(nom)) : ctx.udf && !estNomFrancais(nom) && ctx.udf(nom);
+      if (vba) nom = ecrit;
+      else if (sens === 'fr') nom = ALIAS_INVERSE[nom] || ecrit;
+      else { const def = fonction(nom); if (def) { nom = def.nom; if (XLFN.has(nom)) nom = '_xlfn.' + nom; } else nom = ecrit; }
       out += nom + '(';
     } else out += brut;
     pos = t.fin;
