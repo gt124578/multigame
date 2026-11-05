@@ -1,0 +1,358 @@
+/* Quête suivie dans la capsule Pokégear du HUD */
+.hud-quest-card {
+  margin-top: calc(var(--px) * 1.5);
+  background: linear-gradient(180deg, #16243d 0%, #0c1728 100%);
+  border: calc(var(--px) * 1) solid #ffd858;
+  border-radius: calc(var(--px) * 3);
+  box-shadow: inset 0 0 0 calc(var(--px) * 0.7) #5e84b8, 0 calc(var(--px) * 1.5) calc(var(--px) * 3) rgba(0,0,0,.5);
+  padding: calc(var(--px) * 2) calc(var(--px) * 3);
+  cursor: pointer;
+  transition: transform .12s ease, filter .12s ease;
+}
+.hud-quest-card:hover {
+  filter: brightness(1.15);
+  transform: translateY(calc(var(--px) * -0.5));
+}
+.hud-qc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--px) * 2);
+  margin-bottom: calc(var(--px) * 0.8);
+}
+.hud-qc-star {
+  font-size: calc(var(--px) * 5);
+  font-weight: 700;
+  color: #ffd858;
+  letter-spacing: .3px;
+}
+.hud-qc-loc {
+  font-size: calc(var(--px) * 5);
+  font-weight: 600;
+  color: #9cd4ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud-qc-name {
+  font-size: calc(var(--px) * 6.5);
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud-qc-step {
+  font-size: calc(var(--px) * 5.2);
+  color: #d0e0f8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: calc(var(--px) * 0.5);
+}
+
+/* ==========================================================================
+   ÉCRAN JOURNAL DES QUÊTES (Style 5G Noir 2 / Blanc 2 - Pixel Art Rétro)
+   ========================================================================== */
+.quests-scr {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  box-sizing: border-box;
+  padding: calc(var(--px) * 4) calc(var(--px) * 6);
+  background:
+    repeating-linear-gradient(0deg, #0b111a 0 calc(var(--px) * 1), #111a26 calc(var(--px) * 1) calc(var(--px) * 2));
+  color: #fff;
+  z-index: 20;
+  pointer-events: auto;
+}
+
+.quests-tabs {
+  display: flex; gap: calc(var(--px) * 2);
+}
+.qtab {
+  font: inherit; font-size: calc(var(--px) * 5.8); font-weight: 700;
+  color: #9cb8e8; background: rgba(18, 30, 52, .8);
+  border: calc(var(--px) * 1) solid #162440;
+  border-radius: calc(var(--px) * 3) calc(var(--px) * 3) 0 0;
+  padding: calc(var(--px) * 1.5) calc(var(--px) * 4);
+  cursor: pointer; transition: all .12s ease;
+}
+.qtab:hover {
+  background: rgba(30, 48, 80, .9); color: #fff;
+}
+.qtab.on {
+  color: #ffd858; background: linear-gradient(180deg, #2a4474 0%, #1a2c4c 100%);
+  border-color: #ffd858 #ffd858 transparent #ffd858;
+  box-shadow: inset 0 calc(var(--px) * 1) 0 rgba(255,255,255,.3);
+}
+
+.quests-body {
+  flex: 1; display: flex; gap: calc(var(--px) * 4); min-height: 0;
+  margin-top: calc(var(--px) * 2); margin-bottom: calc(var(--px) * 2);
+}
+
+/* Colonne Gauche - Liste des quêtes */
+.qcol-list {
+  width: calc(var(--px) * 150);
+  display: flex; flex-direction: column;
+  background: rgba(14, 22, 36, .92);
+  border: calc(var(--px) * 1.4) solid #101828;
+  border-radius: calc(var(--px) * 4);
+  box-shadow: inset 0 0 0 calc(var(--px) * 1) #3a547c, 0 calc(var(--px) * 2) 0 rgba(0,0,0,.5);
+  overflow: hidden;
+}
+.qlist-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: calc(var(--px) * 2) calc(var(--px) * 3.5);
+  background: linear-gradient(180deg, #24385a 0%, #16243c 100%);
+  border-bottom: calc(var(--px) * 1) solid #0c1422;
+  font-size: calc(var(--px) * 6); font-weight: 700; color: #dbe8fc;
+  letter-spacing: .4px;
+}
+.qlist-cnt {
+  font-size: calc(var(--px) * 5.2); color: #ffd858;
+}
+.qlist-scroll {
+  flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: calc(var(--px) * 1.5);
+  padding: calc(var(--px) * 2);
+}
+.qcard {
+  position: relative;
+  display: flex; flex-direction: column; gap: calc(var(--px) * 1);
+  padding: calc(var(--px) * 2) calc(var(--px) * 2.5) calc(var(--px) * 2) calc(var(--px) * 5);
+  background: linear-gradient(180deg, #1c2a44 0%, #121c2e 100%);
+  border: calc(var(--px) * 1) solid #0e1624;
+  border-radius: calc(var(--px) * 3);
+  box-shadow: inset 0 0 0 calc(var(--px) * 0.8) #2d456a;
+  cursor: pointer; transition: transform .08s ease, background .08s ease;
+}
+.qcard:hover {
+  background: linear-gradient(180deg, #263c62 0%, #17263e 100%);
+  transform: translateX(calc(var(--px) * 1));
+}
+.qcard.on {
+  background: linear-gradient(180deg, #2a4878 0%, #182e52 100%);
+  border-color: #ffd858;
+  box-shadow: inset 0 0 0 calc(var(--px) * 1) #ffd858, 0 calc(var(--px) * 1.5) calc(var(--px) * 3) rgba(0,0,0,.5);
+}
+.qcard.tracked {
+  border-left: calc(var(--px) * 2.5) solid #ffd858;
+}
+.qcard.done {
+  opacity: .75;
+}
+.qcard .cur {
+  position: absolute; left: calc(var(--px) * 1.2); top: 50%; transform: translateY(-50%);
+  font-size: calc(var(--px) * 6.5); color: #ffd858; display: none;
+}
+.qcard.on .cur {
+  display: block;
+}
+.qcard-top {
+  display: flex; align-items: center; justify-content: space-between; gap: calc(var(--px) * 1.5);
+}
+.qcat-tag {
+  font-size: calc(var(--px) * 4.6); font-weight: 700; color: #fff;
+  padding: calc(var(--px) * 0.4) calc(var(--px) * 2);
+  border-radius: calc(var(--px) * 2);
+  letter-spacing: .3px;
+}
+.qcat-main { background: #d04428; }
+.qcat-side { background: #1a78c2; }
+.qcat-story { background: #7c44b8; }
+.qtracked-tag {
+  font-size: calc(var(--px) * 4.6); font-weight: 700; color: #ffd858;
+  background: rgba(0,0,0,.4); padding: calc(var(--px) * 0.4) calc(var(--px) * 2);
+  border-radius: calc(var(--px) * 2); border: calc(var(--px) * 0.6) solid #ffd858;
+}
+.qcard-name {
+  font-size: calc(var(--px) * 6.4); font-weight: 700; color: #ffffff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.qcard-sub {
+  display: flex; align-items: center; justify-content: space-between; gap: calc(var(--px) * 2);
+  font-size: calc(var(--px) * 5); color: #a4c2e8;
+}
+.qcard-loc {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%;
+}
+
+/* Colonne Droite - Fiche détaillée */
+.qcol-detail {
+  flex: 1; display: flex; flex-direction: column; gap: calc(var(--px) * 2.5);
+  background: rgba(14, 22, 36, .94);
+  border: calc(var(--px) * 1.4) solid #101828;
+  border-radius: calc(var(--px) * 4);
+  box-shadow: inset 0 0 0 calc(var(--px) * 1) #3a547c, 0 calc(var(--px) * 2) 0 rgba(0,0,0,.5);
+  padding: calc(var(--px) * 3) calc(var(--px) * 4);
+  overflow-y: auto;
+}
+.qdet-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: calc(var(--px) * 3);
+  border-bottom: calc(var(--px) * 1) solid rgba(160, 192, 232, .25);
+  padding-bottom: calc(var(--px) * 2);
+}
+.qdet-head-left {
+  flex: 1; display: flex; flex-direction: column; gap: calc(var(--px) * 1.2);
+}
+.qdet-title-row {
+  display: flex; align-items: center; gap: calc(var(--px) * 2); flex-wrap: wrap;
+}
+.qdet-title {
+  font-size: calc(var(--px) * 9.5); font-weight: 700; color: #ffffff;
+  letter-spacing: .4px; text-shadow: var(--px) var(--px) 0 #0c1424;
+}
+.qdet-giver {
+  font-size: calc(var(--px) * 5.8); color: #c4d8f6;
+}
+.qdet-giver b { color: #ffe288; }
+.qdet-giver i { font-style: normal; color: #a8d0ff; }
+.qbtn-track {
+  font: inherit; font-size: calc(var(--px) * 5.8); font-weight: 700;
+  color: #121e32; background: linear-gradient(180deg, #ffd860 0%, #e0b028 100%);
+  border: calc(var(--px) * 1.2) solid #6c5008;
+  border-radius: calc(var(--px) * 3);
+  padding: calc(var(--px) * 2) calc(var(--px) * 3.5);
+  cursor: pointer; box-shadow: 0 calc(var(--px) * 1.5) 0 rgba(0,0,0,.4);
+  transition: transform .08s ease, filter .08s ease;
+  white-space: nowrap;
+}
+.qbtn-track:hover {
+  filter: brightness(1.12);
+  transform: translateY(calc(var(--px) * -0.5));
+}
+.qbtn-track.tracked {
+  color: #fff; background: linear-gradient(180deg, #486c9e 0%, #28446c 100%);
+  border-color: #121e32;
+  box-shadow: inset 0 0 0 calc(var(--px) * 1) #ffd858;
+}
+
+/* Grand Boîtier OÙ ALLER */
+.qbox-destination {
+  background: linear-gradient(180deg, #203456 0%, #14223a 100%);
+  border: calc(var(--px) * 1.4) solid #ffd858;
+  border-radius: calc(var(--px) * 4);
+  box-shadow: inset 0 0 0 calc(var(--px) * 1) #4c72a8, 0 calc(var(--px) * 2) calc(var(--px) * 4) rgba(0,0,0,.45);
+  padding: calc(var(--px) * 2.5) calc(var(--px) * 3.5);
+  display: flex; flex-direction: column; gap: calc(var(--px) * 1.2);
+}
+.qdest-head {
+  display: flex; align-items: center; gap: calc(var(--px) * 1.5);
+  font-size: calc(var(--px) * 5.6); font-weight: 700; color: #ffd858;
+  letter-spacing: .5px;
+}
+.qdest-pin { font-size: calc(var(--px) * 7); }
+.qdest-place {
+  font-size: calc(var(--px) * 8.6); font-weight: 700; color: #ffffff;
+  padding-left: calc(var(--px) * 1);
+}
+.qdest-hint {
+  font-size: calc(var(--px) * 6.2); color: #d8e8fc;
+  line-height: 1.35; padding-left: calc(var(--px) * 1);
+}
+
+/* Étapes de quête */
+.qsteps-box {
+  background: rgba(10, 16, 26, .65);
+  border: calc(var(--px) * 1) solid #1e2c46;
+  border-radius: calc(var(--px) * 3);
+  padding: calc(var(--px) * 2) calc(var(--px) * 3);
+  display: flex; flex-direction: column; gap: calc(var(--px) * 1.5);
+}
+.qsteps-title {
+  font-size: calc(var(--px) * 5.4); font-weight: 700; color: #9cb8e0;
+  letter-spacing: .4px; margin-bottom: calc(var(--px) * 0.5);
+}
+.qstep-item {
+  display: flex; align-items: flex-start; gap: calc(var(--px) * 2);
+  padding: calc(var(--px) * 1.5) calc(var(--px) * 2);
+  border-radius: calc(var(--px) * 2);
+  border: calc(var(--px) * 0.8) solid transparent;
+}
+.qstep-item.current {
+  background: rgba(42, 70, 114, .45);
+  border-color: #ffd858;
+}
+.qstep-item.done {
+  opacity: .7;
+}
+.qstep-mark {
+  font-size: calc(var(--px) * 7.5); line-height: 1; font-weight: 700;
+  color: #8aa0be; min-width: calc(var(--px) * 7); text-align: center;
+}
+.qstep-item.current .qstep-mark { color: #ffd858; }
+.qstep-item.done .qstep-mark { color: #48c070; }
+.qstep-body {
+  flex: 1; display: flex; flex-direction: column; gap: calc(var(--px) * 0.8);
+}
+.qstep-txt {
+  font-size: calc(var(--px) * 6.2); font-weight: 600; color: #ffffff;
+}
+.qstep-loc {
+  font-size: calc(var(--px) * 5.2); color: #9cb8e8;
+}
+
+/* Récompenses */
+.qreward-box {
+  display: flex; align-items: center; gap: calc(var(--px) * 2);
+  background: linear-gradient(180deg, #1c3426 0%, #102418 100%);
+  border: calc(var(--px) * 1) solid #388854;
+  border-radius: calc(var(--px) * 3);
+  padding: calc(var(--px) * 1.8) calc(var(--px) * 3);
+  font-size: calc(var(--px) * 6); color: #c8f4d8;
+}
+.qreward-ico { font-size: calc(var(--px) * 7.5); }
+.qreward-box b { color: #7cf0a4; }
+
+/* Pied d'écran */
+.quests-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: calc(var(--px) * 3);
+  background: rgba(14, 22, 36, .92);
+  border: calc(var(--px) * 1.2) solid #101828;
+  border-radius: calc(var(--px) * 3);
+  padding: calc(var(--px) * 1.8) calc(var(--px) * 4);
+}
+.quests-foot-keys {
+  display: flex; align-items: center; gap: calc(var(--px) * 3);
+  font-size: calc(var(--px) * 5.2); color: #a4c2e8;
+}
+.quests-foot-keys kbd {
+  background: #182844; border: calc(var(--px) * 0.8) solid #3a547c;
+  border-radius: calc(var(--px) * 2); padding: calc(var(--px) * 0.5) calc(var(--px) * 2);
+  color: #ffd858; font-weight: 700;
+}
+.quests-foot-tracked {
+  display: flex; align-items: center; gap: calc(var(--px) * 1.5);
+  font-size: calc(var(--px) * 5.6);
+}
+.qft-label { font-weight: 700; color: #ffd858; }
+.qft-val { color: #ffffff; font-weight: 600; }
+
+/* résumé : natures, IV et EV */
+.sum-stats .sth td { font-size: 0.7em; color: #8aa0be; padding-bottom: 0; }
+.sum-stats td.nat-up { color: #ff6a58; }
+.sum-stats td.nat-down { color: #6aa8ff; }
+.sum-stats td.iv, .sum-stats td.evv { font-variant-numeric: tabular-nums; text-align: right; color: #ced8ec; font-size: 0.85em; }
+.sum-stats td.iv.max { color: #ffe058; }
+.sum-natline { margin-top: 0.6em; font-size: 0.72em; color: #ced8ec; }
+.nat-fx { color: #8aa0be; }
+
+/* labo : trois partenaires dans la capsule d'un type */
+/* sur le côté gauche : la table, le Prof. et Théo restent visibles pendant le choix */
+.starter-trio { display: flex; gap: calc(var(--px) * 6); top: 12%; left: 3%; transform: none; }
+.starter-trio figure { margin: 0; text-align: center; opacity: 0.55; transition: opacity 0.15s, transform 0.15s; }
+.starter-trio figure.on { opacity: 1; transform: translateY(calc(var(--px) * -3)); }
+.starter-trio img { width: calc(var(--px) * 64); height: calc(var(--px) * 64); image-rendering: pixelated; }
+.starter-trio figcaption { font-size: 0.8em; font-weight: 700; }
+.starter-trio figcaption small { display: block; font-weight: 400; opacity: 0.75; font-size: 0.8em; }
+
+/* journal des quêtes : le carnet (phrases de rappel, sans indice) */
+.qdiary { margin-top: calc(var(--px) * 4); display: flex; flex-direction: column; gap: calc(var(--px) * 2.5); overflow-y: auto; min-height: 0; }
+.qdiary p {
+  margin: 0; padding: calc(var(--px) * 2.5) calc(var(--px) * 4); line-height: 1.35; font-size: 0.86em; color: #a8b8d0;
+  background: #121a26; border-left: calc(var(--px) * 1.5) solid #34465e;
+}
+.qdiary p.last { color: #fff; background: #1a2638; border-left-color: #ffe058; }
+.qempty { padding: calc(var(--px) * 8); color: #8aa0be; text-align: center; font-size: 0.85em; line-height: 1.4; }
+.qcat-tag.qcat-legend { background: #a040c8; }
+.qcat-tag.qcat-npc { background: #3c8c44; }

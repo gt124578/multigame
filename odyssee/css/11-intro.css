@@ -1,0 +1,175 @@
+/* ---------------- cinématique d'ouverture (Nouvelle partie) ---------------- */
+.cine-scr { background: #000; display: flex; align-items: center; justify-content: center; z-index: 30; overflow: hidden; }
+.cine-vid { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
+.cine-skip { position: absolute; right: calc(var(--px) * 10); bottom: calc(var(--px) * 8); z-index: 32;
+  font: inherit; font-size: calc(var(--px) * 7.5); font-weight: 600; color: rgba(255, 250, 232, .92);
+  background: rgba(14, 22, 38, .72); border: calc(var(--px) * 1) solid rgba(184, 210, 244, .55);
+  border-radius: calc(var(--px) * 4); padding: calc(var(--px) * 3) calc(var(--px) * 6);
+  box-shadow: 0 calc(var(--px) * 2) calc(var(--px) * 6) rgba(0, 0, 0, .6);
+  cursor: pointer; backdrop-filter: blur(4px); transition: background .15s ease, transform .15s ease; }
+.cine-skip:hover { background: rgba(28, 44, 76, .9); color: #fff; transform: translateY(calc(var(--px) * -1)); }
+
+/* ---------------- introduction enrichie du Professeur Saule (Nano Banana + animations) ---------------- */
+.intro-scr { position: absolute; inset: 0; overflow: hidden; background: #1e2c50; transition: opacity .55s ease; z-index: 25; padding: 0; }
+.intro-scr.out { opacity: 0; }
+#ui:has(> .intro-scr) .dlg-face { display: none; }
+.intro-bg { position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 52% 20% at 50% 66%, rgba(255, 255, 255, .95) 0%, rgba(226, 236, 255, .82) 48%, rgba(168, 192, 238, 0) 78%),
+    radial-gradient(ellipse 85% 70% at 50% 52%, #dce6fa 0%, #aebfe6 36%, #687fb8 72%, #2c3c68 100%); }
+.intro-beam { position: absolute; inset: 0; pointer-events: none;
+  background: conic-gradient(from 166deg at 50% -12%, transparent 0deg, rgba(255, 255, 255, .22) 14deg, transparent 28deg);
+  filter: blur(8px); }
+
+.intro-sparks { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.intro-spark { position: absolute; width: calc(var(--px) * 2.2); height: calc(var(--px) * 2.2); border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, #d8ecff 60%, rgba(255, 255, 255, 0) 100%);
+  box-shadow: 0 0 calc(var(--px) * 3) rgba(255, 255, 255, .85); opacity: 0; animation: introSparkFloat 5.5s linear infinite; }
+@keyframes introSparkFloat {
+  0% { transform: translateY(0) scale(.6); opacity: 0; }
+  20% { opacity: .75; }
+  80% { opacity: .65; }
+  100% { transform: translateY(calc(var(--px) * -90)) scale(1.15); opacity: 0; }
+}
+
+.intro-header { position: absolute; top: calc(var(--px) * 6); left: 50%; transform: translateX(-50%); z-index: 6;
+  display: flex; align-items: center; gap: calc(var(--px) * 4);
+  background: linear-gradient(180deg, rgba(42, 64, 108, .94) 0%, rgba(24, 38, 68, .96) 100%);
+  border: calc(var(--px) * 1.2) solid #182644; border-radius: calc(var(--px) * 10);
+  box-shadow: inset 0 0 0 calc(var(--px) * 1.2) #b8d0f8, 0 calc(var(--px) * 2) calc(var(--px) * 5) rgba(0,0,0,.35);
+  padding: calc(var(--px) * 2) calc(var(--px) * 9); color: #f8fbff; font-size: calc(var(--px) * 7); font-weight: 600;
+  letter-spacing: .6px; text-shadow: var(--px) var(--px) 0 #142038; white-space: nowrap; }
+.intro-header-dot { width: calc(var(--px) * 4); height: calc(var(--px) * 4); border-radius: 50%; background: #ffe070; box-shadow: 0 0 calc(var(--px) * 2.5) #ffe070; }
+
+.intro-stage { position: absolute; inset: 0; pointer-events: none; }
+
+/* Socle DS lumineux au sol */
+.intro-pedestal { position: absolute; left: 50%; bottom: 31%; width: calc(var(--px) * 136); height: calc(var(--px) * 28);
+  transform: translateX(-50%); border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, #ffffff 0%, #eaf2ff 56%, rgba(160, 190, 240, .45) 78%, transparent 100%);
+  box-shadow: 0 calc(var(--px) * 2) calc(var(--px) * 8) rgba(40, 68, 128, .35), inset 0 0 0 calc(var(--px) * 1) rgba(255, 255, 255, .9);
+  transition: left .5s cubic-bezier(.22, 1, .36, 1), opacity .4s ease; }
+.intro-pedestal.side { left: 37%; }
+
+.intro-subped { position: absolute; left: 64%; bottom: 33%; width: calc(var(--px) * 86); height: calc(var(--px) * 18);
+  transform: translateX(-50%) scale(.7); border-radius: 50%; opacity: 0;
+  background: radial-gradient(ellipse at 50% 50%, #ffffff 0%, #e4f0ff 58%, rgba(150, 185, 240, .4) 80%, transparent 100%);
+  box-shadow: 0 calc(var(--px) * 1.5) calc(var(--px) * 6) rgba(40, 68, 128, .3);
+  transition: opacity .35s ease, transform .4s cubic-bezier(.22, 1, .36, 1); }
+.intro-subped.in { opacity: 1; transform: translateX(-50%) scale(1); }
+
+/* Professeur Saule (sprite original img/portraits/saule-l.png) */
+.intro-prof { position: absolute; left: 50%; bottom: 33%; width: calc(var(--px) * 118); height: calc(var(--px) * 118);
+  object-fit: contain; image-rendering: pixelated; transform: translateX(-50%) translateY(calc(var(--px) * 8)) scale(.92); opacity: 0;
+  filter: drop-shadow(0 calc(var(--px) * 3) calc(var(--px) * 4) rgba(20, 34, 68, .38));
+  transition: opacity .45s ease, transform .5s cubic-bezier(.22, 1, .36, 1), left .5s cubic-bezier(.22, 1, .36, 1); transform-origin: 50% 100%; }
+.intro-prof.in { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+.intro-prof.side { left: 37%; }
+
+/* Lancer de Poké Ball et sortie du Starter */
+.intro-ball { position: absolute; left: 42%; bottom: 54%; width: calc(var(--px) * 18); height: calc(var(--px) * 18);
+  object-fit: contain; image-rendering: pixelated; opacity: 0; transform: translate(-50%, 0) scale(.4);
+  filter: drop-shadow(0 calc(var(--px) * 2) calc(var(--px) * 2) rgba(0,0,0,.35));
+  transition: left .42s cubic-bezier(.25, .8, .35, 1), bottom .42s cubic-bezier(.45, -0.3, .65, 1.35), transform .42s ease, opacity .2s ease; z-index: 5; }
+.intro-ball.toss { opacity: 1; left: 64%; bottom: 36%; transform: translate(-50%, 0) scale(1.15) rotate(360deg); }
+.intro-ball.open { opacity: 1; left: 58.5%; bottom: 34.5%; transform: translate(-50%, 0) scale(.95) rotate(345deg); transition: left .28s ease, bottom .28s ease, transform .28s ease; }
+
+.intro-burst { position: absolute; left: 64%; bottom: 36%; width: calc(var(--px) * 16); height: calc(var(--px) * 16);
+  transform: translate(-50%, 50%) scale(.2); border-radius: 50%; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle, #ffffff 0%, #fff0a8 45%, rgba(255, 220, 90, 0) 72%);
+  border: calc(var(--px) * 1.5) solid rgba(255, 250, 210, .9); z-index: 6; }
+.intro-burst.go { animation: introBurstAnim .55s ease-out forwards; }
+@keyframes introBurstAnim {
+  0% { opacity: 1; transform: translate(-50%, 50%) scale(.3); }
+  55% { opacity: .95; transform: translate(-50%, 50%) scale(3.4); }
+  100% { opacity: 0; transform: translate(-50%, 50%) scale(4.6); }
+}
+
+.intro-starter { position: absolute; left: 64%; bottom: 35%; width: calc(var(--px) * 76); height: calc(var(--px) * 76);
+  object-fit: contain; image-rendering: pixelated; opacity: 0;
+  transform: translateX(-50%) scale(.15); transform-origin: 50% 100%;
+  filter: brightness(2.6) drop-shadow(0 calc(var(--px) * 2) calc(var(--px) * 3) rgba(20, 34, 68, .4));
+  transition: opacity .32s ease, transform .42s cubic-bezier(.34, 1.56, .64, 1), filter .38s ease; z-index: 4; }
+.intro-starter.in { opacity: 1; transform: translateX(-50%) scale(1); filter: brightness(1) drop-shadow(0 calc(var(--px) * 2) calc(var(--px) * 3) rgba(20, 34, 68, .4));
+  animation: introStarterHop .65s steps(2) .35s infinite; }
+.intro-starter.recall { opacity: 0; transform: translateX(-50%) scale(.15); filter: brightness(2.8) sepia(1) hue-rotate(-35deg) saturate(4); transition: all .24s ease-in; }
+@keyframes introStarterHop { 50% { margin-bottom: calc(var(--px) * 2.5); } }
+
+/* Cartes interactives Garçon / Fille */
+.intro-cards { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); z-index: 28;
+  display: flex; gap: calc(var(--px) * 12); pointer-events: auto; }
+.intro-card { width: calc(var(--px) * 132); padding: calc(var(--px) * 5) calc(var(--px) * 6) calc(var(--px) * 5);
+  background: linear-gradient(180deg, rgba(42, 64, 110, .95) 0%, rgba(24, 38, 70, .97) 100%);
+  border: calc(var(--px) * 1.4) solid #162442; border-radius: calc(var(--px) * 7);
+  box-shadow: inset 0 0 0 calc(var(--px) * 1.2) #9cb8e8, 0 calc(var(--px) * 4) calc(var(--px) * 10) rgba(16, 28, 56, .5);
+  color: #fff; text-align: center; cursor: pointer; position: relative;
+  transition: transform .22s cubic-bezier(.22, 1, .36, 1), box-shadow .22s ease; }
+.intro-card:hover, .intro-card.on {
+  transform: translateY(calc(var(--px) * -3)) scale(1.04);
+  background: linear-gradient(180deg, rgba(54, 82, 138, .98) 0%, rgba(30, 48, 88, .99) 100%);
+  box-shadow: inset 0 0 0 calc(var(--px) * 1.6) #ffd860, 0 0 calc(var(--px) * 8) rgba(255, 216, 88, .45), 0 calc(var(--px) * 5) calc(var(--px) * 10) rgba(16, 28, 56, .6); }
+.intro-card-tag { display: inline-block; font-size: calc(var(--px) * 5.6); font-weight: 600; color: #162238;
+  background: linear-gradient(180deg, #ffe888, #f0b838); padding: calc(var(--px) * .8) calc(var(--px) * 5);
+  border-radius: calc(var(--px) * 4); text-shadow: none; margin-bottom: calc(var(--px) * 2.5); }
+.intro-card-art { position: relative; height: calc(var(--px) * 74); display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 62%, rgba(255, 255, 255, .45) 0%, rgba(30, 50, 90, .35) 72%);
+  border-radius: calc(var(--px) * 5); border: calc(var(--px) * .8) solid rgba(190, 215, 255, .32); overflow: hidden; }
+.intro-card-art img { height: calc(var(--px) * 64); width: auto; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 calc(var(--px) * 2) calc(var(--px) * 2) rgba(0,0,0,.45)); }
+.intro-card-spr { position: absolute; right: calc(var(--px) * 3); bottom: calc(var(--px) * 2); width: 64px; height: 64px;
+  background: url(../img/chars.png) -64px 0; transform: scale(calc(var(--px) * 0.42 / 1px)); transform-origin: 100% 100%; image-rendering: pixelated; }
+.intro-card-spr.f { background-position: -64px -64px; }
+.intro-card-title { font-size: calc(var(--px) * 9); font-weight: 600; color: #fff8d8; margin-top: calc(var(--px) * 2.5); text-shadow: var(--px) var(--px) 0 #0c1424; }
+.intro-card-sub { font-size: calc(var(--px) * 5.6); color: #d0e2ff; margin-top: calc(var(--px) * 1); line-height: 1.25; text-shadow: none; }
+
+/* Carte d'enregistrement du prénom */
+.intro-idcard { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); z-index: 46;
+  width: min(94vw, calc(var(--px) * 286)); display: flex; gap: calc(var(--px) * 7); align-items: stretch;
+  background: linear-gradient(180deg, #2b4270 0%, #1b2c4e 100%);
+  border: calc(var(--px) * 1.5) solid #121e36; border-radius: calc(var(--px) * 8);
+  box-shadow: inset 0 0 0 calc(var(--px) * 1.4) #ffd86b, inset 0 0 0 calc(var(--px) * 2.6) #6484b8, 0 calc(var(--px) * 5) calc(var(--px) * 14) rgba(12, 22, 46, .65);
+  padding: calc(var(--px) * 6) calc(var(--px) * 7); color: #fff; text-shadow: var(--px) var(--px) 0 #0c1424; pointer-events: auto; }
+.intro-id-left { width: calc(var(--px) * 84); display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 58%, rgba(255, 255, 255, .38) 0%, rgba(18, 30, 58, .55) 80%);
+  border: calc(var(--px) * 1) solid rgba(255, 220, 120, .45); border-radius: calc(var(--px) * 5); padding: calc(var(--px) * 3); }
+.intro-id-left img { height: calc(var(--px) * 68); width: auto; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 calc(var(--px) * 2) calc(var(--px) * 3) rgba(0,0,0,.45)); }
+.intro-id-badge { font-size: calc(var(--px) * 5.4); color: #ffe28a; margin-top: calc(var(--px) * 2); text-align: center; }
+.intro-id-right { flex: 1; display: flex; flex-direction: column; justify-content: space-between; gap: calc(var(--px) * 2.5); }
+.intro-id-head { font-size: calc(var(--px) * 8.5); font-weight: 600; color: #fff4c2; border-bottom: calc(var(--px) * .8) solid rgba(180, 210, 250, .3); padding-bottom: calc(var(--px) * 1.5); }
+.intro-id-in { font: inherit; font-size: calc(var(--px) * 10); font-weight: 600; width: 100%; text-align: center;
+  color: #16243e; background: #fffdf4; border: calc(var(--px) * 1.4) solid #f0c048; border-radius: calc(var(--px) * 4);
+  padding: calc(var(--px) * 1.5) calc(var(--px) * 3.5); box-shadow: inset 0 calc(var(--px) * 1.5) calc(var(--px) * 3) rgba(0,0,0,.12); text-shadow: none; }
+.intro-id-chips { display: flex; flex-wrap: wrap; gap: calc(var(--px) * 1.8); align-items: center; }
+.intro-id-chip { font: inherit; font-size: calc(var(--px) * 5.8); color: #e8f2ff; background: rgba(255,255,255,.14);
+  border: calc(var(--px) * .8) solid rgba(190, 216, 255, .42); border-radius: calc(var(--px) * 3);
+  padding: calc(var(--px) * 1) calc(var(--px) * 3); cursor: pointer; text-shadow: none; transition: background .12s, transform .12s; }
+.intro-id-chip:hover { background: rgba(255, 220, 90, .3); border-color: #ffd860; color: #fff; transform: translateY(calc(var(--px) * -0.5)); }
+.intro-id-foot { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--px) * 3); margin-top: calc(var(--px) * 1); }
+.intro-id-hint { font-size: calc(var(--px) * 5.5); color: #c4daf8; text-shadow: none; }
+.intro-id-ok { font: inherit; font-size: calc(var(--px) * 7); font-weight: 600; color: #162418;
+  background: linear-gradient(180deg, #98f0b0 0%, #48c070 100%); border: calc(var(--px) * 1) solid #0e2818;
+  border-radius: calc(var(--px) * 4); padding: calc(var(--px) * 1.8) calc(var(--px) * 6); cursor: pointer; text-shadow: none;
+  box-shadow: 0 calc(var(--px) * 1.5) 0 rgba(0,0,0,.35); }
+.intro-id-ok:hover { filter: brightness(1.08); transform: translateY(calc(var(--px) * -0.5)); }
+
+/* Dresseur & Voisin Théo (en petit sprite DS sur socle secondaire) */
+.intro-hero { position: absolute; left: 50%; bottom: 34%; height: calc(var(--px) * 92); width: auto;
+  object-fit: contain; image-rendering: pixelated; transform: translateX(-50%) scale(.85); opacity: 0;
+  filter: drop-shadow(0 calc(var(--px) * 3) calc(var(--px) * 4) rgba(20, 34, 68, .38));
+  transition: opacity .4s ease, transform .45s cubic-bezier(.22, 1, .36, 1), left .45s cubic-bezier(.22, 1, .36, 1); transform-origin: 50% 100%; }
+.intro-hero.in { opacity: 1; transform: translateX(-50%) scale(1); }
+.intro-hero.left { left: 37%; }
+.intro-hero.shrink { transform: translateX(-50%) scale(.18); filter: brightness(2.4) drop-shadow(0 0 calc(var(--px) * 8) #fff); opacity: 0; transition: transform .6s ease-in, opacity .6s ease-in, filter .35s; }
+
+.intro-rival-box { position: absolute; left: 64%; bottom: 35%; transform: translateX(-50%) translateY(calc(var(--px) * 6)) scale(.85);
+  display: flex; flex-direction: column; align-items: center; opacity: 0;
+  transition: opacity .38s ease, transform .42s cubic-bezier(.22, 1, .36, 1); }
+.intro-rival-box.in { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+.intro-rival-ped { position: absolute; bottom: calc(var(--px) * 5); width: calc(var(--px) * 70); height: calc(var(--px) * 14);
+  border-radius: 50%; background: radial-gradient(ellipse at 50% 50%, #ffffff 0%, #e4f0ff 60%, transparent 100%);
+  box-shadow: 0 calc(var(--px) * 1.5) calc(var(--px) * 5) rgba(40, 68, 128, .28); z-index: 0; }
+.intro-rival { position: relative; z-index: 1; height: calc(var(--px) * 62); width: auto; object-fit: contain; image-rendering: pixelated;
+  filter: drop-shadow(0 calc(var(--px) * 2) calc(var(--px) * 3) rgba(20, 34, 68, .38)); }
+.intro-rival-tag { position: relative; z-index: 2; margin-top: calc(var(--px) * 2);
+  background: rgba(34, 52, 92, .9); color: #fff4c2; font-size: calc(var(--px) * 5.4);
+  padding: calc(var(--px) * .6) calc(var(--px) * 4); border-radius: calc(var(--px) * 4);
+  border: calc(var(--px) * .8) solid rgba(190, 216, 255, .6); text-shadow: none; }

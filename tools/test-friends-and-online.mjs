@@ -168,7 +168,7 @@ console.log('✓ friendsScreen lifecycle & controls tests passed');
 // 4. Test startMenu inclusion in game.js
 console.log('--- Testing startMenu option in game.js ---');
 const gameSrc = fs.readFileSync('odyssee/js/game.js', 'utf8');
-assert.ok(gameSrc.includes("AMIS & EN LIGNE"), 'game.js startMenu includes AMIS & EN LIGNE option');
+assert.ok(gameSrc.includes("'friends']") && gameSrc.includes('en ligne'), 'game.js startMenu includes the Amis option (with the number of other players online)');
 assert.ok(gameSrc.includes("else if (k === 'friends') await friendsScreen(this);"), 'game.js handles friends menu action');
 
 // 5. Test HUD online pill in hud.js

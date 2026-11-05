@@ -1053,7 +1053,11 @@ export class Sound {
   constructor() {
     this.ctx = null; this.vol = 0.7; this.music = null; this.songs = {}; this.muted = false;
     try { const v = localStorage.getItem('odyssee-vol'); if (v != null) this.vol = +v; } catch (e) {}
+    // « moderne » : instruments doux, batterie et réverbération ; « retro » : les ondes 8 bits d'origine
+    this.style = 'moderne';
+    try { const st = localStorage.getItem('odyssee-son'); if (st === 'retro' || st === 'moderne') this.style = st; } catch (e) {}
   }
+  setStyle(st) { this.style = st === 'retro' ? 'retro' : 'moderne'; try { localStorage.setItem('odyssee-son', this.style); } catch (e) {} const cur = this.current; this.current = null; if (cur) this.play(cur); }
   init(offline) {
     if (offline) { this.ctx = null; this.offline = offline.length / offline.sampleRate; }
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
@@ -1064,6 +1068,17 @@ export class Sound {
     const DV = window.DDVolume, via = (kind) => { if (!DV) return this.master; const g = DV.gain(this.ctx, kind); g.connect(this.master); return g; };
     this.musicBus = this.ctx.createGain(); this.musicBus.gain.value = 0.8; this.musicBus.connect(via('music'));
     this.sfxBus = this.ctx.createGain(); this.sfxBus.gain.value = 1; this.sfxBus.connect(via('fx'));
+    // salle de concert : une réverbération synthétique (bruit qui décroît) partagée par la musique et un peu par les effets
+    try {
+      const sr = this.ctx.sampleRate, L = Math.floor(sr * 2.4), ir = this.ctx.createBuffer(2, L, sr);
+      for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < L; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / L, 3.2); }
+      this.reverb = this.ctx.createConvolver(); this.reverb.buffer = ir;
+      this.revMusic = this.ctx.createGain(); this.revMusic.gain.value = 0.3;
+      this.revSfx = this.ctx.createGain(); this.revSfx.gain.value = 0.12;
+      this.revMusic.connect(this.reverb); this.revSfx.connect(this.reverb);
+      const comp = this.ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 3; comp.attack.value = 0.01; comp.release.value = 0.25;
+      this.reverb.connect(comp); comp.connect(this.musicBus);
+    } catch (e) { this.reverb = null; }
     const real = (duty) => { const n = 32, re = new Float32Array(n), im = new Float32Array(n); for (let k = 1; k < n; k++) im[k] = (2 / (k * Math.PI)) * Math.sin(k * Math.PI * duty) * 1; return this.ctx.createPeriodicWave(re, im); };
     // onde « pulse » : on fabrique les coefficients en cosinus pour un rapport cyclique donné
     const pulse = (duty) => { const n = 40, re = new Float32Array(n), im = new Float32Array(n); for (let k = 1; k < n; k++) { re[k] = (2 / (k * Math.PI)) * Math.sin(Math.PI * k * duty); im[k] = 0; } return this.ctx.createPeriodicWave(re, im, { disableNormalization: false }); };
@@ -1087,6 +1102,50 @@ export class Sound {
     g.connect(bus); src.start(t); src.stop(t + dur + 0.02);
   }
 
+  /**
+   * Instruments « modernes » : la même partition, jouée par de vrais timbres au lieu des ondes 8 bits.
+   *  pulse25 / pulse12 / square → mélodie (deux dents de scie désaccordées, filtre doux, vibrato) ;
+   *  pulse50 → piano électrique (arpèges) ; triangle grave → basse ronde ; sawtooth → nappe de cordes ; sine → clochette.
+   */
+  voice(type, f, t, dur, vol, bus, o = {}) {
+    if (this.style === 'retro' || type === 'noise' || !this.ctx) return this.tone(type, f, t, dur, vol, bus, o);
+    const c = this.ctx, g = c.createGain(), lp = c.createBiquadFilter(); lp.type = 'lowpass';
+    const role = type === 'pulse50' ? 'keys' : type === 'sawtooth' ? 'pad' : type === 'sine' ? 'bell' : type === 'triangle' ? (f < 220 ? 'bass' : 'flute') : 'lead';
+    const oscs = [];
+    const osc = (ty, mul = 1, cents = 0, gain = 1) => { const x = c.createOscillator(); x.type = ty; x.frequency.setValueAtTime(f * mul, t); x.detune.value = cents; if (o.slide) x.frequency.exponentialRampToValueAtTime(Math.max(20, o.slide * mul), t + dur); const gg = c.createGain(); gg.gain.value = gain; x.connect(gg); gg.connect(lp); oscs.push(x); return x; };
+    let a = 0.01, peak = vol, sus = vol, rel = Math.min(0.25, dur * 0.4);
+    if (role === 'lead') { osc('sawtooth', 1, -7, 0.5); osc('sawtooth', 1, 7, 0.5); osc('triangle', 0.5, 0, 0.35); lp.frequency.value = Math.min(4200, f * 5); lp.Q.value = 0.6; a = 0.025; peak = vol * 0.62; sus = peak * 0.85;
+      if (dur > 0.3) { const lfo = c.createOscillator(), ld = c.createGain(); lfo.frequency.value = 5.2; ld.gain.setValueAtTime(0, t); ld.gain.linearRampToValueAtTime(f * 0.006, t + 0.25); lfo.connect(ld); for (const x of oscs) ld.connect(x.frequency); lfo.start(t); lfo.stop(t + dur + 0.3); } }
+    else if (role === 'keys') { osc('triangle', 1, 0, 0.8); osc('sine', 2, 3, 0.35); osc('sine', 4, 0, 0.08); lp.frequency.value = 3200; a = 0.004; peak = vol * 1.5; sus = peak * 0.25; rel = Math.min(0.35, dur * 0.6); }
+    else if (role === 'bass') { osc('sine', 1, 0, 0.9); osc('sawtooth', 1, 0, 0.35); lp.frequency.value = 420; lp.Q.value = 1.2; a = 0.006; peak = vol * 1.25; sus = peak * 0.7; }
+    else if (role === 'pad') { osc('sawtooth', 1, -9, 0.4); osc('sawtooth', 1, 9, 0.4); lp.frequency.value = 1800; a = Math.min(0.12, dur * 0.3); peak = vol * 0.8; sus = peak; rel = Math.min(0.4, dur * 0.5); }
+    else if (role === 'bell') { osc('sine', 1, 0, 0.8); osc('sine', 2.76, 0, 0.18); lp.frequency.value = 6000; a = 0.003; peak = vol * 1.2; sus = peak * 0.2; rel = Math.min(0.6, dur); }
+    else { osc('triangle', 1, 0, 0.9); osc('sine', 2, 0, 0.12); lp.frequency.value = 3000; a = 0.03; peak = vol * 1.1; sus = peak * 0.9; }
+    if (o.attack != null && role !== 'keys') a = Math.max(a, o.attack);
+    const end = t + dur;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + a);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, sus), t + Math.max(a + 0.01, Math.min(dur * 0.5, a + 0.18)));
+    g.gain.setValueAtTime(Math.max(0.0002, sus), Math.max(t + a + 0.02, end - rel)); g.gain.exponentialRampToValueAtTime(0.0001, end + 0.02);
+    lp.connect(g); g.connect(bus);
+    for (const x of oscs) { x.start(t); x.stop(end + 0.06); }
+  }
+  /** batterie « moderne » : grosse caisse ronde, caisse claire claquée, charleston fin, cymbale, toms */
+  drum(k, t, v, bus, m) {
+    if (this.style === 'retro') {
+      if (k === 'k') this.tone('triangle', 140, t, 0.12, v * 1.6, bus, { slide: 45 });
+      else if (k === 's') this.tone('noise', 1800, t, 0.09, v * 0.8, bus);
+      else if (k === 'c') this.tone('noise', 4500, t, 0.9, v * 0.7, bus, { release: 0.8 });
+      else if (k === 't') this.tone('triangle', freq(m), t, 0.16, v * 1.4, bus, { slide: freq(m) * 0.55 });
+      else this.tone('noise', 7000, t, 0.03, v * 0.35, bus);
+      return;
+    }
+    if (k === 'k') { this.tone('sine', 150, t, 0.28, v * 2.6, bus, { slide: 42, attack: 0.002, release: 0.2 }); this.tone('noise', 3000, t, 0.012, v * 0.5, bus, { filter: 'bandpass' }); }
+    else if (k === 's') { this.tone('noise', 1900, t, 0.16, v * 1.1, bus, { filter: 'bandpass', release: 0.12 }); this.tone('triangle', 190, t, 0.08, v * 0.9, bus, { slide: 150 }); }
+    else if (k === 'c') this.tone('noise', 6000, t, 1.4, v * 0.45, bus, { release: 1.3 });
+    else if (k === 't') this.tone('sine', freq(m), t, 0.24, v * 2, bus, { slide: freq(m) * 0.5, attack: 0.002 });
+    else this.tone('noise', 9000, t, 0.035, v * 0.28, bus);
+  }
+
   /* ---------------- musique ---------------- */
   play(name) {
     if (this.current === name) return;
@@ -1097,6 +1156,7 @@ export class Sound {
     const song = this.songs[name] ||= (THEMES[name].custom && CUSTOM_COMPOSERS[THEMES[name].custom] ? CUSTOM_COMPOSERS[THEMES[name].custom]() : compose(THEMES[name]));
     const stepDur = 60 / song.bpm / 4;
     const bus = this.ctx.createGain(); bus.gain.value = 1; bus.connect(this.musicBus);
+    if (this.reverb && this.style !== 'retro') bus.connect(this.revMusic);
     // guitare saturée : courbe de distorsion douce puis filtre passe-bas
     let dist = null;
     if (song.tracks.some((tr) => tr.dist)) {
@@ -1116,14 +1176,10 @@ export class Sound {
         song.tracks.forEach((tr, i) => {
           const ns = byStep[i].get(s); if (!ns) return;
           for (const n of ns) {
-            if (tr.type === 'drum') {
-              const v = tr.vol * (n.v ?? 1);
-              if (n.k === 'k') this.tone('triangle', 140, st.t, 0.12, v * 1.6, bus, { slide: 45 });
-              else if (n.k === 's') this.tone('noise', 1800, st.t, 0.09, v * 0.8, bus);
-              else if (n.k === 'c') this.tone('noise', 4500, st.t, 0.9, v * 0.7, bus, { release: 0.8 });
-              else if (n.k === 't') this.tone('triangle', freq(n.m), st.t, 0.16, v * 1.4, bus, { slide: freq(n.m) * 0.55 });
-              else this.tone('noise', 7000, st.t, 0.03, v * 0.35, bus);
-            } else this.tone(tr.type, freq(n.m), st.t, n.d * stepDur * 0.92, tr.vol * (n.v ?? 1), tr.dist && dist ? dist : bus, { attack: tr.attack, release: tr.release ?? Math.min(0.08, n.d * stepDur * 0.3) });
+            if (tr.type === 'drum') this.drum(n.k, st.t, tr.vol * (n.v ?? 1), bus, n.m);
+            // la guitare saturée garde son timbre brut (c'est la distorsion qui fait le son)
+            else if (tr.dist && dist) this.tone(tr.type, freq(n.m), st.t, n.d * stepDur * 0.92, tr.vol * (n.v ?? 1), dist, { attack: tr.attack, release: tr.release ?? Math.min(0.08, n.d * stepDur * 0.3) });
+            else this.voice(tr.type, freq(n.m), st.t, n.d * stepDur * 0.92, tr.vol * (n.v ?? 1), bus, { attack: tr.attack, release: tr.release ?? Math.min(0.08, n.d * stepDur * 0.3) });
           }
         });
         st.step++; st.t += stepDur;
@@ -1144,7 +1200,12 @@ export class Sound {
   /* ---------------- bruitages ---------------- */
   sfx(k) {
     if (!this.ctx) return;
-    const t = this.ctx.currentTime + 0.01, B = this.sfxBus, P = (f, dt, d, v = 0.12, ty = 'pulse25', o) => this.tone(ty, f, t + dt, d, v, B, o);
+    const t = this.ctx.currentTime + 0.01;
+    // en style moderne, les effets passent aussi un peu dans la réverbération, et leurs notes sont jouées en clochettes / piano
+    let B = this.sfxBus;
+    if (this.style !== 'retro' && this.reverb) { B = this.ctx.createGain(); B.connect(this.sfxBus); B.connect(this.revSfx); setTimeout(() => B.disconnect(), 4000); }
+    const SFXV = { pulse25: 'sine', pulse12: 'sine', pulse50: 'pulse50', triangle: 'triangle', sine: 'sine' };
+    const P = (f, dt, d, v = 0.12, ty = 'pulse25', o) => (this.style === 'retro' ? this.tone(ty, f, t + dt, d, v, B, o) : this.voice(SFXV[ty] || ty, f, t + dt, Math.max(d, 0.06), v * 1.1, B, o));
     const n = (m) => freq(midiOf(m));
     switch (k) {
       case 'blip': P(n('A5'), 0, 0.045, 0.07, 'pulse50'); break;
@@ -1175,6 +1236,7 @@ export class Sound {
       case 'exp': P(n('C6'), 0, 0.04, 0.03, 'pulse50'); break;
       case 'run': this.tone('noise', 1500, t, 0.3, 0.08, B, { filter: 'bandpass' }); break;
       case 'learn': [['C5', 0], ['G5', 0.1], ['C6', 0.2]].forEach(([m, d]) => P(n(m), d, 0.09, 0.08)); break;
+      case 'mega': this.duck(2200); for (let i = 0; i < 10; i++) P(n('C5') * Math.pow(2, i / 7), i * 0.07, 0.12, 0.07, 'pulse50'); [['C6', 0.75], ['G6', 0.75], ['E6', 0.75]].forEach(([m, d]) => P(n(m), d, 1.1, 0.07, 'sine')); this.tone('noise', 6000, t + 0.7, 0.9, 0.06, B, { release: 0.8 }); break;
       case 'evolve': for (let i = 0; i < 12; i++) P(n('C5') * Math.pow(2, (i % 6) / 6), i * 0.12, 0.1, 0.06, 'pulse50'); break;
       case 'buy': P(n('B5'), 0, 0.06, 0.08); P(n('E6'), 0.07, 0.12, 0.08); break;
       case 'pc': [['C6', 0], ['E6', 0.06], ['G6', 0.12]].forEach(([m, d]) => P(n(m), d, 0.05, 0.05, 'pulse12')); break;

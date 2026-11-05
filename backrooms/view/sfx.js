@@ -1,9 +1,14 @@
 // The Backrooms - Synthétiseur audio WebAudio spatialisé
 // Bourdonnement strident et glitché qui s'amplifie à l'approche de l'entité
 
+import { growlBuffer } from './entity.js';
 const VOICE = new URL('../monster/david.mp3', import.meta.url).href;
 // souffle haletant (« breathing tired » de mikeask, OpenGameArt, CC0)
 const BREATH = new URL('../sfx/souffle.mp3', import.meta.url).href;
+// sons du jeu (backrooms/sfx/) : cris de poursuite, ambiances jouées au hasard, le son de la mort toute proche
+const SFX = (name) => new URL(`../sfx/${name}.mp3`, import.meta.url).href;
+const CHASE = ['chase_1', 'chase_2', 'chase_3'];
+const AMBIENT = ['ambiant_1', 'ambiant_2', 'ambiant_3', 'ambiant_4', 'ambiant_5', 'ambiant_6', 'ambiant_7', 'ambiant_8', 'ambiant_9'];
 
 export class BackroomsSfx {
   constructor() {
@@ -30,8 +35,21 @@ export class BackroomsSfx {
     const c = (this.ctx = new AudioCtx());
     if (c.state === 'suspended') c.resume();
     // sortie commune, réglée par le curseur « Effets » du panneau Réglages
-    this.out = window.DDVolume ? window.DDVolume.gain(c, 'fx') : c.createGain();
-    this.out.connect(c.destination);
+    this.master = window.DDVolume ? window.DDVolume.gain(c, 'fx') : c.createGain();
+    this.master.connect(c.destination);
+    // les bruits de la pièce passent par this.out : le son direct, plus son écho dans les couloirs (réverbération
+    // à convolution, réglée par setRoom). L'ambiance et ton propre souffle restent secs (this.master).
+    this.out = c.createGain();
+    this.out.connect(this.master);
+    this.verb = c.createConvolver();
+    this.verbLp = c.createBiquadFilter();
+    this.verbLp.type = 'lowpass';
+    this.verbLp.frequency.value = 4200;
+    this.wet = c.createGain();
+    this.out.connect(this.verb).connect(this.verbLp).connect(this.wet).connect(this.master);
+    this.setRoom(0);
+    // l'oreille : HRTF (on entend devant, derrière, à gauche, à droite)
+    this.setListener(0, 0, 0);
 
     // 1. Initialiser le bourdonnement strident et glitché de l'entité
     this.initMonsterAudio();
@@ -42,6 +60,103 @@ export class BackroomsSfx {
     this.unlocked = true;
   }
 
+  // L'écho des couloirs : une réponse impulsionnelle calculée (premières réflexions sur les murs proches, puis une
+  // longue queue qui s'éteint). Level 0 : moquette et faux plafond, un écho moyen ; Level 1 : béton, il traîne.
+  setRoom(level = 0) {
+    if (!this.ctx || this.roomLevel === level) return;
+    this.roomLevel = level;
+    const c = this.ctx;
+    const len = level === 1 ? 3.4 : 2.3;
+    const n = Math.floor(c.sampleRate * len);
+    const ir = c.createBuffer(2, n, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = ir.getChannelData(ch);
+      const pre = Math.floor(c.sampleRate * 0.018);
+      for (let i = pre; i < n; i++) {
+        const k = (i - pre) / (n - pre);
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - k, level === 1 ? 2.6 : 3.4) * 0.6;
+      }
+      // quelques échos francs sur les murs (décalés à gauche et à droite)
+      for (const [ms, a] of [[23, 0.9], [41, 0.6], [67, 0.45], [97, 0.35], [131, 0.25], [173, 0.18]]) {
+        const i = Math.floor(c.sampleRate * (ms + (ch ? 7 : 0)) / 1000);
+        if (i < n) d[i] += (Math.random() < 0.5 ? -1 : 1) * a;
+      }
+    }
+    this.verb.buffer = ir;
+    this.wet.gain.setTargetAtTime(level === 1 ? 0.5 : 0.38, c.currentTime, 0.2);
+    this.verbLp.frequency.value = level === 1 ? 5200 : 3600;
+  }
+
+  // l'oreille du joueur : sa position et la direction de son regard (yaw de la caméra)
+  setListener(x, z, yaw) {
+    const L = this.ctx && this.ctx.listener;
+    if (!L) return;
+    this.ear = { x, z, yaw };
+    const fx = -Math.sin(yaw);
+    const fz = -Math.cos(yaw);
+    if (L.positionX) {
+      const t = this.ctx.currentTime;
+      L.positionX.setTargetAtTime(x, t, 0.02);
+      L.positionY.setTargetAtTime(1.6, t, 0.02);
+      L.positionZ.setTargetAtTime(z, t, 0.02);
+      L.forwardX.setTargetAtTime(fx, t, 0.02);
+      L.forwardY.setTargetAtTime(0, t, 0.02);
+      L.forwardZ.setTargetAtTime(fz, t, 0.02);
+      L.upX.value = 0;
+      L.upY.value = 1;
+      L.upZ.value = 0;
+    } else {
+      L.setPosition(x, 1.6, z);
+      L.setOrientation(fx, 0, fz, 0, 1, 0);
+    }
+  }
+
+  // une source placée dans l'espace (HRTF) ; rolloff 0 : seule la direction compte
+  panner(rolloff = 1, ref = 2.5) {
+    const p = this.ctx.createPanner();
+    p.panningModel = 'HRTF';
+    p.distanceModel = 'inverse';
+    p.refDistance = ref;
+    p.rolloffFactor = rolloff;
+    p.maxDistance = 120;
+    p.connect(this.out);
+    return p;
+  }
+
+  moveTo(p, x, z, smooth = 0) {
+    if (p.positionX) {
+      const t = this.ctx.currentTime;
+      if (smooth) {
+        p.positionX.setTargetAtTime(x, t, smooth);
+        p.positionY.setTargetAtTime(1.2, t, smooth);
+        p.positionZ.setTargetAtTime(z, t, smooth);
+      } else {
+        p.positionX.setValueAtTime(x, t);
+        p.positionY.setValueAtTime(1.2, t);
+        p.positionZ.setValueAtTime(z, t);
+      }
+    } else p.setPosition(x, 1.2, z);
+  }
+
+  // entrée d'un son ponctuel placé en { x, z } ; muffled : de l'autre étage, étouffé à travers le plancher
+  at(pos, vol = 1) {
+    const c = this.ctx;
+    const p = this.panner(pos.rolloff ?? 1, pos.ref ?? 2.5);
+    this.moveTo(p, pos.x, pos.z);
+    let head = p;
+    if (pos.muffled) {
+      const lp = c.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 420;
+      lp.connect(head);
+      head = lp;
+    }
+    const g = c.createGain();
+    g.gain.value = vol * (pos.muffled ? 0.5 : 1);
+    g.connect(head);
+    return g;
+  }
+
   initMonsterAudio() {
     const c = this.ctx;
 
@@ -49,15 +164,9 @@ export class BackroomsSfx {
     this.monsterGain = c.createGain();
     this.monsterGain.gain.setValueAtTime(0.0001, c.currentTime);
 
-    // Panoramique stéréo (gauche/droite)
-    if (c.createStereoPanner) {
-      this.monsterPanner = c.createStereoPanner();
-      this.monsterPanner.pan.setValueAtTime(0, c.currentTime);
-      this.monsterGain.connect(this.monsterPanner);
-      this.monsterPanner.connect(this.out);
-    } else {
-      this.monsterGain.connect(this.out);
-    }
+    // placé en 3D là où se trouve l'entité (son volume, lui, suit le danger : pas d'atténuation en plus)
+    this.monsterPanner = this.panner(0);
+    this.monsterGain.connect(this.monsterPanner);
 
     // Oscillateur principal : onde en dents de scie agressive
     this.monsterOsc1 = c.createOscillator();
@@ -128,7 +237,7 @@ export class BackroomsSfx {
     const whineGain = c.createGain();
     whineGain.gain.value = 0.025;
     whine.connect(whineGain).connect(this.ambientGain);
-    this.ambientGain.connect(this.out);
+    this.ambientGain.connect(this.master);
 
     // Le « silence » d'une pièce vide : un souffle grave, toujours là, même dans le noir
     const len = c.sampleRate * 2;
@@ -147,7 +256,7 @@ export class BackroomsSfx {
     roomLp.frequency.value = 380;
     this.roomGain = c.createGain();
     this.roomGain.gain.value = 0.05;
-    room.connect(roomLp).connect(this.roomGain).connect(this.out);
+    room.connect(roomLp).connect(this.roomGain).connect(this.master);
 
     buzz.start();
     hum.start();
@@ -164,7 +273,7 @@ export class BackroomsSfx {
     if (!this.breathGain) {
       this.breathGain = c.createGain();
       this.breathGain.gain.value = 0;
-      this.breathGain.connect(this.out);
+      this.breathGain.connect(this.master);
       fetch(BREATH)
         .then((r) => r.arrayBuffer())
         .then((b) => c.decodeAudioData(b))
@@ -198,11 +307,26 @@ export class BackroomsSfx {
     this.voiceGain = c.createGain();
     this.voiceGain.gain.setValueAtTime(0.0001, c.currentTime);
     this.voiceGain.connect(this.monsterPanner || this.out);
-    fetch(VOICE)
-      .then((r) => r.arrayBuffer())
-      .then((b) => c.decodeAudioData(b))
+    this.loadVoice();
+  }
+
+  // mode VIP : la voix d'origine ; sinon un grognement grave synthétisé
+  setVoiceMode(vip) {
+    if (this.voiceVip === !!vip) return;
+    this.voiceVip = !!vip;
+    if (this.voiceGain) this.loadVoice();
+  }
+
+  loadVoice() {
+    const c = this.ctx;
+    try { this.voiceSrc?.stop(); } catch {}
+    this.voiceSrc = null;
+    const want = !!this.voiceVip;
+    (want ? fetch(VOICE).then((r) => r.arrayBuffer()).then((b) => c.decodeAudioData(b)) : Promise.resolve(growlBuffer(c)))
       .then((buf) => {
+        if (want !== !!this.voiceVip) return;
         const src = c.createBufferSource();
+        this.voiceSrc = src;
         src.buffer = buf;
         src.loop = true;
         src.connect(this.voiceGain);
@@ -213,7 +337,8 @@ export class BackroomsSfx {
 
   // Mettre à jour le bourdonnement strident de l'entité à chaque frame ; voice : c'est la voix du Level 1 qu'on
   // entend à la place du bourdonnement
-  updateMonsterSound(danger, pan, voice = false) {
+  // pos : { x, z } de l'entité (null : on ne bouge pas la source)
+  updateMonsterSound(danger, pos, voice = false) {
     if (!this.unlocked || !this.ctx) return;
     const c = this.ctx;
     const t = c.currentTime;
@@ -225,10 +350,7 @@ export class BackroomsSfx {
     const targetVol = voice ? 0.0001 : Math.max(0.0001, danger * 0.45);
     this.monsterGain.gain.setTargetAtTime(targetVol, t, 0.08);
 
-    // Ajuster le panoramique stéréo (-1 à 1)
-    if (this.monsterPanner) {
-      this.monsterPanner.pan.setTargetAtTime(pan, t, 0.05);
-    }
+    if (pos && typeof pos === 'object') this.moveTo(this.monsterPanner, pos.x, pos.z, 0.05);
 
     // Plus l'entité est proche, plus la fréquence monte dans les aigus stridents et le glitch accélère
     const baseFreq = 140 + danger * 380; // 140Hz -> 520Hz
@@ -243,11 +365,13 @@ export class BackroomsSfx {
 
   // Bruit de pas feutrés sur moquette
   // Un pas : étouffé et un peu spongieux sur la moquette humide, sec et claquant sur le béton (hard)
-  step(hard = false) {
+  // pos : { x, z, muffled } pour les pas d'un autre joueur (sinon ce sont les tiens) ; vol : plus bas pour les autres
+  step(hard = false, pos = null, vol = 1) {
     if (!this.unlocked || !this.ctx) return;
     const c = this.ctx;
     const t = c.currentTime;
     const v = 0.8 + Math.random() * 0.4;
+    const dest = pos ? this.at(pos, vol) : this.out;
 
     // le talon : un coup sourd
     const osc = c.createOscillator();
@@ -258,7 +382,7 @@ export class BackroomsSfx {
     g.gain.setValueAtTime(hard ? 0.05 : 0.045, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
     osc.connect(g);
-    g.connect(this.out);
+    g.connect(dest);
     osc.start(t);
     osc.stop(t + 0.09);
 
@@ -274,7 +398,7 @@ export class BackroomsSfx {
     f.frequency.value = hard ? 1800 * v : 900 * v;
     const ng = c.createGain();
     ng.gain.value = (hard ? 0.09 : 0.05) * v;
-    src.connect(f).connect(ng).connect(this.out);
+    src.connect(f).connect(ng).connect(dest);
     src.start(t + (hard ? 0 : 0.02));
   }
 
@@ -348,7 +472,8 @@ export class BackroomsSfx {
     // Level 1 : sa voix à plein volume, collée à l'oreille, puis le silence
     if (level === 1 && this.voiceGain) {
       if (this.monsterGain) this.monsterGain.gain.setValueAtTime(0.0001, t);
-      if (this.monsterPanner) this.monsterPanner.pan.setValueAtTime(0, t);
+      // juste devant toi
+      if (this.monsterPanner && this.ear) this.moveTo(this.monsterPanner, this.ear.x - Math.sin(this.ear.yaw) * 0.6, this.ear.z - Math.cos(this.ear.yaw) * 0.6);
       this.voiceGain.gain.cancelScheduledValues(t);
       this.voiceGain.gain.setValueAtTime(2.2, t);
       this.scareUntil = t + 1.6;
@@ -469,26 +594,149 @@ export class BackroomsSfx {
   }
 
   // Pas lourds de l'entité, spatialisés, plus forts quand elle est près
-  monsterStep(danger, pan) {
+  // Pas lourds de l'entité, placés là où elle est, par-dessus ses cris : de plus en plus forts à mesure qu'elle approche
+  monsterStep(danger, pos) {
     if (!this.unlocked || !this.ctx) return;
     const c = this.ctx;
     const t = c.currentTime;
+    const v = 0.35 + Math.min(1, danger) * 1.15;
+    const dest = c.createGain();
+    dest.gain.value = v;
+    dest.connect(pos && typeof pos === 'object' ? this.at({ ...pos, rolloff: 0 }) : this.out);
+    // le poids : une basse qui tombe
     const osc = c.createOscillator();
     const g = c.createGain();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(75, t);
-    osc.frequency.exponentialRampToValueAtTime(30, t + 0.18);
-    g.gain.setValueAtTime(0.5 * danger, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-    osc.connect(g);
-    if (c.createStereoPanner) {
-      const p = c.createStereoPanner();
-      p.pan.setValueAtTime(pan, t);
-      g.connect(p);
-      p.connect(this.out);
-    } else g.connect(this.out);
+    osc.frequency.setValueAtTime(68, t);
+    osc.frequency.exponentialRampToValueAtTime(26, t + 0.3);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.9, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.34);
+    osc.connect(g).connect(dest);
     osc.start(t);
-    osc.stop(t + 0.22);
+    osc.stop(t + 0.36);
+    // le choc sur le sol, et un craquement de la dalle
+    const n = Math.floor(c.sampleRate * 0.22);
+    const buf = c.createBuffer(1, n, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 5);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 520 + Math.random() * 160;
+    const ng = c.createGain();
+    ng.gain.value = 0.75;
+    src.connect(lp).connect(ng).connect(dest);
+    src.start(t);
+  }
+
+  // Un son du dossier sfx/, chargé une fois puis gardé
+  sample(name) {
+    this.samples = this.samples || new Map();
+    if (!this.samples.has(name)) {
+      const c = this.ctx;
+      this.samples.set(
+        name,
+        fetch(SFX(name))
+          .then((r) => r.arrayBuffer())
+          .then((b) => c.decodeAudioData(b))
+          .catch(() => null),
+      );
+    }
+    return this.samples.get(name);
+  }
+
+  // Les cris de la poursuite : tant que l'entité traque, les trois enregistrements s'enchaînent au hasard, placés
+  // là où elle est ; ils montent avec le danger et s'éteignent en une seconde et demie quand elle lâche prise
+  updateChase(on, danger, pos) {
+    if (!this.unlocked || !this.ctx) return;
+    const c = this.ctx;
+    const t = c.currentTime;
+    if (!this.chaseGain) {
+      this.chaseGain = c.createGain();
+      this.chaseGain.gain.value = 0;
+      this.chasePanner = this.panner(0);
+      this.chaseGain.connect(this.chasePanner);
+      for (const n of CHASE) this.sample(n);
+    }
+    if (pos && typeof pos === 'object') this.moveTo(this.chasePanner, pos.x, pos.z, 0.05);
+    const want = on ? 0.35 + Math.min(1, danger) * 0.75 : 0;
+    this.chaseGain.gain.setTargetAtTime(want, t, on ? 0.25 : 0.5);
+    if (on && !this.chasePlaying) this.nextChase();
+  }
+
+  nextChase() {
+    this.chasePlaying = true;
+    let name = CHASE[Math.floor(Math.random() * CHASE.length)];
+    if (name === this.lastChase) name = CHASE[(CHASE.indexOf(name) + 1) % CHASE.length];
+    this.lastChase = name;
+    this.sample(name).then((buf) => {
+      if (!buf) return (this.chasePlaying = false);
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(this.chaseGain);
+      src.start();
+      src.onended = () => {
+        // on enchaîne tant que la poursuite dure (le volume dit si elle dure encore)
+        if (this.chaseGain.gain.value > 0.02) this.nextChase();
+        else this.chasePlaying = false;
+      };
+    });
+  }
+
+  // Les ambiances : de temps en temps (toutes les 20 à 50 s), un des neuf enregistrements, assez bas, avec l'écho
+  // des couloirs ; pas pendant une poursuite
+  ambience(dt, active) {
+    if (!this.unlocked || !this.ctx) return;
+    if (this.ambT === undefined) this.ambT = 6 + Math.random() * 10;
+    if (!active) return;
+    this.ambT -= dt;
+    if (this.ambT > 0) return;
+    this.ambT = 20 + Math.random() * 30;
+    let name = AMBIENT[Math.floor(Math.random() * AMBIENT.length)];
+    if (name === this.lastAmb) name = AMBIENT[(AMBIENT.indexOf(name) + 1) % AMBIENT.length];
+    this.lastAmb = name;
+    this.sample(name).then((buf) => {
+      if (!buf) return;
+      const c = this.ctx;
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      const g = c.createGain();
+      g.gain.value = 0.55;
+      src.connect(g).connect(this.out);
+      src.start();
+    });
+  }
+
+  // La mort toute proche : l'entité est sur toi
+  death() {
+    if (!this.unlocked || !this.ctx) return;
+    this.sample('death').then((buf) => {
+      if (!buf) return;
+      const c = this.ctx;
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      const g = c.createGain();
+      g.gain.value = 1.1;
+      src.connect(g).connect(this.master);
+      src.start();
+      this.deathSrc = { src, g };
+    });
+  }
+
+  // on s'en est sorti (ou une nouvelle partie commence) : le son de la mort s'éteint en une demi-seconde
+  stopDeath() {
+    if (!this.deathSrc || !this.ctx) return;
+    const { src, g } = this.deathSrc;
+    const t = this.ctx.currentTime;
+    g.gain.setTargetAtTime(0.0001, t, 0.15);
+    try {
+      src.stop(t + 0.8);
+    } catch (e) {
+      /* déjà fini */
+    }
+    this.deathSrc = null;
   }
 
   // Coupure de courant : gros claquement du disjoncteur, le bourdonnement des néons se tait
@@ -571,19 +819,15 @@ export class BackroomsSfx {
     lfo.stop(t + sec + 0.1);
   }
 
-  // Sifflet : deux notes aiguës qui montent ; vol de 0 à 1 (plus faible de loin), pan de -1 (gauche) à 1 (droite)
-  whistle(vol = 1, pan = 0) {
+  // Sifflet : deux notes aiguës qui montent ; pos : { x, z, muffled } d'un autre joueur (null : c'est toi qui siffles).
+  // De loin il faiblit mais porte loin dans les couloirs (atténuation douce), d'un autre étage il est étouffé.
+  whistle(pos = null) {
     if (!this.unlocked || !this.ctx) return;
     const c = this.ctx;
     const t = c.currentTime;
     const out = c.createGain();
-    out.gain.setValueAtTime(0.13 * vol, t);
-    if (c.createStereoPanner) {
-      const p = c.createStereoPanner();
-      p.pan.setValueAtTime(pan, t);
-      out.connect(p);
-      p.connect(this.out);
-    } else out.connect(this.out);
+    out.gain.setValueAtTime(pos ? 0.3 : 0.13, t);
+    out.connect(pos ? this.at({ ...pos, ref: 3, rolloff: 0.35 }) : this.out);
     [[1700, 2300, 0, 0.28], [2100, 2700, 0.32, 0.45]].forEach(([f0, f1, d, len]) => {
       const osc = c.createOscillator();
       const g = c.createGain();
@@ -601,35 +845,57 @@ export class BackroomsSfx {
     });
   }
 
-  // Chute dans un trou : un frottement puis un choc sourd (plus fort pour celui qui tombe)
+  // Chute dans un trou : un long sifflement d'air qui descend pendant plus d'une seconde, puis un choc sourd et lourd
+  // (plus fort pour celui qui tombe)
   fall(mine = true) {
     if (!this.unlocked || !this.ctx) return;
     const c = this.ctx;
     const t = c.currentTime;
     const k = mine ? 1 : 0.4;
+    const T = 1.1; // durée de la chute
     const osc = c.createOscillator();
     const g = c.createGain();
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(220, t);
-    osc.frequency.exponentialRampToValueAtTime(40, t + 0.45);
-    g.gain.setValueAtTime(0.25 * k, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    osc.frequency.setValueAtTime(260, t);
+    osc.frequency.exponentialRampToValueAtTime(35, t + T);
+    g.gain.setValueAtTime(0.05 * k, t);
+    g.gain.linearRampToValueAtTime(0.22 * k, t + T * 0.9);
+    g.gain.exponentialRampToValueAtTime(0.001, t + T + 0.05);
     osc.connect(g);
     g.connect(this.out);
     osc.start(t);
-    osc.stop(t + 0.55);
+    osc.stop(t + T + 0.1);
+    // l'air qui siffle (bruit filtré)
+    const len = Math.floor(c.sampleRate * T);
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const air = c.createBufferSource();
+    air.buffer = buf;
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(400, t);
+    bp.frequency.linearRampToValueAtTime(1600, t + T);
+    const ag = c.createGain();
+    ag.gain.setValueAtTime(0.0001, t);
+    ag.gain.exponentialRampToValueAtTime(0.35 * k, t + T);
+    air.connect(bp);
+    bp.connect(ag);
+    ag.connect(this.out);
+    air.start(t);
+    // le choc
     const thud = c.createOscillator();
     const tg = c.createGain();
     thud.type = 'sine';
-    thud.frequency.setValueAtTime(70, t + 0.45);
-    thud.frequency.exponentialRampToValueAtTime(30, t + 0.7);
+    thud.frequency.setValueAtTime(80, t + T);
+    thud.frequency.exponentialRampToValueAtTime(25, t + T + 0.4);
     tg.gain.setValueAtTime(0.0001, t);
-    tg.gain.setValueAtTime(0.6 * k, t + 0.45);
-    tg.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
+    tg.gain.setValueAtTime(0.9 * k, t + T);
+    tg.gain.exponentialRampToValueAtTime(0.001, t + T + 0.6);
     thud.connect(tg);
     tg.connect(this.out);
     thud.start(t);
-    thud.stop(t + 0.8);
+    thud.stop(t + T + 0.65);
   }
 
   // Victoire

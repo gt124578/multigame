@@ -1,0 +1,40 @@
+/* options, divers */
+.opts { padding: calc(var(--px) * 8); max-width: calc(var(--px) * 320); }
+.keys { margin-top: calc(var(--px) * 8); font-size: .8em; color: #485870; }
+.name-screen { display: flex; align-items: center; justify-content: center; z-index: 45; }
+.name-box { padding: calc(var(--px) * 10); min-width: calc(var(--px) * 200); text-align: center; pointer-events: auto; }
+.name-in { font: inherit; font-size: 1.3em; width: 100%; text-align: center; border: var(--px) solid #8898b0; border-radius: calc(var(--px) * 3); padding: calc(var(--px) * 3); margin: calc(var(--px) * 6) 0; color: var(--ink); background: #fff; }
+.hint { font-size: .75em; color: #687890; }
+.starter-pic { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); padding: calc(var(--px) * 6); z-index: 24; }
+.starter-pic img { width: calc(var(--px) * 80); height: calc(var(--px) * 80); display: block; }
+.lvbox { position: absolute; right: calc(var(--bp) * 6); top: calc(var(--bp) * 34); z-index: 21; padding: calc(var(--bp) * 4) calc(var(--bp) * 8); font-size: calc(var(--bp) * 8); min-width: calc(var(--bp) * 90); --px: calc(var(--bp) * 0.85); }
+.lvbox div { display: flex; justify-content: space-between; gap: calc(var(--bp) * 10); }
+
+/* évolution, panthéon */
+.evo-scr { background: #101830; display: flex; align-items: center; justify-content: center; padding: 0; }
+.evo-cv { height: 100%; image-rendering: pixelated; }
+.hof-scr { background: radial-gradient(#3a3070, #120c28); text-align: center; }
+.hof { display: flex; flex-wrap: wrap; gap: calc(var(--px) * 6); justify-content: center; margin: calc(var(--px) * 8) 0; }
+.hof-m { padding: calc(var(--px) * 4); width: calc(var(--px) * 88); } .hof-m img { width: calc(var(--px) * 72); height: calc(var(--px) * 72); }
+.hof-txt { display: inline-block; padding: calc(var(--px) * 6) calc(var(--px) * 14); }
+
+/* ---------- titre et introduction ---------- */
+.title-scr { position: absolute; inset: 0; z-index: 30; background: #0b1030; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.logo { text-align: center; transform: translateY(calc(var(--px) * -18)); }
+.logo-main { font-size: calc(var(--px) * 44); font-weight: 600; color: #f4f6fa; letter-spacing: calc(var(--px) * 2);
+  text-shadow: 0 calc(var(--px) * 2) 0 #8898b8, 0 calc(var(--px) * 4) 0 #384868, calc(var(--px) * 2) calc(var(--px) * 6) 0 rgba(0,0,0,.35); }
+.logo-sub { display: inline-block; margin-top: calc(var(--px) * 2); font-size: calc(var(--px) * 12); color: #fff; background: linear-gradient(#b8c4d8, #8090a8); padding: 0 calc(var(--px) * 14); border-radius: calc(var(--px) * 8); border: var(--px) solid #485870; text-shadow: var(--px) var(--px) 0 #485870; }
+.press { color: #fff; font-size: calc(var(--px) * 11); text-shadow: var(--px) var(--px) 0 #000; animation: blink 1s steps(2) infinite; }
+.title-foot { position: absolute; bottom: calc(var(--px) * 4); color: rgba(255,255,255,.8); font-size: calc(var(--px) * 6.5); text-shadow: var(--px) var(--px) 0 #000; }
+.title-menu { position: relative; min-width: calc(var(--px) * 120); font-weight: 600; }
+.save-info { position: absolute; left: calc(var(--px) * 10); bottom: calc(var(--px) * 20); padding: calc(var(--px) * 5) calc(var(--px) * 10); font-size: .85em; }
+.intro-scr { background: radial-gradient(ellipse at 50% 60%, #f8f8ff 0 22%, #c8d4f0 23% 40%, #6878b8 75%); transition: opacity .5s; }
+.intro-scr.out { opacity: 0; }
+#ui:has(> .intro-scr) .dlg-face { display: none; }
+.intro-stage { position: absolute; inset: 0; }
+.intro-prof { position: absolute; left: 50%; bottom: 38%; width: calc(var(--px) * 80); height: calc(var(--px) * 80); transform: translateX(-50%) scale(1.5); opacity: 0; transition: opacity .5s; transform-origin: 50% 100%; }
+.intro-prof.in { opacity: 1; }
+.intro-mon { position: absolute; left: 64%; bottom: 36%; width: calc(var(--px) * 80); height: calc(var(--px) * 80); opacity: 0; transform: scale(.2); transition: opacity .4s, transform .4s; }
+.intro-mon.in { opacity: 1; transform: scale(1); }
+.intro-kid { position: absolute; left: 50%; bottom: 40%; width: 80px; height: 80px; background: url(../img/dresseurs/player_m.png) center bottom no-repeat; transform: translateX(-50%) scale(calc(var(--px) / 1px)); image-rendering: pixelated; opacity: 0; transition: opacity .4s; transform-origin: 50% 100%; }
+.intro-kid.in { opacity: 1; } .intro-kid.f { background-image: url(../img/dresseurs/player_f.png); }

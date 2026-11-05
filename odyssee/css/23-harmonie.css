@@ -1,0 +1,92 @@
+/* ---------- harmonisation : Pokédex et Options au même style bleu nuit que l'équipe, le résumé et le sac ---------- */
+.dex-scr, .opt-scr {
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 calc(var(--px) * 1), transparent calc(var(--px) * 1) calc(var(--px) * 3)),
+    linear-gradient(180deg, #16243a 0%, #0c1522 100%);
+  color: #e6eef8;
+}
+.dex-scr .box, .opt-scr .box {
+  background: linear-gradient(180deg, #1c2c44 0%, #121e30 100%);
+  border: calc(var(--px) * 1) solid #000;
+  border-radius: 0;
+  box-shadow: inset calc(var(--px) * 1) calc(var(--px) * 1) 0 #4a6c98, inset calc(var(--px) * -1) calc(var(--px) * -1) 0 #060a10, calc(var(--px) * 2) calc(var(--px) * 2) 0 rgba(0, 0, 0, .55);
+  color: #e6eef8;
+}
+.dex-scr .list-row, .opt-scr .list-row { color: #c8d6ea; }
+.dex-scr .list-row.on, .opt-scr .list-row.on { background: #22406a; color: #ffe060; box-shadow: inset calc(var(--px) * 1) 0 0 #3ad0ff; }
+.dex-scr .dexn { color: #7f96b8; }
+.dex-scr .list-row.on .dexn { color: #ffe060; }
+.dex-count { color: #8fb0d8; font-weight: 700; letter-spacing: .03em; }
+.dex-info { color: #d8e4f4; }
+.dex-name { color: #ffe060; }
+.dex-spr { background: radial-gradient(ellipse at 50% 85%, rgba(90, 160, 230, .35) 0 35%, transparent 36%); }
+.opt-scr .scr-title { color: #ffe060; text-shadow: var(--px) var(--px) 0 #000; }
+.opt-scr .opt-help, .opt-scr h4, .opt-scr .box b { color: #9fc0e8; }
+.opt-scr .keys { color: #9fb4d2; } .opt-scr .keys b { color: #ffe060; }
+
+/* combat : la fiche de l'attaque reste sur la moitié gauche, la barre de PV de ton Pokémon (à droite) reste visible */
+.mv-desc-banner { right: 49%; }
+.mv-desc-banner .mv-desc-head { flex-wrap: wrap; row-gap: calc(var(--bp) * 1); }
+
+/* PC : les 5 rangées tiennent toujours dans la hauteur de l'écran (plus de cases carrées forcées qui débordent sur l'aide) */
+.pc-box-panel { min-height: 0; overflow: hidden; }
+.pc-grid { min-height: 0; }
+.pc-cell { aspect-ratio: auto; min-height: 0; }
+.pc-preview-empty .pc-empty-icon { display: none; }
+.pc-slot-empty-lbl { opacity: 0; }
+
+/* HUD plus discret : capsules d'équipe plus petites (elles prenaient un tiers de l'écran) */
+.hud-party { transform: scale(.78); transform-origin: top left; }
+.hud.collapsed .hud-party { transform: scale(.78) translateX(calc(var(--px) * -190)); }
+/* boutons de fermeture et titres : jamais sur deux lignes */
+.scr-close-btn, .scr-bar-title { white-space: nowrap; }
+/* emplacements vides de l'équipe : une case discrète, sans texte */
+.pslot-empty-lbl:empty { display: none; }
+
+/* Carte de Dresseur : vitrine des 15 badges sous les statistiques (comble l'espace vide au centre) */
+.tc-data-col, .tc-data-box { display: flex; flex-direction: column; }
+.tc-data-box { flex: 1; }
+.tc-badge-strip {
+  margin-top: auto; display: grid; grid-template-columns: repeat(15, 1fr); gap: calc(var(--px) * 1.5);
+  padding: calc(var(--px) * 3) calc(var(--px) * 3); cursor: pointer;
+  background: rgba(6, 12, 22, .55); border: calc(var(--px) * .8) solid rgba(120, 160, 220, .25);
+}
+.tc-bs-ico { width: 100%; aspect-ratio: 1; object-fit: contain; image-rendering: pixelated; opacity: .75; }
+.tc-bs-ico.got { opacity: 1; filter: drop-shadow(0 0 calc(var(--px) * 2) rgba(255, 220, 120, .55)); }
+.tc-badge-strip:hover .tc-bs-ico:not(.got) { opacity: 1; }
+
+/* Pokédex : en-tête avec progression, emplacement mystère pour les créatures jamais vues */
+.dex-count { display: flex; justify-content: space-between; align-items: baseline; }
+.dex-count > span:first-child { color: #ffe060; font-size: 1.15em; letter-spacing: .06em; }
+.dex-count b { color: #fff; }
+.dex-prog { position: relative; height: calc(var(--px) * 3); background: #0a1220; border: calc(var(--px) * .6) solid #000; margin-bottom: calc(var(--px) * 4); }
+.dex-prog i { position: absolute; left: 0; top: 0; bottom: 0; background: #3a5f8c; }
+.dex-prog u { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #3ad0ff, #7cf0a8); z-index: 1; }
+.dex-unknown { display: flex; flex-direction: column; align-items: center; text-align: center; gap: calc(var(--px) * 3); margin-top: calc(var(--px) * -40); }
+.dex-q { width: calc(var(--px) * 56); height: calc(var(--px) * 56); display: grid; place-items: center; font-size: calc(var(--px) * 32); font-weight: 900; color: #4a6890;
+  border: calc(var(--px) * 1.5) dashed #3a5478; border-radius: 50%; background: radial-gradient(circle, rgba(58, 208, 255, .08), transparent 70%); }
+.dex-unknown p { color: #8fa6c6; max-width: 80%; }
+
+/* carte de la région : nom des villes visitées sous leur repère */
+.map-pin-name {
+  position: absolute; transform: translate(-50%, calc(var(--px) * 6)); z-index: 5;
+  white-space: nowrap; pointer-events: none; font-size: calc(var(--px) * 4.6); font-weight: 800; letter-spacing: .02em;
+  color: #f2f8ff; text-shadow: calc(var(--px) * .6) calc(var(--px) * .6) 0 #000, calc(var(--px) * -.6) calc(var(--px) * .6) 0 #000, 0 calc(var(--px) * -.6) 0 #000;
+}
+
+/* combat : bouton Méga-Évolution, à côté de Retour ; allumé quand la Méga est armée */
+.mv-mega-btn {
+  width: calc(var(--bp) * 22); height: 100%; box-sizing: border-box; flex-shrink: 0; padding: 0; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--bp) * 1);
+  background: linear-gradient(180deg, #3a2a58 0%, #1a1428 100%);
+  border: calc(var(--bp) * 1.2) solid #9a7ad8; outline: calc(var(--bp) * 1.1) solid #080a10;
+  box-shadow: inset 0 calc(var(--bp) * 1) 0 rgba(255, 255, 255, .3), calc(var(--bp) * 1.6) calc(var(--bp) * 1.6) 0 rgba(0, 0, 0, .65);
+  color: #e8dcff; font-weight: 900; font-size: calc(var(--bp) * 6); letter-spacing: .06em; text-shadow: calc(var(--bp) * .8) calc(var(--bp) * .8) 0 #080a10;
+}
+.mv-mega-btn img { width: calc(var(--bp) * 12); height: calc(var(--bp) * 12); image-rendering: pixelated; }
+.mv-mega-btn.on {
+  border-color: #ffe060; color: #fff;
+  background: conic-gradient(from 0deg, #ff5ad0, #ffd84a, #5ad8ff, #8affa0, #ff5ad0);
+  animation: mega-pulse .9s ease-in-out infinite alternate;
+}
+@keyframes mega-pulse { from { filter: brightness(1); } to { filter: brightness(1.35); } }

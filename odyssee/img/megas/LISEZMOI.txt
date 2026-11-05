@@ -1,0 +1,5 @@
+Méga-Évolutions imaginées par des fans (n° 20001 à 20024), pack « MEGA SPRITES » partagé sur r/PokemonROMhacks
+(« Sprites Méga gratuits / utilisables pour Pokémon, avant et arrière »), fourni par Amiel le 5 novembre 2026.
+Le pack ne nomme pas ses auteurs : les crédits sont à compléter si on les retrouve.
+Sprites d'origine 80 x 80 px, recentrés et ancrés en bas sur 96 x 96 px (<n°>-f.png de face, <n°>-b.png de dos).
+Données (types, statistiques, talent, gemme) : odyssee/js/data/megasFans.js.

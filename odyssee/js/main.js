@@ -448,7 +448,7 @@ async function intro(game, ui, sound) {
   sound.cry(ASSETS.cry(starterSp));
   await ui.say([
     'Ce monde est peuplé de créatures étonnantes !',
-    'Certains les adoptent comme fidèles compagnons de route, d\'autres les entraînent pour disputer des combats passionnants à travers les huit Arènes.'
+    'Certains les adoptent comme fidèles compagnons de route, d\'autres les entraînent pour disputer des combats passionnants à travers les quinze Arènes de l\'archipel.'
   ], { speaker: 'Prof. Saule' });
 
   starter.classList.add('recall');

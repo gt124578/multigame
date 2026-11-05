@@ -37,11 +37,11 @@ const GRUNT = {
 export const ELITE = [
   { id: 'c4:1', name: 'Frimas', ow: 'frimas', bs: 'frimas', team: [[87, 73], [91, 73], [221, 74], [124, 74], [131, 75]], room: 'Salle de Glace', floor: 'gymWater', deco: 'statue',
     intro: 'Bienvenue au Conseil 4. Je suis Frimas. Mon cœur s\'est figé il y a bien longtemps... Le tien tiendra-t-il face au froid ?', lose: 'Ta flamme a fait fondre ma glace. Passe, la salle suivante t\'attend.' },
-  { id: 'c4:2', name: 'Spectrel', ow: 'spectrel', bs: 'spectrel', team: [[93, 74], [200, 74], [1023, 75], [94, 76]], room: 'Salle des Ombres', floor: 'gymPsy', deco: 'gymstatue',
-    intro: 'Chut... Les esprits me murmurent ton nom depuis que tu es entré. Ils ont hâte de jouer avec toi.', lose: 'Les esprits se taisent... Tu les as impressionnés.' },
-  { id: 'c4:3', name: 'Brutus', ow: 'brutus', bs: 'brutus', team: [[237, 75], [106, 75], [107, 75], [1033, 76], [68, 77]], room: 'Salle du Poing', floor: 'gymRock', deco: 'statue',
+  { id: 'c4:2', name: 'Brutus', ow: 'brutus', bs: 'brutus', team: [[237, 75], [106, 75], [107, 75], [1033, 76], [68, 77]], room: 'Salle du Poing', floor: 'gymRock', deco: 'statue',
     intro: 'Je suis Brutus ! J\'ai entraîné mes muscles et ceux de mes Pokémon chaque jour de ma vie. Hoo ! Hah !', lose: 'Ma force n\'a pas suffi... Va. Tu le mérites.' },
-  { id: 'c4:4', name: 'Ombrelle', ow: 'ombrelle', bs: 'ombrelle', team: [[197, 76], [198, 76], [215, 77], [229, 77], [248, 78]], room: 'Salle de la Nuit', floor: 'gymDragon', deco: 'gymstatue',
+  { id: 'c4:3', name: 'Spectrel', ow: 'spectrel', bs: 'spectrel', team: [[93, 75], [200, 75], [1023, 76], [94, 77]], room: 'Salle des Ombres', floor: 'gymPsy', deco: 'gymstatue',
+    intro: 'Chut... Les esprits me murmurent ton nom depuis que tu es entré. Ils ont hâte de jouer avec toi.', lose: 'Les esprits se taisent... Tu les as impressionnés.' },
+  { id: 'c4:4', name: 'Ombrelle', ow: 'ombrelle', bs: 'ombrelle', megaSp: 248, team: [[197, 76], [198, 76], [215, 77], [229, 77], [248, 78]], room: 'Salle de la Nuit', floor: 'gymDragon', deco: 'gymstatue',
     intro: 'Je suis Ombrelle, la dernière du Conseil 4. Les gentils Pokémon, les méchants Pokémon... Seuls les dresseurs comptent. Montre-moi ce que tu vaux.', lose: 'Tu es fort, et tu aimes tes Pokémon. C\'est ce qui fait un vrai dresseur. Célestine t\'attend.' },
 ];
 
@@ -257,7 +257,7 @@ export function addStory({ W, maps, towns, routes, legends, trainerNpc }) {
       const m = maps[rooms[i]]; if (i) m.name = e.room;
       m.floor = e.floor;
       for (const y of [3, 7, 11, 15]) { m.prop(e.deco, 1, y); m.prop(e.deco, 13, y); }
-      const n = trainerNpc(m, 7, 3, 'down', 'Conseil 4', e.name, e.team, { id: e.id, sight: 0, ow: e.ow, bs: e.bs, prize: 150, ai: 'smart', items: { 'hyper-potion': 2, 'full-heal': 1 }, intro: e.intro, lose: e.lose, after: 'Avance. La salle suivante t\'attend.' });
+      const n = trainerNpc(m, 7, 3, 'down', 'Conseil 4', e.name, e.team, { id: e.id, sight: 0, ow: e.ow, bs: e.bs, prize: 150, ai: 'smart', megaSp: e.megaSp, items: { 'hyper-potion': 2, 'full-heal': 1 }, intro: e.intro, lose: e.lose, after: 'Avance. La salle suivante t\'attend.' });
       Object.assign(n, { beatenPos: [9, 3], music: 'leader' });
       // porte du fond vers la salle suivante, ouverte une fois le membre du Conseil battu
       m.set(7, 1, T.DOOR); m.warp(7, 1, { map: rooms[i + 1], x: 7, y: 15, dir: 'up' });

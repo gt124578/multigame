@@ -30,8 +30,8 @@ export const STARTER_TABLE = [
   { type: 'fire', lines: [[NEW_STARTERS[1], NEW_STARTERS[1] + 1, NEW_STARTERS[1] + 2], [4, 5, 6], [155, 156, 157]] },
   { type: 'water', lines: [[NEW_STARTERS[2], NEW_STARTERS[2] + 1, NEW_STARTERS[2] + 2], [7, 8, 9], [158, 159, 160]] },
 ].map((c) => ({ ...c, lines: c.lines.map((l) => l.map(R)) }));
-// au labo, trois capsules, une par type ; dans chacune, deux partenaires au choix : celui de Rouge / Bleu et celui d'Or / Argent
-export const STARTER_CHOICES = STARTER_TABLE.map((c) => ({ ...c, lines: c.lines.slice(1) }));
+// au labo, trois capsules, une par type ; dans chacune, trois partenaires au choix : celui d'Odyssée, celui de Rouge / Bleu et celui d'Or / Argent
+export const STARTER_CHOICES = STARTER_TABLE.map((c) => ({ ...c }));
 /** les trois capsules (repérées par le premier partenaire de chacune) */
 export const STARTERS = STARTER_CHOICES.map((c) => c.lines[0][0]);
 /** toutes les lignées de partenaires de départ (pour le Pokémon qui suit le dresseur) */
@@ -83,18 +83,18 @@ const ENC = {
   r6: [[1053, 21, 24, 6], [1021, 21, 23, 10], [1022, 24, 25, 3], [1038, 21, 24, 12], [1039, 21, 23, 10], [1040, 25, 26, 2], [1019, 22, 24, 8], [1020, 21, 24, 10], [43, 21, 23, 10], [69, 21, 23, 10], [114, 22, 25, 8], [123, 24, 26, 3], [127, 24, 26, 2], [1016, 24, 26, 7]],
   r7: [[1011, 26, 29, 10], [1023, 26, 30, 10], [1039, 26, 29, 10], [1043, 27, 30, 10], [1031, 26, 29, 10], [96, 26, 30, 10], [177, 26, 29, 10], [203, 27, 30, 10], [1012, 30, 30, 3], [1029, 26, 29, 10], [216, 26, 29, 7]],
   mer: [[1029, 25, 32, 25], [1031, 25, 32, 20], [1007, 28, 30, 3], [1045, 28, 32, 10], [72, 25, 32, 20], [1033, 30, 33, 7], [120, 26, 32, 10], [1027, 32, 34, 5]],
-  granit: [[1060, 36, 38, 3], [1026, 34, 37, 15], [1027, 36, 38, 5], [1028, 34, 38, 15], [1047, 34, 37, 10], [1048, 37, 39, 3], [74, 34, 37, 15], [111, 35, 38, 10], [1045, 34, 37, 10], [1046, 37, 39, 2], [95, 35, 38, 10], [1024, 34, 37, 5]],
+  granit: [[1060, 36, 38, 3], [1026, 34, 37, 15], [1027, 36, 38, 5], [1028, 34, 38, 15], [1047, 34, 37, 10], [1048, 37, 39, 3], [74, 34, 37, 15], [111, 35, 38, 10], [1045, 34, 37, 10], [1046, 37, 39, 2], [95, 35, 38, 10], [1024, 34, 37, 5], [140, 34, 37, 4], [138, 34, 37, 4], [447, 34, 36, 3]],
   cendre: [[1041, 38, 42, 20], [1042, 41, 43, 5], [1005, 40, 42, 3], [77, 38, 42, 15], [126, 40, 43, 5], [1028, 38, 41, 10], [1043, 38, 42, 12], [1044, 41, 43, 3], [218, 38, 42, 12], [1036, 38, 41, 10]],
-  ecaille: [[1058, 43, 46, 3], [1049, 42, 45, 12], [1050, 45, 47, 4], [1044, 43, 46, 10], [1025, 42, 46, 12], [1016, 42, 45, 10], [1012, 43, 46, 8], [1023, 42, 45, 10], [1048, 43, 46, 8], [148, 44, 46, 6], [1040, 43, 46, 8], [1035, 42, 45, 8], [147, 42, 44, 4]],
-  r9: [[1012, 34, 38, 15], [1035, 34, 38, 10], [67, 34, 38, 20], [75, 34, 38, 20], [42, 34, 37, 20], [1044, 35, 38, 10], [105, 34, 37, 5]],
+  ecaille: [[1058, 43, 46, 3], [1049, 42, 45, 12], [1050, 45, 47, 4], [1044, 43, 46, 10], [1025, 42, 46, 12], [1016, 42, 45, 10], [1012, 43, 46, 8], [1023, 42, 45, 10], [1048, 43, 46, 8], [148, 44, 46, 6], [1040, 43, 46, 8], [1035, 42, 45, 8], [147, 42, 44, 4], [1, 40, 44, 3], [152, 40, 44, 3], [252, 40, 44, 3], [650, 40, 44, 3]],
+  r9: [[1012, 34, 38, 15], [1035, 34, 38, 10], [67, 34, 38, 20], [75, 34, 38, 20], [42, 34, 37, 20], [1044, 35, 38, 10], [105, 34, 37, 5], [446, 34, 37, 4], [686, 34, 37, 4]],
   victoire: [[1056, 38, 42, 4], [67, 36, 42, 12], [75, 36, 42, 12], [1028, 36, 42, 12], [1025, 36, 40, 12], [1048, 38, 42, 8], [1050, 38, 42, 6], [95, 37, 41, 8], [42, 36, 40, 12], [105, 36, 40, 8], [1044, 38, 42, 6], [208, 39, 42, 2], [1051, 50, 50, 1]],
   // îles du bateau : un cran au-dessus de l'arène précédente
   orage: [[1034, 20, 24, 15], [1036, 21, 24, 10], [81, 20, 24, 12], [100, 20, 24, 10], [1029, 20, 24, 10], [21, 20, 23, 10], [22, 22, 25, 5], [1031, 20, 24, 10], [179, 20, 23, 10], [180, 24, 26, 3], [1037, 22, 25, 5]],
   grue: [[1054, 30, 32, 3], [1021, 27, 31, 10], [1038, 27, 31, 10], [1039, 27, 30, 10], [1023, 28, 31, 10], [96, 27, 31, 10], [177, 27, 30, 10], [203, 28, 31, 8], [163, 27, 30, 10], [164, 30, 32, 3], [1043, 28, 31, 8], [1015, 27, 30, 8]],
-  brasier: [[1041, 28, 32, 20], [1042, 31, 33, 4], [58, 28, 32, 12], [77, 28, 32, 12], [1028, 28, 31, 10], [1026, 28, 31, 10], [126, 30, 33, 4], [74, 28, 31, 10]],
+  brasier: [[1041, 28, 32, 20], [1042, 31, 33, 4], [58, 28, 32, 12], [77, 28, 32, 12], [1028, 28, 31, 10], [1026, 28, 31, 10], [126, 30, 33, 4], [74, 28, 31, 10], [4, 30, 33, 3], [155, 30, 33, 3], [255, 30, 33, 3], [498, 30, 33, 3], [653, 30, 33, 3]],
   givre: [[1045, 37, 41, 20], [1046, 40, 42, 4], [86, 37, 41, 12], [220, 37, 41, 12], [221, 40, 42, 4], [225, 37, 41, 10], [215, 38, 41, 10], [124, 39, 42, 5], [1012, 38, 41, 8], [1016, 38, 41, 8]],
   tourbillons: [[1046, 40, 44, 15], [87, 40, 44, 10], [1030, 40, 43, 12], [1032, 40, 43, 12], [1027, 40, 44, 10], [1009, 42, 44, 3], [131, 42, 44, 4], [42, 40, 43, 12], [1025, 40, 43, 10]],
-  est: [[1029, 30, 36, 20], [1031, 30, 36, 20], [72, 30, 36, 20], [1033, 32, 36, 10], [1045, 32, 36, 8], [120, 30, 35, 10], [1007, 32, 35, 3], [131, 35, 38, 2]],
+  est: [[1029, 30, 36, 20], [1031, 30, 36, 20], [72, 30, 36, 20], [1033, 32, 36, 10], [1045, 32, 36, 8], [120, 30, 35, 10], [1007, 32, 35, 3], [131, 35, 38, 2], [7, 30, 35, 3], [158, 30, 35, 3], [258, 30, 35, 3], [656, 30, 35, 3], [349, 30, 35, 3]],
   r10: [[1014, 33, 37, 10], [1035, 33, 37, 10], [1037, 33, 37, 10], [1040, 34, 37, 5], [22, 33, 37, 15], [85, 33, 37, 10], [128, 34, 37, 10], [241, 34, 37, 10], [203, 33, 37, 10], [20, 33, 36, 10]],
 };
 // plus de diversité : chaque zone reçoit aussi tous les Pokémon des lieux équivalents des jeux officiels (Rouge à X / Y)
@@ -113,7 +113,7 @@ const CLS = {
   Sage: ['vieil_homme', 32, 'medium'], 'Grand Sage': ['vieil_homme', 60, 'medium'], Skieuse: ['randonneuse', 30], Alpiniste: ['montagnard', 30],
 };
 export const LEADERS = [
-  { name: 'Hector', type: 'bug', ow: 'hector', team: [[1018, 10], [167, 11], [1020, 12], [1019, 14]], intro: 'Les insectes ne crient pas : ils observent. Et toi, que vois-tu dans ce combat ?', lose: 'Tu as l\'œil vif ! Le Badge Élytre est à toi.' },
+  { name: 'Hector', type: 'bug', ow: 'hector', team: [[1018, 9, null, [33, 81, 106]], [167, 10], [1020, 10], [1019, 12]], intro: 'Les insectes ne crient pas : ils observent. Et toi, que vois-tu dans ce combat ?', lose: 'Tu as l\'œil vif ! Le Badge Élytre est à toi.' },
   { name: 'Marine', type: 'water', ow: 'marine', team: [[1031, 19], [1029, 19], [120, 20], [1033, 22]], intro: 'La marée monte ! Tu vas te faire emporter par mes créatures de l\'océan !', lose: 'Ouah, tu as tenu face à la vague. Voici le Badge Écume !' },
   { name: 'Volta', type: 'electric', ow: 'volta', team: [[1034, 25], [1036, 26], [82, 26], [1035, 29]], intro: 'Ça grésille ! Prépare-toi à recevoir le choc de ta vie !', lose: 'Court-circuit total ! Tu remportes le Badge Volt.' },
   { name: 'Flora', type: 'grass', ow: 'flora', team: [[1021, 30], [1038, 31], [114, 31], [1022, 34]], intro: 'Mes fleurs sont belles, mais elles savent piquer. Prêt ?', lose: 'Tu as fait éclore quelque chose de beau. Le Badge Pétale te revient.' },
@@ -123,14 +123,14 @@ export const LEADERS = [
   { name: 'Drakos', type: 'dragon', ow: 'drakos', team: [[1049, 50], [1044, 52], [148, 52], [1050, 53], [149, 54], [1051, 56]], intro: 'Dix ans que personne n\'a franchi cette porte. Célestine t\'envoie ? Peu importe. Ici, c\'est moi qui règne !', lose: '... Les dragons te reconnaissent. Prends le Badge Écaille. Le dernier.' },
   ...LEADERS_SUD,
 ];
-const CHAMPION = { name: 'Célestine', ow: 'celestine', team: [[1016, 78], [1046, 79], [1035, 79], [1040, 80], [248, 80], [149, 82]], intro: 'Quinze badges... Les douze du continent, et même celui de Drakos. Tu as parcouru toute la région pour arriver jusqu\'ici. Alors montre-moi tout ce que tu as appris !', lose: 'Magnifique. Tu es le nouveau Maître de la Ligue Céleste !' };
+const CHAMPION = { name: 'Célestine', ow: 'celestine', team: [[1016, 77], [1046, 78], [1035, 78], [1040, 79], [248, 79], [149, 81]], intro: 'Quinze badges... Les huit du Nord et les sept des Terres du Sud. Tu as parcouru toute la région pour arriver jusqu\'ici. Alors montre-moi tout ce que tu as appris !', lose: 'Magnifique. Tu es le nouveau Maître de la Ligue Céleste !' };
 
 let tCount = 0;
 export function trainerNpc(map, x, y, dir, cls, name, team, o = {}) {
   const [ow, prize, bs] = CLS[cls] || ['gamin', 20];
   return map.npc({
     id: o.id || `${map.id}:t${tCount++}`, x, y, dir, sprite: o.ow || ow, move: 'static', onWin: o.onWin,
-    trainer: { cls, name, team, prize: o.prize || prize, sight: o.sight ?? 4, bs: o.bs || bs || ow, ai: o.ai || 'normal', items: o.items, intro: o.intro || 'Nos regards se sont croisés : c\'est l\'heure du combat !', lose: o.lose || 'J\'ai perdu...', after: o.after || 'Tu es vraiment fort !' },
+    trainer: { cls, name, team, prize: o.prize || prize, sight: o.sight ?? 4, bs: o.bs || bs || ow, ai: o.ai || 'normal', items: o.items, megaSp: o.megaSp, intro: o.intro || 'Nos regards se sont croisés : c\'est l\'heure du combat !', lose: o.lose || 'J\'ai perdu...', after: o.after || 'Tu es vraiment fort !' },
   });
 }
 /** dresseur posé le long d'une route : t sur la ligne, côté ±1, distance au sentier */
@@ -521,6 +521,8 @@ export function buildWorld() {
     ],
     npcs: [
       { id: 'garde-quai', x: 22, y: 2, sprite: 'garde', dir: 'down', script: 'granitDock', text: ['Port-Granit. Ici, c\'est Drakos qui fait la loi, pas la Ligue.'] },
+      // le professeur Orme, chercheur des Méga-Évolutions : remet le Méga-Anneau aux dresseurs qui ont 5 badges, puis vend les Méga-Gemmes
+      { id: 'mega-chercheuse', x: 17, y: 8, sprite: 'savant', dir: 'down', script: 'megaRing' },
       { id: 'marin', x: 15, y: 22, sprite: 'marin', move: 'wander', text: ['Avec Surf, tu peux rejoindre Cendrelune, au sud-ouest.', 'Mais les gardes de Pyros ne laissent entrer que ceux qui ont battu Basalte.'] },
     ],
   };
@@ -632,16 +634,16 @@ export function buildWorld() {
   const relief = (pts) => { const r = routes.find((q) => q.pts === pts), p = along(pts, 0.5); boucher(W, [...r.cells], nearestWalkable(W, p.x, p.y)); };
   const r1 = R('r1', 'Route 1', sinueuse([[34.5, 238], [34.5, 226], [30.5, 214], [37.5, 200], [34.5, 188], [34.5, 182]]), { w: 13, grass: 0.8, trees: 0.04 }, 'r1');
   ledges(W, r1, [0.18, 0.32, 0.55, 0.7], { reach: 7 });
-  routeTrainer(W, r1, 0.35, 1, 4, 'Gamin', 'Léo', [[1013, 4], [1010, 4]], { intro: 'Hé ! Toi aussi tu viens d\'avoir ta première créature ?' });
-  routeTrainer(W, r1, 0.62, -1, 4, 'Fillette', 'Inès', [[161, 5]], { intro: 'Mon Fouinette est le plus mignon de la route !' });
-  routeTrainer(W, r1, 0.82, 1, 3, 'Gamin', 'Malo', [[1010, 5], [19, 5], [1017, 4]]);
-  routeTrainer(W, r1, 0.5, 1, 5, 'Fillette', 'Mila', [[1013, 4], [16, 4]]);
+  routeTrainer(W, r1, 0.35, 1, 4, 'Gamin', 'Léo', [[1013, 3]], { intro: 'Hé ! Toi aussi tu viens d\'avoir ta première créature ?' });
+  routeTrainer(W, r1, 0.62, -1, 4, 'Fillette', 'Inès', [[161, 4]], { intro: 'Mon Fouinette est le plus mignon de la route !' });
+  routeTrainer(W, r1, 0.82, 1, 3, 'Gamin', 'Malo', [[1010, 4], [19, 4]]);
+  routeTrainer(W, r1, 0.5, 1, 5, 'Fillette', 'Mila', [[16, 4]]);
   routeItem(W, r1, 0.5, -1, 5, 'potion'); routeItem(W, r1, 0.9, 1, 5, 'poke-ball', 2);
 
   const r2 = R('r2', 'Route 2', [[34.5, 138], [34.5, 120], [37.5, 104], [52.5, 96.5], [75.5, 94.5], [99.5, 92.5]], { w: 11, grass: 0.7, trees: 0.05, flowers: 0.03, taperEnd: false }, 'r2');
   // la route grimpe sur une butte boisée (marches au sud, redescente au nord) avant de tourner vers l'est
   plateau(W, polygone([[27.5, 111.5], [44.5, 110.5], [45.5, 124.5], [27.5, 125.5]]), 1); relief(r2);
-  routeTrainer(W, r2, 0.2, -1, 3, 'Insectomane', 'Noé', [[1017, 6], [1018, 6], [10, 7]]);
+  routeTrainer(W, r2, 0.2, -1, 3, 'Insectomane', 'Noé', [[1017, 6], [1018, 6, null, [33, 81, 106]], [10, 7]]);
   routeTrainer(W, r2, 0.45, 1, 3, 'Fillette', 'Jade', [[1039, 7], [29, 7]]);
   routeTrainer(W, r2, 0.7, -1, 4, 'Gamin', 'Sacha', [[21, 8], [1034, 7]]);
   routeTrainer(W, r2, 0.9, 1, 3, 'Topdresseuse', 'Alba', [[1021, 8], [43, 9], [1011, 9]]);
@@ -941,6 +943,10 @@ export function buildWorld() {
   W.zone(412, 75, 433, 94, { name: 'Cratère du Brasier', music: 'volcano', theme: 'volcanic' });
   legend({ id: 'moltres', sp: 146, lvl: 38, x: 423, y: 79, intro: ['La chaleur devient insoutenable...', 'Sulfura, l\'oiseau de feu, s\'élève du cratère !'] });
   legend({ id: 'entei', sp: 244, lvl: 40, ...xy(offRoute(mb, 0.5, -1, 2)), cond: 'beasts', intro: ['Le sol se met à fumer...', 'C\'est Entei, la bête du feu !'] });
+  // légendaires qui ont une Méga-Évolution : à rencontrer une fois le Méga-Anneau bien en main
+  legend({ id: 'latias', sp: 380, lvl: 50, ...xy(offRoute(r10, 0.55, -1, 3)), cond: (f, g) => g.badgeCount() >= 7, intro: ['Un souffle chaud frôle la route...', 'Une créature rouge et blanche plane en silence : Latias !'] });
+  legend({ id: 'latios', sp: 381, lvl: 50, ...xy(offRoute(cr, 0.35, 1, 3)), cond: (f, g) => g.badgeCount() >= 7, intro: ['Une ombre bleue file au ras des vagues...', 'C\'est Latios !'] });
+  legend({ id: 'diancie', sp: 719, lvl: 55, ...xy(offRoute(r12, 0.6, -1, 3)), cond: (f, g) => g.badgeCount() >= 8, intro: ['Des cristaux roses scintillent entre les arbres...', 'Une petite princesse de diamant apparaît : Diancie !'] });
 
   /* ---------- Île Givrée (5 badges) : Artikodin, Lugia et Suicune ---------- */
   W.rect(344, 3, 436, 62, T.TREE);
@@ -974,6 +980,15 @@ export function buildWorld() {
   legend({ id: 'articuno', sp: 144, lvl: 45, x: 423, y: 6, intro: ['Un vent glacial se lève...', 'Artikodin, l\'oiseau des glaces, plane au-dessus de la cime !'] });
   // à l'est du village : la Grotte des Tourbillons (Lugia), ouverte par l'Ermite
   const gt = R('givre2', 'Rivage Gelé', [[377.5, 44.5], [392, 46], [404, 47.5]], { w: 9, grass: 0.6, trees: 0.05, treeT: T.PINE, theme: 'snow' }, 'givre', 'snow');
+  // Méga-Gemmes cachées sur les routes de la fin de l'aventure (après Port-Granit, où l'on reçoit le Méga-Anneau)
+  // et les gemmes des Méga imaginées par des fans, réparties sur les mêmes routes
+  { const fans = ['amoongus', 'azumarill', 'butterfree', 'conkeldurr', 'darkrai', 'dugtrio', 'electivire', 'excadrill', 'feraligatr', 'flygon', 'golem', 'jumpluff',
+      'kabutops', 'magmortar', 'meganium', 'milotic', 'omastar', 'poliwrath', 'pyroar', 'shiftry', 'snorlax', 'torkoal', 'typhlosion', 'whimsicott'];
+    const spots = [r7, r9, r10, r11, r12, so, cr, mb, pg, gt];
+    fans.forEach((k, i) => routeItem(W, spots[i % spots.length], 0.12 + ((i * 0.37) % 0.76), i % 2 ? 1 : -1, 5, 'fan-' + k + 'ite')); }
+  for (const [route, t, side, gem] of [[r9, 0.6, 1, 'lucarionite'], [r10, 0.3, -1, 'gyaradosite'], [r10, 0.8, 1, 'aerodactylite'], [r11, 0.5, 1, 'absolite'],
+    [r12, 0.4, -1, 'scizorite'], [r12, 0.85, 1, 'heracronite'], [so, 0.5, -1, 'ampharosite'], [cr, 0.6, 1, 'gengarite'], [mb, 0.5, -1, 'houndoominite'],
+    [pg, 0.6, 1, 'abomasite'], [gt, 0.55, 1, 'glalitite'], [r7, 0.5, 1, 'tyranitarite']]) routeItem(W, route, t, side, 4, gem);
   routeTrainer(W, gt, 0.5, 1, 3, 'Skieuse', 'Flocon', [[1045, 40], [1046, 42]]);
   const tb = W.building('cave', 406, 43);
   W.rect(402, 46, 413, 48, T.GRASS); W.rect(402, 47, 413, 47, T.PATH); W.rect(tb.doorX, tb.doorY + 1, tb.doorX, 48, T.PATH);
@@ -1055,7 +1070,7 @@ export function buildWorld() {
 
   /* ======================== ARÈNES ======================== */
   const gymTrainers = [
-    [['Insectomane', 'Lucas', [[1017, 9], [10, 10]]], ['Insectomane', 'Basile', [[1018, 10], [1020, 10]]]],
+    [['Insectomane', 'Lucas', [[1017, 9], [10, 10]]], ['Insectomane', 'Basile', [[1018, 10, null, [33, 81, 106]], [1020, 10]]]],
     [['Marin', 'Yann', [[1029, 17], [116, 17]]], ['Fillette', 'Océane', [[118, 18], [1031, 18]]], ['Pêcheur', 'Paul', [[60, 19], [1033, 19]]]],
     [['Scientifique', 'Alan', [[100, 23], [1034, 23]]], ['Topdresseuse', 'Électra', [[1036, 24], [25, 24]]], ['Scientifique', 'Ohm', [[82, 25]]]],
     [['Randonneuse', 'Rose', [[69, 28], [1021, 28]]], ['Topdresseuse', 'Lila', [[44, 29], [1038, 29]]], ['Randonneuse', 'Iris', [[189, 30]]]],
@@ -1088,15 +1103,16 @@ export function buildWorld() {
       const [x, y, dir] = spots[i]; trainerNpc(g, x, y, dir, cls, name, team.concat(more).slice(0, 4), { sight: 3, intro: 'Tu veux défier notre Champion ? Passe d\'abord par moi !', after: 'Notre Champion est bien plus fort que moi.' });
     });
     const fem = L2.fem || ['Marine', 'Volta', 'Flora', 'Sibylle'].includes(L2.name);
-    g.npc({ id: g.id + ':leader', x: ar.leader[0], y: ar.leader[1], dir: 'down', sprite: L2.ow, leader: t.gym, trainer: { cls: fem ? 'Championne' : 'Champion', name: L2.name, team: L2.team, prize: 100, bs: L2.ow, ai: 'smart', items: { 'potion': t.gym === 0 ? 1 : 0, 'super-potion': (t.gym < 3 ? 2 : 0), 'hyper-potion': (t.gym >= 3 ? 2 : 0), 'full-restore': (t.gym >= 6 ? 2 : (t.gym >= 4 ? 1 : 0)) }, intro: L2.intro, lose: L2.lose, sight: 0 } });
+    g.npc({ id: g.id + ':leader', x: ar.leader[0], y: ar.leader[1], dir: 'down', sprite: L2.ow, leader: t.gym, trainer: { cls: fem ? 'Championne' : 'Champion', name: L2.name, team: L2.team, prize: 100, bs: L2.ow, ai: t.gym === 0 ? 'normal' : 'smart', items: { 'potion': t.gym === 0 ? 2 : 0, 'super-potion': (t.gym >= 1 && t.gym < 3 ? 2 : 0), 'hyper-potion': (t.gym >= 3 ? 2 : 0), 'full-restore': (t.gym >= 6 ? 2 : (t.gym >= 4 ? 1 : 0)) }, intro: L2.intro, lose: L2.lose, sight: 0 } });
   }
   // Ligue : la Maître
   const league = maps['plateau:ligue'];
-  league.npc({ id: 'champion', x: 7, y: 3, dir: 'down', sprite: CHAMPION.ow, champion: true, trainer: { cls: 'Maître', name: CHAMPION.name, team: CHAMPION.team, prize: 200, bs: CHAMPION.ow, ai: 'smart', items: { 'full-restore': 3 }, intro: CHAMPION.intro, lose: CHAMPION.lose, sight: 0 } });
+  league.npc({ id: 'champion', x: 7, y: 3, dir: 'down', sprite: CHAMPION.ow, champion: true, trainer: { cls: 'Maître', name: CHAMPION.name, team: CHAMPION.team, prize: 200, bs: CHAMPION.ow, ai: 'smart', megaSp: 149, items: { 'full-restore': 3 }, intro: CHAMPION.intro, lose: CHAMPION.lose, sight: 0 } });
   league.npc({ id: 'ligue-garde', x: 5, y: 15, sprite: 'garde', dir: 'right', text: ['Bienvenue à la Ligue Céleste.', 'La Maître t\'attend au bout du tapis. Bonne chance !'] });
 
   // Labo : professeur, assistant
   const lab = maps['aube:labo'];
+  lab.battleBg = 'lab';
   lab.npc({ id: 'prof', x: 6, y: 3, sprite: 'saule', dir: 'down', script: 'prof' });
   lab.npc({ id: 'assistant', x: 10, y: 7, sprite: 'scientifique', move: 'wander', text: ['Le professeur étudie le lien entre les dresseurs et leurs créatures.', 'Il dit que c\'est en voyageant qu\'on le comprend le mieux.'] });
   STARTERS.forEach((sp, i) => lab.object(5 + i, 5, { type: 'starter', sp, cap: i }));

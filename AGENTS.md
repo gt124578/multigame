@@ -72,9 +72,11 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   la prédiction des invités et des manches entières entre bots (à lancer quand on touche au moteur). Modèles CC0 (Quaternius, Kenney, KayKit) : `mystery/models/LICENSE.txt`.
   `?debug` expose `__mystery` (`ff(sec)` avance le moteur sans dessiner, `to(x, z, niveau)`, `start()`) ; `?autostart`, `?seed`, `?role=m|s|i`, `?mode=explore`, `?bots=4`, `?lag=150`, `?q=bas`.
 - The Backrooms (`backrooms/`, moteur sans DOM dans `backrooms/engine/`) : Level 0 sur deux étages (`createLevel0` dans `map.js` : on tombe par les trous
-  du couloir piégé, on remonte par 2 escaliers ; 5 cassettes réparties ; un ascenseur par étage, un seul vrai, `realFloor`) puis Level 1 (`level1.js`, entrepôt,
+  du couloir piégé, des puits de 6,40 m (`FLOOR_DY`), on remonte par 2 escaliers coudés : deux volées et un palier, repère `u`/`v` de `stairAt` ; 5 cassettes réparties ; un ascenseur par étage, un seul vrai, `realFloor`) puis Level 1 (`level1.js`, entrepôt,
   étagères, 3 fusibles, coupures de courant, embuscades), reliés par un ascenseur qui part quand tous les joueurs encore en vie sont dedans.
   À plusieurs, l'hôte fait autorité (`snapshot` / `applySnapshot`), l'invité se déplace chez lui (`predict`). `node --experimental-detect-module tools/test-backrooms.mjs`.
+  `backrooms/?parkour` (seul) fait commencer devant le couloir piégé, `backrooms/?level1` (seul) directement au Level 1.
+  Habillage du Level 1 (rayonnages, marchandises, tuyaux, marquages, piliers, panneaux) : `backrooms/view/warehouse.js`.
 - Sauvegardes en ligne (`server/saves.js`, client `odyssee/js/net/cloud.js`) : le relais range les parties dans le dépôt GitHub,
   branche `saves`, sous le code ami du compte Hub. Mise en route sur Render : `docs/SAUVEGARDES.md`. Test : `node tools/test-saves.mjs`.
   Comptes Arcadia (identifiant + mot de passe, profil chiffré dans le navigateur avant de partir) : client `hub/account.js`, serveur `server/accounts.js`
@@ -176,6 +178,23 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   `node tools/test-odyssee-casino.mjs`. Salle d'arcade du Casino : quatre bornes (Tétra-Chute, Invasion, Casse-Briques, Abo le Serpent),
   moteurs sans DOM dans `odyssee/js/core/arcade.js`, meuble et écran dans `odyssee/js/ui/arcade.js`, meilleurs scores dans `state.arcade` :
   `node tools/test-odyssee-arcade.mjs`. Sprites des bornes et des machines à sous : `odyssee/img/mobilier/borne_*.png`, `machine_sous.png`.
+  Sprites des Pokémon (face, dos, chromatiques, icônes, générations 1 à 6) : copiés de PokeAPI dans `odyssee/img/pokeapi/`
+  par `node tools/odyssee-sprites-pokeapi.mjs` ; cris dans `odyssee/snd/cris/` (le jeu ne charge plus rien en ligne pour les Pokémon).
+  Méga-Évolution : `node tools/odyssee-megas.mjs` écrit `odyssee/js/data/megas.js` (81 Méga de PokeAPI, dont celles de Légendes Z-A,
+  pour les Pokémon des générations 1 à 6) et copie leurs sprites et les cris ; `odyssee/js/core/mega.js` enregistre les formes
+  (espèces invisibles des listes, n° 10033 et plus), les Méga-Gemmes et le Méga-Anneau ; le moteur (`battle.js`) : `canMega`, `doMega`,
+  une par dresseur et par combat, retour à la forme de base dans `end()`. Méga-Anneau remis par le Pr Orme à Port-Granit (5 badges),
+  qui vend aussi les gemmes ; 12 gemmes cachées sur les routes de la fin. Dresseurs : `trainer.megaSp` (n° d'espèce ou 'ace').
+  Méga imaginées par des fans (24, n° 20001 et plus) : `odyssee/js/data/megasFans.js` et `odyssee/img/megas/` (origine dans `LISEZMOI.txt`) ;
+  quand l'espèce a déjà une Méga officielle, la version des fans porte le signe Δ et sa propre gemme. Toutes les gemmes se vendent chez le Pr Orme.
+  Interface : un écran plein cadre par fichier dans `odyssee/js/ui/screens/` (`map.js`, `card.js`, `pc.js`, `friends.js`…),
+  outils communs et fermeture d'écran (`closer`) dans `screens/common.js` ; `ui/screens.js` ne fait que tout réexporter (importer depuis lui).
+  Styles découpés de même dans `odyssee/css/NN-ecran.css`, chargés dans l'ordre par `index.html` (l'ordre compte : un fichier
+  plus loin peut surcharger un plus tôt) ; `odyssee.css` les réunit par `@import` pour les pages d'aperçu.
+  `node tools/test-odyssee-ecrans.mjs` ouvre le jeu dans un vrai Chrome (Playwright, sauté s'il manque) : chaque écran au clavier
+  (Espace ne ferme pas, Échap ferme et rend la main), carte, Carte de Dresseur, saisie du code ami, météo (brume, cendres) — à lancer quand on touche à l'interface.
+  Météo du monde : `getMapWeather()` dans `game.js` ; seules pluie, soleil, sable et grêle comptent en combat (`BATTLE_WEATHERS`), brume et cendres sont du décor (`render/weather3d.js`, `css/22-meteo.css`).
+  Touches reçues par les écrans : celles de `odyssee/js/input.js` uniquement (`a`, `b`, flèches, `map`, `menu`…), jamais `space` ni `enter`.
   Rendu : les sprites sont dessinés à l'écran pixel pour pixel, ancrés à leurs pieds
   (shader `screenSprite` de `odyssee/js/render/world3d.js`), les bâtiments prennent la profondeur de leur façade.
   Prototype de sol en vrai relief, seulement avec `?relief3d` dans l'adresse (`odyssee/js/render/relief3d.js`) : hauteurs

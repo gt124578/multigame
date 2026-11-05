@@ -153,10 +153,15 @@ export function buildRivalParty(game, rawTeamSpec) {
 
     // Règle 1 : Tous ses Pokémon sont au même niveau que le max de notre équipe,
     // sauf son starter qui a 2 niveaux de plus !
-    const lvl = isStarter ? Math.max(baseLvl, maxPlayerLvl + 2) : Math.max(baseLvl, maxPlayerLvl);
+    // Début du jeu (aucun badge) : Théo est à ta hauteur — même niveau pour son starter, un de moins pour les autres,
+    // et des IV ordinaires. La règle « +2 niveaux, IV parfaits » ne s'applique qu'à partir du premier badge.
+    const early = badges < 1;
+    const lvl = early
+      ? (isStarter ? Math.max(baseLvl, maxPlayerLvl) : Math.max(baseLvl, maxPlayerLvl - 1))
+      : (isStarter ? Math.max(baseLvl, maxPlayerLvl + 2) : Math.max(baseLvl, maxPlayerLvl));
 
-    // Règle 2 : IVs à fond (31 partout)
-    const iv = [31, 31, 31, 31, 31, 31];
+    // Règle 2 : IVs à fond (31 partout), sauf au tout début
+    const iv = early ? undefined : [31, 31, 31, 31, 31, 31];
 
     // Nature stratégique compétitive
     const nat = STRAT_NATURES[sp] ?? (SPECIES[sp]?.b[1] >= SPECIES[sp]?.b[3] ? 3 : 8);

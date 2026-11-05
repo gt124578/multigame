@@ -1,0 +1,205 @@
+/* ==========================================================================
+   CINÉMATIQUE LUGIA OBSCUR (Éveil Obscur & Tornade Obscure)
+   ========================================================================== */
+.lugia-cine-scr {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  overflow: hidden;
+  user-select: none;
+}
+.lugia-cine-viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.lugia-cine-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  display: block;
+  filter: contrast(1.1) brightness(1.04) saturate(1.2);
+}
+.lugia-cine-bars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+.lugia-cine-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 7.5%;
+  background: #000;
+  transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lugia-cine-bar.top { top: 0; transform: translateY(-100%); }
+.lugia-cine-bar.bot { bottom: 0; transform: translateY(100%); }
+.lugia-cine-scr.in .lugia-cine-bar.top,
+.lugia-cine-scr.in .lugia-cine-bar.bot {
+  transform: translateY(0);
+}
+.lugia-cine-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+}
+.lugia-cine-aura {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  box-shadow: inset 0 0 calc(var(--px) * 60) rgba(120, 20, 200, 0.45);
+  mix-blend-mode: screen;
+  opacity: 0.8;
+  animation: lugiaAuraPulse 3s ease-in-out infinite alternate;
+}
+@keyframes lugiaAuraPulse {
+  0% { opacity: 0.5; box-shadow: inset 0 0 calc(var(--px) * 40) rgba(80, 0, 140, 0.35); }
+  100% { opacity: 0.95; box-shadow: inset 0 0 calc(var(--px) * 80) rgba(160, 30, 255, 0.65); }
+}
+.lugia-cine-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 7;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(6, 0, 14, 0.88) 100%);
+}
+.lugia-cine-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 12;
+  background: #fff;
+  opacity: 0;
+  transition: opacity 0.08s ease-out;
+}
+.lugia-cine-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: calc(var(--px) * 14) calc(var(--px) * 16);
+}
+.lugia-cine-title-wrap {
+  opacity: 0;
+  transform: translateY(calc(var(--px) * 10)) scale(0.96);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  text-shadow: 0 calc(var(--px) * 2) calc(var(--px) * 12) rgba(0, 0, 0, 0.95);
+}
+.lugia-cine-title-wrap.in {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.lugia-cine-title-wrap.out {
+  opacity: 0;
+  transform: translateY(calc(var(--px) * -6)) scale(0.98);
+  transition: opacity 0.6s ease-in, transform 0.6s ease-in;
+}
+.lugia-cine-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--px) * 3);
+  font-size: calc(var(--px) * 5.6);
+  font-weight: 700;
+  letter-spacing: calc(var(--px) * 1.5);
+  color: #e9d5ff;
+  background: rgba(35, 10, 65, 0.8);
+  border: calc(var(--px) * 1) solid rgba(192, 132, 252, 0.55);
+  border-radius: calc(var(--px) * 12);
+  padding: calc(var(--px) * 2) calc(var(--px) * 5);
+  margin-bottom: calc(var(--px) * 3);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 calc(var(--px) * 2) calc(var(--px) * 8) rgba(120, 20, 200, 0.5);
+}
+.lugia-badge-dot {
+  width: calc(var(--px) * 3);
+  height: calc(var(--px) * 3);
+  border-radius: 50%;
+  background: #f43f5e;
+  box-shadow: 0 0 calc(var(--px) * 4) #f43f5e;
+  animation: lugiaDotGlow 1s ease-in-out infinite alternate;
+}
+@keyframes lugiaDotGlow {
+  0% { transform: scale(0.85); opacity: 0.65; }
+  100% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 calc(var(--px) * 7) #ff2a55; }
+}
+.lugia-cine-title {
+  margin: 0;
+  font-size: calc(var(--px) * 20);
+  font-weight: 900;
+  letter-spacing: calc(var(--px) * 3.5);
+  line-height: 1.05;
+  color: #fff;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #ffffff 0%, #f3e8ff 40%, #c084fc 75%, #7e22ce 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 calc(var(--px) * 14) rgba(168, 85, 247, 0.9));
+}
+.lugia-cine-sub {
+  font-size: calc(var(--px) * 6.8);
+  font-weight: 700;
+  letter-spacing: calc(var(--px) * 2);
+  color: #f1f5f9;
+  margin-top: calc(var(--px) * 2);
+  text-transform: uppercase;
+  opacity: 0.92;
+  text-shadow: 0 0 calc(var(--px) * 6) rgba(147, 51, 234, 0.85);
+}
+.lugia-cine-skip {
+  position: absolute;
+  right: calc(var(--px) * 8);
+  bottom: calc(var(--px) * 6);
+  z-index: 25;
+  font: inherit;
+  font-size: calc(var(--px) * 6.2);
+  font-weight: 600;
+  color: #e2e8f0;
+  background: rgba(20, 10, 35, 0.78);
+  border: calc(var(--px) * 1) solid rgba(168, 85, 247, 0.5);
+  border-radius: calc(var(--px) * 10);
+  padding: calc(var(--px) * 2.5) calc(var(--px) * 5.5);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  box-shadow: 0 calc(var(--px) * 2) calc(var(--px) * 8) rgba(0, 0, 0, 0.65);
+  transition: all 0.2s ease;
+}
+.lugia-cine-skip:hover {
+  background: rgba(50, 15, 90, 0.92);
+  color: #fff;
+  border-color: #c084fc;
+  box-shadow: 0 0 calc(var(--px) * 10) rgba(192, 132, 252, 0.65);
+  transform: translateY(calc(var(--px) * -1));
+}
+
+/* crans de stats (Atq +2, Vit −1…) sous la jauge de l'adversaire, au-dessus de la nôtre */
+.bh-boosts { position: absolute; display: flex; flex-wrap: wrap; gap: calc(var(--bp) * 1.2); pointer-events: none; max-width: 100%; }
+.bhud.foe .bh-boosts { top: calc(100% + var(--bp) * 1); left: calc(var(--bp) * 6); }
+.bhud.me .bh-boosts { bottom: calc(100% + var(--bp) * 1); right: calc(var(--bp) * 4); justify-content: flex-end; }
+.bh-boost {
+  font-size: 0.55em; font-weight: 800; letter-spacing: 0.03em; color: #fff; line-height: 1.35;
+  padding: 0 calc(var(--bp) * 2); border: calc(var(--bp) * 0.7) solid #080a10;
+  box-shadow: inset 0 calc(var(--bp) * 0.7) 0 rgba(255, 255, 255, 0.35);
+  text-shadow: calc(var(--bp) * 0.7) calc(var(--bp) * 0.7) 0 #080a10;
+  animation: bh-boost-in 0.25s ease-out;
+}
+.bh-boost.up { background: #2f9e44; }
+.bh-boost.down { background: #c92a2a; }
+@keyframes bh-boost-in { from { transform: scale(1.4); } to { transform: scale(1); } }

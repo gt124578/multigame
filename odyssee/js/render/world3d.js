@@ -447,7 +447,7 @@ export class WorldView {
     this.focus = new THREE.Vector3(); this.shake = 0;
     this.actors = new Map();
     this.root = null;
-    try { this.weather = new WeatherSystem(this.scene); } catch (e) { this.weather = null; }
+    try { this.weather = new WeatherSystem(this.scene, this.renderer.domElement); } catch (e) { this.weather = null; }
   }
 
   resize(w, h) {

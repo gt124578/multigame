@@ -1,0 +1,12 @@
+/* ---------- pokédex ---------- */
+.dex-scr { display: flex; gap: calc(var(--px) * 8); background: repeating-linear-gradient(135deg, #b83838 0 calc(var(--px) * 6), #c84444 calc(var(--px) * 6) calc(var(--px) * 12)); }
+.dex-left { width: 46%; padding: calc(var(--px) * 8); display: flex; flex-direction: column; align-items: center; }
+.dex-spr { width: calc(var(--px) * 96); height: calc(var(--px) * 96); background: radial-gradient(ellipse at 50% 85%, #e0e0e8 0 35%, transparent 36%); }
+.dex-spr.shadowed { filter: brightness(0) opacity(.55); }
+.dex-info { align-self: stretch; font-size: .9em; } .dex-info p { margin: calc(var(--px) * 4) 0 0; font-size: .9em; }
+.dex-name { font-weight: 600; font-size: 1.1em; }
+.dex-right { flex: 1; padding: calc(var(--px) * 6); display: flex; flex-direction: column; overflow: hidden; }
+.dex-count { font-size: .8em; color: #687890; margin-bottom: calc(var(--px) * 3); }
+.dex-list { overflow-y: auto; flex: 1; }
+.dexn { color: #687890; width: calc(var(--px) * 22); }
+.ball-mini { width: calc(var(--px) * 7); height: calc(var(--px) * 7); border-radius: 50%; background: linear-gradient(#e83838 0 45%, #202020 45% 55%, #f4f4f4 55%); border: var(--px) solid #202020; }

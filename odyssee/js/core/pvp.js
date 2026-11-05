@@ -50,6 +50,8 @@ export class PvpBattle extends Battle {
       rng: seededRng(o.seed),
     });
     this.pvp = true;
+    // duel entre amis : chaque dresseur peut méga-évoluer un Pokémon qui tient sa gemme ; le choix de l'autre arrive avec son action
+    this.sides[0].mega = this.sides[1].mega = true;
     this.canon = o.canon;
     this.remote = null;        // choix de l'adversaire pour le tour en cours
     this.need = [false, false]; // qui doit envoyer un Pokémon après un K.O.
@@ -63,6 +65,7 @@ export class PvpBattle extends Battle {
     return p.i === first ? -1 : 1;
   }
 
+  foeWantsMega(b) { return b?.type === 'move' && !!this.remote?.mega && this.canMega(1); }
   /** l'adversaire ne réfléchit pas ici : c'est le choix reçu de son écran */
   foeChoose() {
     const forced = this.forcedAction(1); if (forced) return forced;

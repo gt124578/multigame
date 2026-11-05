@@ -1,0 +1,73 @@
+/* écran titre : la mer d'Odyssor en fond */
+.title-cv { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; z-index: -1; }
+.title-scr .logo, .title-scr .press, .title-scr .title-menu, .title-scr .title-foot, .title-scr .save-info { position: relative; }
+/* comme sur SoulSilver : le titre en haut, la créature au centre, l'invite sur la mer */
+.title-scr .logo { position: absolute; top: calc(var(--px) * 2); transform: none; }
+.title-scr .logo-main { font-size: calc(var(--px) * 34); }
+.title-scr .press { position: absolute; bottom: calc(var(--px) * 30); }
+.title-scr .save-info { position: absolute; }
+.title-scr .title-foot { position: absolute; }
+
+/* bouton d'aide des touches (bas de l'écran) et panneau */
+.keybar { position: absolute; left: calc(var(--px) * 4); bottom: calc(var(--px) * 4); z-index: 55; display: flex; gap: calc(var(--px) * 3); pointer-events: none; transition: opacity .15s; }
+.keyhint { pointer-events: auto; cursor: pointer;
+  font: inherit; font-size: calc(var(--px) * 6.5); color: rgba(255,255,255,.92); background: rgba(40,44,56,.42); border: var(--px) solid rgba(255,255,255,.28);
+  border-radius: calc(var(--px) * 3); padding: calc(var(--px) * 1) calc(var(--px) * 4); text-shadow: var(--px) var(--px) 0 rgba(0,0,0,.4); }
+.keyhint b { display: inline-block; min-width: 1.2em; text-align: center; background: rgba(255,255,255,.22); border-radius: calc(var(--px) * 1.5); margin-right: calc(var(--px) * 2); }
+.keyhint:hover { background: rgba(40,44,56,.62); }
+.keyhint.active { background: rgba(116, 80, 20, 0.72); color: #ffe878; border-color: #ffd858; }
+.keyhint.active.turbo { background: rgba(156, 40, 16, 0.78); color: #ffc898; border-color: #ff8848; }
+#ui:has(> .dlg, > .screen, > .wipe, > .battle-wipe, > .door-iris.on, > .battle, > .title-scr) .keybar { opacity: 0; }
+#ui:has(> .dlg, > .screen, > .wipe, > .battle-wipe, > .door-iris.on, > .battle, > .title-scr) .keyhint { pointer-events: none; }
+.keypanel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 56; padding: calc(var(--px) * 6) calc(var(--px) * 10); display: none; width: min(94vw, calc(var(--px) * 330)); font-size: .85em; }
+.keypanel.on { display: block; }
+.keypanel td:first-child { width: 46%; }
+.keypanel .hint { margin-top: calc(var(--px) * 4); text-align: center; }
+kbd { display: inline-block; font: inherit; font-size: .85em; min-width: 1.4em; text-align: center; padding: 0 calc(var(--px) * 1.5); margin: 0 1px; border-radius: calc(var(--px) * 1.5); background: #eef1f6; border: var(--px) solid #8898b0; border-bottom-width: calc(var(--px) * 2); text-shadow: none; color: var(--ink); }
+
+.surf-ride { position: absolute; }
+
+/* ---------- jeu à plusieurs (autres joueurs, échanges) et code de sauvegarde ---------- */
+
+/* ---------- code de sauvegarde ---------- */
+.code-scr { display: flex; flex-direction: column; align-items: center; }
+.code-box { pointer-events: auto; width: min(calc(var(--px) * 300), 92vw); padding: calc(var(--px) * 8) calc(var(--px) * 10); text-shadow: var(--px) var(--px) 0 var(--shadow); }
+.code-box p { margin: 0 0 calc(var(--px) * 5); font-size: .85em; }
+.code-sum { font-weight: 600; margin-bottom: calc(var(--px) * 4); }
+.code-ta { width: 100%; height: calc(var(--px) * 64); resize: none; font: inherit; font-size: calc(var(--px) * 6); line-height: 1.2; word-break: break-all; padding: calc(var(--px) * 3);
+  border: var(--px) solid #283850; border-radius: calc(var(--px) * 2); background: #fff; color: var(--ink); text-shadow: none; user-select: text; }
+.code-row { display: flex; gap: calc(var(--px) * 5); justify-content: flex-end; margin-top: calc(var(--px) * 5); }
+.code-btn { font: inherit; font-size: .9em; font-weight: 600; cursor: pointer; color: #fff; background: #3a5888; border: var(--px) solid #283850; border-radius: calc(var(--px) * 3);
+  padding: calc(var(--px) * 2) calc(var(--px) * 8); box-shadow: inset 0 calc(var(--px) * -2) 0 rgba(0,0,0,.25); text-shadow: none; }
+.code-btn.ghost { background: #8898b0; }
+.code-msg { min-height: 1.3em; margin-top: calc(var(--px) * 3); font-size: .85em; color: #2a7a3a; text-shadow: none; }
+.code-msg.err { color: #c03030; }
+
+/* ---------- autres joueurs ---------- */
+.peer-tags { position: fixed; inset: 0; pointer-events: none; z-index: 12; }
+.peer-tag { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: calc(var(--px) * 7); line-height: 1.2; color: #fff; font-weight: 600;
+  padding: 0 calc(var(--px) * 3); border-radius: calc(var(--px) * 2); background: rgba(24, 32, 48, .78); border-left: calc(var(--px) * 2) solid var(--pc, #5a88c8);
+  text-shadow: var(--px) var(--px) 0 #000; }
+.peer-tag.busy { opacity: .65; }
+
+/* ---------- échange ---------- */
+.trade-scr { display: flex; flex-direction: column; align-items: center; }
+.trade-row { display: flex; align-items: center; gap: calc(var(--px) * 10); margin-top: calc(var(--px) * 12); }
+.trade-card { display: flex; flex-direction: column; align-items: center; padding: calc(var(--px) * 6) calc(var(--px) * 12); min-width: calc(var(--px) * 110); text-shadow: var(--px) var(--px) 0 var(--shadow);
+  transition: transform .9s cubic-bezier(.5, 0, .5, 1), opacity .9s; }
+.trade-card img { width: calc(var(--px) * 80); height: calc(var(--px) * 80); }
+.trade-who { font-weight: 600; color: #fff; background: #3a5888; padding: 0 calc(var(--px) * 6); border-radius: calc(var(--px) * 2); text-shadow: none; }
+.trade-arrows { color: #fff; font-size: calc(var(--px) * 22); text-shadow: var(--px) var(--px) 0 #283850; }
+.trade-scr.swap .trade-card:first-child { transform: translateX(calc(var(--px) * 150)); opacity: .2; }
+.trade-scr.swap .trade-card:last-child { transform: translateX(calc(var(--px) * -150)); opacity: .2; }
+
+/* ---------- histoire : grottes sombres, Éclipse, Pokémon Obscurs ---------- */
+.dark-ov { position: absolute; inset: 0; pointer-events: none; display: none; }
+.dark-ov.cave { display: block; background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0 8%, rgba(0,0,0,.6) 12%, rgba(0,0,0,.96) 18%); }
+.dark-ov.cave.flash { background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0 26%, rgba(0,0,0,.45) 42%, rgba(0,0,0,.8) 64%); }
+.dark-ov.eclipse { display: block; background: radial-gradient(ellipse at 50% 45%, rgba(70,20,110,0) 35%, rgba(36,0,64,.5) 100%); }
+.shadowmon { filter: drop-shadow(0 0 calc(var(--px) * 1.5) #00e0ff) drop-shadow(0 0 calc(var(--px) * 2.5) #6a20c0); }
+/* fiche dresseur : l'équipe (la sienne, ou celle d'un autre joueur) */
+.tc-team { display: flex; gap: calc(var(--px) * 4); justify-content: center; margin-top: calc(var(--px) * 6); padding-top: calc(var(--px) * 5); border-top: var(--px) dashed #c8b88a; }
+.tc-mon { display: flex; flex-direction: column; align-items: center; font-size: .8em; color: #504030; }
+.tc-mon img { width: calc(var(--px) * 32); height: calc(var(--px) * 32); image-rendering: pixelated; object-fit: contain; }

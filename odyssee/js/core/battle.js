@@ -6,6 +6,7 @@ import { TYPE_CHART } from '../data/types.js';
 import { monName, gainExp, gainEffort, isFainted, expProgress } from './mon.js';
 import { ITEMS, itemName, applyItem } from './items.js';
 import { getAbility, abilityName } from '../data/abilities.js';
+import { megaFormOf, megaEvolve, revertMegas } from './mega.js';
 
 export const STAGE_NAMES = { 1: 'l\'Attaque', 2: 'la Défense', 3: 'l\'Attaque Spéciale', 4: 'la Défense Spéciale', 5: 'la Vitesse', 6: 'la Précision', 7: 'l\'Esquive' };
 const STATUS_TXT = { par: 'est paralysé ! Il aura du mal à attaquer !', slp: 's\'est endormi !', frz: 'est gelé !', brn: 'est brûlé !', psn: 'est empoisonné !', tox: 'est gravement empoisonné !' };
@@ -35,6 +36,9 @@ export class Battle {
       { name: o.player.name, party: o.player.party, active: 0, v: freshVol(), screens: {}, player: true },
       { name: o.foe.name, party: o.foe.party, active: 0, v: freshVol(), screens: {}, trainer: o.foe.trainer || null },
     ];
+    // Méga-Évolution : le joueur avec son Méga-Anneau, les dresseurs qui en ont un (trainer.mega) ; jamais un Pokémon sauvage
+    this.sides[0].mega = !!o.player.mega;
+    this.sides[1].mega = !!o.foe.trainer?.mega;
     this.bag = o.player.bag || {};
     this.sides[0].active = Math.max(0, o.player.party.findIndex((m) => m.hp > 0));
     this.participants = new Set();
@@ -231,6 +235,8 @@ export class Battle {
       this.turn--;
       return [{ t: 'msg', text: 'Impossible de fuir un combat de Dresseur !' }];
     }
+    // attaque sans numéro ni identifiant : la première utilisable, ou Lutte s'il n'y a plus de PP
+    if (a.type === 'move' && a.idx == null && a.id == null) { const u = this.usableMoves(0); a = u.length ? { type: 'move', idx: u[0] } : { type: 'move', id: 165 }; }
     if (a.type === 'move' && a.idx != null) {
       const mv = this.me.moves[a.idx];
       if (!this.usableMoves(0).length) a = { type: 'move', id: 165 };
@@ -238,8 +244,24 @@ export class Battle {
       else a = { type: 'move', id: mv.id, slot: a.idx };
     }
     const b = this.foeChoose();
+    // Méga-Évolutions du tour, avant toute attaque (dans le même ordre sur les deux écrans en duel)
+    const wants = [!!action.mega && a.type === 'move', this.foeWantsMega(b)];
+    for (const i of (this.eotOrder ? this.eotOrder() : [0, 1])) if (wants[i] && this.canMega(i)) this.doMega(i);
     this.resolve(a, b);
     return this.flush();
+  }
+  /** ce côté peut-il méga-évoluer maintenant ? (anneau, gemme de l'espèce, pas encore utilisée dans ce combat) */
+  canMega(i) { const s = this.sides[i]; return !!s.mega && !s.megaUsed && !!megaFormOf(this.act(i)); }
+  /** l'adversaire méga-évolue dès qu'il le peut, en attaquant */
+  foeWantsMega(b) { return b?.type === 'move' && this.canMega(1); }
+  doMega(i) {
+    const m = this.act(i), before = this.Nm(i), trainer = i === 0 ? this.sides[0].name : (this.sides[1].trainer?.name || this.sides[1].name);
+    const de = /^[AEIOUYÉÈÊÂÎÔH]/i.test(trainer) ? 'd\'' : 'de ';
+    this.say(`${before} réagit au Méga-Anneau ${de}${trainer} !`);
+    megaEvolve(m); this.sides[i].megaUsed = true;
+    this.ev.push({ t: 'mega', side: i, sp: m.sp });
+    this.say(`${before} méga-évolue en ${SPECIES[m.sp].n} !`);
+    this.triggerEntry(i);   // un talent d'entrée (Sécheresse, Intimidation…) s'active comme à l'arrivée
   }
 
   /** après un K.O. du Pokémon du joueur : choix du suivant */
@@ -1148,6 +1170,8 @@ export class Battle {
   }
   end(result) {
     this.state = 'over'; this.result = result;
+    // fin du combat : chacun retrouve sa forme de base
+    for (const s of this.sides) revertMegas(s.party);
     for (const s of this.sides) for (const m of s.party) delete m._ko;
     for (const m of this.sides[0].party) if (m.status === 'tox') m.status = 'psn';
     this.ev.push({ t: 'end', result });

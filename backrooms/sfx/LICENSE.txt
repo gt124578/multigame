@@ -2,3 +2,7 @@ Sons de The Backrooms.
 
 souffle.mp3  « breathing tired » de mikeask, OpenGameArt (https://opengameart.org/content/breathing-tired),
              domaine public (CC0 1.0). Remonté en volume et converti en mp3 mono.
+
+chase_1.mp3 à chase_3.mp3 (cris de la poursuite), ambiant_1.mp3 à ambiant_9.mp3 (ambiances au hasard),
+death.mp3 (l'entité est sur toi) : fournis par TahitoaSenis pour le jeu (wav 48 kHz, débuts et fins silencieux
+coupés, convertis en mp3 112 kb/s : mono pour les cris et la mort, stéréo pour les ambiances).

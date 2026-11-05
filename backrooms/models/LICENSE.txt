@@ -18,3 +18,28 @@ Version glTF 1k compactée en .glb : géométrie d'origine, seule la texture de 
   propane_tank.glb  https://polyhaven.com/a/propane_tank
   hand_truck.glb  https://polyhaven.com/a/hand_truck
   plastic_crate_01.glb  https://polyhaven.com/a/plastic_crate_01
+  projector_screen.glb  https://polyhaven.com/a/projector_screen
+  Sofa_01.glb  https://polyhaven.com/a/Sofa_01
+  modern_arm_chair_01.glb  https://polyhaven.com/a/modern_arm_chair_01
+  wooden_ladder.glb  https://polyhaven.com/a/wooden_ladder
+  standing_chalkboard_01.glb  https://polyhaven.com/a/standing_chalkboard_01
+  worn_metal_rack.glb  https://polyhaven.com/a/worn_metal_rack
+  SchoolDesk_01.glb  https://polyhaven.com/a/SchoolDesk_01
+  tool_cart.glb  https://polyhaven.com/a/tool_cart
+  wooden_crate_02.glb  https://polyhaven.com/a/wooden_crate_02
+  Barrel_02.glb  https://polyhaven.com/a/Barrel_02
+  barrel_03.glb  https://polyhaven.com/a/barrel_03
+  small_lpg_tank.glb  https://polyhaven.com/a/small_lpg_tank
+  plastic_crate_02.glb  https://polyhaven.com/a/plastic_crate_02
+  plastic_container.glb  https://polyhaven.com/a/plastic_container
+  industrial_pastic_container.glb  https://polyhaven.com/a/industrial_pastic_container
+  old_tyre.glb  https://polyhaven.com/a/old_tyre
+  cement_bag.glb  https://polyhaven.com/a/cement_bag
+  metal_jerrycan.glb  https://polyhaven.com/a/metal_jerrycan
+  portable_generator.glb  https://polyhaven.com/a/portable_generator
+  metal_tool_chest.glb  https://polyhaven.com/a/metal_tool_chest
+  utility_box_01.glb  https://polyhaven.com/a/utility_box_01
+
+Projecteurs de chantier, cônes, rubalise et dessins muraux : dessinés dans le code (backrooms/view/).
+Level 1 : rayonnages, palettes, cartons, fûts, sacs, bacs, tuyaux, gaines, panneaux et marquages au sol dessinés dans
+le code (backrooms/view/warehouse.js) ; bois des palettes : kart/tex/planks.jpg (Poly Haven, CC0).

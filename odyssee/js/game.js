@@ -1,7 +1,9 @@
 // odyssee/js/game.js — le jeu : déplacements sur la grille, PNJ, dresseurs, rencontres, capacités de terrain (Coupe,
-// Surf, Éclate-Roc, Vol), menus, histoire (les huit arènes et l'archipel des trois frères), sauvegarde
+// Surf, Éclate-Roc, Vol), menus, histoire (les quinze arènes et l'archipel des trois frères), sauvegarde
 import { T, walkable, isGrassEnc, DIRS, OPP } from './world/tiles.js';
 import { nearestWalkable } from './world/mapgen.js';
+import { MEGAS_OF, MEGA_RING, LEGEND, STONE_FORM, revertMegas } from './core/mega.js';
+import { MEGA_FORMS } from './core/mega.js';
 import { createMon, monName, healFull, levelEvolution, itemEvolution, evolve, setUidBase, levelCap, ensureNature } from './core/mon.js';
 import { Battle } from './core/battle.js';
 import { ITEMS, itemName, applyItem, canUseOn, useCandy, formatFindItem, formatObtainItem, itemPocketName } from './core/items.js';
@@ -29,6 +31,9 @@ import { apparenceScreen } from './ui/apparence.js';
 import { preparerDomaine, frigo, architecte, recolter, allerDomaine, resident, arrivees } from './ui/domaine.js';
 import { composer } from './render/tenue.js';
 import { buildRivalParty, getRivalItems } from './world/rival.js';
+
+/** météos qui comptent en combat (brume et cendres ne sont que du décor, comme dans les jeux 5G) */
+const BATTLE_WEATHERS = ['rain', 'sun', 'sandstorm', 'hail'];
 
 // v2 : nouvelle région (arènes dans un autre ordre, archipel, créatures originales) — les sauvegardes v1 ne sont pas reprises
 const SAVE_KEY = 'odyssee-save-v2';
@@ -206,17 +211,21 @@ export class Game {
     if (mv) Object.assign(state, { map: mv.map, x: mv.x, y: mv.y, dir: mv.dir || state.dir, surf: false });
     if (state.map === 'monde' && !state.surf && !walkable(this.world.maps.monde.get(state.x, state.y))) [state.x, state.y] = nearestWalkable(this.world.maps.monde, state.x, state.y);
     this.state = state; this._seen = null;
+    revertMegas(state.party); revertMegas(state.box);
     this.stepLock = false; this.stepGap = false;
     this.player = { x: state.x, y: state.y, dir: state.dir || 'down', move: null, step: 0, turnLock: 0, bumpT: 0, surf: !!state.surf };
     this.appliquerTenue();
     preparerDomaine(this);   // le terrain acheté grâce au frigo, avec tout ce qui y a été bâti
     this.setMap(state.map);
     this.view.setTimeOfDay(this.hour());
+    // la météo change avec le temps, pas seulement en changeant de zone
+    clearInterval(this._wxTimer);
+    this._wxTimer = setInterval(() => { try { this.view?.setWeather(this.getMapWeather()); } catch (e) {} }, 30000);
     this.hud?.update(true);
     this.link?.hello();
     this.view.update(0, this.player.x, this.player.y); await this.view.solPret?.();   // le sol généré est prêt avant d'ouvrir l'écran
     await this.ui.fade(false, 400);
-    if (!state.flags.intro) { state.flags.intro = true; this.busy = true; await this.ui.say(['Une douce lumière filtre à travers les rideaux...', `Aujourd'hui, ${state.name}, ton aventure commence !`, 'Appuie sur H à tout moment pour revoir les touches.']); this.busy = false; }
+    if (!state.flags.intro) { state.flags.intro = true; this.busy = true; await this.ui.say(['Une douce lumière filtre à travers les rideaux...', `Aujourd'hui, ${state.name}, ton aventure commence !`, 'Le Prof. Saule t\'attend à son laboratoire, au sud-est du village.', 'Appuie sur H à tout moment pour revoir les touches.']); this.busy = false; }
   }
   hour() { if (this.eclipseOn()) return 0.5; if (this.hourOverride != null) return this.hourOverride; const d = new Date(); return d.getHours() + d.getMinutes() / 60; }
   /** la nuit violette, entre la victoire contre Nocturne au repaire et le réveil de Lugia */
@@ -570,7 +579,7 @@ export class Game {
     if (m.get(p.x, p.y) === T.MAT && d === 'down') {
       const w = m.warpAt(p.x, p.y);
       // arène : on n'en ressort pas avant d'avoir affronté le Champion (une défaite ramène au Centre de soins)
-      if (w && !this.libre && m.gymLock != null && !this.state.badges[m.gymLock] && this.state.flags['IN:' + m.id]) { this.gymLocked(); return; }
+      if (w && !this.libre && m.gymLock != null && !this.state.badges[m.gymLock] && this.state.flags['IN:' + m.id]) { this.gymLocked(w); return; }
       if (w) { this.warp(w, 'exit'); return; }
     }
     const isShift = this.input.isDown('run');
@@ -699,10 +708,10 @@ export class Game {
     const g = this.npcs.find((n) => n.def.script === 'gymguide');
     if (g) { const dx = this.player.x - g.x, dy = this.player.y - g.y; g.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down'); }
     await ui.say([`Yo, futur Maître ! Bienvenue dans l'Arène de ${L.name} !`, `${L.name} utilise des créatures de type ${TYPE_FR[L.type]}. Mise sur ${GYM_HINTS[L.type]} !`,
-      'Mais attention : une fois le défi lancé, les portes se ferment derrière toi.', 'Tu ne pourras ressortir qu\'après avoir battu le Champion… ou avoir perdu.'], { speaker: 'Guide' });
+      'Mais attention : une fois le défi lancé, tu affrontes l\'arène d\'une traite.', 'Si tu ressors avant d\'avoir battu le Champion, il faudra tout recommencer depuis le début.'], { speaker: 'Guide' });
     if (await ui.yesNo('Es-tu prêt à relever le défi ?')) {
       st.flags['IN:' + m.id] = true; this.sound.sfx('door');
-      await ui.say(['Voilà l\'esprit ! Les portes se referment derrière toi.', 'Bonne chance !'], { speaker: 'Guide' });
+      await ui.say(['Voilà l\'esprit ! Le défi commence.', 'Bonne chance !'], { speaker: 'Guide' });
       return;
     }
     await ui.say(['Pas de souci. Soigne ton équipe, remplis ton sac…', 'Et reviens quand tu seras prêt !'], { speaker: 'Guide' });
@@ -710,10 +719,17 @@ export class Game {
     if (w) await this.warp(w, 'exit');
   }
   /** l'arène est fermée derrière nous : le guide le rappelle */
-  async gymLocked() {
+  /** sortir d'une arène en plein défi : permis, mais tous les dresseurs de l'arène sont à rebattre */
+  async gymLocked(w) {
     this.busy = true;
-    await this.ui.say(['Le guide : « Les portes de l\'arène restent closes tant que tu n\'as pas affronté le Champion ! »', 'Gagne ton badge… ou retourne au Centre de soins après une défaite.']);
+    const m = this.mapObj, st = this.state;
+    const ok = await this.ui.yesNo('Le guide : « Si tu sors maintenant, ton défi s\'arrête là : il faudra recommencer l\'arène depuis le début. Tu veux sortir ? »');
+    if (!ok) { this.busy = false; return; }
+    // les dresseurs de l'arène (pas le Champion) reprennent leur place et redeviennent à battre
+    for (const k of Object.keys(st.flags)) if (k.startsWith('T:' + m.id + ':') && !k.endsWith(':leader')) delete st.flags[k];
+    st.flags['IN:' + m.id] = false;
     this.busy = false;
+    await this.warp(w, 'exit');
   }
 
   /* ================= PNJ ================= */
@@ -1203,21 +1219,24 @@ export class Game {
     this.busy = true;
     const st = this.state;
     const opts = [];
-    if (st.flags.dex) opts.push(['POKéDEX', 'dex']);
-    if (st.party.length) opts.push(['ÉQUIPE', 'party']);
-    if (st.party.length) opts.push(['BOÎTES PC', 'pc']);
-    opts.push(['SAC', 'bag']);
-    if (this.canField('vol')) opts.push(['VOL', 'fly']);
-    opts.push(['QUÊTES', 'quests']);
-    opts.push(['TROPHÉES', 'trophies']);
-    if (st.domaine) opts.push([this.mapObj.id === 'domaine' ? 'REVENIR' : 'DOMAINE', 'domaine']);
+    if (st.flags.dex) opts.push(['Pokédex', 'dex']);
+    if (st.party.length) opts.push(['Équipe', 'party']);
+    if (st.party.length) opts.push(['Boîtes PC', 'pc']);
+    opts.push(['Sac', 'bag']);
+    if (this.canField('vol')) opts.push(['Vol', 'fly']);
+    opts.push(['Quêtes', 'quests']);
+    opts.push(['Trophées', 'trophies']);
+    if (st.domaine) opts.push([this.mapObj.id === 'domaine' ? 'Revenir' : 'Domaine', 'domaine']);
     const friendsMgr = getFriendsManager(this);
-    const onlineCount = friendsMgr.getOnlineCount();
-    opts.push([`AMIS & EN LIGNE (${onlineCount} 🟢)`, 'friends']);
-    opts.push([st.name.toUpperCase(), 'card'], ['CARTE', 'map'], ['CODE', 'code'], ['OPTIONS', 'opt'], ['FERMER', 'close']);
+    const others = Math.max(0, friendsMgr.getOnlineCount() - 1);
+    opts.push([others ? `Amis (${others} en ligne)` : 'Amis', 'friends']);
+    opts.push(['Carte de Dresseur', 'card'], ['Carte', 'map'], ['Code de sauvegarde', 'code'], ['Options', 'opt'], ['Fermer', 'close']);
+    // une petite icône devant chaque entrée (celles du HUD et du sac)
+    const ICO = { dex: ASSETS.item('dex'), party: 'img/hud/team.png', pc: 'img/hud/save.png', bag: 'img/hud/bag.png', quests: 'img/hud/quest.png', trophies: 'img/hud/trophy.png', friends: 'img/hud/friends.png', card: ASSETS.item('wallet'), map: 'img/hud/map.png', code: ASSETS.item('notebook'), domaine: ASSETS.item('gift'), fly: ASSETS.item('sifflet-celeste') };
+    const itemHtml = ([l, k]) => `<i class="sm-ico">${ICO[k] ? `<img src="${ICO[k]}" alt="">` : ''}</i>${esc(l)}`;
     let idx = Math.min(this._menuIdx || 0, opts.length - 1);
     for (;;) {
-      const r = await this.ui.list({ items: opts.map(([l]) => ({ label: l })), cls: 'startmenu', cancel: -1, start: idx, onMove: (i) => { this._menuIdx = i; } });
+      const r = await this.ui.list({ items: opts.map((x) => ({ label: x[0], html: itemHtml(x) })), cls: 'startmenu', cancel: -1, start: idx, onMove: (i) => { this._menuIdx = i; } });
       if (r < 0 || opts[r][1] === 'close') break;
       idx = r;
       const k = opts[r][1];
@@ -1489,7 +1508,8 @@ export class Game {
       speaker: tr.cls ? `${tr.cls} ${tr.name}` : tr.name,
       face: tr.bs || tr.ow || n.sprite
     });
-    const isBoss = d.leader != null || d.champion;
+    // le premier champion reste une marche d'apprentissage : IV ordinaires et pas d'objet tenu
+    const isBoss = (d.leader != null && d.leader !== 0) || d.champion;
     const leaderDefaultItem = (sp, lvl) => {
       const S = SPECIES[sp]; if (!S) return 'sitrus-berry';
       const type = S.t[0] || 'normal';
@@ -1624,17 +1644,34 @@ export class Game {
     return false;
   }
 
+  /** tirage stable sur un créneau de 10 minutes : le même temps pour tous les joueurs au même endroit */
+  weatherSlot(key) {
+    let x = Math.floor(Date.now() / 600000);
+    for (const ch of String(key)) x = (x * 31 + ch.charCodeAt(0)) >>> 0;
+    return Math.imul(x ^ (x >>> 15), 0x2c1b3c6d) >>> 0;
+  }
+
   getMapWeather() {
     const m = this.mapObj, z = this.zone;
     if (!m) return 'none';
     if (m.weather) return m.weather;
     if (z?.weather) return z.weather;
     if (z?.theme === 'snow' || m.id?.includes('snow') || m.id?.includes('glace')) return 'hail';
-    if (z?.theme === 'volcanic' || m.id?.includes('cendre') || m.id?.includes('desert')) return 'sandstorm';
+    // zones volcaniques : pluie de cendres (sans effet en combat) qui alterne avec la tempête de sable
+    if (z?.theme === 'volcanic' || m.id?.includes('cendre')) return this.weatherSlot('volcan') % 2 ? 'ash' : 'sandstorm';
+    if (m.id?.includes('desert')) return 'sandstorm';
     if (z?.town === 'azur' || z?.name?.includes('Pluie') || m.id?.includes('marais')) return 'rain';
     if (m.outdoor) {
       const h = this.hour();
       if ((z?.surfEnc || m.surfEnc) && (Math.sin(h * 0.7) > 0.65)) return 'rain';
+      // routes : un temps qui tourne toutes les 10 minutes, le même pour tous les joueurs (graine = route + créneau)
+      if (z?.route) {
+        const r = this.weatherSlot(z.route) % 10;
+        // brume du matin dans les forêts, entre 5 h et 10 h
+        if (z.theme === 'forest' && h >= 5 && h < 10 && r < 5) return 'fog';
+        if (r < 2) return 'rain';
+        if (r < 4 && h >= 9 && h < 18 && z.theme !== 'forest') return 'sun';
+      }
     }
     return 'none';
   }
@@ -1661,10 +1698,31 @@ export class Game {
     const gymKind = (m.arene === 'rock' || m.arene === 'ground' || m.arene === 'fire' || m.arene === 'fighting') ? 'gym_rock' : 'gym';
     const bg = !m.outdoor ? (m.floor === 'cave' ? 'cave' : m.battleBg === 'gym' ? gymKind : m.battleBg) : this.player.surf ? 'water' : z?.theme === 'volcanic' ? 'volcanic' : z?.theme === 'snow' ? 'snow' : isVillage ? 'village' : isCity ? 'city' : 'grass';
     const weather = o.weather || this.getMapWeather();
-    const battle = new Battle({ player: { name: st.name, party: st.party, bag: st.bag }, foe: o.wild ? { name: 'sauvage', party: [o.wild] } : { name: o.trainer.name, party: o.party, trainer: o.trainer }, cap: this.levelCap(), weather: weather !== 'none' ? weather : undefined });
+    // Méga-Évolution : le joueur avec son Méga-Anneau ; un dresseur marqué megaSp tend sa gemme à ce Pokémon (« ace » : le dernier)
+    // À partir de la 6e arène (5 badges), les Champions et au moins un dresseur sur trois méga-évoluent
+    if (o.trainer && !o.trainer.megaSp && !o.trainer.friendly && o.party?.length && this.badgeCount() >= 5) {
+      const key = String(o.id || o.trainer.name || ''); let h = 0; for (const ch of key) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      if (o.leader != null || o.champion || h % 3 === 0) o.trainer = { ...o.trainer, megaSp: 'auto', megaSeed: h };
+    }
+    if (o.trainer?.megaSp && o.party?.length) {
+      let target = o.trainer.megaSp === 'ace' ? o.party[o.party.length - 1]
+        : o.trainer.megaSp === 'auto' ? [...o.party].sort((a, b) => b.lvl - a.lvl).find((q) => MEGAS_OF[q.sp])
+          : o.party.find((q) => q.sp === o.trainer.megaSp);
+      // personne dans l'équipe n'a de Méga : son dernier Pokémon laisse la place à un Pokémon qui en a une (toujours le même pour ce dresseur)
+      if (!target && o.trainer.megaSp === 'auto') {
+        const last = o.party[o.party.length - 1], pool = Object.keys(MEGAS_OF).map(Number).filter((sp) => !LEGEND.has(sp));
+        const sp = pool[(o.trainer.megaSeed || 0) % pool.length];
+        target = createMon(sp, last.lvl, { iv: last.iv, shiny: false });
+        o.party = [...o.party.slice(0, -1), target];
+      }
+      const forms = target && MEGAS_OF[target.sp];
+      const pid = forms && forms[(o.trainer.megaSeed || 0) % forms.length];
+      if (pid) { target.item = MEGA_FORMS[pid].stone; o.trainer = { ...o.trainer, mega: true }; }
+    }
+    const battle = new Battle({ player: { name: st.name, party: st.party, bag: st.bag, mega: (st.bag[MEGA_RING] || 0) > 0 }, foe: o.wild ? { name: 'sauvage', party: [o.wild] } : { name: o.trainer.name, party: o.party, trainer: o.trainer }, cap: this.levelCap(), weather: BATTLE_WEATHERS.includes(weather) ? weather : undefined });
     const foeMons = o.wild ? [o.wild] : o.party;
     const h = this.hour();
-    const result = await this.bv.run(battle, { bg, night: m.outdoor && (h >= 20 || h < 5.5), weather, curtain });
+    const result = await this.bv.run(battle, { bg, night: m.outdoor && (h >= 20 || h < 5.5), weather: BATTLE_WEATHERS.includes(weather) ? weather : 'none', curtain });
     // argent
     if (result === 'win' && battle.prizeMoney) st.money += battle.prizeMoney;
     if (result === 'caught') {
@@ -1693,7 +1751,9 @@ export class Game {
 
   async whiteout() {
     const st = this.state;
-    const lost = Math.min(st.money, Math.floor(st.money / 2));
+    // comme dans les jeux : la perte dépend des badges et du meilleur niveau, sans jamais dépasser la moitié de la bourse
+    const nb = (st.badges || []).filter(Boolean).length, top = Math.max(1, ...st.party.map((m) => m.lvl || 1));
+    const lost = Math.min(Math.floor(st.money / 2), [8, 16, 24, 36, 48, 64, 80, 100, 120][Math.min(8, nb)] * top);
     st.money -= lost;
     await this.ui.fade(true, 400);
     for (const m of st.party) healFull(m);
@@ -1902,10 +1962,32 @@ export class Game {
   }
 
   /* ================= histoire ================= */
+  /** Port-Granit : le professeur Orme remet le Méga-Anneau (5 badges) et la gemme du starter, puis vend les Méga-Gemmes */
+  async megaRing() {
+    const st = this.state, ui = this.ui, sp = { speaker: 'Pr Orme' };
+    if (!st.bag[MEGA_RING]) {
+      if (this.badgeCount() < 5) { await ui.say(['Je suis le professeur Orme. J\'étudie un phénomène fascinant : la Méga-Évolution.', 'Certains Pokémon dépassent leur forme finale grâce à une Méga-Gemme... et au lien qui les unit à leur dresseur.', 'Reviens quand tu auras cinq badges : je verrai alors si ce lien est assez fort.'], sp); return; }
+      await ui.say(['Cinq badges... Je le sens : toi et tes Pokémon, vous êtes prêts.', 'Voici la clé de la Méga-Évolution !'], sp);
+      st.bag[MEGA_RING] = 1; this.sound.sfx('badge');
+      await ui.say(`${st.name} reçoit le Méga-Anneau !`);
+      // la gemme du partenaire de départ, si sa lignée a une Méga
+      const line = STARTER_TABLE.flatMap((c) => c.lines).find((l) => l.includes(st.flags.starter)) || [];
+      const gem = line.map((x) => MEGAS_OF[x]?.[0]).filter(Boolean).map((pid) => MEGA_FORMS[pid].stone)[0];
+      if (gem) { st.bag[gem] = (st.bag[gem] || 0) + 1; this.sound.sfx('item'); await ui.say(`Et ceci pour ton partenaire de toujours : ${st.name} reçoit ${itemName(gem)} !`); }
+      await ui.say(['Fais tenir la Méga-Gemme de son espèce à un Pokémon.', 'En combat, appuie sur MÉGA (ou sur M) avant de choisir une attaque : il méga-évoluera, une fois par combat.', 'D\'autres gemmes dorment sur les routes du sud et des îles... et je t\'en vendrai, si tu reviens me voir.'], sp);
+      this.save(true); return;
+    }
+    // la boutique des Méga-Gemmes (les gemmes des légendaires seulement pour le Maître de la Ligue)
+    const stock = Object.values(MEGA_FORMS).map((f) => f.stone).filter((g, i, a) => a.indexOf(g) === i && (!LEGEND.has(MEGA_FORMS[STONE_FORM[g]].base) || st.flags.champion))
+      .sort((a, b) => itemName(a).localeCompare(itemName(b), 'fr'));
+    await ui.say(['Tu viens pour une Méga-Gemme ?', st.flags.champion ? 'Pour le Maître de la Ligue, j\'ai même celles des Pokémon légendaires.' : 'Celles des Pokémon légendaires, je ne les confie qu\'au Maître de la Ligue.'], sp);
+    await shopScreen(this, stock);
+  }
   async script(name, n) {
     const st = this.state, ui = this.ui;
     if (await storyTalk(this, name, n)) return;   // histoire principale et quêtes annexes (story.js)
     if (name === 'savoir') return this.savoir(n);
+    if (name === 'megaRing') return this.megaRing();
     // Métropole : le comptoir du Casino, Pierre à la Bourse, la styliste de la boutique de mode
     if (name === 'casino') return casinoScreen(this);
     if (name === 'pierre') return entretienPierre(this);
@@ -1926,7 +2008,7 @@ export class Game {
         st.flags.metProf = true;
         await ui.say([`Ah, ${st.name} ! Te voilà enfin.`, 'J\'étudie les créatures d\'Odyssée depuis trente ans. Et aujourd\'hui, j\'ai besoin de jeunes dresseurs pour m\'aider.', 'Sur la table, il y a trois capsules : Plante, Feu et Eau.', 'Dans chacune, trois créatures attendent un partenaire : une d\'ici, d\'Odyssée, et deux venues de régions lointaines, Kanto et Johto.', 'Approche-toi de la table et choisis celle qui te plaît !'], { speaker: 'Prof. Saule' });
         const rival = this.npcs.find((q) => q.id === 'rival-lab');
-        if (rival) { rival.dir = 'up'; await ui.say('Hé ! J\'attends depuis ce matin, moi ! Allez, choisis vite, je prendrai après toi.', { speaker: RIVAL_NAME }); rival.dir = 'left'; }
+        if (rival) { rival.dir = 'up'; await ui.say('Hé ! T\'en as mis du temps ! Allez, choisis vite, je prendrai après toi.', { speaker: RIVAL_NAME }); rival.dir = 'left'; }
         return;
       }
       if (!st.flags.starter) { await ui.say('Les trois capsules sont sur la table. Approche-toi et choisis !', { speaker: 'Prof. Saule' }); return; }
@@ -2021,12 +2103,12 @@ export class Game {
     if (!st.flags.metProf) { await ui.say('Il y a une créature dans cette capsule... Mieux vaut d\'abord parler au Professeur Saule.'); return; }
     // la capsule d'un type : deux partenaires au choix
     const C = STARTER_CHOICES[cap ?? Math.max(0, STARTERS.indexOf(sp))], picks = C.lines.map((l) => l[0]);
-    const ORIG = ['Kanto', 'Johto'];
+    const ORIG = picks.length === 3 ? ['Odyssée', 'Kanto', 'Johto'] : ['Kanto', 'Johto'];
     const pic = el('div', 'box starter-pic starter-trio', picks.map((p, k) => `<figure data-k="${k}"><img src="${ASSETS.front(p)}" alt=""><figcaption>${esc(SPECIES[p].n)}<small>${ORIG[k]}</small></figcaption></figure>`).join(''));
     ui.root.appendChild(pic);
     const mark = (k) => pic.querySelectorAll('figure').forEach((f, j) => f.classList.toggle('on', j === k));
     mark(0);
-    await ui.say(`Une capsule de type ${TYPE_FR[C.type]}. Deux créatures te regardent...`, { keep: true, speaker: 'Prof. Saule' });
+    await ui.say(`Une capsule de type ${TYPE_FR[C.type]}. ${picks.length === 3 ? 'Trois' : 'Deux'} créatures te regardent...`, { keep: true, speaker: 'Prof. Saule' });
     const k = await ui.list({ title: `Capsule ${TYPE_FR[C.type]}`, items: picks.map((p, j) => ({ label: SPECIES[p].n, right: ORIG[j] })).concat([{ label: 'Refermer' }]), cls: 'shop', cancel: picks.length, onMove: (j) => { if (j < picks.length) { mark(j); this.sound.cry(ASSETS.cry(picks[j])); } } });
     if (k < 0 || k >= picks.length) { pic.remove(); ui.closeDialog(); return; }
     sp = picks[k]; mark(k);
@@ -2044,17 +2126,17 @@ export class Game {
     st.flags.rivalSp = sp;
     const rival = this.npcs.find((q) => q.id === 'rival-lab');
     if (rival) rival.dir = 'up';
-    await ui.say(['Alors je prends celle-là !', `${SPECIES[rs].n} ! Elle a une tête de gagnante, comme moi.`], { speaker: RIVAL_NAME });
+    await ui.say(['Alors je prends celle-là !', `${SPECIES[rs].n} ! Il a une tête de gagnant, comme moi.`], { speaker: RIVAL_NAME });
     if (rival) rival.dir = 'left';
     await ui.say(['Hé, ' + st.name + ' ! On a nos créatures, alors...', 'On se fait un petit combat ? Allez !'], { speaker: RIVAL_NAME });
-    const res = await this.runBattle({ trainer: { cls: 'Rival', name: RIVAL_NAME, prize: 30, bs: 'theo', ai: 'smart', friendly: true, lose: 'Quoi ?! J\'aurais dû choisir l\'autre !' }, party: buildRivalParty(this, [[rs, 5]]), music: 'rival', rival: true, noWhiteout: true });
+    const res = await this.runBattle({ trainer: { cls: 'Rival', name: RIVAL_NAME, prize: 30, bs: 'theo', ai: 'normal', friendly: true, lose: 'Quoi ?! J\'aurais dû choisir l\'autre !' }, party: [createMon(rs, 5, { ot: RIVAL_NAME })], music: 'rival', rival: true, noWhiteout: true });   // premier combat : à armes égales (même niveau, IA simple)
     for (const m of st.party) healFull(m);
     st.flags.rival1 = true;
     await ui.say(res === 'win' ? 'Pfff... Bon, c\'était juste un échauffement !' : 'Ha ha ! Je suis trop fort ! Mais t\'inquiète, tu t\'améliores déjà.', { speaker: RIVAL_NAME });
-    await ui.say(['Bien joué, tous les deux ! Vos créatures ont déjà l\'air de vous adorer.', `${st.name}, prends aussi ceci.`], { speaker: 'Prof. Saule' });
+    await ui.say([res === 'win' ? 'Quel combat ! Vos créatures ont déjà l\'air de vous adorer.' : 'Ne te décourage pas, ' + st.name + '. Ce n\'était que votre tout premier combat !', `${st.name}, prends aussi ceci.`], { speaker: 'Prof. Saule' });
     this.sound.sfx('item');
     st.flags.dex = true; st.bag['poke-ball'] = (st.bag['poke-ball'] || 0) + 5; st.bag.potion = (st.bag.potion || 0) + 2; this.give('town-map');
-    await ui.say([`${st.name} reçoit le Pokédex, la Carte, 5 capsules et 2 Potions !`, 'Le Pokédex enregistre chaque créature que tu vois ou captures.', 'Quand tes créatures sont fatiguées, reviens voir ta mère ou passe au Centre de soins.', 'La première Arène se trouve à Sylvebourg, au nord. Bonne route !'], { speaker: 'Prof. Saule' });
+    await ui.say([`${st.name} reçoit le Pokédex, la Carte, 5 Poké Balls et 2 Potions !`, 'Le Pokédex enregistre chaque créature que tu vois ou captures.', 'Quand tes créatures sont fatiguées, reviens voir ta mère ou passe au Centre de soins.', 'La première Arène se trouve à Sylvebourg, au nord. Bonne route !'], { speaker: 'Prof. Saule' });
     await ui.say('Je file ! À plus, ' + st.name + ' !', { speaker: RIVAL_NAME });
     if (rival) { await this.npcWalk(rival, 'down', 2); this.npcs = this.npcs.filter((q) => q !== rival); this.view.removeActor('npc:rival-lab'); }
     this.save(true);
@@ -2098,7 +2180,7 @@ export class Game {
       rival.dir = OPP[dir];
       await ui.say(lines, { speaker: W.name });
       const party = buildRivalParty(this, team(R));
-      const res = await this.runBattle({ trainer: { cls: W.cls || 'Rival', name: W.name, prize: 40, bs: W.bs, ai: 'smart', items: getRivalItems(this), lose: lvlText }, party, music: 'rival', rival: true });
+      const res = await this.runBattle({ trainer: { cls: W.cls || 'Rival', name: W.name, prize: 40, bs: W.bs, ai: st.badges.some(Boolean) ? 'smart' : 'normal', items: getRivalItems(this), lose: lvlText, megaSp: st.badges.filter(Boolean).length >= 8 ? 'ace' : undefined }, party, music: 'rival', rival: true });
       this.musicLock = false;
       if (res !== 'lose') {
         await ui.say(after, { speaker: W.name });
@@ -2109,7 +2191,8 @@ export class Game {
       this.updateZone();
       this.busy = false; return true;
     };
-    if (name === 'rival2') return rivalFight('rival2', (R) => [[1010, 11], [1013, 11], [R[0], 13]], 'Grr... Tu as eu de la chance !', [`${st.name} ! Tu as déjà ton premier badge ?`, 'Moi aussi, évidemment. Voyons qui a le plus progressé !'], ['Je vais m\'entraîner dans le Bois Murmure.', 'La prochaine fois, je ne perdrai pas !']);
+    // Théo t'attend sur la Route 2 une fois ton premier badge en poche (sa réplique et son équipe vont avec)
+    if (name === 'rival2' && st.badges[0]) return rivalFight('rival2', (R) => [[1010, 11], [1013, 11], [R[0], 13]], 'Grr... Tu as eu de la chance !', [`${st.name} ! Tu as déjà ton premier badge ?`, 'Moi aussi, évidemment. Voyons qui a le plus progressé !'], ['Je vais m\'entraîner dans le Bois Murmure.', 'La prochaine fois, je ne perdrai pas !']);
     if (name === 'rival3') return rivalFight('rival3', (R) => [[1011, 27], [1034, 26], [1021, 26], [R[1], 29]], 'Encore ?! Tes créatures sont devenues sacrément fortes...', ['Tiens, tiens... Le grand voyageur !', 'Floralia, c\'est ma ville porte-bonheur. Prépare-toi !'], ['Flora t\'attend à l\'Arène. Moi, je file vers l\'est.', 'On se retrouvera tout en haut, à la Ligue !']);
     if (name === 'rival4') return rivalFight('rival4', (R) => [[1012, 36], [1035, 35], [1022, 36], [1019, 36], [R[2], 39]], 'Toi et tes créatures, vous êtes vraiment synchronisés...', [`${st.name} ! Tu vas sur les îles, toi aussi ?`, 'On dit que Drakos a battu tous ceux qui ont osé le défier, sauf Célestine.', 'Avant que tu y ailles, montre-moi si tu es prêt !'], ['Bon. Tu es prêt. Fonce !', 'Moi, je vais m\'entraîner sur la route 10. On se revoit avant la Ligue.']);
     // second rival : l'autre enfant, petit-fils / petite-fille du professeur, recrue des Gardes d'Écaille

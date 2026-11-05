@@ -1,0 +1,543 @@
+/* ---------- combat (Style Rétro 5G — Noir 2 / Blanc 2) ---------- */
+.battle {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--bp) * 8);
+  --px: calc(var(--bp) * 0.85);
+}
+.bcv { width: 100%; height: 100%; image-rendering: pixelated; }
+
+/* Boîtes de statut 5G (Noir 2 / Blanc 2) ancrées aux bords */
+.bhud {
+  position: absolute;
+  image-rendering: pixelated;
+  color: #f8fafc;
+  text-shadow: calc(var(--bp) * 0.9) calc(var(--bp) * 0.9) 0 #080a10;
+  border: none;
+  outline: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+.bhud.foe {
+  left: 0;
+  top: calc(var(--bp) * 7);
+  width: calc(var(--bp) * 146);
+  height: calc(var(--bp) * 42);
+  padding: calc(var(--bp) * 3.8) calc(var(--bp) * 12) calc(var(--bp) * 5) calc(var(--bp) * 5);
+  background: url(../img/battle/hud_foe_5g.png) left top / 100% 100% no-repeat;
+}
+.bhud.me {
+  right: 0;
+  bottom: calc(var(--bp) * 50);
+  width: calc(var(--bp) * 154);
+  height: calc(var(--bp) * 52);
+  padding: calc(var(--bp) * 3.8) calc(var(--bp) * 5) calc(var(--bp) * 3.5) calc(var(--bp) * 15);
+  background: url(../img/battle/hud_me_5g.png) right top / 100% 100% no-repeat;
+}
+
+/* Bandeau supérieur 5G : Poké Balls d'équipe + Badges de Type */
+.bh-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: calc(var(--bp) * 8.5);
+  margin-bottom: calc(var(--bp) * 1.5);
+}
+.bh-balls {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--bp) * 1.2);
+}
+.bh-ball {
+  width: calc(var(--bp) * 5.8);
+  height: calc(var(--bp) * 5.8);
+  image-rendering: pixelated;
+  display: block;
+}
+.bh-wild-tag {
+  font-size: 0.56em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #90f078;
+  background: #102418;
+  border: calc(var(--bp) * 0.7) solid #48b848;
+  padding: 0 calc(var(--bp) * 2);
+  line-height: 1.25;
+}
+.bh-types {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--bp) * 1.2);
+}
+.bh-type {
+  font-size: 0.55em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+  background: var(--tc);
+  border: calc(var(--bp) * 0.7) solid #080a10;
+  box-shadow: inset 0 calc(var(--bp) * 0.7) 0 rgba(255, 255, 255, 0.38);
+  padding: 0 calc(var(--bp) * 2);
+  line-height: 1.3;
+  text-shadow: calc(var(--bp) * 0.7) calc(var(--bp) * 0.7) 0 #080a10;
+}
+.bh-type.unknown {
+  background: #242c3c !important;
+  color: #9ab2d8 !important;
+  border-color: #080a10 !important;
+  box-shadow: inset 0 calc(var(--bp) * 0.7) 0 rgba(255, 255, 255, 0.15) !important;
+  letter-spacing: 0.12em;
+  font-weight: 800;
+  padding: 0 calc(var(--bp) * 2.5);
+}
+
+/* Ligne Nom + Sexe + Niveau 5G */
+.bh-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  height: calc(var(--bp) * 10);
+  margin-bottom: calc(var(--bp) * 1.2);
+}
+.bh-name {
+  font-size: 0.94em;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--bp) * 1.5);
+  letter-spacing: 0.01em;
+}
+.bh-name .g {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--bp) * 6.5);
+  height: calc(var(--bp) * 6.5);
+  background: #10141e;
+  border: calc(var(--bp) * 0.6) solid #586888;
+  font-size: 0.78em;
+  line-height: 1;
+}
+.bh-name .g.m { color: #58b8ff; }
+.bh-name .g.f { color: #ff6888; }
+.bh-lv {
+  font-size: 0.88em;
+  font-weight: 700;
+  color: #ffe058;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Barre de PV 5G (Noir 2 / Blanc 2) */
+.bh-mid {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--bp) * 2);
+  height: calc(var(--bp) * 7.5);
+}
+.bh-st {
+  color: #fff;
+  font-size: 0.6em;
+  font-weight: 700;
+  padding: 0 calc(var(--bp) * 1.8);
+  border: calc(var(--bp) * 0.7) solid #080a10;
+  text-shadow: calc(var(--bp) * 0.7) calc(var(--bp) * 0.7) 0 #080a10;
+}
+.bh-hp {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: #0c0f16;
+  border: calc(var(--bp) * 0.8) solid #080a10;
+  box-shadow:
+    0 0 0 calc(var(--bp) * 0.6) #98a6c0,
+    inset 0 calc(var(--bp) * 0.6) 0 rgba(0, 0, 0, 0.8);
+  height: calc(var(--bp) * 5.6);
+  padding: 0 calc(var(--bp) * 1) 0 0;
+}
+.bh-hp b {
+  background: #0c0f16;
+  color: #ffb828;
+  font-size: 0.62em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0 calc(var(--bp) * 1.8);
+  line-height: 1;
+  text-shadow: calc(var(--bp) * 0.6) calc(var(--bp) * 0.6) 0 #000;
+}
+.bh-hp i {
+  flex: 1;
+  height: calc(var(--bp) * 3.6);
+  background: #202820;
+  border: calc(var(--bp) * 0.6) solid #060808;
+  overflow: hidden;
+  display: block;
+}
+.bh-hp u {
+  display: block;
+  height: 100%;
+  transition: background 0.15s;
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.45) 0 32%, transparent 32% 72%, rgba(0, 0, 0, 0.28) 72% 100%),
+    repeating-linear-gradient(90deg, transparent 0 calc(var(--bp) * 3.2), rgba(0, 0, 0, 0.18) calc(var(--bp) * 3.2) calc(var(--bp) * 4));
+}
+
+/* Ligne inférieure joueur : Compteur PV numérique + Barre EXP segmentée 5G */
+.bh-bot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--bp) * 3);
+  margin-top: calc(var(--bp) * 1.6);
+}
+.bh-exp-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--bp) * 1.5);
+}
+.bh-exp-wrap b {
+  font-size: 0.54em;
+  color: #68d8ff;
+  letter-spacing: 0.06em;
+}
+.bh-exp { flex: 1; }
+.bh-exp i {
+  display: block;
+  height: calc(var(--bp) * 2.6);
+  background: #0c1018;
+  border: calc(var(--bp) * 0.6) solid #06080c;
+  box-shadow: 0 0 0 calc(var(--bp) * 0.5) #586888;
+  overflow: hidden;
+}
+.bh-exp u {
+  display: block;
+  height: 100%;
+  background-color: #38c0ff;
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0 35%, transparent 35%),
+    repeating-linear-gradient(90deg, transparent 0 calc(var(--bp) * 4), rgba(12, 16, 24, 0.65) calc(var(--bp) * 4) calc(var(--bp) * 4.8));
+}
+.bh-hpn {
+  background: #10141e;
+  border: calc(var(--bp) * 0.6) solid #586888;
+  padding: 0 calc(var(--bp) * 2.4);
+  font-size: 0.74em;
+  font-weight: 700;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+.bh-caught {
+  position: absolute;
+  left: calc(var(--bp) * 35);
+  top: calc(var(--bp) * 4.5);
+  width: calc(var(--bp) * 5.8);
+  height: calc(var(--bp) * 5.8);
+  background: url(../img/battle/ball_ok.png) center / contain no-repeat;
+  image-rendering: pixelated;
+  display: none;
+}
+.bh-caught.on { display: block; }
+
+/* Boîte de dialogue de combat 5G (Noir 2 / Blanc 2) */
+.dlg.btext {
+  z-index: 19 !important;
+  border-radius: 0 !important;
+  background:
+    repeating-linear-gradient(180deg, #222733 0 calc(var(--bp) * 1.2), #1a1e28 calc(var(--bp) * 1.2) calc(var(--bp) * 2.4)) !important;
+  border: calc(var(--bp) * 1.4) solid #d0d8e8 !important;
+  outline: calc(var(--bp) * 1.2) solid #080a10 !important;
+  box-shadow:
+    inset 0 0 0 calc(var(--bp) * 1) #48546c,
+    calc(var(--bp) * 2) calc(var(--bp) * 2) 0 rgba(0, 0, 0, 0.75) !important;
+  color: #f8fafc !important;
+  text-shadow: calc(var(--bp) * 0.9) calc(var(--bp) * 0.9) 0 #080a10 !important;
+}
+.battle.cmdon .btext { right: calc(54% + var(--bp) * 6); }
+.btext {
+  left: calc(var(--bp) * 3.5);
+  right: calc(var(--bp) * 3.5);
+  bottom: calc(var(--bp) * 3);
+  min-height: calc(var(--bp) * 44);
+  max-width: none;
+  font-size: calc(var(--bp) * 8.6);
+  padding: calc(var(--bp) * 5.5) calc(var(--bp) * 9);
+  z-index: 19;
+}
+
+/* Panneau d'actions et de capacités 5G (biseaux angulaires & trame DS) */
+.bcmd {
+  position: absolute;
+  right: calc(var(--bp) * 3.5);
+  bottom: calc(var(--bp) * 3);
+  height: calc(var(--bp) * 45);
+  width: 54%;
+  display: none;
+  z-index: 21;
+  box-sizing: border-box;
+}
+.bcmd.on { display: block; }
+
+/* Quand le menu des attaques est ouvert : plein bandeau tactile B2W2 */
+.bcmd.moves {
+  left: calc(var(--bp) * 3.5);
+  right: calc(var(--bp) * 3.5);
+  width: auto;
+  bottom: calc(var(--bp) * 3);
+  height: calc(var(--bp) * 45);
+}
+.battle.moves-open .btext {
+  display: none !important;
+}
+
+.mv-layout {
+  display: flex;
+  gap: calc(var(--bp) * 2);
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.cmd-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: calc(var(--bp) * 2.2);
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.mv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: calc(var(--bp) * 1.8);
+  height: 100%;
+  flex: 1;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+/* Bouton Retour B2W2 */
+.mv-back-btn {
+  width: calc(var(--bp) * 22);
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--bp) * 1.2);
+  background:
+    repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 calc(var(--bp) * 1.2), rgba(0,0,0,0.18) calc(var(--bp) * 1.2) calc(var(--bp) * 2.4)),
+    linear-gradient(180deg, #323a4c 0%, #1a1e28 100%);
+  border: calc(var(--bp) * 1.2) solid #7084a4;
+  outline: calc(var(--bp) * 1.1) solid #080a10;
+  box-shadow:
+    inset 0 calc(var(--bp) * 1) 0 rgba(255, 255, 255, 0.35),
+    calc(var(--bp) * 1.6) calc(var(--bp) * 1.6) 0 rgba(0, 0, 0, 0.65);
+  color: #fff;
+  cursor: pointer;
+  text-shadow: calc(var(--bp) * 0.8) calc(var(--bp) * 0.8) 0 #080a10;
+  border-radius: 0;
+  flex-shrink: 0;
+  padding: 0;
+}
+.mv-back-btn:hover, .mv-back-btn.sel {
+  border-color: #ffe858 !important;
+  color: #ffe858 !important;
+  outline: calc(var(--bp) * 1.3) solid #080a10;
+  box-shadow:
+    inset 0 0 0 calc(var(--bp) * 1) #fff,
+    calc(var(--bp) * 2) calc(var(--bp) * 2) 0 #080a10;
+}
+.mv-back-ico { font-size: 1.1em; font-weight: 900; line-height: 1; }
+.mv-back-lbl { font-size: 0.62em; font-weight: 800; letter-spacing: 0.5px; }
+
+/* Boutons d'action 5G (ATTAQUE / SAC / ÉQUIPE / FUITE) */
+.cbtn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--bp) * 3.2);
+  padding: 0 calc(var(--bp) * 4.5);
+  border-radius: 0;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  text-shadow: calc(var(--bp) * 0.9) calc(var(--bp) * 0.9) 0 #080a10;
+  border: calc(var(--bp) * 1.2) solid #d8e0f0;
+  outline: calc(var(--bp) * 1.1) solid #080a10;
+  box-shadow:
+    inset 0 calc(var(--bp) * 1.2) 0 rgba(255, 255, 255, 0.35),
+    inset 0 calc(var(--bp) * -1.6) 0 rgba(0, 0, 0, 0.45),
+    calc(var(--bp) * 1.8) calc(var(--bp) * 1.8) 0 rgba(0, 0, 0, 0.65);
+}
+.cbtn::after {
+  content: '';
+  position: absolute;
+  right: calc(var(--bp) * 2.5);
+  bottom: calc(var(--bp) * 2);
+  width: calc(var(--bp) * 3.5);
+  height: calc(var(--bp) * 3.5);
+  border-right: calc(var(--bp) * 1.2) solid rgba(255, 255, 255, 0.55);
+  border-bottom: calc(var(--bp) * 1.2) solid rgba(255, 255, 255, 0.55);
+}
+.cbtn-ico {
+  width: calc(var(--bp) * 12.5);
+  height: calc(var(--bp) * 12.5);
+  image-rendering: pixelated;
+  filter: drop-shadow(calc(var(--bp) * 0.9) calc(var(--bp) * 0.9) 0 #080a10);
+  flex-shrink: 0;
+}
+.cbtn-txt {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+}
+.cbtn-lbl { font-size: 0.92em; letter-spacing: 0.04em; }
+.cbtn-sub { font-size: 0.58em; font-weight: 600; color: #e2e8f4; opacity: 0.92; }
+.cbtn.fight {
+  background:
+    repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 calc(var(--bp) * 1.2), rgba(0,0,0,0.16) calc(var(--bp) * 1.2) calc(var(--bp) * 2.4)),
+    linear-gradient(180deg, #d83838 0%, #881820 100%);
+  border-color: #ffb0a8;
+}
+.cbtn.bag {
+  background:
+    repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 calc(var(--bp) * 1.2), rgba(0,0,0,0.16) calc(var(--bp) * 1.2) calc(var(--bp) * 2.4)),
+    linear-gradient(180deg, #d88c20 0%, #884e08 100%);
+  border-color: #ffe098;
+}
+.cbtn.mon {
+  background:
+    repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 calc(var(--bp) * 1.2), rgba(0,0,0,0.16) calc(var(--bp) * 1.2) calc(var(--bp) * 2.4)),
+    linear-gradient(180deg, #30a848 0%, #166028 100%);
+  border-color: #98f0a8;
+}
+.cbtn.run {
+  background:
+    repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 calc(var(--bp) * 1.2), rgba(0,0,0,0.16) calc(var(--bp) * 1.2) calc(var(--bp) * 2.4)),
+    linear-gradient(180deg, #3070d8 0%, #183c88 100%);
+  border-color: #98c8ff;
+}
+.cbtn.sel, .mbtn.sel {
+  border-color: #ffe858 !important;
+  outline: calc(var(--bp) * 1.3) solid #080a10;
+  box-shadow:
+    inset 0 0 0 calc(var(--bp) * 1) #fff,
+    calc(var(--bp) * 2) calc(var(--bp) * 2) 0 #080a10;
+  transform: translate(calc(var(--bp) * -0.5), calc(var(--bp) * -0.5));
+}
+
+/* Cartes de capacités 5G (bandeau supérieur coloré + rail inférieur carbone) */
+.mbtn {
+  position: relative;
+  box-sizing: border-box;
+  border-radius: 0;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--tc) 68%, #202634) 0 52%,
+      #161a24 52% 100%
+    );
+  border: calc(var(--bp) * 1.1) solid color-mix(in srgb, var(--tc) 75%, #e0e8f8);
+  outline: calc(var(--bp) * 1.1) solid #080a10;
+  box-shadow:
+    inset 0 calc(var(--bp) * 0.9) 0 rgba(255, 255, 255, 0.35),
+    calc(var(--bp) * 1.6) calc(var(--bp) * 1.6) 0 rgba(0, 0, 0, 0.65);
+  color: #fff;
+  cursor: pointer;
+  text-shadow: calc(var(--bp) * 0.8) calc(var(--bp) * 0.8) 0 #080a10;
+  padding: calc(var(--bp) * 1) calc(var(--bp) * 3);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  line-height: 1.05;
+  overflow: hidden;
+  height: 100%;
+}
+.mbtn.empty {
+  background: #181c26;
+  border-color: #485268;
+  color: #68748e;
+  text-shadow: none;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+.mbtn-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--bp) * 1.5);
+  min-height: 0;
+}
+.mbtn .mn {
+  font-weight: 700;
+  font-size: 0.82em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mbtn-top-right {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--bp) * 1.5);
+  flex-shrink: 0;
+}
+.mbtn .mcat {
+  width: calc(var(--bp) * 8.5);
+  height: calc(var(--bp) * 5.2);
+  image-rendering: pixelated;
+  flex-shrink: 0;
+  border: calc(var(--bp) * 0.5) solid #080a10;
+}
+.mbtn-bot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--bp) * 2);
+  font-size: 0.60em;
+  min-height: 0;
+}
+.mbtn-bot-left {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--bp) * 2);
+}
+.mbtn .mt {
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: calc(var(--bp) * 0.15) calc(var(--bp) * 1.8);
+  line-height: 1.15;
+  background: var(--tc);
+  color: #ffffff;
+  border: calc(var(--bp) * 0.6) solid #080a10;
+  box-shadow: inset 0 calc(var(--bp) * 0.4) 0 rgba(255, 255, 255, 0.35);
+  text-shadow: calc(var(--bp) * 0.5) calc(var(--bp) * 0.5) 0 #000;
+  font-size: 0.9em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mbtn .mpw { color: #ced8ec; font-weight: 600; font-size: 0.95em; }
+.mbtn .mpp { font-weight: 700; color: #ffe058; font-variant-numeric: tabular-nums; font-size: 0.95em; }
+.mbtn .mpp.zero { color: #ff5858; }
+/* dégâts prévus sur le Pokémon d'en face (% de ses PV max) : petite étiquette en haut à droite de la carte */
+/* (à la place de la puissance, dans le rail du bas : la puissance reste dans l'infobulle) */
+.mbtn .mdmg {
+  font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap;
+  padding: 0 calc(var(--bp) * 1.4); background: #080a10; color: #e8f0ff;
+  border: calc(var(--bp) * 0.5) solid #34465e; text-shadow: none;
+}
+.mbtn .mdmg.maybe { color: #ffd060; }
+.mbtn .mdmg.ko { color: #ff6a58; }
+.mbtn .mdmg.none { color: #8890a0; }

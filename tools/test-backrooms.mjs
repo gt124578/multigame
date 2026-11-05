@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { createBackroomsMap, CELL_SIZE, T } from '../backrooms/engine/map.js';
 import { findPath, hasLineOfSight } from '../backrooms/engine/nav.js';
-import { BackroomsSim, DT, DEPART_T, FUSES, WHISTLE_CD } from '../backrooms/engine/sim.js';
-import { PIT_HALF, bfs, createLevel0 } from '../backrooms/engine/map.js';
+import { BackroomsSim, DT, DEPART_T, FUSES, WHISTLE_CD, stairAt, stairLocal, feetY } from '../backrooms/engine/sim.js';
+import { PIT_HALF, bfs, createLevel0, FLOOR_DY } from '../backrooms/engine/map.js';
 
 // distance en marche (en cases) entre deux cases
 const bfsDist = (m, ax, az, bx, bz) => bfs(m.grid, m.W, m.H, ax, az)[bz * m.W + bx];
@@ -565,8 +565,7 @@ test('départ : pas de table, chacun a déjà sa lampe allumée dans la case 1',
   const players = [{ id: 1, name: 'A' }, { id: 2, name: 'B' }, { id: 3, name: 'C' }];
   for (const sd of [3, 14, 15, 92, 653]) {
     const sim = new BackroomsSim({ difficulty: 'peaceful', seed: sd, players, localId: 1 });
-    assert.equal(sim.table, null, `graine ${sd} : pas de table au départ`);
-    assert.equal(sim.lamps.length, 0);
+    assert.ok(!sim.table, `graine ${sd} : pas de table au départ`);
     assert.ok(sim.players.every((p) => p.hasLamp && p.flashlight), 'tout le monde part équipé, lampe allumée');
     // la touche 1 éteint et rallume sa lampe
     sim.step({ toggleFlashlight: true });
@@ -575,6 +574,46 @@ test('départ : pas de table, chacun a déjà sa lampe allumée dans la case 1',
     sim.step({ toggleFlashlight: true });
     assert.equal(sim.player.flashlight, true);
   }
+});
+
+test("à bout de souffle : une seconde sans pouvoir courir, chez l'hôte comme chez l'invité", () => {
+  for (const guest of [false, true]) {
+    const sim = new BackroomsSim({ difficulty: 'peaceful', seed: 3 });
+    const P = sim.player;
+    const go = () => (guest ? sim.predict({ my: 1, run: true, yaw: P.yaw }) : sim.step({ my: 1, run: true, yaw: P.yaw }));
+    let t = 0;
+    while (P.stamina > 0 && t < 20) {
+      go();
+      t += DT;
+    }
+    assert.equal(P.stamina, 0, 'endurance épuisée');
+    let stopped = 0;
+    for (let i = 0; i < Math.round(1.5 / DT); i++) {
+      go();
+      if (P.running) break;
+      stopped += DT;
+    }
+    assert.ok(stopped > 0.9 && stopped < 1.1, `${guest ? 'invité' : 'hôte'} : environ une seconde sans courir (${stopped.toFixed(2)} s)`);
+  }
+});
+
+test('départ à plusieurs : chacun dans son coin, à portée de sifflet, et pareil chez tout le monde', () => {
+  const players = [1, 2, 3, 4, 5, 6].map((id) => ({ id, name: 'P' + id }));
+  for (const sd of [3, 14, 42, 92, 653]) {
+    const sim = new BackroomsSim({ difficulty: 'peaceful', seed: sd, players, localId: 1 });
+    const guest = new BackroomsSim({ difficulty: 'peaceful', seed: sd, players, localId: 4 });
+    const ps = sim.players;
+    assert.equal(new Set(ps.map((p) => `${p.x},${p.z}`)).size, ps.length, `graine ${sd} : personne au même endroit`);
+    for (const [i, p] of ps.entries()) {
+      assert.equal(p.x, guest.players[i].x, 'même départ chez un invité');
+      assert.equal(p.z, guest.players[i].z);
+      assert.ok(!sim.isColliding(p.x, p.z, 0.3, 0), `graine ${sd} : ${p.name} pas dans un mur ni un meuble`);
+      for (const q of ps) assert.ok(Math.hypot(p.x - q.x, p.z - q.z) < 45, 'assez près pour entendre siffler');
+    }
+  }
+  // seul : au départ habituel
+  const solo = new BackroomsSim({ difficulty: 'peaceful', seed: 3 });
+  assert.equal(solo.player.x, solo.map.spawn.x);
 });
 
 test("un joueur tombé au Level 0 repart au Level 1 avec une lampe", () => {
@@ -592,7 +631,7 @@ test("un joueur tombé au Level 0 repart au Level 1 avec une lampe", () => {
   const a1 = sim.players.find((p) => p.id === 1);
   assert.equal(a1.status, 'alive');
   assert.ok(a1.hasLamp && a1.flashlight);
-  assert.equal(sim.table, null, "plus de table à l'étage suivant");
+  assert.ok(!sim.table, "plus de table à l'étage suivant");
 });
 
 // hasard reproductible pour les tests d'équilibre
@@ -711,20 +750,78 @@ test("chute : par un trou, on atterrit à l'étage du dessous, juste en dessous 
   const x0 = P.x;
   sim.step({ my: 1 });
   assert.equal(P.x, x0);
-  // l'escalier : de l'étage du bas on remonte, devant les marches
+  // l'escalier coudé : de l'étage du bas on remonte en marchant, marche après marche, demi-tour sur le palier,
+  // sans être téléporté
   const st = sim.stairs[0];
-  run(sim, 1);
+  const C = CELL_SIZE;
+  const W = (u, v) => ({ x: st.ox + st.dx * u + st.px * v, z: st.oz + st.dz * u + st.pz * v });
+  const walk = (pts, check) => {
+    for (const w of pts) {
+      for (let i = 0; i < 400 && Math.hypot(P.x - w.x, P.z - w.z) > 0.25; i++) {
+        P.yaw = Math.atan2(-(w.x - P.x), -(w.z - P.z));
+        const before = { x: P.x, z: P.z, y: feetY(sim.stairs, P.x, P.z, P.floor) };
+        sim.step({ my: 1, yaw: P.yaw });
+        check(before);
+      }
+      assert.ok(Math.hypot(P.x - w.x, P.z - w.z) <= 0.25, `atteint ${w.x.toFixed(1)}, ${w.z.toFixed(1)}`);
+    }
+  };
+  run(sim, 2.5);
   P.x = st.down.x;
   P.z = st.down.z;
-  P.yaw = Math.atan2(-st.dx, -st.dz);
-  for (let i = 0; i < 120 && P.floor === 1; i++) sim.step({ my: 1, yaw: P.yaw });
-  assert.equal(P.floor, 0, 'remonté par l\u2019escalier');
-  assert.ok(Math.hypot(P.x - st.up.x, P.z - st.up.z) < 0.01);
-  // et on redescend par la même cage
-  run(sim, 1);
-  P.yaw = Math.atan2(st.dx, st.dz);
-  for (let i = 0; i < 120 && P.floor === 0; i++) sim.step({ my: 1, yaw: P.yaw });
+  let climbed = false;
+  let top = -Infinity;
+  walk([W(0.3, C / 2), W(2.5 * C, C / 2), W(2.5 * C, 1.5 * C), W(0.3, 1.5 * C), st.up], (b) => {
+    const y = feetY(sim.stairs, P.x, P.z, P.floor);
+    assert.ok(Math.hypot(P.x - b.x, P.z - b.z) < 0.2, 'pas de téléportation');
+    assert.ok(y >= b.y - 1e-9 && y - b.y < 0.2, 'les pieds montent peu à peu');
+    if (Math.abs(y + FLOOR_DY / 2) < 0.01) climbed = true;
+    top = Math.max(top, y);
+  });
+  assert.ok(climbed, 'on est passé par le palier, à mi-hauteur');
+  assert.equal(P.floor, 0, "remonté par l'escalier");
+  assert.ok(FLOOR_DY > 6, 'les étages sont loin l\'un de l\'autre');
+  // et on redescend par le même chemin
+  walk([W(0.3, 1.5 * C), W(2.5 * C, 1.5 * C), W(2.5 * C, C / 2), W(0.3, C / 2), st.down], () => {});
   assert.equal(P.floor, 1, 'redescendu');
+  // pas de raccourci d'une volée à l'autre par-dessus la rampe du milieu
+  P.x = W(1.0 * C, C / 2).x;
+  P.z = W(1.0 * C, C / 2).z;
+  P.floor = 1;
+  const goal = W(1.0 * C, 1.5 * C);
+  for (let i = 0; i < 120; i++) sim.step({ my: 1, yaw: Math.atan2(-(goal.x - P.x), -(goal.z - P.z)) });
+  assert.equal(stairAt(sim.stairs, P.x, P.z).lane, 'A', 'resté sur la première volée');
+  // on ne monte pas sur les marches par le côté, et on ne tombe pas dans la trémie depuis l'étage du haut
+  for (const side of [W(1.5 * C, -0.5 * C), W(1.5 * C, 2.5 * C), W(3.5 * C, C), W(-0.5 * C, 1.5 * C), W(-0.5 * C, 0.5 * C)]) {
+    for (const floor of [0, 1]) {
+      if (sim.isColliding(side.x, side.z, 0.38, floor)) continue;
+      P.floor = floor;
+      P.x = side.x;
+      P.z = side.z;
+      // les deux entrées permises : en bas de la première volée (étage du bas), en haut de la seconde (étage du haut)
+      const lA = stairLocal(st, side.x, side.z);
+      if ((lA.u < 0 && lA.v < C && floor === 1) || (lA.u < 0 && lA.v > C && floor === 0)) continue;
+      for (let i = 0; i < 180; i++) sim.step({ my: 1, yaw: Math.atan2(-(st.cx - P.x), -(st.cz - P.z)) });
+      assert.ok(!stairAt(sim.stairs, P.x, P.z), `étage ${floor} : bloqué au bord de l'escalier`);
+      assert.equal(P.floor, floor);
+    }
+  }
+});
+
+test("Level 0 : la cage d'escalier ne coupe aucun étage, et le couloir piégé a son point de départ", () => {
+  for (const sd of [1, 7, 19, 33, 64, 101]) {
+    const L = createLevel0(sd);
+    const [up, down] = L.floors;
+    for (const st of L.stairs) assert.equal(st.cells.length, 6, 'deux volées et un palier');
+    for (const [m, entry] of [[up, 'up'], [down, 'down']]) {
+      const blocked = new Set(L.stairs.flatMap((st) => st.cells.map((c) => c.gz * m.W + c.gx)));
+      const g = m.grid.map((v, i) => (blocked.has(i) ? 2 : v));
+      const st = L.stairs[0];
+      const d = bfs(g, m.W, m.H, Math.floor(st[entry].x / CELL_SIZE), Math.floor(st[entry].z / CELL_SIZE));
+      for (let i = 0; i < g.length; i++) if (m.dist[i] >= 0 && !blocked.has(i)) assert.ok(d[i] >= 0, `graine ${sd} : tout l'étage reste accessible`);
+    }
+    if (up.trap) assert.ok(!up.isWall(Math.floor(up.trap.x / CELL_SIZE), Math.floor(up.trap.z / CELL_SIZE)), 'départ du parcours sur le sol');
+  }
 });
 
 test("ascenseurs : un en haut, un en bas ; les 5 cassettes trouvées, le faux devient un mur et seul le vrai emmène", () => {

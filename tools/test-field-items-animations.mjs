@@ -1,5 +1,5 @@
 // tools/test-field-items-animations.mjs
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -41,7 +41,7 @@ for (const m of ['animateCut', 'animateSurfSplash', 'animateFlyDeparture', 'anim
 }
 
 console.log('=== Test 5 : Vérification des classes CSS dans odyssee.css ===');
-const css = readFileSync(join(root, 'odyssee/odyssee.css'), 'utf8');
+const css = readdirSync(join(root, 'odyssee/css')).filter((f) => f.endsWith('.css')).sort().map((f) => readFileSync(join(root, 'odyssee/css', f), 'utf8')).join('\n');
 for (const c of ['.field-cut-fx', '.cut-slash', '.cut-leaf', '.field-surf-splash', '.surf-ripple', '.surf-droplet', '.field-fly-fx', '.fly-musical-note', '.fly-landing-dust']) {
   if (!css.includes(c)) throw new Error(`Classe CSS ${c} manquante dans odyssee.css`);
   console.log(`  ✓ Classe CSS présente : ${c}`);

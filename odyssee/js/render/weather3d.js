@@ -1,11 +1,14 @@
 // odyssee/js/render/weather3d.js — Système météo dynamique en temps réel pour le monde 3D
-// Gère la pluie, la grêle/neige et les tempêtes de sable avec particules rétro Three.js.
+// Gère la pluie, la grêle/neige, les tempêtes de sable et les cendres (particules rétro Three.js)
+// et la brume (voile à l'écran, par-dessus le canvas).
 import * as THREE from 'three';
 
 export class WeatherSystem {
-  constructor(scene) {
+  constructor(scene, canvas = null) {
     this.scene = scene;
-    this.current = 'none'; // 'none' | 'rain' | 'hail' | 'sandstorm'
+    this.hostCanvas = canvas;   // canvas du jeu : le voile de brume se pose juste après le canvas, sous l'interface
+    this.fogEl = null;
+    this.current = 'none'; // 'none' | 'rain' | 'hail' | 'sandstorm' | 'ash' | 'fog' | 'sun'
     this.time = 0;
     this.count = 240;
 
@@ -60,7 +63,9 @@ export class WeatherSystem {
     w = w || 'none';
     if (this.current === w) return;
     this.current = w;
-    this.points.visible = (w !== 'none');
+    // soleil : pas de particules (l'effet est porté par le combat et la lumière)
+    this.points.visible = (w === 'rain' || w === 'hail' || w === 'sandstorm' || w === 'ash');
+    this.setFog(w === 'fog');
 
     if (w === 'rain') {
       this.material.color.setHex(0x70b4ff);
@@ -74,6 +79,11 @@ export class WeatherSystem {
       this.material.color.setHex(0xf59e0b);
       this.material.size = 0.85;
       this.material.opacity = 0.75;
+    } else if (w === 'ash') {
+      // cendres volcaniques : flocons gris qui tombent lentement en tourbillonnant (Route 113)
+      this.material.color.setHex(0xb4b0aa);
+      this.material.size = 1.0;
+      this.material.opacity = 0.9;
     }
 
     // Réinitialiser les particules autour du joueur lors d'un changement de météo
@@ -103,7 +113,23 @@ export class WeatherSystem {
       this.velocities[idx] = 0.42 + Math.random() * 0.2;
       this.velocities[idx + 1] = -0.04 - Math.random() * 0.04;
       this.velocities[idx + 2] = 0.06 + Math.random() * 0.06;
+    } else if (this.current === 'ash') {
+      this.velocities[idx] = 0.02 + Math.random() * 0.03;
+      this.velocities[idx + 1] = -0.035 - Math.random() * 0.025;
+      this.velocities[idx + 2] = (Math.random() - 0.5) * 0.02;
     }
+  }
+
+  /** brume : un voile blanc qui dérive lentement au-dessus du décor (sans particules) */
+  setFog(on) {
+    if (!this.hostCanvas?.parentNode) return;
+    if (on && !this.fogEl) {
+      this.fogEl = document.createElement('div');
+      this.fogEl.className = 'ow-fog';
+      this.fogEl.innerHTML = '<i></i><i></i>';
+      this.hostCanvas.insertAdjacentElement('afterend', this.fogEl);
+    }
+    if (this.fogEl) this.fogEl.classList.toggle('on', on);
   }
 
   update(dt, focusX = 0, focusZ = 0) {
@@ -120,6 +146,8 @@ export class WeatherSystem {
       pos[idx] += vel[idx] * speedMultiplier;
       pos[idx + 1] += vel[idx + 1] * speedMultiplier;
       pos[idx + 2] += vel[idx + 2] * speedMultiplier;
+      // les cendres ondulent en tombant
+      if (this.current === 'ash') pos[idx] += Math.sin(this.time * 1.7 + i) * 0.012 * speedMultiplier;
 
       // Si particule touche le sol (y <= 0) ou s'éloigne trop de la caméra
       if (pos[idx + 1] <= 0 || Math.abs(pos[idx] - focusX) > 22 || Math.abs(pos[idx + 2] - focusZ) > 18) {
@@ -136,5 +164,6 @@ export class WeatherSystem {
     this.geometry.dispose();
     this.material.dispose();
     this.texture.dispose();
+    this.fogEl?.remove();
   }
 }

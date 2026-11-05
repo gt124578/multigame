@@ -14,7 +14,7 @@ export class BackroomsHUD {
         <div class="vhs-rec"><span class="rec-dot">●</span> REC</div>
         <div class="vhs-play">PLAY ▶ SP</div>
         <div class="vhs-level" id="levelTag">LEVEL 0</div>
-        <div class="blackout-tag" id="blackoutTag" hidden>⚠ COUPURE DE COURANT</div>
+        <div class="blackout-tag" id="blackoutTag" hidden>⚠ POWER OUTAGE</div>
       </div>
       <div class="cam cam-tr">
         <div class="battery" id="battery"><i></i></div>
@@ -22,12 +22,12 @@ export class BackroomsHUD {
       </div>
       <div class="cam cam-bl">
         <div class="tape-date" id="tapeDate"></div>
-        <div class="stamina"><span>SOUFFLE</span><div class="stamina-track"><div class="stamina-bar" id="staminaBar"></div></div></div>
+        <div class="stamina"><span>STAMINA</span><div class="stamina-track"><div class="stamina-bar" id="staminaBar"></div></div></div>
       </div>
       <div class="cam cam-br">
         <div class="tapes"><span id="cassetteIcons"></span> <b id="cassetteText">0/5</b></div>
         <div class="signal"><span id="signalLabel">SIGNAL</span> <span id="signalBars"></span></div>
-        <div class="flash-indicator" id="flashStatus">[1] LAMPE ON</div>
+        <div class="flash-indicator" id="flashStatus">[1] FLASHLIGHT ON</div>
       </div>
 
       <!-- Inventaire : la case 1 est réservée à la lampe torche, les cases 2 et 3 aux piles et à l'eau d'amande -->
@@ -61,9 +61,9 @@ export class BackroomsHUD {
       <div class="end-screen" id="endScreen" hidden>
         <div class="end-card">
           <h1 id="endTitle">MORT</h1>
-          <p id="endSubtitle">L'entité t'a rattrapé...</p>
+          <p id="endSubtitle">The entity caught you...</p>
           <div class="end-stats" id="endStats"></div>
-          <button class="btn-restart" id="btnRestart">REJOUER</button>
+          <button class="btn-restart" id="btnRestart">PLAY AGAIN</button>
         </div>
       </div>
     `;
@@ -85,15 +85,7 @@ export class BackroomsHUD {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Enter' && !this.$('#endScreen').hidden) this.$('#btnRestart').click();
     });
-    const img = this.$('#scareImg');
-    img.onerror = () => img.remove();
-    img.src = ENTITY_IMG;
-    // celle du Level 1 : sa vidéo, qui continue de gesticuler en plein écran
-    const A = ENTITY_ANIM;
-    const anim = this.$('#scareAnim');
-    anim.style.backgroundImage = `url("${A.url}")`;
-    anim.style.backgroundSize = `${A.cols * 100}% ${A.rows * 100}%`;
-    anim.style.aspectRatio = String(A.aspect);
+    this.applyMonsters();
 
     // date du caméscope, figée en 1996 comme une vieille cassette retrouvée
     const d = new Date();
@@ -132,19 +124,10 @@ export class BackroomsHUD {
       this.bannerT = 6;
       const banner = this.$('#objBanner');
       banner.classList.toggle('unlocked', sim.open);
-      if (sim.open) banner.textContent = L1 ? 'LE MONTE-CHARGE EST ALIMENTÉ : MONTEZ TOUS DEDANS' : "UN SEUL DES DEUX ASCENSEURS S'EST OUVERT… L'AUTRE N'EST PLUS QU'UN MUR";
-      else if (L1 && got >= total) banner.textContent = 'RAPPORTE LES FUSIBLES AU PANNEAU DU MONTE-CHARGE · SUIS LE SIGNAL';
-      else if (L1) banner.textContent = got === 0 ? 'LEVEL 1 · TROUVE LES 3 FUSIBLES DANS LES ALLÉES' : `FUSIBLE ${got}/3 RÉCUPÉRÉ`;
-      else banner.textContent = got === 0 ? "RETROUVE LES 5 CASSETTES VHS · LE SIGNAL MONTE QUAND TU T'EN APPROCHES" : `CASSETTE ${got}/5 RÉCUPÉRÉE`;
-    }
-    // au départ : d'abord prendre sa lampe sur la table
-    if (sim.needLamp) {
-      this.$('#objBanner').textContent = 'PRENDS TA LAMPE TORCHE SUR LA TABLE, JUSTE À CÔTÉ';
-      this.bannerT = Math.max(this.bannerT, 1);
-      this.wasNeedLamp = true;
-    } else if (this.wasNeedLamp) {
-      this.wasNeedLamp = false;
-      this.lastCount = -1; // revenir à l'objectif de l'étage
+      if (sim.open) banner.textContent = L1 ? 'THE FREIGHT ELEVATOR HAS POWER: EVERYONE GET IN' : 'ONLY ONE OF THE TWO ELEVATORS OPENED… THE OTHER ONE IS JUST A WALL NOW';
+      else if (L1 && got >= total) banner.textContent = 'BRING THE FUSES TO THE FREIGHT ELEVATOR PANEL · FOLLOW THE SIGNAL';
+      else if (L1) banner.textContent = got === 0 ? 'LEVEL 1 · FIND THE 3 FUSES IN THE AISLES' : `FUSE ${got}/3 RECOVERED`;
+      else banner.textContent = got === 0 ? 'FIND THE 5 VHS TAPES · THE SIGNAL GETS STRONGER AS YOU GET CLOSER' : `TAPE ${got}/5 RECOVERED`;
     }
     this.bannerT -= dt;
     this.$('#objBanner').classList.toggle('hide', this.bannerT <= 0);
@@ -156,7 +139,7 @@ export class BackroomsHUD {
       this.$('#fadeBar').style.width = `${Math.round(k * 100)}%`;
       if (!(sim.departT > 0)) {
         this.fadeRide = false;
-        if (sim.state === 'playing') this.fade(`LEVEL ${sim.level}`, sim.level === 1 ? 'Le sous-sol industriel' : '', 2.2);
+        if (sim.state === 'playing') this.fade(`LEVEL ${sim.level}`, sim.level === 1 ? 'The industrial basement' : '', 2.2);
         else this.$('#fade').classList.remove('on');
       }
     }
@@ -167,19 +150,19 @@ export class BackroomsHUD {
     if (spec) {
       const view = sim.viewPlayer(sim.spectate || 0);
       const inside = sim.players.filter((p) => p.status === 'elevator').length;
-      this.$('#specTitle').textContent = sim.departT > 0 ? "LES PORTES SE FERMENT…" : P.status === 'elevator' ? "TU ES DANS L'ASCENSEUR" : "L'ENTITÉ T'A EU";
-      this.$('#specSub').textContent = sim.departT > 0 ? '' : `${inside}/${sim.players.length} à l'abri · tu regardes ${view.name}${view !== P ? ' · clic ou Espace : changer' : ''}`;
+      this.$('#specTitle').textContent = sim.departT > 0 ? 'THE DOORS ARE CLOSING…' : P.status === 'elevator' ? "YOU'RE IN THE ELEVATOR" : 'THE ENTITY GOT YOU';
+      this.$('#specSub').textContent = sim.departT > 0 ? '' : `${inside}/${sim.players.length} safe · watching ${view.name}${view !== P ? ' · click or Space: switch' : ''}`;
     }
 
     // 3. Signal de la cassette (ou de la sortie) la plus proche
     const bars = Math.round(P.signal * 5);
     const flick = P.signal > 0 && Math.random() < 0.08 ? Math.max(0, bars - 1) : bars;
     this.$('#signalBars').innerHTML = Array.from({ length: 5 }, (_, i) => `<i class="${i < flick ? 'on' : ''}" style="height:${6 + i * 3}px"></i>`).join('');
-    this.$('#signalLabel').textContent = P.sigTo === 'stairs' ? 'ESCALIER' : sim.open || (L1 && got >= total) ? (L1 ? 'MONTE-CHARGE' : 'ASCENSEUR') : 'SIGNAL';
+    this.$('#signalLabel').textContent = P.sigTo === 'stairs' ? 'STAIRS' : sim.open || (L1 && got >= total) ? (L1 ? 'FREIGHT ELEVATOR' : 'ELEVATOR') : 'SIGNAL';
     // l'étage où l'on est (Level 0, sur deux étages)
     if (sim.floors.length > 1 && this.floorShown !== P.floor) {
       this.floorShown = P.floor;
-      this.$('#levelTag').textContent = `LEVEL ${sim.level} · ÉTAGE ${P.floor ? 'BAS' : 'HAUT'}`;
+      this.$('#levelTag').textContent = `LEVEL ${sim.level} · ${P.floor ? 'LOWER' : 'UPPER'} FLOOR`;
     }
 
     // 4. Souffle (endurance)
@@ -195,17 +178,17 @@ export class BackroomsHUD {
       this.invKey = slotsKey;
       this.$('#inv').querySelectorAll('.slot').forEach((b, i) => {
         if (i === 0) {
-          // case de la lampe : vide tant qu'on ne l'a pas prise sur la table
+          // case de la lampe (toujours là depuis le départ)
           b.classList.toggle('full', !!P.hasLamp);
           b.classList.toggle('lamp-on', !!P.flashlight);
           b.classList.add('lamp-slot');
-          b.querySelector('span').innerHTML = P.hasLamp ? `<i class="ico-lamp"></i>${P.flashlight ? 'ON' : 'OFF'}` : 'LAMPE';
+          b.querySelector('span').innerHTML = P.hasLamp ? `<i class="ico-lamp"></i>${P.flashlight ? 'ON' : 'OFF'}` : 'LAMP';
           return;
         }
         const k = inv[i - 1];
         b.classList.toggle('full', !!k);
         b.classList.toggle('sel', P.sel === i);
-        b.querySelector('span').innerHTML = k === 'battery' ? '<i class="ico-bat"></i>PILE' : k === 'bottle' ? '<i class="ico-bot"></i>AMANDE' : k === 'ladder' ? '<i class="ico-ladder"></i>ÉCHELLE' : '';
+        b.querySelector('span').innerHTML = k === 'battery' ? '<i class="ico-bat"></i>BATTERY' : k === 'bottle' ? '<i class="ico-bot"></i>WATER' : k === 'ladder' ? '<i class="ico-ladder"></i>LADDER' : '';
       });
     }
 
@@ -213,7 +196,7 @@ export class BackroomsHUD {
     this.prompt(sim, P);
 
     // 5. Lampe torche
-    this.$('#flashStatus').textContent = P.hasLamp ? `[1] LAMPE ${P.flashlight ? 'ON' : 'OFF'}` : 'PAS DE LAMPE';
+    this.$('#flashStatus').textContent = P.hasLamp ? `[1] FLASHLIGHT ${P.flashlight ? 'ON' : 'OFF'}` : 'NO FLASHLIGHT';
 
     // 6. Message passager
     if (this.toastT > 0) {
@@ -223,7 +206,7 @@ export class BackroomsHUD {
   }
 
   prompt(sim, P) {
-    const NAME = { bottle: "L'EAU D'AMANDE", battery: 'LES PILES', ladder: "L'ÉCHELLE" };
+    const NAME = { bottle: 'ALMOND WATER', battery: 'BATTERIES', ladder: 'THE LADDER' };
     let text = '';
     let beam = null;
     if (P.status === 'alive' && sim.state === 'playing' && !(sim.departT > 0)) {
@@ -232,17 +215,16 @@ export class BackroomsHUD {
       {
         if (P.onBeam) {
           // barre d'équilibre : le repère penche avec toi, Q et D le ramènent au milieu
-          text = "ÉQUILIBRE · Z POUR AVANCER, Q / D POUR TE REDRESSER";
+          text = 'BALANCE · Z TO MOVE FORWARD, Q / D TO STEADY YOURSELF';
           beam = P.tilt || 0;
         }
         const it = sim.nearItem(P);
         const sel = P.inv[P.sel - 1];
         if (beam !== null) {
           // rien d'autre sur l'arête
-        } else if (!P.hasLamp && P.floor === 0 && sim.table && Math.hypot(sim.table.x - P.x, sim.table.z - P.z) < 1.7) text = '[F] PRENDRE UNE LAMPE TORCHE';
-        else if (N && !N.ladder && sel === 'ladder' && Math.hypot(N.baseX - P.x, N.baseZ - P.z) < 2.2) text = "[E] POSER L'ÉCHELLE SOUS LA CASSETTE";
-        else if (it) text = P.inv.includes(null) ? `[F] RAMASSER ${NAME[it.kind]}` : `[F] ÉCHANGER ${NAME[sel || 'bottle']} (CASE ${P.sel + 1}) CONTRE ${NAME[it.kind]}`;
-        else if (N && !N.ladder && nicheCas && !nicheCas.collected && Math.hypot(N.baseX - P.x, N.baseZ - P.z) < 2.6) text = 'LA CASSETTE EST TROP HAUT : IL FAUT UNE ÉCHELLE';
+        } else if (N && !N.ladder && sel === 'ladder' && Math.hypot(N.baseX - P.x, N.baseZ - P.z) < 2.2) text = '[E] PLACE THE LADDER UNDER THE TAPE';
+        else if (it) text = P.inv.includes(null) ? `[F] PICK UP ${NAME[it.kind]}` : `[F] SWAP ${NAME[sel || 'bottle']} (SLOT ${P.sel + 1}) FOR ${NAME[it.kind]}`;
+        else if (N && !N.ladder && nicheCas && !nicheCas.collected && Math.hypot(N.baseX - P.x, N.baseZ - P.z) < 2.6) text = 'THE TAPE IS TOO HIGH: YOU NEED A LADDER';
       }
     }
     const el = this.$('#prompt');
@@ -261,6 +243,18 @@ export class BackroomsHUD {
     t.textContent = text;
     t.hidden = false;
     this.toastT = 2.5;
+  }
+
+  // images du screamer selon le mode (normal / VIP) : à rappeler quand l'hôte lance une partie
+  applyMonsters() {
+    const img = this.$('#scareImg');
+    if (img) { img.onerror = () => (img.hidden = true); img.hidden = false; img.src = ENTITY_IMG; }
+    // celle du Level 1 : sa vidéo, qui continue de gesticuler en plein écran
+    const A = ENTITY_ANIM;
+    const anim = this.$('#scareAnim');
+    anim.style.backgroundImage = `url("${A.url}")`;
+    anim.style.backgroundSize = `${A.cols * 100}% ${A.rows * 100}%`;
+    anim.style.aspectRatio = String(A.aspect);
   }
 
   // level : le screamer est celui de l'entité du level en cours
@@ -304,21 +298,21 @@ export class BackroomsHUD {
 
     const solo = sim.players.length === 1;
     if (sim.state === 'won') {
-      title.textContent = solo ? "TU T'ES ÉCHAPPÉ !" : 'VOUS VOUS ÊTES ÉCHAPPÉS !';
+      title.textContent = solo ? 'YOU ESCAPED!' : 'YOU ALL ESCAPED!';
       title.style.color = '#22c55e';
-      sub.textContent = "Le monte-charge vous a remontés hors de l'entrepôt. Les Backrooms vous ont laissés partir… cette fois.";
-      stats.textContent = `Temps d'évasion : ${formatTime(sim.time)} · Level 0 et Level 1 traversés`;
+      sub.textContent = 'The freight elevator brought you up out of the warehouse. The Backrooms let you go… this time.';
+      stats.textContent = `Escape time: ${formatTime(sim.time)} · Level 0 and Level 1 cleared`;
     } else {
-      title.textContent = solo ? 'TU AS PÉRI' : "PERSONNE N'EN EST SORTI";
+      title.textContent = solo ? 'YOU DIED' : 'NOBODY MADE IT OUT';
       title.style.color = '#ef4444';
-      sub.textContent = sim.level === 1 ? "L'entité vous attendait au bout des étagères…" : "L'entité t'a rattrapé dans les couloirs infinis...";
-      stats.textContent = `Level ${sim.level} · ${sim.level === 1 ? `fusibles ${sim.fuses}/3` : `cassettes ${sim.cassettes}/5`} · Survécu pendant ${formatTime(sim.time)}`;
+      sub.textContent = sim.level === 1 ? 'The entity was waiting at the end of the shelves…' : 'The entity caught you in the endless hallways...';
+      stats.textContent = `Level ${sim.level} · ${sim.level === 1 ? `fuses ${sim.fuses}/3` : `tapes ${sim.cassettes}/5`} · Survived for ${formatTime(sim.time)}`;
     }
 
     // un invité attend que l'hôte relance une partie
     const btn = this.$('#btnRestart');
     btn.disabled = !onRestart;
-    btn.textContent = onRestart ? 'REJOUER' : "EN ATTENTE DE L'HÔTE…";
+    btn.textContent = onRestart ? 'PLAY AGAIN' : 'WAITING FOR THE HOST…';
     this.$('#btnRestart').onclick = () => {
       if (!onRestart) return;
       end.hidden = true;
@@ -343,15 +337,15 @@ export class BackroomsHUD {
   showPause(visible, kb) {
     this.$('#clickPrompt').style.display = visible ? 'block' : 'none';
     const tactile = document.body.classList.contains('touch') || matchMedia('(pointer: coarse)').matches;
-    this.$('#pauseGo').textContent = tactile ? "TOUCHE L'ÉCRAN POUR JOUER" : kb ? 'APPUIE SUR ENTRÉE POUR JOUER' : "CLIQUE POUR PRENDRE LE CONTRÔLE";
+    this.$('#pauseGo').textContent = tactile ? 'TAP THE SCREEN TO PLAY' : kb ? 'PRESS ENTER TO PLAY' : 'CLICK TO TAKE CONTROL';
     this.$('#pauseKeys').textContent = kb
-      ? 'ZQSD marcher · Flèches regarder · Maj courir · 1 lampe · 2 3 choisir · E utiliser · F ramasser · T siffler · Échap pause'
-      : 'ZQSD marcher · Souris regarder · Maj courir · 1 lampe · 2 3 choisir · E utiliser · F ramasser · T siffler · Échap pause';
+      ? 'ZQSD move · Arrows look · Shift run · 1 flashlight · 2 3 select · E use · F pick up · T whistle · Esc pause'
+      : 'ZQSD move · Mouse look · Shift run · 1 flashlight · 2 3 select · E use · F pick up · T whistle · Esc pause';
     for (const b of this.el.querySelectorAll('button[data-kb]')) b.classList.toggle('on', (b.dataset.kb === '1') === kb);
   }
 }
 
 function formatTime(t) {
   const s = Math.floor(t);
-  return `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')} s`;
+  return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`;
 }

@@ -7,16 +7,30 @@ import { CELL_SIZE, T, blocks, bfs, carveElevator, itemList } from './map.js';
 export const LEVEL1_SIZE = 56;
 export const LEVEL1_CEIL = 4.2; // plafond plus haut qu'au Level 0
 
-// caisses et cartons posés dans les allées (modèles Kenney du manoir) : nom, hauteur, rayon de collision
-// caisses et matériel abandonnés dans les allées (modèles Poly Haven, CC0)
+// caisses et matériel abandonnés dans les allées (modèles Poly Haven, CC0) : nom, hauteur, rayon de collision ;
+// face : posé dos au mur ou au rayonnage (armoires électriques, coffres à outils), un nombre si l'avant du modèle
+// ne regarde pas +z
 export const L1_PROPS = [
   { m: 'wooden_crate_01', h: 0.62, r: 0.38 },
+  { m: 'wooden_crate_02', h: 0.5, r: 0.45 },
   { m: 'cardboard_box_01', h: 0.5, r: 0.36 },
   { m: 'Barrel_01', h: 0.9, r: 0.3 },
+  { m: 'Barrel_02', h: 0.88, r: 0.28 },
+  { m: 'barrel_03', h: 0.93, r: 0.34 },
   { m: 'propane_tank', h: 0.8, r: 0.2 },
+  { m: 'small_lpg_tank', h: 0.64, r: 0.22 },
   { m: 'plastic_crate_01', h: 0.36, r: 0.3 },
+  { m: 'plastic_crate_02', h: 0.25, r: 0.3 },
+  { m: 'plastic_container', h: 0.43, r: 0.45 },
+  { m: 'industrial_pastic_container', h: 0.42, r: 0.36 },
   { m: 'hand_truck', h: 1.15, r: 0.32 },
   { m: 'trashbag', h: 0.5, r: 0.3 },
+  { m: 'old_tyre', h: 0.6, r: 0.32 },
+  { m: 'cement_bag', h: 0.18, r: 0.36 },
+  { m: 'metal_jerrycan', h: 0.46, r: 0.2 },
+  { m: 'portable_generator', h: 0.58, r: 0.42, face: true },
+  { m: 'metal_tool_chest', h: 0.65, r: 0.36, face: -Math.PI / 2 },
+  { m: 'utility_box_01', h: 1.12, r: 0.3, face: true },
 ];
 
 export function createWarehouseMap(seed = 7) {
@@ -181,7 +195,7 @@ export function createWarehouseMap(seed = 7) {
       m: kind.m, h: kind.h, r: kind.r,
       x: (c.x + 0.5) * CELL_SIZE + side[0] * off,
       z: (c.z + 0.5) * CELL_SIZE + side[1] * off,
-      rot: (rnd() - 0.5) * 0.6,
+      rot: kind.face ? Math.atan2(-side[0], -side[1]) + (kind.face === true ? 0 : kind.face) + (rnd() - 0.5) * 0.1 : (rnd() - 0.5) * 0.6,
       tipped: false,
     });
   }

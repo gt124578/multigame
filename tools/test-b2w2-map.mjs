@@ -5,15 +5,13 @@ console.log('Testing Odyssée B2W2 Map Screen & Cartography (v4.04)...');
 
 // 1. Verify assets on disk
 const cgearBg = 'odyssee/img/carte/c_gear_b2w2_bg.jpg';
-const regionMap = 'odyssee/img/carte/odyssee_region_map_b2w2.jpg';
 
 assert.ok(fs.existsSync(cgearBg), 'c_gear_b2w2_bg.jpg must exist on disk');
-assert.ok(fs.existsSync(regionMap), 'odyssee_region_map_b2w2.jpg must exist on disk');
 assert.ok(fs.statSync(cgearBg).size > 50000, 'c_gear_b2w2_bg.jpg must be a valid image asset');
-assert.ok(fs.statSync(regionMap).size > 500000, 'odyssee_region_map_b2w2.jpg must be a valid high-res image');
 console.log('✔ Map image assets verified on disk!');
 
 // 2. Setup mock browser environment
+globalThis.requestAnimationFrame ??= (f) => setTimeout(() => f(performance.now()), 16);
 globalThis.location = new URL('http://localhost:3000/index.html');
 globalThis.window = globalThis;
 globalThis.Image = class { constructor() { this.src = ''; } };
@@ -97,11 +95,11 @@ const mockGame = {
 };
 
 const { ASSETS } = await import('../odyssee/js/assets.js');
-const { mapScreen, exploredView, fullRegionView } = await import('../odyssee/js/ui/screens.js');
+const { mapScreen, exploredView, fullRegionView, playerView, cardinalDir } = await import('../odyssee/js/ui/screens.js');
 
 assert.ok(ASSETS.carteBg.includes('c_gear_b2w2_bg.jpg'), 'ASSETS.carteBg must reference c_gear_b2w2_bg.jpg');
-assert.ok(ASSETS.regionMapB2W2.includes('odyssee_region_map_b2w2.jpg'), 'ASSETS.regionMapB2W2 must reference odyssee_region_map_b2w2.jpg');
-console.log('✔ ASSETS carteBg and regionMapB2W2 verified!');
+assert.equal(ASSETS.regionMapB2W2, undefined, "l'ancienne fausse carte peinte ne doit plus être chargée");
+console.log('✔ ASSETS carteBg verified (ancienne fausse carte retirée)!');
 
 // Test exploredView & fullRegionView calculations with widescreen aspect ratio
 const expV = exploredView(mockGame, 16 / 10);
@@ -129,3 +127,35 @@ assert.equal(closed, true, 'Pressing Escape must close mapScreen');
 
 console.log('✔ mapScreen B2W2 lifecycle & input controls validated!');
 console.log('\n🎉 ALL B2W2 MAP TESTS PASSED 100%!');
+
+// ---- comportements (audit du 5 novembre 2026) ----
+// la touche C (« map ») ferme la carte, Espace (« a ») ne la ferme jamais
+{
+  let done = false;
+  mapScreen(mockGame).then(() => { done = true; });
+  currentInputHandler('a');
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(done, false, 'Espace / Entrée recentre sans fermer');
+  currentInputHandler('map');
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(done, true, 'C referme la carte');
+}
+// « Ma position » : le joueur est au centre de la vue (sauf au bord de la région)
+{
+  const far = { ...mockGame, worldPos: () => ({ x: 300, y: 400 }) };
+  const v = playerView(far, 16 / 10);
+  assert.ok(Math.abs(v.x + v.w / 2 - 300) < 1 && Math.abs(v.y + v.h / 2 - 400) < 1, 'la vue « ma position » est centrée sur le joueur');
+  assert.ok(Math.abs(v.w / v.h - 1.6) < 0.05, 'et garde le ratio demandé');
+  const edge = playerView({ ...mockGame, worldPos: () => ({ x: 0, y: 0 }) }, 16 / 10);
+  assert.ok(edge.x >= 0 && edge.y >= 0, 'jamais hors de la région');
+}
+// ratio écran inhabituel : aucune valeur NaN
+for (const ar of [0.5, 1, 21 / 9, 4]) {
+  for (const v of [exploredView(mockGame, ar), fullRegionView(mockGame, ar), playerView(mockGame, ar)]) {
+    assert.ok([v.x, v.y, v.w, v.h].every(Number.isFinite), `vue finie pour le ratio ${ar}`);
+  }
+}
+assert.equal(cardinalDir(0, 0), '', 'pas de direction quand on y est');
+assert.equal(cardinalDir(5, -5), 'Nord-Est');
+assert.equal(cardinalDir(0, 10), 'Sud');
+console.log('✔ Recentrage, touche C, ratios et directions validés !');

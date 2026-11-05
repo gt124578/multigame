@@ -1,5 +1,125 @@
 # Journal des versions — Arcadia
 
+## 4.27 — 5 novembre 2026
+- **The Backrooms** — le Level 1 fait enfin peau neuve : un vrai entrepôt souterrain, bien plus réaliste.
+  - Des rayonnages à palettes : échelles bleues percées, lisses orange, croisillons, planchers et fonds grillagés, protections jaunes et noires en bout de rangée.
+  - Les étagères sont pleines de marchandises posées sur des palettes en bois : piles de cartons, palettes filmées, fûts, sacs de ciment, bacs en plastique.
+  - Des murs en parpaings peints, un sol en béton usé, taché d'huile et de flaques, des lignes jaunes au pied des rayonnages.
+  - Au plafond, des gaines d'aération, des tuyaux et des réglettes suspendues à des chaînettes.
+  - Les piliers sont balisés et numérotés, et un panneau marque l'entrée de chaque allée.
+  - On trouve aussi plus de matériel abandonné dans les allées : groupe électrogène, armoires électriques, coffres à outils, pneus, jerricans, bouteilles de gaz.
+
+## 4.26 — 5 novembre 2026
+- **The Backrooms** — au Level 0, les deux étages sont bien plus loin l'un de l'autre : les trous du couloir piégé sont maintenant de vrais puits de plus de 6 mètres.
+  - Rater une arête, c'est une vraie chute : on tombe pendant plus d'une seconde, l'air siffle, le choc est lourd, l'image tremble et on reste sonné plus longtemps, à bout de souffle.
+  - Depuis l'étage du bas, on voit le puits au-dessus de sa tête.
+  - Plus aucun néon ne flotte au milieu des puits.
+- **The Backrooms** — les escaliers entre les deux étages sont coudés : une première volée, un palier à mi-hauteur, demi-tour, puis une seconde volée qui surplombe la première, au fond d'une grande cage obscure.
+- **The Backrooms** — l'entité prend l'escalier par le bas ou par le haut, comme les joueurs.
+- **The Backrooms** — de nouveaux sons : quand l'entité te poursuit, on entend ses cris, et par-dessus ses pas lourds, de plus en plus forts et rapprochés à mesure qu'elle approche ; quand elle est sur toi, un son de mort ; et le reste du temps, des ambiances angoissantes au hasard.
+- **The Backrooms** — l'entité va plus vite : elle te rattrape en marchant, il faut sprinter pour lui échapper.
+
+## 4.25 — 5 novembre 2026
+- **Odyssée** — Les 24 Méga-Gemmes imaginées par des fans sont cachées sur les routes de la fin de l'aventure.
+- **Odyssée** — Tous les Pokémon qui ont une Méga-Évolution peuvent être capturés : les partenaires de départ des six régions, Riolu, Kabuto, Amonita, Barpau, Goinfrex, Sepiatop et d'autres apparaissent (rarement) dans les zones de la fin du jeu.
+  - Latias et Latios t'attendent quelque part avec sept badges, Diancie avec huit.
+- **Odyssée** — À partir de la sixième arène, les Champions méga-évoluent, et au moins un dresseur sur trois aussi. Prépare-toi !
+
+## 4.24 — 5 novembre 2026
+- **Odyssée** — 24 Méga-Évolutions inédites, imaginées par des fans : Méga-Ronflex, Méga-Libégon, Méga-Milobellus, Méga-Typhlosion, Méga-Grolem, Méga-Papilusion, Méga-Chartor, Méga-Élekable et bien d'autres.
+  - Leurs Méga-Gemmes se vendent chez le professeur Orme, à Port-Granit.
+  - Méganium, Aligatueur, Minotaupe, Némélios et Darkrai ont désormais deux Méga au choix : l'officielle et une version Δ, chacune avec sa gemme.
+
+## 4.23 — 5 novembre 2026
+- **Odyssée** — La Méga-Évolution arrive ! 81 Méga-Évolutions, dont les toutes nouvelles de Légendes Z-A (Méga-Dracolosse, Méga-Méganium, Méga-Aligatueur, Méga-Amphinobi, Méga-Raichu X et Y, Méga-Lucario Z…).
+  - À Port-Granit, le professeur Orme te remet le Méga-Anneau dès ton cinquième badge, avec la gemme de ton partenaire de départ quand sa lignée en a une.
+  - Fais tenir sa Méga-Gemme à un Pokémon, puis appuie sur MÉGA (ou M) avant de choisir une attaque : il méga-évolue, une fois par combat.
+  - Douze gemmes sont cachées sur les routes de la fin de l'aventure, et le professeur Orme vend les autres (celles des légendaires, seulement au Maître de la Ligue).
+  - Attention : Théo, Ombrelle et Célestine savent aussi méga-évoluer…
+  - Méga-Évolution possible aussi dans les duels entre amis.
+- **Odyssée** — Les cris des Pokémon sont désormais inclus dans le jeu : plus besoin de connexion pour les entendre.
+
+## 4.22 — 5 novembre 2026
+- **Odyssée** — Carte de Dresseur : tes 15 badges s'affichent en vitrine au centre (ceux qui manquent en silhouette), et l'en-tête est plus sobre.
+- **Odyssée** — Carte de la région : le nom des villes visitées s'affiche sous leur repère.
+- **Odyssée** — Pokédex : une barre de progression en haut, et un emplacement mystère pour les créatures que tu n'as pas encore croisées.
+
+## 4.21 — 5 novembre 2026
+- **Odyssée** — Nouvelle musique : les mêmes airs, joués par de vrais instruments (mélodie douce, piano, basse, batterie et réverbération). Les bruitages suivent. L'ancien son 8 bits reste disponible dans les Options (« Style musical »).
+- **Odyssée** — Les starters d'Odyssée sont de retour au labo : chaque capsule propose trois partenaires (Odyssée, Kanto et Johto).
+- **Odyssée** — Interfaces plus claires :
+  - Fini le jargon technique (« 5G », « GPS », coordonnées…) sur la carte, la Carte de Dresseur et l'écran des amis.
+  - Le menu Échap a des icônes et des noms clairs (« Carte de Dresseur » au lieu de ton prénom).
+  - Le Pokédex et les Options prennent le même style que les autres écrans.
+  - Le HUD est plus discret : capsules d'équipe plus petites, compteur de joueurs seulement quand d'autres sont connectés.
+  - En combat, la fiche d'une attaque ne cache plus tes PV, et l'efficacité n'est indiquée que lorsqu'elle compte.
+  - Les boîtes PC tiennent enfin dans l'écran, et les emplacements vides sont plus discrets.
+
+## 4.20 — 5 novembre 2026
+- **Odyssée** — Arènes : tu peux maintenant ressortir en plein défi. Le guide te prévient : si tu sors avant d'avoir battu le Champion, tous les dresseurs de l'arène sont à rebattre.
+- **Odyssée** — Théo ne t'attend plus sur la Route 2 avant ton premier badge (il te le demande, après tout).
+- **Odyssée** — Le Conseil 4 monte en puissance d'une salle à l'autre : Brutus passe avant Spectrel.
+- **Odyssée** — Gaspard, Ferdinand, Corbin et Célestine perdent un niveau : ils restent redoutables, mais la difficulté monte plus régulièrement.
+- **Odyssée** — Le Cocoreille des dresseurs Insecte sait enfin attaquer : fini les combats sans fin à coups d'Armure.
+- **Odyssée** — Le nombre d'arènes est le même partout : quinze, huit au Nord et sept dans les Terres du Sud.
+
+## 4.19 — 5 novembre 2026
+- **Odyssée** — Un début d'aventure plus accueillant (la suite garde sa difficulté) :
+  - Le premier combat contre Théo au labo se joue à armes égales : même niveau que toi, et il ne joue pas encore les malins.
+  - Tant que tu n'as aucun badge, Théo reste à ton niveau quand il te défie sur la route.
+  - Les dresseurs de la Route 1 n'ont plus qu'un ou deux Pokémon, de niveau débutant.
+  - Hector, le premier Champion, est un peu moins coriace (niveaux un cran plus bas, pas d'objet tenu, moins de Potions).
+  - Perdre un combat coûte désormais une somme qui dépend de tes badges, comme dans les jeux, et jamais plus de la moitié de ta bourse.
+- **Odyssée** — Finitions du début de partie :
+  - L'écran d'apparence se valide avec Entrée depuis n'importe quelle ligne, et ne redemande plus Garçon / Fille.
+  - Au réveil, on sait où aller : le Prof. Saule t'attend à son labo.
+  - Le combat contre Théo a enfin un décor de labo, et la fenêtre de choix du starter ne cache plus le Prof. ni Théo.
+  - Le nom du lieu s'affiche en bas de l'écran et ne passe plus sous le HUD.
+  - Dialogues corrigés au labo (nombre de créatures par capsule, Théo, réaction du Prof. après une défaite, Poké Balls).
+
+## 4.18 — 5 novembre 2026
+- **Odyssée** — Nouvelles météos dans la région :
+  - Brume du matin dans les forêts, entre 5 h et 10 h : un voile blanc qui dérive sur le paysage.
+  - Pluie de cendres sur les terres volcaniques, en alternance avec la tempête de sable.
+  - Comme dans les jeux de la 5e génération, la brume et les cendres ne changent rien en combat.
+
+## 4.17 — 5 novembre 2026
+- **Odyssée** — Carte de la région plus fiable :
+  - « ⌖ Ma position » et Espace / Entrée recentrent vraiment la carte sur vous.
+  - La carte n'est plus étirée sur les écrans qui ne sont pas en 16/10.
+  - Cliquer sur une ville marche aussi bien en vue zoomée qu'en vue de la région, et la carte reste fluide pendant les zooms.
+- **Odyssée** — Le temps change sur les routes : averses ou grand soleil toutes les dix minutes, le même pour tous les joueurs, et repris en combat.
+- **Odyssée** — Liste d'amis : le code ami qu'on tape ne s'efface plus et le curseur ne saute plus pendant la mise à jour des joueurs connectés.
+
+## 4.16 — 5 novembre 2026
+- **The Backrooms** — L'entité du mode normal ne ressemble plus à un dessin : peau sombre marbrée de veines, contours déchiquetés qui s'effilochent comme de la fumée, matière qui grouille quand elle bouge.
+
+## 4.15 — 5 novembre 2026
+- **The Backrooms** — L'entité du mode normal est bien plus flippante : silhouette voûtée qui fume, bras inégaux aux doigts interminables, tête penchée à un angle impossible, bouche béante pleine de dents et gestes saccadés.
+
+## 4.14 — 5 novembre 2026
+- **The Backrooms** — Le jeu est de retour pour tout le monde ! En mode normal, une nouvelle entité vous traque : une longue silhouette noire aux yeux blancs, qui grogne dans le noir.
+  - Les comptes VIP peuvent choisir « ⭐ VIP mode » dans les réglages pour jouer avec les monstres d'origine (tous les joueurs de la partie les voient alors).
+
+## 4.13 — 4 novembre 2026
+- **The Backrooms** — le dédale aux murs jaunes est bien plus encombré, comme si d'autres étaient passés avant toi.
+  - Des chantiers abandonnés : rubalise jaune et noire arrachée qui traîne par terre en travers des couloirs (elle ne bloque jamais le passage), cônes orange et projecteurs éteints sur leur trépied.
+  - Nouveaux meubles laissés là : vieux canapés, fauteuils, pupitres d'école, tableaux noirs, étagères en métal, chariots à outils, écrans de projection et escabeaux.
+  - Des dessins sur les murs : sourires à la craie, bonshommes bâtons, « EXIT ? » et sa flèche, jours comptés en bâtons, « DON'T RUN » à la peinture qui coule, maisons d'enfant, mains sales.
+- **The Backrooms** — tout le jeu passe en anglais : objectifs, messages, inventaire, écrans de pause et de fin, inscriptions sur les murs, étiquettes des cassettes et des bouteilles. Les réglages restent en français.
+- **The Backrooms** — à plusieurs, chacun commence dans son coin du dédale, à quelques couloirs des autres : assez loin pour ne pas se voir, assez près pour s'entendre siffler.
+- **The Backrooms** — le son est en 3D : on entend d'où viennent le sifflet, les pas des autres joueurs et l'entité (devant, derrière, à gauche, à droite), étouffés quand ils sont à l'autre étage.
+- **The Backrooms** — les couloirs résonnent : chaque bruit a son écho, plus long dans l'entrepôt en béton du Level 1.
+- **The Backrooms** — la bouteille d'eau d'amande a une vraie étiquette et un bouchon blanc, à tous les niveaux (au Level 1, elle restait parfois sans étiquette).
+- **The Backrooms** — la lampe torche est toujours dans la case 1 dès le départ : il n'y a plus aucune table à lampes.
+- **The Backrooms** — de vrais escaliers entre les deux étages du Level 0 : on les monte et on les descend en marchant, marche après marche, au lieu d'être téléporté. Rampes le long des marches, garde-corps autour de la cage d'escalier en haut.
+- **The Backrooms** — un éclairage bien plus angoissant : chaque néon ne fait plus qu'une petite flaque de lumière nette, le noir complet reprend juste à côté, un néon sur quatre est grillé, et le caméscope ne rattrape plus l'obscurité.
+- **The Backrooms** — une image plus propre, comme dans les vidéos des Backrooms : plus nette, des jaunes plus francs, des noirs plus profonds ; le grain, les lignes de balayage et la bavure des couleurs sont bien plus discrets, et l'image ne glitche plus en permanence : les parasites de la cassette ne reviennent que quand l'entité est tout près, et moins fort.
+- **The Backrooms** — on voit ce qu'on tient : la lampe torche dans la main droite, et dans la main gauche l'eau d'amande ou les piles quand leur case est choisie. Ils bougent avec le pas et prennent la lumière d'où l'on est.
+- **The Backrooms** — des zones plus claires : par endroits tous les néons marchent et éclairent plus fort et plus loin, entre des couloirs sombres ; moins de néons grillés au hasard, et le caméscope rattrape un peu plus l'obscurité.
+- **The Backrooms** — à bout de souffle après avoir trop couru, on ne peut plus courir pendant une seconde.
+- **The Backrooms** — nouvelle affiche dans le salon : une vraie image du jeu, une salle du Level 0 sous les néons.
+
 ## 4.11 — 4 novembre 2026
 - **Arcadia** — Un cinquième compte reçoit le grade VIP.
 

@@ -1,0 +1,304 @@
+/* odyssee/odyssee.css — habillage façon DS (HeartGold / SoulSilver / Platine) ; --px = taille d'un pixel du jeu */
+:root { --px: 3px; --bp: 4px; --ink: #383848; --shadow: #d0d0d8; --frame: #4a6890; --frame2: #a8c4e8; --paper: #fbfbf8; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+body { font-family: 'Chakra Petch', 'Segoe UI', system-ui, sans-serif; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; user-select: none; }
+#gl { position: fixed; inset: 0; width: 100vw; height: 100vh; image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+#ui { position: fixed; inset: 0; font-size: calc(var(--px) * 9.5); line-height: 1.35; pointer-events: none; }
+#loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #0d1424; color: #fff; font-size: 24px; text-align: center; z-index: 50; }
+img { image-rendering: pixelated; }
+
+/* ---------- cadre DS ---------- */
+.box { background: var(--paper); border-radius: calc(var(--px) * 4); border: calc(var(--px) * 1) solid #283850;
+  box-shadow: inset 0 0 0 calc(var(--px) * 1.5) var(--frame2), inset 0 0 0 calc(var(--px) * 2.5) #fff, 0 calc(var(--px) * 1) 0 rgba(0,0,0,.35); }
+/* ---------- Boîte de dialogue 5G (Pokémon Noir 2 / Blanc 2 - Pixel Art) ---------- */
+.dlg {
+  z-index: 35 !important;
+  position: absolute;
+  left: calc(var(--px) * 8);
+  right: calc(var(--px) * 8);
+  bottom: calc(var(--px) * 6);
+  min-height: calc(var(--px) * 48);
+  max-width: calc(var(--px) * 470);
+  margin: 0 auto;
+  padding: calc(var(--px) * 8) calc(var(--px) * 14);
+  color: #f6faff;
+  font-size: calc(var(--px) * 10);
+  text-shadow: calc(var(--px) * 1) calc(var(--px) * 1) 0 #000;
+  line-height: 1.35;
+  box-sizing: border-box;
+}
+
+/* Le fond et le biseau sont sur ::before pour que .dlg-name (top: -12px) et .dlg-face ne soient JAMAIS coupés par le clip-path */
+.dlg:not(.btext) {
+  overflow: visible !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+}
+.dlg:not(.btext)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 calc(var(--px) * 1), transparent calc(var(--px) * 1) calc(var(--px) * 2)),
+    linear-gradient(180deg, #182436 0%, #101824 60%, #080e16 100%) !important;
+  border: calc(var(--px) * 1.5) solid #000 !important;
+  border-radius: 0 !important;
+  clip-path: polygon(
+    calc(var(--px) * 4) 0,
+    calc(100% - calc(var(--px) * 4)) 0,
+    100% calc(var(--px) * 4),
+    100% calc(100% - calc(var(--px) * 4)),
+    calc(100% - calc(var(--px) * 4)) 100%,
+    calc(var(--px) * 4) 100%,
+    0 calc(100% - calc(var(--px) * 4)),
+    0 calc(var(--px) * 4)
+  ) !important;
+  box-shadow:
+    inset calc(var(--px) * 1) calc(var(--px) * 1) 0 #4a709c,
+    inset calc(var(--px) * -1) calc(var(--px) * -1) 0 #050a10,
+    calc(var(--px) * 3) calc(var(--px) * 3) 0 #000 !important;
+}
+
+.dlg-name {
+  position: absolute;
+  top: calc(var(--px) * -12);
+  left: calc(var(--px) * 12);
+  z-index: 5;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.04) 0 calc(var(--px) * 0.8), transparent calc(var(--px) * 0.8) calc(var(--px) * 2)),
+    linear-gradient(180deg, #223854 0%, #142234 100%);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: calc(var(--px) * 8);
+  letter-spacing: 0.04em;
+  padding: calc(var(--px) * 1.5) calc(var(--px) * 8);
+  border: calc(var(--px) * 1.2) solid #00e0ff;
+  border-radius: 0;
+  clip-path: polygon(
+    calc(var(--px) * 2) 0,
+    calc(100% - calc(var(--px) * 2)) 0,
+    100% calc(var(--px) * 2),
+    100% 100%,
+    0 100%,
+    0 calc(var(--px) * 2)
+  );
+  box-shadow:
+    inset calc(var(--px) * 0.8) calc(var(--px) * 0.8) 0 #80f0ff,
+    calc(var(--px) * 2) calc(var(--px) * 2) 0 #000;
+  text-shadow: calc(var(--px) * 0.8) calc(var(--px) * 0.8) 0 #000;
+  white-space: nowrap;
+}
+
+.dlg.has-face .dlg-name {
+  left: calc(var(--px) * 8);
+}
+
+.dlg-txt {
+  white-space: pre-wrap;
+  min-height: 2.5em;
+  position: relative;
+  z-index: 2;
+}
+
+.dlg-arrow {
+  position: absolute;
+  right: calc(var(--px) * 10);
+  bottom: calc(var(--px) * 4);
+  color: #ff3030;
+  font-size: calc(var(--px) * 8);
+  text-shadow: var(--px) 0 0 #000, 0 var(--px) 0 #000;
+  animation: dlgBob 0.6s steps(2) infinite;
+  z-index: 3;
+}
+@keyframes dlgBob { 50% { transform: translateY(calc(var(--px) * 2)); } }
+
+.dlg.has-face {
+  padding-left: calc(var(--px) * 64);
+  min-height: calc(var(--px) * 52);
+}
+
+/* Portrait pixel art de l'interlocuteur dans la boîte de dialogue (façon DS / Noir 2 Blanc 2) */
+.dlg .dlg-face {
+  position: absolute;
+  left: calc(var(--px) * 8);
+  top: 50%;
+  transform: translateY(-50%);
+  width: calc(var(--px) * 48);
+  height: calc(var(--px) * 48);
+  border-radius: 0;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.04) 0 calc(var(--px) * 0.8), transparent calc(var(--px) * 0.8) calc(var(--px) * 2)),
+    radial-gradient(circle at center, #1c2e46 0%, #0c1420 100%);
+  border: calc(var(--px) * 1.2) solid #000;
+  outline: calc(var(--px) * 1) solid #00e0ff;
+  box-shadow:
+    inset calc(var(--px) * 1) calc(var(--px) * 1) 0 rgba(255, 255, 255, 0.35),
+    inset calc(var(--px) * -1) calc(var(--px) * -1) 0 #050a10,
+    calc(var(--px) * 2) calc(var(--px) * 2) 0 #000;
+  object-fit: contain;
+  object-position: center center;
+  image-rendering: pixelated;
+  z-index: 4;
+}
+
+/* ---------- listes ---------- */
+.list { position: absolute; z-index: 36; padding: calc(var(--px) * 5) calc(var(--px) * 6); text-shadow: var(--px) var(--px) 0 var(--shadow); max-height: 80vh; overflow: hidden; display: flex; flex-direction: column; }
+.list-title { font-weight: 600; color: #fff; background: #3a5888; margin: calc(var(--px) * -2) calc(var(--px) * -3) calc(var(--px) * 3); padding: 0 calc(var(--px) * 5); border-radius: calc(var(--px) * 2); text-shadow: none; }
+.list-items { overflow: hidden; }
+.list-row { display: flex; align-items: center; gap: calc(var(--px) * 3); padding: calc(var(--px) * 0.5) calc(var(--px) * 2); border-radius: calc(var(--px) * 2); white-space: nowrap; }
+.list-row .cur { visibility: hidden; color: #e04040; width: calc(var(--px) * 7); font-size: .8em; text-shadow: none; }
+.list-row.on .cur { visibility: visible; }
+.list-row.on { background: rgba(88, 136, 208, .15); }
+.list-row.off { color: #a0a0a8; }
+.list-row .lbl { flex: 1; }
+.list-row .rgt { margin-left: calc(var(--px) * 10); }
+.startmenu { right: calc(var(--px) * 6); top: calc(var(--px) * 6); min-width: calc(var(--px) * 96); font-weight: 700; }
+.list.startmenu {
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.02) 0 calc(var(--px) * 1), transparent calc(var(--px) * 1) calc(var(--px) * 2)),
+    linear-gradient(180deg, #1e2e42 0%, #121c28 60%, #0a1018 100%) !important;
+  border: calc(var(--px) * 1.5) solid #000 !important;
+  border-radius: 0 !important;
+  clip-path: polygon(
+    calc(var(--px) * 3) 0,
+    calc(100% - calc(var(--px) * 3)) 0,
+    100% calc(var(--px) * 3),
+    100% calc(100% - calc(var(--px) * 3)),
+    calc(100% - calc(var(--px) * 3)) 100%,
+    calc(var(--px) * 3) 100%,
+    0 calc(100% - calc(var(--px) * 3)),
+    0 calc(var(--px) * 3)
+  ) !important;
+  box-shadow:
+    inset calc(var(--px) * 1) calc(var(--px) * 1) 0 #5880b0,
+    inset calc(var(--px) * -1) calc(var(--px) * -1) 0 #060a10,
+    calc(var(--px) * 2.5) calc(var(--px) * 2.5) 0 #000 !important;
+  color: #fff;
+  text-shadow: var(--px) var(--px) 0 #000 !important;
+}
+.list.startmenu .list-title {
+  border-radius: 0;
+  background: #243850;
+  border: calc(var(--px) * 0.8) solid #000;
+  box-shadow: inset 0 calc(var(--px) * 0.8) 0 #4a709c;
+  color: #ffe040;
+}
+.list.startmenu .list-row {
+  border-radius: 0;
+  padding: calc(var(--px) * 0.8) calc(var(--px) * 2);
+}
+.list.startmenu .list-row.on {
+  background: #223c58;
+  color: #ffe040;
+  box-shadow: inset calc(var(--px) * 1) 0 0 #00f0ff;
+}
+.list.startmenu .list-row .cur {
+  color: #ff3030;
+  text-shadow: var(--px) 0 0 #000, 0 var(--px) 0 #000;
+}
+.choice { right: calc(var(--px) * 10); bottom: calc(var(--px) * 52); min-width: calc(var(--px) * 64); }
+.psub { right: calc(var(--px) * 8); bottom: calc(var(--px) * 8); min-width: calc(var(--px) * 80); }
+.psub.learn { bottom: calc(var(--px) * 52); }
+.shop { right: calc(var(--px) * 8); top: calc(var(--px) * 8); min-width: calc(var(--px) * 150); max-height: calc(100vh - var(--px) * 64); }
+.shop .list-items { overflow-y: auto; }
+.money { position: absolute; left: calc(var(--px) * 8); top: calc(var(--px) * 8); padding: calc(var(--px) * 5) calc(var(--px) * 10); z-index: 24; }
+.qty { position: absolute; right: calc(var(--px) * 8); bottom: calc(var(--px) * 56); padding: calc(var(--px) * 4) calc(var(--px) * 10); z-index: 37; display: flex; gap: calc(var(--px) * 12); }
+.itm { width: calc(var(--px) * 16); height: calc(var(--px) * 16); vertical-align: middle; margin-right: calc(var(--px) * 2); }
+.toast { position: absolute; left: 50%; top: calc(var(--px) * 10); transform: translateX(-50%); padding: calc(var(--px) * 3) calc(var(--px) * 10); z-index: 40; }
+
+/* ---------- bandeau de lieu ---------- */
+/* bandeau du lieu : en bas au centre, pour ne pas passer sous la capsule du HUD (en haut à droite) */
+.banner { position: absolute; left: 50%; bottom: calc(var(--px) * 26); z-index: 15; transform: translate(-50%, calc(var(--px) * 60)); opacity: 0; transition: transform .35s ease, opacity .35s ease;
+  background: linear-gradient(#fbf3dc, #ead8ae); border: calc(var(--px) * 1) solid #6a4a28; border-radius: calc(var(--px) * 3); padding: calc(var(--px) * 3) calc(var(--px) * 14);
+  box-shadow: inset 0 0 0 var(--px) #fff6e0, inset 0 calc(var(--px) * -2) 0 #c8a878, 0 var(--px) 0 rgba(0,0,0,.4); font-weight: 600; color: #4a3218; text-shadow: var(--px) var(--px) 0 #e8d4a8; min-width: calc(var(--px) * 90); text-align: center; }
+.banner.in { transform: translate(-50%, 0); opacity: 1; }
+
+/* ---------- fondus & transitions Pokémon (DS / 5G) ---------- */
+.fade { position: absolute; inset: 0; background: #000; opacity: 1; z-index: 60; }
+.flash { position: absolute; inset: 0; opacity: 0; z-index: 61; pointer-events: none; }
+.wipe { position: absolute; inset: 0; z-index: 59; background: conic-gradient(from 0deg, #000 0deg, #000 0deg, transparent 0deg); }
+.wipe::before, .wipe::after { content: ''; position: absolute; left: 0; right: 0; height: 0; background: #000; transition: height .42s steps(10); }
+.wipe::before { top: 0; } .wipe::after { bottom: 0; }
+.wipe.on::before, .wipe.on::after { height: 51%; }
+
+/* 1. Transition de porte / bâtiment (Iris Diaphragm Wipe Pokémon DS) */
+.door-iris { position: absolute; inset: 0; z-index: 60; pointer-events: none; overflow: hidden; display: none; }
+.door-iris.on { display: block; }
+.door-iris .door-hole { position: absolute; left: 50%; top: 50%; width: 170vmax; height: 170vmax; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 200vmax #000; }
+
+/* 2. Transition de rencontre de combat (Wild Battle Shards 5G) */
+.battle-wipe {
+  position: absolute;
+  inset: 0;
+  z-index: 59;
+  pointer-events: none;
+  overflow: hidden;
+}
+.bw-shard {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: #060910;
+  transition: transform 220ms cubic-bezier(0.2, 0.9, 0.3, 1), opacity 260ms ease;
+  will-change: transform;
+}
+.bw-shard.left {
+  transform: translateX(-105%);
+  border-bottom: calc(var(--px) * 0.8) solid rgba(0, 224, 255, 0.4);
+  box-shadow: 0 0 calc(var(--px) * 3) rgba(0, 224, 255, 0.3);
+}
+.bw-shard.right {
+  transform: translateX(105%);
+  border-top: calc(var(--px) * 0.8) solid rgba(0, 224, 255, 0.4);
+  box-shadow: 0 0 calc(var(--px) * 3) rgba(0, 224, 255, 0.3);
+}
+.bw-shard.left::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: calc(var(--px) * 1.5);
+  background: #00f0ff;
+  box-shadow: 0 0 calc(var(--px) * 3) #00f0ff;
+}
+.bw-shard.right::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: calc(var(--px) * 1.5);
+  background: #00f0ff;
+  box-shadow: 0 0 calc(var(--px) * 3) #00f0ff;
+}
+.battle-wipe.trainer .bw-shard.left::after,
+.battle-wipe.trainer .bw-shard.right::before {
+  background: #ffe058;
+  box-shadow: 0 0 calc(var(--px) * 3) #ffe058;
+}
+.battle-wipe.trainer .bw-shard.left {
+  border-bottom-color: rgba(255, 224, 88, 0.4);
+}
+.battle-wipe.trainer .bw-shard.right {
+  border-top-color: rgba(255, 224, 88, 0.4);
+}
+.battle-wipe.on .bw-shard {
+  transform: translateX(0%);
+}
+.battle-wipe.opening {
+  transition: opacity 280ms ease;
+  opacity: 0;
+}
+
+/* menu Échap : icônes devant les entrées, texte en casse normale et un peu plus compact */
+.list.startmenu { font-size: 0.86em; min-width: calc(var(--px) * 112); }
+.list.startmenu .lbl { display: inline-flex; align-items: center; gap: calc(var(--px) * 4); }
+.list.startmenu .sm-ico { display: inline-flex; align-items: center; justify-content: center; width: calc(var(--px) * 12); height: calc(var(--px) * 12); flex: none; }
+.list.startmenu .sm-ico img { max-width: 100%; max-height: 100%; image-rendering: pixelated; filter: drop-shadow(var(--px) var(--px) 0 #000); }

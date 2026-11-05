@@ -302,7 +302,7 @@ window.HUB_GAMES = [
     cover: 'mystery/img/affiche.jpg', // affiche 960 × 540 : vraie image du jeu, grand titre et bandeau
   },
   {
-    id: 'backrooms', vip: true, // réservé aux comptes VIP (hub/vip.js)
+    id: 'backrooms',
     title: 'The Backrooms',
     tag: 'Survie & Horreur',
     desc: "Seul ou à plusieurs, échappe-toi des Backrooms : 5 cassettes VHS sur les deux étages du Level 0 pour ouvrir le bon ascenseur, puis 3 fusibles pour relancer le monte-charge de l'entrepôt du Level 1, avant que l'entité ne vous rattrape.",
@@ -312,8 +312,9 @@ window.HUB_GAMES = [
     icon: '🚪', score: 'Cassettes trouvées',
     settings: [
       { key: 'difficulty', label: 'Difficulté de l\'entité', options: [['normal', 'Normale'], ['hard', 'Rapide & Agressive'], ['peaceful', 'Exploration (Sans monstre)']], def: 'normal' },
+      { key: 'monsters', label: 'Monstres', options: [['normal', 'Normal'], ['vip', '⭐ VIP mode', { vip: true }]], def: 'normal' },
     ],
-    cover: 'backrooms/img/affiche.jpg',
+    cover: 'backrooms/img/affiche.jpg?v=2', // affiche 960 × 540 : vraie image du jeu, grand titre et bandeau caméscope
   },
 ];
 

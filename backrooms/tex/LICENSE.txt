@@ -7,6 +7,9 @@ backrooms/view/textures.js :
   moquette.jpg  Dirty Carpet        https://polyhaven.com/a/dirty_carpet
   papier.jpg    Decrepit Wallpaper  https://polyhaven.com/a/decrepit_wallpaper
   plafond.jpg   Ceiling Interior    https://polyhaven.com/a/ceiling_interior
+  l1_mur.jpg    Concrete Wall 004   https://polyhaven.com/a/concrete_wall_004  (Level 1 : parpaings peints)
+  l1_sol.jpg    Concrete Floor Worn 001  https://polyhaven.com/a/concrete_floor_worn_001  (Level 1 : dalle usée)
+  l1_plafond.jpg  Concrete Wall 006  https://polyhaven.com/a/concrete_wall_006  (Level 1 : dalle brute)
 
 Les objets abandonnés et ceux fixés aux murs viennent de Poly Haven (CC0) : voir backrooms/models/LICENSE.txt.
 Le souffle du joueur : voir backrooms/sfx/LICENSE.txt.

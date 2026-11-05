@@ -8,7 +8,9 @@ const ROOT = fs.existsSync(path.resolve('odyssee')) ? path.resolve('.') : path.r
 console.log('Testing Odyssée Trophies Screen & HUD Integrations...');
 
 // 1. Check odyssee.css rules
-const css = fs.readFileSync(path.join(ROOT, 'odyssee/odyssee.css'), 'utf8');
+// la feuille est découpée par écran dans odyssee/css/ (chargée dans l'ordre)
+const cssDir = path.join(ROOT, 'odyssee/css');
+const css = fs.readdirSync(cssDir).filter((f) => f.endsWith('.css')).sort().map((f) => fs.readFileSync(path.join(cssDir, f), 'utf8')).join('\n');
 
 assert(
   css.includes('.screen { position: absolute; inset: 0; z-index: 22;') && css.includes('pointer-events: auto;'),
@@ -81,10 +83,8 @@ assert(
   hudJs.includes('data-act="trophies"') && hudJs.includes('TROPHÉES'),
   'hud.js must render TROPHÉES button with data-act="trophies"'
 );
-assert(
-  hudJs.includes('hud-trophy-pill') && hudJs.includes('trUnlocked'),
-  'hud.js must render clickable trophy pill in Pokégear header'
-);
-console.log('✔ hud.js button and header pill validated');
+// le compteur de médailles a quitté la capsule du HUD (allègement) : le bouton TROPHÉES reste le seul accès
+assert(!hudJs.includes('hud-trophy-pill'), 'hud.js no longer duplicates the trophy counter in the header');
+console.log('✔ hud.js trophies button validated');
 
 console.log('\n🎉 ALL HUD & TROPHIES TESTS PASSED SUCCESSFULLY!');

@@ -1,0 +1,628 @@
+/* ==========================================================================
+   CARTE DE LA RÉGION D'ODYSSÉE B2W2 (Style C-Gear 5G & Cartographie 16-bit)
+   ========================================================================== */
+.map-scr {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #060b13;
+  overflow: hidden;
+  z-index: 20;
+  box-sizing: border-box;
+  padding: calc(var(--px) * 3);
+  font-family: inherit;
+  color: #f1f5f9;
+}
+
+/* Fond Châssis C-Gear B2W2 Nanobanana (propre, sans fausse carte ni texte) */
+.map-pixelart-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+  opacity: 0.95;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Scanlines et trame DS */
+.map-scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 224, 255, 0.02) 0 calc(var(--px) * 1),
+    transparent calc(var(--px) * 1) calc(var(--px) * 2)
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* En-tête C-Gear B2W2 */
+.map-b2w2-hdr {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(var(--px) * 2) calc(var(--px) * 4);
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0 calc(var(--px) * 1), transparent calc(var(--px) * 1) calc(var(--px) * 2)),
+    linear-gradient(180deg, #18283e 0%, #0d1724 100%);
+  border: calc(var(--px) * 1.2) solid #000;
+  border-bottom: calc(var(--px) * 1.5) solid #00e0ff;
+  box-shadow:
+    inset calc(var(--px) * 0.8) calc(var(--px) * 0.8) 0 #4a6c9a,
+    0 calc(var(--px) * 2) calc(var(--px) * 6) rgba(0, 0, 0, 0.7);
+  clip-path: polygon(
+    calc(var(--px) * 3) 0,
+    calc(100% - calc(var(--px) * 3)) 0,
+    100% calc(var(--px) * 3),
+    100% 100%,
+    0 100%,
+    0 calc(var(--px) * 3)
+  );
+  margin-bottom: calc(var(--px) * 1.5);
+}
+.map-hdr-left {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--px) * 3);
+}
+.map-cgear-icon {
+  width: calc(var(--px) * 10);
+  height: calc(var(--px) * 10);
+  background: radial-gradient(circle, #00e0ff 0%, #0284c7 60%, transparent 100%);
+  border: calc(var(--px) * 1) solid #00e0ff;
+  border-radius: 50%;
+  box-shadow: 0 0 calc(var(--px) * 3) #00e0ff;
+  animation: cgearPulse 2s infinite ease-in-out;
+}
+@keyframes cgearPulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.15); filter: brightness(1.35); }
+}
+.map-hdr-titles {
+  display: flex;
+  flex-direction: column;
+}
+.map-hdr-main {
+  font-size: calc(var(--px) * 6.5);
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #00e0ff;
+  text-shadow: calc(var(--px) * 1) calc(var(--px) * 1) 0 #000, 0 0 calc(var(--px) * 3) rgba(0, 224, 255, 0.6);
+}
+.map-hdr-sub {
+  font-size: calc(var(--px) * 4);
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+}
+.map-hdr-right {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--px) * 3);
+}
+.map-cap-pill {
+  font-size: calc(var(--px) * 4.6);
+  font-weight: 700;
+  background: #08121e;
+  padding: calc(var(--px) * 1) calc(var(--px) * 3);
+  border: calc(var(--px) * 1) solid #000;
+  box-shadow: inset calc(var(--px) * 0.6) calc(var(--px) * 0.6) 0 #284464;
+  color: #fbbf24;
+  clip-path: polygon(
+    calc(var(--px) * 1.5) 0,
+    calc(100% - calc(var(--px) * 1.5)) 0,
+    100% calc(var(--px) * 1.5),
+    100% 100%,
+    0 100%,
+    0 calc(var(--px) * 1.5)
+  );
+}
+.map-close-btn {
+  background: linear-gradient(180deg, #dc2626 0%, #991b1b 100%);
+  border: calc(var(--px) * 1) solid #000;
+  box-shadow:
+    inset calc(var(--px) * 0.8) calc(var(--px) * 0.8) 0 #f87171,
+    calc(var(--px) * 1) calc(var(--px) * 1) 0 #000;
+  clip-path: polygon(
+    calc(var(--px) * 2) 0,
+    calc(100% - calc(var(--px) * 2)) 0,
+    100% calc(var(--px) * 2),
+    100% 100%,
+    0 100%,
+    0 calc(var(--px) * 2)
+  );
+  color: #fff;
+  font-weight: 800;
+  font-size: calc(var(--px) * 4.8);
+  padding: calc(var(--px) * 1.2) calc(var(--px) * 3.5);
+  cursor: pointer;
+  transition: filter 0.12s, transform 0.08s;
+}
+.map-close-btn:hover {
+  filter: brightness(1.2);
+}
+.map-close-btn:active {
+  transform: translate(calc(var(--px) * 0.5), calc(var(--px) * 0.5));
+}
+
+/* Barre de localisation GPS en direct */
+.map-gps-bar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(var(--px) * 1.2) calc(var(--px) * 3.5);
+  background: rgba(8, 18, 30, 0.92);
+  border: calc(var(--px) * 1) solid #000;
+  border-bottom: calc(var(--px) * 1.2) solid #0284c7;
+  margin-bottom: calc(var(--px) * 1.5);
+  gap: calc(var(--px) * 2);
+}
+.map-gps-left {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--px) * 2);
+  font-size: calc(var(--px) * 4.2);
+}
+.map-gps-dot {
+  width: calc(var(--px) * 3.5);
+  height: calc(var(--px) * 3.5);
+  background: #22c55e;
+  border-radius: 50%;
+  box-shadow: 0 0 calc(var(--px) * 2.5) #22c55e;
+  animation: gpsPulse 1.2s infinite ease-in-out;
+}
+@keyframes gpsPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.5; }
+}
+.map-gps-title {
+  color: #94a3b8;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.map-gps-loc {
+  color: #00e0ff;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-shadow: 0 0 calc(var(--px) * 2) rgba(0, 224, 255, 0.5);
+}
+.map-gps-coords {
+  color: #38bdf8;
+  font-weight: 700;
+  font-size: calc(var(--px) * 3.8);
+}
+.map-gps-right {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--px) * 2);
+}
+.map-ctrl-btn {
+  background: linear-gradient(180deg, #1e3a5f 0%, #0e1e32 100%);
+  border: calc(var(--px) * 1) solid #000;
+  box-shadow: inset calc(var(--px) * 0.6) calc(var(--px) * 0.6) 0 #38bdf8;
+  color: #f1f5f9;
+  font-weight: 700;
+  font-size: calc(var(--px) * 3.8);
+  padding: calc(var(--px) * 1) calc(var(--px) * 2.5);
+  cursor: pointer;
+  transition: filter 0.12s, transform 0.08s;
+}
+.map-ctrl-btn:hover {
+  filter: brightness(1.25);
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+}
+.map-ctrl-btn:active {
+  transform: translate(calc(var(--px) * 0.5), calc(var(--px) * 0.5));
+}
+
+/* Zone Cartographique Centrale Grand Écran */
+.map-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+  margin-bottom: calc(var(--px) * 2);
+  padding: 0 calc(var(--px) * 2);
+}
+.map-wrap {
+  position: relative;
+  width: min(100%, calc(var(--px) * 360));
+  height: 100%;
+  max-height: calc(var(--px) * 220);
+  aspect-ratio: 16 / 10;
+  background: #060e1a;
+  border: calc(var(--px) * 1.5) solid #000;
+  box-shadow:
+    0 0 0 calc(var(--px) * 1.2) #00e0ff,
+    inset 0 0 calc(var(--px) * 8) rgba(0, 0, 0, 0.85),
+    0 calc(var(--px) * 4) calc(var(--px) * 12) rgba(0, 0, 0, 0.9);
+  clip-path: polygon(
+    calc(var(--px) * 4) 0,
+    calc(100% - calc(var(--px) * 4)) 0,
+    100% calc(var(--px) * 4),
+    100% calc(100% - calc(var(--px) * 4)),
+    calc(100% - calc(var(--px) * 4)) 100%,
+    calc(var(--px) * 4) 100%,
+    0 calc(100% - calc(var(--px) * 4)),
+    0 calc(var(--px) * 4)
+  );
+  overflow: hidden;
+  cursor: crosshair;
+}
+.mapcv {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+}
+.map-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.map-hud-overlay {
+  position: absolute;
+  top: calc(var(--px) * 2);
+  right: calc(var(--px) * 3);
+  display: flex;
+  gap: calc(var(--px) * 2);
+  pointer-events: none;
+  z-index: 6;
+}
+.map-coord-tag, .map-radar-tag {
+  font-size: calc(var(--px) * 3.6);
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  background: rgba(4, 10, 18, 0.88);
+  padding: calc(var(--px) * 0.5) calc(var(--px) * 2);
+  border: calc(var(--px) * 0.6) solid #00e0ff;
+  color: #00e0ff;
+  box-shadow: 0 0 calc(var(--px) * 2) rgba(0, 224, 255, 0.4);
+}
+.map-radar-tag {
+  color: #38bdf8;
+  border-color: #38bdf8;
+  animation: radarBlink 1.5s infinite steps(2);
+}
+@keyframes radarBlink {
+  50% { opacity: 0.4; }
+}
+
+/* Coins de visée B2W2 */
+.map-corner {
+  position: absolute;
+  width: calc(var(--px) * 7);
+  height: calc(var(--px) * 7);
+  border-color: #00e0ff;
+  border-style: solid;
+  pointer-events: none;
+  z-index: 5;
+  filter: drop-shadow(0 0 calc(var(--px) * 1.5) #00e0ff);
+}
+.map-corner.tl { top: calc(var(--px) * 2); left: calc(var(--px) * 2); border-width: calc(var(--px) * 1.5) 0 0 calc(var(--px) * 1.5); }
+.map-corner.tr { top: calc(var(--px) * 2); right: calc(var(--px) * 2); border-width: calc(var(--px) * 1.5) calc(var(--px) * 1.5) 0 0; }
+.map-corner.bl { bottom: calc(var(--px) * 2); left: calc(var(--px) * 2); border-width: 0 0 calc(var(--px) * 1.5) calc(var(--px) * 1.5); }
+.map-corner.br { bottom: calc(var(--px) * 2); right: calc(var(--px) * 2); border-width: 0 calc(var(--px) * 1.5) calc(var(--px) * 1.5) 0; }
+
+/* Radar Joueur "VOUS ÊTES ICI" interactif */
+.map-me {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: calc(var(--px) * 14);
+  height: calc(var(--px) * 14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 8;
+}
+.map-me-radar-outer {
+  position: absolute;
+  inset: calc(var(--px) * -3);
+  border-radius: 50%;
+  border: calc(var(--px) * 1) solid #00e0ff;
+  box-shadow: 0 0 calc(var(--px) * 4) rgba(0, 224, 255, 0.6);
+  animation: mapRadarWave 1.8s infinite ease-out;
+}
+.map-me-radar {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: calc(var(--px) * 1.2) solid #38bdf8;
+  box-shadow: 0 0 calc(var(--px) * 3) #38bdf8;
+  animation: mapRadarWave 1.8s infinite 0.6s ease-out;
+}
+@keyframes mapRadarWave {
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+.map-me-core {
+  position: relative;
+  width: calc(var(--px) * 7);
+  height: calc(var(--px) * 7);
+  background: radial-gradient(circle, #fff 0%, #00e0ff 70%, #0284c7 100%);
+  border: calc(var(--px) * 1) solid #000;
+  border-radius: 50%;
+  box-shadow: 0 0 calc(var(--px) * 4) #00e0ff, inset 0 0 calc(var(--px) * 1) #fff;
+  z-index: 2;
+}
+.map-me-tag {
+  position: absolute;
+  bottom: calc(100% + calc(var(--px) * 1.5));
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(4, 10, 18, 0.92);
+  border: calc(var(--px) * 0.8) solid #00e0ff;
+  color: #00e0ff;
+  font-size: calc(var(--px) * 3.4);
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  padding: calc(var(--px) * 0.4) calc(var(--px) * 1.5);
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 0 calc(var(--px) * 2) rgba(0, 224, 255, 0.5);
+  border-radius: calc(var(--px) * 1);
+}
+
+/* Nœuds de Ville & Arènes */
+.map-pin {
+  position: absolute;
+  width: calc(var(--px) * 9);
+  height: calc(var(--px) * 9);
+  transform: translate(-50%, -50%);
+  background: #ef4444;
+  border: calc(var(--px) * 1) solid #000;
+  box-shadow: 0 0 calc(var(--px) * 2) rgba(239, 68, 68, 0.6), inset calc(var(--px) * 0.5) calc(var(--px) * 0.5) 0 #fca5a5;
+  clip-path: polygon(
+    calc(var(--px) * 1.5) 0,
+    calc(100% - calc(var(--px) * 1.5)) 0,
+    100% calc(var(--px) * 1.5),
+    100% 100%,
+    0 100%,
+    0 calc(var(--px) * 1.5)
+  );
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 4;
+  padding: 0;
+  color: #fff;
+  font-size: calc(var(--px) * 4);
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s, filter 0.12s;
+}
+.map-pin:hover {
+  transform: translate(-50%, -50%) scale(1.3);
+  filter: brightness(1.3);
+  z-index: 10;
+}
+.map-pin.gym {
+  background: #fbbf24;
+  color: #78350f;
+  box-shadow: 0 0 calc(var(--px) * 3) rgba(251, 191, 36, 0.8), inset calc(var(--px) * 0.5) calc(var(--px) * 0.5) 0 #fef08a;
+}
+.map-pin.badge-ok {
+  background: #10b981;
+  color: #064e3b;
+  box-shadow: 0 0 calc(var(--px) * 3) rgba(16, 185, 129, 0.8), inset calc(var(--px) * 0.5) calc(var(--px) * 0.5) 0 #a7f3d0;
+}
+.map-pin.league {
+  background: #a855f7;
+  color: #fff;
+  box-shadow: 0 0 calc(var(--px) * 4) rgba(168, 85, 247, 0.9), inset calc(var(--px) * 0.5) calc(var(--px) * 0.5) 0 #e9d5ff;
+}
+
+/* Réticule de sélection B2W2 */
+.map-cur {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: calc(var(--px) * 16);
+  height: calc(var(--px) * 16);
+  pointer-events: none;
+  z-index: 9;
+  transition: left 0.15s ease-out, top 0.15s ease-out, transform 0.15s;
+}
+.map-cur-bracket {
+  position: absolute;
+  width: calc(var(--px) * 5);
+  height: calc(var(--px) * 5);
+  border-color: #fbbf24;
+  border-style: solid;
+  filter: drop-shadow(0 0 calc(var(--px) * 1.5) #fbbf24);
+  animation: bracketPulse 1.2s infinite ease-in-out;
+}
+@keyframes bracketPulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.15); filter: brightness(1.4); }
+}
+.map-cur-bracket.tl { top: 0; left: 0; border-width: calc(var(--px) * 1.2) 0 0 calc(var(--px) * 1.2); }
+.map-cur-bracket.tr { top: 0; right: 0; border-width: calc(var(--px) * 1.2) calc(var(--px) * 1.2) 0 0; }
+.map-cur-bracket.bl { bottom: 0; left: 0; border-width: 0 0 calc(var(--px) * 1.2) calc(var(--px) * 1.2); }
+.map-cur-bracket.br { bottom: 0; right: 0; border-width: 0 calc(var(--px) * 1.2) calc(var(--px) * 1.2) 0; }
+.map-cur-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--px) * 3);
+  height: calc(var(--px) * 3);
+  background: radial-gradient(circle, #fbbf24 30%, transparent 70%);
+  border-radius: 50%;
+}
+
+/* Panneau Inférieur Tactile */
+.map-footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--px) * 3);
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0 calc(var(--px) * 1), transparent calc(var(--px) * 1) calc(var(--px) * 2)),
+    linear-gradient(180deg, #111d2e 0%, #070e18 100%);
+  border: calc(var(--px) * 1.2) solid #000;
+  border-top: calc(var(--px) * 1.5) solid #00e0ff;
+  box-shadow:
+    inset calc(var(--px) * 0.8) calc(var(--px) * 0.8) 0 #284464,
+    0 calc(var(--px) * -2) calc(var(--px) * 6) rgba(0, 0, 0, 0.7);
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - calc(var(--px) * 3)),
+    calc(100% - calc(var(--px) * 3)) 100%,
+    calc(var(--px) * 3) 100%,
+    0 calc(100% - calc(var(--px) * 3))
+  );
+  padding: calc(var(--px) * 2) calc(var(--px) * 3);
+}
+.map-nav-btn {
+  background: linear-gradient(180deg, #1e3a5f 0%, #0c1a2c 100%);
+  border: calc(var(--px) * 1) solid #000;
+  box-shadow:
+    inset calc(var(--px) * 0.8) calc(var(--px) * 0.8) 0 #38bdf8,
+    calc(var(--px) * 1) calc(var(--px) * 1) 0 #000;
+  clip-path: polygon(
+    calc(var(--px) * 1.5) 0,
+    calc(100% - calc(var(--px) * 1.5)) 0,
+    100% calc(var(--px) * 1.5),
+    100% 100%,
+    0 100%,
+    0 calc(var(--px) * 1.5)
+  );
+  color: #f1f5f9;
+  font-weight: 800;
+  font-size: calc(var(--px) * 4.4);
+  padding: calc(var(--px) * 1.4) calc(var(--px) * 3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--px) * 1.5);
+  transition: filter 0.12s, transform 0.08s;
+  white-space: nowrap;
+}
+.map-nav-btn:hover {
+  filter: brightness(1.25);
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+}
+.map-nav-btn:active {
+  transform: translate(calc(var(--px) * 0.5), calc(var(--px) * 0.5));
+}
+.map-btn-arr {
+  color: #00e0ff;
+}
+.map-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--px) * 0.8);
+}
+.map-info-top {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--px) * 2.5);
+}
+.map-where {
+  font-size: calc(var(--px) * 5.6);
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #fbbf24;
+  text-shadow: calc(var(--px) * 1) calc(var(--px) * 1) 0 #000;
+}
+.map-tag {
+  font-size: calc(var(--px) * 3.6);
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  padding: calc(var(--px) * 0.5) calc(var(--px) * 2);
+  border: calc(var(--px) * 0.8) solid #000;
+  border-radius: calc(var(--px) * 1);
+  text-transform: uppercase;
+}
+.map-tag.here {
+  background: #0284c7;
+  color: #fff;
+  border-color: #38bdf8;
+  box-shadow: 0 0 calc(var(--px) * 2) rgba(56, 189, 248, 0.6);
+}
+.map-tag.gym {
+  background: #f59e0b;
+  color: #000;
+  border-color: #fde047;
+}
+.map-tag.badge-ok {
+  background: #10b981;
+  color: #fff;
+  border-color: #6ee7b7;
+}
+.map-tag.league {
+  background: #8b5cf6;
+  color: #fff;
+  border-color: #c4b5fd;
+}
+.map-tag.town {
+  background: #475569;
+  color: #f1f5f9;
+  border-color: #94a3b8;
+}
+.map-tag.waypoint {
+  background: #0284c7;
+  color: #fff;
+  border-color: #38bdf8;
+  box-shadow: 0 0 calc(var(--px) * 2) rgba(56, 189, 248, 0.6);
+}
+.map-sub {
+  font-size: calc(var(--px) * 3.8);
+  font-weight: 600;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.map-sub-dist {
+  color: #38bdf8;
+  font-weight: 700;
+}
+.map-legend {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--px) * 2.5);
+  font-size: calc(var(--px) * 3.6);
+  font-weight: 700;
+  color: #94a3b8;
+  border-left: calc(var(--px) * 1) solid #284464;
+  padding-left: calc(var(--px) * 2.5);
+}
+.map-legend span {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--px) * 1);
+}
+.lg-dot {
+  width: calc(var(--px) * 2.5);
+  height: calc(var(--px) * 2.5);
+  border-radius: 50%;
+  border: calc(var(--px) * 0.5) solid #000;
+  display: inline-block;
+}
+.lg-dot.me { background: #00e0ff; box-shadow: 0 0 calc(var(--px) * 1.5) #00e0ff; }
+.lg-dot.town { background: #ef4444; }
+.lg-dot.gym { background: #fbbf24; }
+.lg-dot.league { background: #a855f7; }
+
+/* étiquette vide (lieu sans arène, position du joueur) : rien à afficher */
+.map-tag:empty { display: none; }

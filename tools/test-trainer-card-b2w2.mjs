@@ -240,7 +240,7 @@ console.log('✔ trainerCard state export validated with full B2W2 metrics!');
   assert.ok(screenHtml.includes('b2w2-card-casing'), 'Must contain B2W2 card casing element');
   assert.ok(screenHtml.includes('tc-pixelart-bg'), 'Must contain Nanobanana pixel art background image');
   assert.ok(screenHtml.includes('tc-pixelart-scanlines'), 'Must contain DS scanlines overlay');
-  assert.ok(screenHtml.includes('IDNo. 48291'), 'Must display padded IDNo.');
+  assert.ok(screenHtml.includes('N° 48291'), 'Must display padded trainer number');
   assert.ok(screenHtml.includes('CARTE DE DRESSEUR'), 'Must display title header');
   assert.ok(screenHtml.includes('tc-face-profile'), 'Must contain profile face');
   assert.ok(screenHtml.includes('tc-face-badges'), 'Must contain badges face');

@@ -1,0 +1,16 @@
+/* ---------- météo du monde : brume (voile qui dérive au-dessus du décor, sous l'interface) ---------- */
+.ow-fog { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 2.5s ease; overflow: hidden; }
+.ow-fog.on { opacity: 1; }
+.ow-fog i {
+  position: absolute; inset: -20% -50%; display: block;
+  background:
+    radial-gradient(ellipse 30% 18% at 20% 35%, rgba(235, 240, 245, 0.55), transparent 70%),
+    radial-gradient(ellipse 26% 16% at 60% 60%, rgba(235, 240, 245, 0.5), transparent 70%),
+    radial-gradient(ellipse 34% 20% at 85% 25%, rgba(235, 240, 245, 0.45), transparent 70%),
+    linear-gradient(rgba(220, 228, 236, 0.18), rgba(220, 228, 236, 0.32));
+  animation: ow-fog-drift 60s linear infinite;
+}
+.ow-fog i + i { opacity: 0.7; animation-duration: 95s; animation-direction: reverse; transform: scaleX(-1); }
+@keyframes ow-fog-drift { from { translate: -12% 0; } to { translate: 12% 0; } }
+@media (prefers-reduced-motion: reduce) { .ow-fog i { animation: none; } }
+

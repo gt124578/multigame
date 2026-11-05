@@ -90,6 +90,37 @@ for (let g = 0; g < 300; g++) {
 }
 console.log(`✓ ${games} combats joués des deux côtés : mêmes tours, mêmes PV, résultats en miroir (${Math.round(turnsTotal / games)} tours en moyenne, ${draws} nuls)`);
 
+// Méga-Évolution en duel : le choix « Méga » de chacun voyage avec son action, et les deux écrans restent identiques
+{
+  let megas = 0;
+  for (let g = 0; g < 40; g++) {
+    const rng = seededRng(5000 + g);
+    const pa = [createMon(6, 60, { item: g % 2 ? 'charizardite-x' : 'charizardite-y' }), ...randomParty(rng, 2)];
+    const pb = [createMon(130, 60, { item: 'gyaradosite' }), ...randomParty(rng, 2)];
+    const seed = (rng() * 2 ** 32) >>> 0, aMine = battleCopy(pa), bMine = battleCopy(pb);
+    const A = new PvpBattle({ me: { name: 'A', party: aMine }, foe: { name: 'B', party: JSON.parse(JSON.stringify(bMine)), bs: 'calem' }, seed, canon: 0 });
+    const B = new PvpBattle({ me: { name: 'B', party: bMine }, foe: { name: 'A', party: JSON.parse(JSON.stringify(aMine)), bs: 'serena' }, seed, canon: 1 });
+    A.start(); B.start();
+    const ra = seededRng(70 + g), rb = seededRng(990 + g);
+    let guard = 0;
+    while (A.state !== 'over' && guard++ < 400) {
+      if (A.state === 'switch') {
+        const pick = (b, r) => { if (!b.need[0]) return null; const c = b.sides[0].party.map((m, i) => (m.hp > 0 ? i : -1)).filter((i) => i >= 0); return c[Math.floor(r() * c.length)]; };
+        const ia = pick(A, ra), ib = pick(B, rb); A.switchBoth(ia, ib); B.switchBoth(ib, ia); continue;
+      }
+      ok(A.checksum() === B.checksum(), `méga ${g} tour ${A.turn} : les deux combats ne concordent plus`);
+      const aa = { ...chooseFor(A, ra), mega: true }, ab = { ...chooseFor(B, rb), mega: rb() < 0.7 };
+      A.remote = ab; B.remote = aa;
+      const ea = A.playerAction(aa); B.playerAction(ab);
+      megas += ea.filter((e) => e.t === 'mega').length;
+    }
+    ok(A.state === 'over' && B.state === 'over' && A.checksum() === B.checksum(), `méga ${g} : fin différente`);
+    ok([...aMine, ...bMine].every((m) => !m.megaFrom && m.sp < 10000), `méga ${g} : une forme Méga est restée après le combat`);
+  }
+  ok(megas > 40, 'trop peu de Méga-Évolutions en duel : ' + megas);
+  console.log(`✓ Méga-Évolution en duel : ${megas} Méga, mêmes combats des deux côtés, formes de base rendues à la fin`);
+}
+
 {
   const p = [createMon(25, 30)];
   const before = JSON.stringify(p);

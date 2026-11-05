@@ -1,0 +1,590 @@
+/* ================= SAC D'OBJETS B2W2 (PROPOSITION 1 — DUAL PANEL & ROUE ANIMÉE) ================= */
+.bag-scr {
+  pointer-events: auto;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0 calc(var(--px) * 1), transparent calc(var(--px) * 1) calc(var(--px) * 2)),
+    radial-gradient(ellipse at 50% 20%, #162438 0%, #0a101a 60%, #060a10 100%);
+  color: #f6faff;
+  font-family: inherit;
+  font-size: calc(var(--px) * 8);
+  padding: calc(var(--px) * 4);
+  gap: calc(var(--px) * 3);
+  box-sizing: border-box;
+  overflow: hidden;
+  user-select: none;
+  z-index: 22;
+}
+
+/* Corps central en 2 panneaux (Roue/Sac à gauche, Liste d'inventaire à droite) */
+/* Corps central en 2 panneaux (Sac sur socle & Arc à gauche, Liste d'inventaire à droite) */
+.b2w2-bag-body {
+  flex: 1;
+  display: flex;
+  gap: calc(var(--px) * 4);
+  min-height: 0;
+  position: relative;
+  z-index: 2;
+}
+
+/* --- PANNEAU GAUCHE : SAC DE BAROUDEUR SUR SOCLE & ARC DE POCHES GLISSANT (CONCEPT 1) --- */
+.b2w2-bag-left {
+  width: 44%;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--px) * 2.5);
+  min-height: 0;
+}
+
+/* Scène centrale du sac baroudeur avec faisceaux verticaux et socle lumineux */
+.b2w2-backpack-stage {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 40% 68%, var(--stage-glow, rgba(0, 224, 255, 0.3)) 0%, transparent 68%),
+    radial-gradient(ellipse at 50% 50%, #152234 0%, #0c1420 72%, #060a10 100%);
+  border: calc(var(--px) * 1.2) solid #000;
+  box-shadow:
+    inset calc(var(--px) * 0.8) calc(var(--px) * 0.8) 0 #3a5068,
+    calc(var(--px) * 1.5) calc(var(--px) * 1.5) 0 #000;
+  clip-path: polygon(
+    calc(var(--px) * 3) 0,
+    calc(100% - calc(var(--px) * 3)) 0,
+    100% calc(var(--px) * 3),
+    100% 100%,
+    0 100%,
+    0 calc(var(--px) * 3)
+  );
+}
+
+.b2w2-backpack-beams {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(var(--px) * 12), rgba(255, 255, 255, 0.025) calc(var(--px) * 12) calc(var(--px) * 14), transparent calc(var(--px) * 14) calc(var(--px) * 26));
+  pointer-events: none;
+}
+
+/* Sac de baroudeur HD d'Unys flottant sur le piédestal */
+.b2w2-backpack-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: 28% center;
+  pointer-events: none;
+  filter: drop-shadow(0 calc(var(--px) * 3) calc(var(--px) * 2) rgba(0, 0, 0, 0.85));
+  transition: opacity 0.25s ease;
+}
+@keyframes b2w2BackpackFloat {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(calc(var(--px) * -2.5)); }
+}
+
+/* Conteneur de l'arc en croissant des 6 poches B2W2 */
+.b2w2-arc-wrap {
+  position: absolute;
+  right: calc(var(--px) * 1.5);
+  top: calc(var(--px) * 2);
+  bottom: calc(var(--px) * 2);
+  height: calc(100% - var(--px) * 4);
+  aspect-ratio: 215 / 510;
+  width: auto;
+  max-width: 48%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.b2w2-arc-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 0 calc(var(--px) * 3.5) rgba(0, 224, 255, 0.55));
+}
+
+/* Curseur glissant lumineux le long de la courbure de l'arc */
+.b2w2-arc-glider {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: calc(var(--px) * 14);
+  height: calc(var(--px) * 14);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 10;
+  transition:
+    left 0.32s cubic-bezier(0.2, 0.95, 0.3, 1.05),
+    top 0.32s cubic-bezier(0.2, 0.95, 0.3, 1.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.b2w2-arc-glider .glider-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: calc(var(--px) * 1.5) solid var(--glider-col, #00f0ff);
+  box-shadow:
+    0 0 calc(var(--px) * 6) var(--glider-col, #00f0ff),
+    inset 0 0 calc(var(--px) * 4) var(--glider-col, #00f0ff);
+  animation: b2w2GliderPulse 1.4s ease-in-out infinite alternate;
+}
+.b2w2-arc-glider .glider-dot {
+  width: calc(var(--px) * 4);
+  height: calc(var(--px) * 4);
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 calc(var(--px) * 3) #ffffff;
+}
+@keyframes b2w2GliderPulse {
+  0% { transform: scale(0.92); opacity: 0.85; }
+  100% { transform: scale(1.12); opacity: 1; filter: brightness(1.2); }
+}
+
+/* 6 Cibles tactiles interactives sur les icônes de poches */
+.b2w2-arc-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: calc(var(--px) * 12);
+  height: calc(var(--px) * 12);
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+.b2w2-arc-node:hover .arc-node-halo {
+  opacity: 0.65;
+  transform: scale(1.15);
+}
+.b2w2-arc-node.on .arc-node-halo {
+  opacity: 0.9;
+}
+.arc-node-halo {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.45) 0%, transparent 72%);
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+/* Bandeau d'état de la poche sous le sac */
+.b2w2-pocket-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--px) * 1.5) calc(var(--px) * 3);
+  background: linear-gradient(180deg, #121c2a 0%, #0a1018 100%);
+  border: calc(var(--px) * 1) solid #000;
+  box-shadow:
+    inset calc(var(--px) * 0.8) calc(var(--px) * 0.8) 0 #283a50,
+    calc(var(--px) * 1.2) calc(var(--px) * 1.2) 0 #000;
+  clip-path: polygon(
+    calc(var(--px) * 2) 0,
+    calc(100% - calc(var(--px) * 2)) 0,
+    100% calc(var(--px) * 2),
+    100% 100%,
+    0 100%,
+    0 calc(var(--px) * 2)
+  );
+}
+.b2w2-pocket-badge {
+  font-weight: 800;
+  font-size: calc(var(--px) * 7.5);
+  letter-spacing: 0.08em;
+  text-shadow: var(--px) var(--px) 0 #000;
+  transition: color 0.25s, text-shadow 0.25s;
+}
+.b2w2-pocket-sub {
+  font-size: calc(var(--px) * 5.4);
+  color: #9cb4dc;
+  text-align: center;
+  line-height: 1.25;
+  margin-top: calc(var(--px) * 0.5);
+}
+
+/* --- PANNEAU DROIT : LISTE DES OBJETS DE LA POCHE --- */
+.b2w2-bag-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0 calc(var(--px) * 1), transparent calc(var(--px) * 1) calc(var(--px) * 2)),
+    linear-gradient(180deg, #141c28 0%, #0a1018 100%);
+  border: calc(var(--px) * 1.2) solid #000;
+  box-shadow:
+    inset calc(var(--px) * 0.8) calc(var(--px) * 0.8) 0 #3a5068,
+    calc(var(--px) * 1.5) calc(var(--px) * 1.5) 0 #000;
+  padding: calc(var(--px) * 2.5);
+  clip-path: polygon(
+    calc(var(--px) * 3) 0,
+    calc(100% - calc(var(--px) * 3)) 0,
+    100% calc(var(--px) * 3),
+    100% 100%,
+    0 100%,
+    0 calc(var(--px) * 3)
+  );
+  min-height: 0;
+}
+
+.b2w2-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: calc(var(--px) * 2);
+  border-bottom: calc(var(--px) * 0.8) solid rgba(70, 100, 140, 0.35);
+  margin-bottom: calc(var(--px) * 2);
+}
+.b2w2-list-title {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--px) * 3);
+}
+.b2w2-pocket-tag {
+  font-weight: 800;
+  font-size: calc(var(--px) * 6.8);
+  letter-spacing: 0.06em;
+  text-shadow: var(--px) var(--px) 0 #000;
+  transition: color 0.2s;
+}
+.b2w2-pocket-items-cnt {
+  font-size: calc(var(--px) * 5.6);
+  color: #88a4c8;
+}
+.b2w2-list-hint {
+  display: flex;
+  gap: calc(var(--px) * 3);
+  font-size: calc(var(--px) * 5.4);
+  color: #7890b0;
+}
+.b2w2-list-hint kbd {
+  font-size: 0.9em;
+  padding: 0 calc(var(--px) * 1);
+}
+
+.b2w2-items-viewport {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+.b2w2-items-list {
+  overflow-x: hidden !important;
+}
+.b2w2-items-list {
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--px) * 1.5);
+  padding-right: calc(var(--px) * 1);
+}
+.b2w2-empty-msg {
+  padding: calc(var(--px) * 12);
+  text-align: center;
+  color: #708cae;
+  font-size: calc(var(--px) * 6.8);
+}
+
+/* Ligne d'objet de l'inventaire B2W2 */
+.b2w2-item-row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--px) * 2.5);
+  padding: calc(var(--px) * 1.5) calc(var(--px) * 3);
+  background: #141e2c;
+  border: calc(var(--px) * 1) solid #000;
+  color: #e6f0ff;
+  cursor: pointer;
+  box-shadow: inset calc(var(--px) * 0.6) calc(var(--px) * 0.6) 0 #283a52, calc(var(--px) * 1) calc(var(--px) * 1) 0 #000;
+  clip-path: polygon(
+    calc(var(--px) * 1.5) 0,
+    calc(100% - calc(var(--px) * 1.5)) 0,
+    100% calc(var(--px) * 1.5),
+    100% 100%,
+    0 100%,
+    0 calc(var(--px) * 1.5)
+  );
+  position: relative;
+  transition: transform 0.08s steps(2), background 0.12s;
+}
+.b2w2-item-row:hover {
+  background: #1a283a;
+}
+/* Sélection active B2W2 Concept 1 : Bordure néon cyan + Coins dorés métalliques */
+.b2w2-item-row.on {
+  background: linear-gradient(90deg, rgba(0, 180, 255, 0.25) 0%, rgba(0, 120, 200, 0.14) 100%), #16263e;
+  border-color: #00f0ff;
+  box-shadow:
+    0 0 calc(var(--px) * 4) rgba(0, 240, 255, 0.5),
+    inset 0 0 calc(var(--px) * 3) rgba(0, 240, 255, 0.25),
+    calc(var(--px) * 1.5) calc(var(--px) * 1.5) 0 #000;
+  transform: translate(calc(var(--px) * 1), calc(var(--px) * -0.5));
+}
+.b2w2-item-row.on::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(#ffe058, #ffe058) top left / calc(var(--px) * 3.5) calc(var(--px) * 1.5) no-repeat,
+    linear-gradient(#ffe058, #ffe058) top left / calc(var(--px) * 1.5) calc(var(--px) * 3.5) no-repeat,
+    linear-gradient(#ffe058, #ffe058) top right / calc(var(--px) * 3.5) calc(var(--px) * 1.5) no-repeat,
+    linear-gradient(#ffe058, #ffe058) top right / calc(var(--px) * 1.5) calc(var(--px) * 3.5) no-repeat,
+    linear-gradient(#ffe058, #ffe058) bottom left / calc(var(--px) * 3.5) calc(var(--px) * 1.5) no-repeat,
+    linear-gradient(#ffe058, #ffe058) bottom left / calc(var(--px) * 1.5) calc(var(--px) * 3.5) no-repeat,
+    linear-gradient(#ffe058, #ffe058) bottom right / calc(var(--px) * 3.5) calc(var(--px) * 1.5) no-repeat,
+    linear-gradient(#ffe058, #ffe058) bottom right / calc(var(--px) * 1.5) calc(var(--px) * 3.5) no-repeat;
+  filter: drop-shadow(0 0 calc(var(--px) * 1.5) rgba(255, 224, 88, 0.8));
+}
+
+.b2w2-item-row .cur {
+  color: #00f0ff;
+  font-size: calc(var(--px) * 7);
+  width: calc(var(--px) * 4);
+  flex-shrink: 0;
+  text-shadow: 0 0 calc(var(--px) * 2) #00f0ff;
+}
+.b2w2-item-ico-wrap {
+  width: calc(var(--px) * 9);
+  height: calc(var(--px) * 9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.b2w2-item-ico {
+  max-width: 100%;
+  max-height: 100%;
+  image-rendering: pixelated;
+}
+.b2w2-item-name {
+  font-weight: 700;
+  font-size: calc(var(--px) * 7);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: var(--px) var(--px) 0 #000;
+}
+.b2w2-held-tag {
+  font-size: calc(var(--px) * 5.2);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #ffc840;
+  background: #382808;
+  border: calc(var(--px) * 0.6) solid #ffc840;
+  padding: 0 calc(var(--px) * 1.8);
+  flex-shrink: 0;
+}
+.b2w2-item-qty {
+  font-weight: 800;
+  font-size: calc(var(--px) * 6.5);
+  font-variant-numeric: tabular-nums;
+  color: #ffe058;
+  background: #060a10;
+  padding: calc(var(--px) * 0.4) calc(var(--px) * 2.5);
+  border: calc(var(--px) * 0.6) solid #283850;
+  flex-shrink: 0;
+}
+.b2w2-close-row {
+  border-style: dashed;
+  border-color: rgba(180, 200, 230, 0.35);
+  color: #ff9898;
+}
+
+/* --- BANDEAU INFÉRIEUR : INSPECTEUR D'OBJET & BOUTONS TACTILES --- */
+.b2w2-bag-inspector {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--px) * 4);
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0 calc(var(--px) * 1), transparent calc(var(--px) * 1) calc(var(--px) * 2)),
+    linear-gradient(180deg, #162030 0%, #0a121c 100%);
+  border: calc(var(--px) * 1.2) solid #000;
+  box-shadow:
+    inset calc(var(--px) * 0.8) calc(var(--px) * 0.8) 0 #3a5068,
+    calc(var(--px) * 1.5) calc(var(--px) * 1.5) 0 #000;
+  padding: calc(var(--px) * 2.5) calc(var(--px) * 4);
+  clip-path: polygon(
+    calc(var(--px) * 3) 0,
+    calc(100% - calc(var(--px) * 3)) 0,
+    100% calc(var(--px) * 3),
+    100% 100%,
+    0 100%,
+    0 calc(var(--px) * 3)
+  );
+  min-height: calc(var(--px) * 30);
+  box-sizing: border-box;
+}
+
+.b2w2-insp-left {
+  flex-shrink: 0;
+}
+/* Cadre inspecteur aux coins dorés Concept 1 */
+.b2w2-insp-frame {
+  width: calc(var(--px) * 24);
+  height: calc(var(--px) * 24);
+  background: #080e16;
+  border: calc(var(--px) * 1) solid #00e0ff;
+  box-shadow:
+    inset calc(var(--px) * 0.8) calc(var(--px) * 0.8) 0 #283850,
+    0 0 calc(var(--px) * 3) rgba(0, 224, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.b2w2-insp-frame::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--px) * -1.5);
+  left: calc(var(--px) * -1.5);
+  width: calc(var(--px) * 4);
+  height: calc(var(--px) * 4);
+  border-top: calc(var(--px) * 1.8) solid #ffe058;
+  border-left: calc(var(--px) * 1.8) solid #ffe058;
+  pointer-events: none;
+}
+.b2w2-insp-frame::after {
+  content: '';
+  position: absolute;
+  bottom: calc(var(--px) * -1.5);
+  right: calc(var(--px) * -1.5);
+  width: calc(var(--px) * 4);
+  height: calc(var(--px) * 4);
+  border-bottom: calc(var(--px) * 1.8) solid #ffe058;
+  border-right: calc(var(--px) * 1.8) solid #ffe058;
+  pointer-events: none;
+}
+.b2w2-insp-img {
+  width: calc(var(--px) * 18);
+  height: calc(var(--px) * 18);
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.b2w2-insp-mid {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--px) * 1.2);
+  min-width: 0;
+}
+.b2w2-insp-topline {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--px) * 2.5);
+  flex-wrap: wrap;
+}
+.b2w2-insp-name {
+  font-weight: 800;
+  font-size: calc(var(--px) * 7.8);
+  color: #ffe278;
+  text-shadow: var(--px) var(--px) 0 #000;
+}
+.b2w2-insp-cat {
+  font-size: calc(var(--px) * 6);
+  font-weight: 700;
+}
+.b2w2-insp-qty {
+  font-size: calc(var(--px) * 5.6);
+  color: #9cb4dc;
+}
+.b2w2-insp-desc {
+  font-size: calc(var(--px) * 6);
+  line-height: 1.3;
+  color: #d8e6fa;
+  text-shadow: var(--px) var(--px) 0 #000;
+}
+
+/* Grille 2x2 de boutons tactiles DS Concept 1 */
+.b2w2-btn-grid {
+  display: grid;
+  grid-template-columns: repeat(2, calc(var(--px) * 34));
+  grid-template-rows: repeat(2, calc(var(--px) * 11));
+  gap: calc(var(--px) * 2);
+  flex-shrink: 0;
+}
+.b2w2-touch-btn {
+  font: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--px) * 1.5);
+  padding: 0 calc(var(--px) * 2);
+  border: calc(var(--px) * 1) solid #000;
+  color: #ffffff;
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+  font-weight: 800;
+  font-size: calc(var(--px) * 5.8);
+  letter-spacing: 0.04em;
+  text-shadow: var(--px) var(--px) 0 #000;
+  clip-path: polygon(
+    calc(var(--px) * 1.8) 0,
+    calc(100% - calc(var(--px) * 1.8)) 0,
+    100% calc(var(--px) * 1.8),
+    100% 100%,
+    0 100%,
+    0 calc(var(--px) * 1.8)
+  );
+  box-shadow:
+    inset calc(var(--px) * 0.8) calc(var(--px) * 0.8) 0 rgba(255, 255, 255, 0.45),
+    calc(var(--px) * 1.2) calc(var(--px) * 1.2) 0 #000;
+  transition: transform 0.08s steps(2), filter 0.1s;
+}
+.b2w2-touch-btn:hover:not(:disabled) {
+  filter: brightness(1.2);
+  transform: translate(calc(var(--px) * 0.5), calc(var(--px) * -0.5));
+}
+.b2w2-touch-btn:active:not(:disabled) {
+  transform: translate(calc(var(--px) * 1), calc(var(--px) * 1));
+}
+.b2w2-touch-btn.disabled,
+.b2w2-touch-btn:disabled {
+  background: #16202c !important;
+  border-color: #283648 !important;
+  color: #556880 !important;
+  cursor: not-allowed;
+  filter: none !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+.b2w2-btn-use {
+  background: linear-gradient(180deg, #1aa856 0%, #0d5e30 100%);
+  border-color: #38e878;
+}
+.b2w2-btn-give {
+  background: linear-gradient(180deg, #1a7eb8 0%, #0c4368 100%);
+  border-color: #38b8e8;
+}
+.b2w2-btn-toss {
+  background: linear-gradient(180deg, #b83030 0%, #681414 100%);
+  border-color: #e85858;
+}
+.b2w2-btn-back {
+  background: linear-gradient(180deg, #324054 0%, #1a2230 100%);
+  border-color: #607898;
+}
+.touch-btn-ico {
+  font-size: 1.1em;
+}
+.touch-btn-lbl {
+  font-weight: 800;
+}

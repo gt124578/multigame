@@ -27,7 +27,8 @@ export function apparenceScreen(ui, o = {}) {
     ui.root.appendChild(s);
     const prev = s.querySelector('.appar-prev'), opts = s.querySelector('.appar-opts');
     let i = 0, t = 0;
-    const rows = () => LIGNES.filter((l) => !l[3] || l[3](T));
+    // à la création, le genre vient d'être choisi sur l'écran précédent : pas besoin de le redemander
+    const rows = () => LIGNES.filter((l) => (!l[3] || l[3](T)) && !(o.premiere && l[0] === 'genre'));
     const valeur = (l) => { const L = l[2], k = L.findIndex(([v]) => v === T[l[0]]); return [Math.max(0, k), L]; };
     let sheet = null;
     const recompose = () => { const b = o.base?.(T.genre); sheet = b ? composer(b.src, b.sx, b.sy, T) : null; };
@@ -60,7 +61,7 @@ export function apparenceScreen(ui, o = {}) {
       else if ((k === 'left' || k === 'right') && i < R.length) {
         const l = R[i], [n, L] = valeur(l), d = k === 'left' ? -1 : 1;
         T[l[0]] = L[(n + d + L.length) % L.length][0]; recompose();
-      } else if (k === 'a' && i === R.length) { ui.sound.sfx('select'); close(T); return; }
+      } else if (k === 'a') { ui.sound.sfx('select'); close(T); return; }   // Entrée valide depuis n'importe quelle ligne
       else if (k === 'b' && !o.premiere) { ui.sound.sfx('cancel'); close(null); return; }
       else return;
       ui.sound.sfx('blip'); draw();

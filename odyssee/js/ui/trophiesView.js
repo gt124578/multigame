@@ -127,7 +127,7 @@ export function trophiesScreen(game) {
         <div class="scr-bar">
           <div class="scr-bar-left">
             <img class="scr-bar-ico medal-box-ico" src="img/trophies/box_120.png" alt="Boîte à Médailles">
-            <span class="scr-bar-title">JOURNAL DES TROPHÉES</span>
+            <span class="scr-bar-title">TROPHÉES</span>
             <span class="scr-bar-sub">${summary.unlockedCount} / ${summary.trophiesTotal} Médailles · Série : ${summary.currentStreak} (Record : ${summary.bestStreak})</span>
           </div>
           <div class="trophies-tabs">
@@ -527,7 +527,7 @@ function renderStreaksTab(summary) {
       </div>
 
       <div class="tranks-table-wrap box">
-        <div class="tranks-title">TABLEAU DES RANGS DE SÉRIE B2W2</div>
+        <div class="tranks-title">RANGS DE SÉRIE</div>
         <div class="tranks-list">
           ${STREAK_RANKS.map((r) => {
             const isCurrent = rank.title === r.title;

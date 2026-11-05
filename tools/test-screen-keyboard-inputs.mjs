@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 console.log('Testing Screen Keyboard Input Handlers (Space/Enter/Escape)...');
 
 // Setup mock browser environment
+globalThis.requestAnimationFrame ??= (f) => setTimeout(() => f(performance.now()), 16);
 globalThis.location = new URL('http://localhost:3000/index.html');
 globalThis.window = globalThis;
 globalThis.Image = class { constructor() { this.src = ''; } };

@@ -1,12 +1,12 @@
-// The Backrooms - Filtre « vieille caméra » (caméscope VHS)
-// La scène est rendue en basse définition dans une texture, puis repassée à l'écran avec : objectif bombé, bavure des
-// couleurs, flou horizontal, lignes de balayage, grain, bande de tracking qui défile, vignette et teinte délavée.
+// The Backrooms - Filtre caméra : une image de caméscope propre (comme les vidéos des Backrooms), à peine marquée par
+// la bande : léger grain, lignes de balayage discrètes, couleurs franches, noirs profonds, vignette douce. Les défauts
+// de la cassette (bavure des couleurs, tracking, déchirures, parasites) ne reviennent que quand l'entité approche.
 // Les néons, plus forts que le blanc, bavent autour d'eux (halo flouté en quart de définition). L'exposition suit la
 // lumière (le caméscope pousse son gain dans le noir : l'image s'éclaircit et grésille). Plus l'entité est proche
 // (uDanger), plus l'image se déchire.
 import * as THREE from '../../shared/vendor/three/three.module.min.js';
 
-const LINES = 480; // hauteur de rendu de la scène, en pixels
+const LINES = 720; // hauteur de rendu de la scène, en pixels
 
 const vertexShader = `
 varying vec2 vUv;
@@ -31,53 +31,54 @@ vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59
 vec3 grab(vec2 uv) { return texture2D(tDiffuse, uv).rgb; }
 
 void main() {
+  // les défauts de la cassette ne montent que quand l'entité est vraiment proche, et moins fort qu'avant
+  float dg = smoothstep(0.3, 1.0, uDanger) * 0.6;
   // objectif bombé
   vec2 c = vUv - 0.5;
   float r2 = dot(c, c);
-  vec2 uv = 0.5 + c * (0.965 + 0.09 * r2);
+  vec2 uv = 0.5 + c * (0.99 + 0.025 * r2);
 
   // bande de tracking qui défile lentement de bas en haut
   float bandY = fract(uTime * 0.06);
   float band = 1.0 - smoothstep(0.0, 0.04, abs(uv.y - bandY));
   float line = floor(uv.y * 240.0);
   float jitter = hash(vec2(line, floor(uTime * 24.0))) - 0.5;
-  uv.x += jitter * (0.0012 + uDanger * 0.008) + band * 0.012 * (hash(vec2(uTime, line)) - 0.5);
-  uv.x += sin(uv.y * 5.0 + uTime * 1.1) * 0.0007;
+  uv.x += jitter * dg * 0.008 + band * dg * 0.012 * (hash(vec2(uTime, line)) - 0.5);
 
   // déchirures quand l'entité approche
   float blk = floor(uv.y * 28.0);
-  float tear = step(1.0 - uDanger * 0.16, hash(vec2(blk, floor(uTime * 14.0))));
-  uv.x += tear * (hash(vec2(blk, uTime)) - 0.5) * 0.09 * uDanger;
+  float tear = step(1.0 - dg * 0.16, hash(vec2(blk, floor(uTime * 14.0))));
+  uv.x += tear * (hash(vec2(blk, uTime)) - 0.5) * 0.09 * dg;
 
   // bavure des couleurs (rouge et bleu décalés) et flou horizontal de la bande magnétique
-  float ca = 0.0022 + uDanger * 0.007;
+  float ca = 0.0006 + dg * 0.007;
   vec3 col;
   col.r = grab(uv + vec2(ca, 0.0)).r;
   col.g = grab(uv).g;
   col.b = grab(uv - vec2(ca * 1.4, 0.0)).b;
   vec3 blur = (grab(uv + vec2(0.0035, 0.0)) + grab(uv - vec2(0.0035, 0.0)) + grab(uv + vec2(0.007, 0.0)) + grab(uv - vec2(0.007, 0.0))) * 0.25;
-  col = mix(col, blur, 0.15);
+  col = mix(col, blur, 0.04 + dg * 0.12);
   // halo des néons et des lumières vives
-  col += texture2D(tBloom, uv).rgb * 0.9;
+  col += texture2D(tBloom, uv).rgb * 1.1;
 
   col = aces(col * uExposure);
   col = pow(col, vec3(1.0 / 2.2));
 
-  // étalonnage délavé : noirs relevés, couleurs ternes, teinte jaune-vert du vieux caméscope
+  // étalonnage : jaune franc et un peu vert comme dans les vidéos, noirs bien noirs
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
-  col = mix(vec3(lum), col, 0.82);
-  col = col * vec3(1.02, 1.0, 0.82) + vec3(0.018, 0.016, 0.01);
+  col = mix(vec3(lum), col, 1.08);
+  col = col * vec3(1.0, 1.0, 0.86) + vec3(0.003, 0.003, 0.002);
 
   // lignes de balayage, grain, bande claire
-  col *= 0.9 + 0.1 * sin(vUv.y * uRes.y * 1.7);
-  float gain = clamp((uExposure - 1.0) * 0.06, 0.0, 0.08); // gain poussé dans le noir : plus de grain
-  col += (hash(vUv * uRes + fract(uTime) * 91.0) - 0.5) * (0.06 + gain + uDanger * 0.18);
-  col += band * 0.05;
-  // parasites blancs épars
-  if (hash(vec2(floor(vUv.x * 160.0), floor(vUv.y * 120.0) + floor(uTime * 20.0))) > 0.9993 - uDanger * 0.004) col += 0.5;
+  col *= 0.975 + 0.025 * sin(vUv.y * uRes.y * 1.7);
+  float gain = clamp((uExposure - 1.0) * 0.06, 0.0, 0.04); // gain poussé dans le noir : un peu plus de grain
+  col += (hash(vUv * uRes + fract(uTime) * 91.0) - 0.5) * (0.014 + gain + dg * 0.18);
+  col += band * dg * 0.05;
+  // parasites blancs : seulement quand l'entité est là
+  if (dg > 0.05 && hash(vec2(floor(vUv.x * 160.0), floor(vUv.y * 120.0) + floor(uTime * 20.0))) > 1.0 - dg * 0.004) col += 0.5;
 
   // vignette
-  col *= 1.0 - r2 * 1.35;
+  col *= 1.0 - r2 * 0.95;
   if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) col = vec3(0.0);
   gl_FragColor = vec4(col, 1.0);
 }`;
