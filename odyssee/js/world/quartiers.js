@@ -59,7 +59,7 @@ const THEMES = {
   cendre: { colline: 1, roche: true, reperes: ['auberge'], q: { carriere: 1 }, amp: 8 },
   ecaille: { colline: 1, reperes: ['auberge', 'mairie'], decor: ['phare'], q: { verger: 1 }, amp: 8 },
   cime: { colline: 2, roche: true, reperes: ['chapelle', 'auberge'], q: { zen: 1 }, amp: 9 },
-  plateau: { amp: 0 },
+  plateau: { amp: 9 },
   metro: { style: 'ville', reperes: ['gare', 'mairie'], q: {}, amp: 4 },
   lisiere: { colline: 1, roche: true, reperes: ['auberge', 'boulangerie'], decor: ['phare', 'cabanePecheur'], q: {}, amp: 8 },
   marais: { riviere: 'ew', reperes: ['auberge'], decor: ['cabanePecheur'], q: { etang: 2 }, amp: 12 },
@@ -201,7 +201,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   for (const x of xs) for (let y = Y + ib; y <= Y1 - ib; y++) {
     if (dansR(x, y) || dansR(x + RW - 1, y) || (y >= R.y0 - 1 && y <= R.y1 + 1 && x > R.x0 - 9 - RW && x < R.x1 + 9)) continue;
     const seg = 'v' + x + ',' + ys.filter((q) => q < y).length;
-    if (!saute.has(seg + '?')) { saute.add(seg + '?'); if (r() < 0.16) saute.add(seg); }
+    if (!saute.has(seg + '?')) { saute.add(seg + '?'); if (r() < (V.saute ?? 0.16)) saute.add(seg); }
     if (saute.has(seg)) continue;
     for (let i = 0; i < RW; i++) posee(x + i, y);
     if (ville && dans(x + 1, y) && dans(x + 2, y)) { asph.set(at(x + 1, y), 'e'); asph.set(at(x + 2, y), 'w'); }
@@ -209,7 +209,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   for (const y of ys) for (let x = X + ib; x <= X1 - ib; x++) {
     if (dansR(x, y) || dansR(x, y + RW - 1) || (x >= R.x0 - 1 && x <= R.x1 + 1 && y > R.y0 - 9 - RW && y < R.y1 + 9)) continue;
     const seg = 'h' + y + ',' + xs.filter((q) => q < x).length;
-    if (!saute.has(seg + '?')) { saute.add(seg + '?'); if (r() < 0.16) saute.add(seg); }
+    if (!saute.has(seg + '?')) { saute.add(seg + '?'); if (r() < (V.saute ?? 0.16)) saute.add(seg); }
     if (saute.has(seg)) continue;
     for (let i = 0; i < RW; i++) posee(x, y + i);
     if (ville && dans(x, y + 1) && dans(x, y + 2)) {

@@ -1236,6 +1236,15 @@ function tertre(W, pts, t, item, qty) {
 function chaine(W, towns) {
   const J = towns.J?.ville;
   if (J) for (let y = J.y; y < J.y + J.h; y++) for (let x = J.x; x < J.x + J.w; x++) W.setHeight(x, y, 4);
+  // le Plateau Céleste est un replat dans la roche : sa lisière d'arbres devient falaise (un à trois gradins au-dessus)
+  if (J) { const rim = [];
+    for (let y = J.y; y < J.y + J.h; y++) for (let x = J.x; x < J.x + J.w; x++) {
+      const t = W.get(x, y); if (!(t === T.TREE || t === T.PINE)) continue;
+      const bord = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => walkable(W.get(x + a, y + b)));
+      if (bord && r2(x, y) < 0.35) continue;   // quelques arbres au pied des falaises
+      W.set(x, y, T.CAVEWALL); W.setHeight(x, y, 4); rim.push([x, y]);
+    }
+    rochesHautes(W, rim); }
   const dedans = (x, y) => CHAINE.some(([c0, r0, c1, r1]) => x >= c0 * BLOC && y >= r0 * BLOC && x < (c1 + 1) * BLOC && y < (r1 + 1) * BLOC);
   // (une case de marge autour du plan : le pied se mesure aussi depuis ses bords extérieurs)
   const X0 = Math.min(...CHAINE.map((q) => q[0])) * BLOC - 1, Y0 = Math.max(0, Math.min(...CHAINE.map((q) => q[1])) * BLOC - 1);
@@ -1243,6 +1252,9 @@ function chaine(W, towns) {
   const w = X1 - X0 + 1, h = Y1 - Y0 + 1, at = (x, y) => (y - Y0) * w + (x - X0);
   const foret = (x, y) => { const t = W.get(x, y); return (t === T.TREE || t === T.PINE) && !(W.monts && W.monts[y * W.w + x]) && W.height(x, y) === 0; };
   // 1. le pied : la forêt monte à l'assaut des pentes en dents de scie ; les vallées boisées (pins) entre les crêtes
+  // un relief sans cercles : bruit lu dans des coordonnées déformées (domain warping) et étirées le long des crêtes
+  const dx = (x, y) => 22 * (bruit(x, y, 29, 61) - 0.5) + 8 * (bruit(x, y, 11, 63) - 0.5), dy = (x, y) => 22 * (bruit(x, y, 29, 62) - 0.5) + 8 * (bruit(x, y, 11, 64) - 0.5);
+  const U = (x, y) => (x + dx(x, y)) * 0.55 + (y + dy(x, y)) * 0.32, V = (x, y) => (y + dy(x, y)) * 1.15 - (x + dx(x, y)) * 0.42;
   const roc = new Uint8Array(w * h), pins = [];
   const lisiere = new Float32Array(w * h).fill(1e9);
   for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) if (!dedans(x, y)) lisiere[at(x, y)] = 0;
@@ -1254,7 +1266,7 @@ function chaine(W, towns) {
     const pied = 3 + 40 * Math.max(0, bruit(x, y, 37, 13) - 0.35) + 10 * bruit(x, y, 13, 15) + 4 * bruit(x, y, 6, 14);
     if (lisiere[at(x, y)] < pied) { if (r2(x, y) < 0.6) W.set(x, y, T.PINE); continue; }
     // vallées : de longs couloirs boisés entre les crêtes (cols), où dorment des lacs d'altitude
-    const val = Math.abs(2 * bruit(x, y, 38, 41) - 1), large = 0.02 + 0.2 * bruit(x, y, 17, 43) * (1 - bruit(x, y, 70, 44));
+    const u = U(x, y), v = V(x, y), val = Math.abs(2 * bruit(u, v, 24, 41) - 1), large = 0.015 + 0.16 * bruit(x, y, 17, 43) * (1 - bruit(x, y, 70, 44));
     if (val < large) { W.set(x, y, T.PINE); pins.push([x, y]); continue; }
     roc[at(x, y)] = 1;
   }
@@ -1267,7 +1279,7 @@ function chaine(W, towns) {
   const cells = [];
   for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) {
     const p = at(x, y); if (!roc[p]) continue;
-    const crete = 1 - Math.abs(2 * bruit(x, y, 44, 7) - 1), masse = bruit(x, y, 95, 8), detail = bruit(x, y, 9, 9);
+    const u = U(x, y), v = V(x, y), crete = 1 - Math.abs(2 * bruit(u, v, 30, 7) - 1), masse = bruit(u, v, 80, 8), detail = bruit(x + dx(x, y), y, 7, 9);
     const cible = 1.5 + crete * 5 + masse * 3.5 + detail * 1.6;
     const H = Math.max(1, Math.min(10, Math.floor(d[p] * 0.55) + 1, Math.floor(cible)));
     W.set(x, y, T.CAVEWALL); W.setHeight(x, y, H); cells.push([x, y]);
