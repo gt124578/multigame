@@ -840,13 +840,19 @@ function rectPlage(r1, c1, r2, c2) {
     const va = i1 < fige ? a : Math.max(a - s, F);
     let vb = i2 < fige ? b : b - s;
     if (i1 < fige && i2 >= fige) vb = Math.max(vb, F);
-    return [va + s, Math.max(vb, va) + s];
+    // Début de la plage passé sous les en-têtes (ou les volets figés) : ce bord-là ne se dessine pas,
+    // sinon il glisserait avec le défilement comme s'il suivait l'écran
+    return [va + s, Math.max(vb, va) + s, i1 >= fige && a - s < F];
   };
-  const [x1, x2] = axe(C1, C2, xCols, nbColonnes, z.c, z.FW, conteneur.scrollLeft);
-  const [y1, y2] = axe(R1, R2, yLigs, nbLignes, z.r, z.FH, conteneur.scrollTop);
-  return { left: LARGEUR_ENTETE + x1, top: HAUTEUR_DEFAUT + y1, width: x2 - x1, height: y2 - y1 };
+  const [x1, x2, coupeG] = axe(C1, C2, xCols, nbColonnes, z.c, z.FW, conteneur.scrollLeft);
+  const [y1, y2, coupeH] = axe(R1, R2, yLigs, nbLignes, z.r, z.FH, conteneur.scrollTop);
+  return { left: LARGEUR_ENTETE + x1, top: HAUTEUR_DEFAUT + y1, width: x2 - x1, height: y2 - y1, coupeG, coupeH };
 }
-function poser(el, rect) { el.style.left = rect.left + 'px'; el.style.top = rect.top + 'px'; el.style.width = rect.width + 'px'; el.style.height = rect.height + 'px'; el.style.visibility = rect.width > 0 && rect.height > 0 ? '' : 'hidden'; }
+function poser(el, rect) {
+  el.style.left = rect.left + 'px'; el.style.top = rect.top + 'px'; el.style.width = rect.width + 'px'; el.style.height = rect.height + 'px';
+  el.style.visibility = rect.width > 0 && rect.height > 0 ? '' : 'hidden';
+  el.classList.toggle('coupe-haut', !!rect.coupeH); el.classList.toggle('coupe-gauche', !!rect.coupeG);
+}
 
 function positionnerSelection() {
   { const s0 = (feuille().get(curseur.r, curseur.c) || {}).s || {}; const pol = $('police'), tai = $('taille-police'); if (document.activeElement !== pol) pol.value = s0.police && [...pol.options].some((o) => o.value === s0.police) ? s0.police : ''; if (document.activeElement !== tai) { const t = String(Math.round((s0.taille || 13) * 0.75)); if ([...tai.options].some((o) => o.value === String(s0.taille || 13) || o.textContent === t)) tai.value = [...tai.options].find((o) => o.textContent === t)?.value ?? tai.value; } }

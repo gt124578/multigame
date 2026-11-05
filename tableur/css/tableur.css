@@ -606,3 +606,6 @@ button.lien { border: none; background: none; padding: 0; color: var(--accent); 
 textarea.colore { color: transparent !important; background: transparent !important; caret-color: var(--texte); }
 #saisie-formule.colore { position: relative; z-index: 1; }
 textarea.colore::selection { color: transparent; background: rgba(37, 99, 235, .25); }
+/* Cadre (sélection, références colorées, copie…) dont le début est caché sous les en-têtes : pas de bord à cet endroit */
+.coupe-haut { border-top-color: transparent !important; }
+.coupe-gauche { border-left-color: transparent !important; }
