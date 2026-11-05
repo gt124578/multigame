@@ -11,7 +11,7 @@ import { sorteCase, K as SORTE } from './solgen.js';
 import { WeatherSystem } from './weather3d.js';
 import { choisirModele, geometriesModele, couleurBase, EMPRISES } from './bati-jeu.js';
 import { dessinHerbe, imageHerbe, NIMAGES, MARGE as HERBE_M, HAUTEUR as HERBE_H } from './herbes.js';
-import { Relief3D, relief3dActif, matParoi, matFacettes, facettesActives, LV as R3LV } from './relief3d.js';
+import { Relief3D, relief3dActif, matParoi, matFacettes, facettesActives, matPente, matsPente, LV as R3LV } from './relief3d.js';
 import { setRelief3dSol } from './solgen.js';
 
 export const EL = 55 * Math.PI / 180, FOV = 13;
@@ -961,6 +961,8 @@ export class WorldView {
       // parois de la couche du dessus (texture vue de la caméra), dessinées juste après le sol généré
       const bw = m.ext ? CH : Math.min(CH, m.w - x0), bh = m.ext ? CH : Math.min(CH, m.h - y0), pg = bw > 0 && bh > 0 ? r3d.geoParois(ci, cj, bw, bh) : null;
       if (pg) { const me = new THREE.Mesh(pg, matParoi()); me.renderOrder = -1; me.frustumCulled = false; grp.add(me); }
+      const gp = bw > 0 && bh > 0 && /[?&]r3tuiles/.test(location.search) ? r3d.geoPentes(ci, cj, bw, bh) : null;   // essai : tuiles simples
+      for (const [k, g] of Object.entries(gp || {})) { const me = new THREE.Mesh(g, matPente(k)); me.renderOrder = -1; me.frustumCulled = false; grp.add(me); if (!this.tinted.includes(me.material)) this.tinted.push(me.material); }
       const fg = pg && facettesActives() ? r3d.geoFacettes(ci, cj, bw, bh) : null;
       if (fg) { const me = new THREE.Mesh(fg, matFacettes()); me.frustumCulled = false; grp.add(me); }
     }

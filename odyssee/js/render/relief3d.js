@@ -26,6 +26,16 @@ let MAT_FAC = null;
 export function matFacettes() { return MAT_FAC || (MAT_FAC = new THREE.MeshBasicMaterial({ vertexColors: true })); }
 export const modePente = () => params().get('r3pente') !== '0';   // par défaut : vraies pentes là où le relief est doux
 const penteRoche = () => params().get('r3proche') !== '0';   // les montagnes de roche (hors neige, canyon, volcan) aussi
+// tuiles inclinées des pentes : texture répétée, plaquée selon la vraie longueur de la pente (pas d'étirement)
+const TUILES_PENTE = { herbe: 'grass0', foret: 'forest0', automne: 'leaves0', roche: 'cave0' };
+const MATS_PENTE = new Map();
+export function matPente(k) {
+  if (MATS_PENTE.has(k)) return MATS_PENTE.get(k);
+  const t = new THREE.TextureLoader().load(new URL('../../img/sol32/' + TUILES_PENTE[k] + '.png', import.meta.url).href);
+  t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.MeshBasicMaterial({ map: t, vertexColors: true }); MATS_PENTE.set(k, m); return m;
+}
+export const matsPente = () => [...MATS_PENTE.values()];
 export function relief3dActif() { return params().has('relief3d'); }
 const num = (k, d) => { const v = params().get(k); return v == null || v === '' || isNaN(+v) ? d : +v; };
 
@@ -506,6 +516,36 @@ export class Relief3D {
       for (let j = 0; j <= RN && ok; j++) for (let i = 0; i <= RN; i++) { const v = ((cy * RN + j) * nx) + cx * RN + i; if (Math.abs(pos[v * 3 + 1] - h0) > 1e-5 || pied[v] < 99 || nrm[v * 3 + 1] < 0.9999) { ok = false; break; } }
       plate[cy * bw + cx] = ok ? 1 : 0;
     }
+    // quarts de case en pente : leurs sommets sont doublés, avec une texture déroulée selon la longueur réelle de la pente
+    // (le sol généré continue sur l'hypoténuse : 1,46 case de motif sur un étage, au lieu d'une case étirée)
+    const deroule = !/[?&]r3etire/.test(globalThis.location?.search || '');
+    const kq = (i, j) => (j + P) * b.N + i + P;
+    // pas dans les montagnes : le motif déroulé déborderait sur le sentier d'à côté (le sol généré y change d'une case à l'autre)
+    const enMont = (i, j) => { const x = b.x0 + Math.floor(i / RN), z = b.z0 + Math.floor(j / RN); return this.base.in(x, z) && (mont(this.base, x, z) || mont(this.base, x, z + 1) || mont(this.base, x, z - 1)); };
+    const pq = (i, j) => deroule && !enMont(i, j) && (D.raide[kq(i, j)] || D.raide[kq(i + 1, j)] || D.raide[kq(i, j + 1)] || D.raide[kq(i + 1, j + 1)]);
+    const XP = [], XU = [], XN = [], XPi = [], XF = [], xidx = [];
+    let nv = nx * nz;
+    if (deroule) for (let i = 0; i < nx - 1; i++) {
+      let j = 0;
+      while (j < nz - 1) {
+        if (!pq(i, j)) { j++; continue; }
+        let j1 = j; while (j1 + 1 < nz - 1 && pq(i, j1 + 1)) j1++;
+        // distance parcourue sur la pente (moyenne des deux bords de la bande), de la rangée j à j1 + 1
+        let sacc = 0; const sv = [0];
+        for (let jj = j; jj <= j1; jj++) {
+          const d = (vv) => Math.hypot(pos[(vv + nx) * 3 + 1] - pos[vv * 3 + 1], pos[(vv + nx) * 3 + 2] - pos[vv * 3 + 2]);
+          sacc += (d(jj * nx + i) + d(jj * nx + i + 1)) / 2; sv.push(sacc);
+        }
+        const base = nv;
+        for (let r = 0; r <= j1 + 1 - j; r++) for (const ii of [i, i + 1]) {
+          const v = (j + r) * nx + ii;
+          XP.push(pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]); XN.push(nrm[v * 3], nrm[v * 3 + 1], nrm[v * 3 + 2]); XPi.push(pied[v]); XF.push(fr[v]);
+          XU.push(uv[v * 2], Math.min(1, (j + sv[r] * RN) / (nz - 1))); nv++;
+        }
+        for (let r = 0; r <= j1 - j; r++) { const a = base + r * 2, c = a + 2; xidx.push(c, c + 1, a + 1, c, a + 1, a); }
+        j = j1 + 1;
+      }
+    }
     for (let cy = 0; cy < bh; cy++) for (let cx = 0; cx < bw;) {
       if (plate[cy * bw + cx]) {
         const h0 = pos[((cy * RN) * nx + cx * RN) * 3 + 1];
@@ -514,17 +554,20 @@ export class Relief3D {
         idx.push(a, bb, c, a, c, d); cx = ex; continue;
       }
       for (let j = cy * RN; j < (cy + 1) * RN; j++) for (let i = cx * RN; i < (cx + 1) * RN; i++) {
+        if (pq(i, j)) continue;   // quart en pente : dessiné avec ses propres sommets (texture déroulée)
         const d = j * nx + i, c = d + 1, a = d + nx, bb = a + 1;   // a = sud-ouest, bb = sud-est, c = nord-est, d = nord-ouest
         idx.push(a, bb, c, a, c, d);
       }
       cx++;
     }
+    const cat = (A, X) => { const o = new Float32Array(A.length + X.length); o.set(A); o.set(X, A.length); return o; };
+    idx.push(...xidx);
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-    g.setAttribute('nrm', new THREE.BufferAttribute(nrm, 3));
-    g.setAttribute('pied', new THREE.BufferAttribute(pied, 1));
-    g.setAttribute('fr', new THREE.BufferAttribute(fr, 1));
+    g.setAttribute('position', new THREE.BufferAttribute(cat(pos, XP), 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(cat(uv, XU), 2));
+    g.setAttribute('nrm', new THREE.BufferAttribute(cat(nrm, XN), 3));
+    g.setAttribute('pied', new THREE.BufferAttribute(cat(pied, XPi), 1));
+    g.setAttribute('fr', new THREE.BufferAttribute(cat(fr, XF), 1));
     g.setIndex(idx); g.computeBoundingSphere();
     return g;
   }
@@ -637,6 +680,60 @@ export class Relief3D {
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     g.computeBoundingSphere();
     return g;
+  }
+
+  /** tuiles inclinées sur les pentes (cases en pente) : texture répétée plaquée selon la longueur réelle de la pente
+   *  (u : le long de x, v : distance parcourue sur la pente depuis son haut), donc 1,46 tuile sur l'hypoténuse d'un
+   *  étage au lieu d'une tuile étirée, quel que soit l'angle ; ombre en paliers, claire en haut, sombre au pied.
+   *  Renvoie { sorte: géométrie } */
+  geoPentes(ci, cj, bw, bh) {
+    if (!modePente()) return null;
+    const b = this.bloc(ci, cj), D = this.details(ci, cj), N = b.N, e = 1 / RN;
+    const lots = {};
+    const sorteDe = (p) => !p.levre ? 'roche' : p.levre === LEVRE.foret ? 'foret' : p.levre === LEVRE.automne ? 'automne' : 'herbe';
+    const cache = new Map();
+    for (let i = 0; i < bw * RN; i++) {
+      // le long de la colonne : suites de sommets raides, distance cumulée sur la pente depuis le haut
+      let j = 0;
+      while (j < bh * RN) {
+        const k = (j + P) * N + i + P;
+        if (!D.raide[k] && !D.raide[k + 1]) { j++; continue; }
+        let j1 = j; while (j1 + 1 < bh * RN && (D.raide[(j1 + 1 + P) * N + i + P] || D.raide[(j1 + 1 + P) * N + i + 1 + P])) j1++;
+        const ja = Math.max(0, j - 1), jb = Math.min(bh * RN, j1 + 1);
+        const pos = (jj, ii) => { const kk = (jj + P) * N + ii + P; return [b.x0 + ii * e, b.h[kk], b.z0 + jj * e]; };
+        // distance cumulée (milieu de la bande de deux colonnes)
+        const sv = [0];
+        for (let jj = ja + 1; jj <= jb; jj++) {
+          const a0 = pos(jj - 1, i), a1 = pos(jj, i), c0 = pos(jj - 1, i + 1), c1 = pos(jj, i + 1);
+          const d = (Math.hypot(a1[1] - a0[1], a1[2] - a0[2]) + Math.hypot(c1[1] - c0[1], c1[2] - c0[2])) / 2;
+          sv.push(sv[sv.length - 1] + d);
+        }
+        const tot = sv[sv.length - 1] || 1;
+        for (let jj = ja; jj < jb; jj++) {
+          const cx = b.x0 + Math.floor(i / RN), cz = b.z0 + Math.floor(jj / RN), ck = cx + ',' + cz;
+          let p = cache.get(ck); if (!p) { p = this.paroiDe(cx, cz); cache.set(ck, p); }
+          if (!this.enPente(p, cx, cz)) continue;
+          const kind = sorteDe(p), L = lots[kind] || (lots[kind] = { pos: [], uv: [], col: [] });
+          const fr = (sv[jj - ja] + sv[jj - ja + 1]) / 2 / tot, bay = hash(b.x0 * RN + i, b.z0 * RN + jj, 3) * 0.12;
+          const q = (fr + bay) < 0.12 ? 1.1 : (fr + bay) < 0.35 ? 0.95 : (fr + bay) < 0.6 ? 0.82 : (fr + bay) < 0.85 ? 0.7 : 0.6;
+          const v0 = pos(jj, i), v1 = pos(jj, i + 1), v2 = pos(jj + 1, i + 1), v3 = pos(jj + 1, i);
+          const u0 = b.x0 + i * e, u1 = u0 + e, s0 = -(cz + sv[jj - ja]), s1 = -(cz + sv[jj - ja + 1]);
+          const quad = [[v3, u0, s1], [v2, u1, s1], [v1, u1, s0], [v3, u0, s1], [v1, u1, s0], [v0, u0, s0]];   // sens du sol (vu d'en haut)
+          for (const [v, u, w] of quad) { L.pos.push(v[0], v[1] + 0.002, v[2]); L.uv.push(u, w); L.col.push(q, q, q); }
+        }
+        j = j1 + 1;
+      }
+    }
+    const out = {};
+    for (const [k, L] of Object.entries(lots)) {
+      if (!L.pos.length) continue;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(L.pos, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(L.uv, 2));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(L.col, 3));
+      g.computeBoundingSphere(); out[k] = g;
+    }
+    return out;
   }
 
 }
