@@ -53,7 +53,8 @@ const PENTE_DOUCE_MAX = 1.6;            // … entre deux replats où l'on march
 const WD = 0.16 * LV;                // l'eau est un peu plus basse que la berge
 const RAVIN = -3.2 * LV;             // fond d'un ravin
 const FOND_RAVIN = num('r3fond', 9);   // profondeur (niveaux) où la paroi d'un ravin a plongé dans le noir
-const DOUX = 1.5;                    // largeur (cases) d'une pente douce entre deux replats d'un niveau d'écart
+const LISSE = num('r3lisse', 0), LISSE_K = num('r3lk2', 1);
+const DOUX = num('r3doux', 1.5);      // largeur (cases) d'une pente douce entre deux replats d'un niveau d'écart
 const ROC = num('r3roc', 0.42);   // largeur de la paroi d'un gradin de roche abrupt (neige, canyon, volcan)
 const ROC_PENTE = num('r3rocp', 0.95);   // … d'un gradin de roche en pente (montagnes ordinaires)
 const GAMMA_STRATES = num('r3g', 1.8);   // > 1 : strates espacées en haut, serrées vers le pied (perspective)
@@ -156,7 +157,58 @@ float r3Palier(vec3 n, float bay) {
   return f < 0.45 ? 0.68 : f < 0.72 ? 0.78 : f < 0.92 ? 0.89 : f < 1.06 ? 1.0 : 1.1;
 }
 // fond des ravins : la roche s'assombrit avec la profondeur
+float r3Hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 float r3Fond(float y) { return clamp(1.0 + y / ${(-RAVIN * 0.95).toFixed(4)}, 0.0, 1.0); }`;
+
+/* ESSAIS (?r3tal=lum,arete,pied,frange,courbes,hachures,sec,terre,tout) : comment faire lire un talus d'herbe comme une pente.
+ *  Chaque mot ajoute un indice ; tout se calcule dans le pixel, d'après la facette (normale du triangle) et la hauteur. */
+const TAL = new Set((params().get('r3tal') || '').split(',').filter(Boolean));
+const tal = (k) => TAL.has(k) || (TAL.has('tout') && !['hachures', 'courbes2', 'lumface', 'gris', 'facette', 'courbes', 'terre'].includes(k));
+function glslTalus() {
+  if (!TAL.size) return '';
+  const K = num('r3lk', 2.4).toFixed(3), LZ = num('r3lz', -0.35).toFixed(3), LX = num('r3lx', -0.5).toFixed(3);
+  return `
+  ${tal('gris') ? 'diffuseColor.rgb = vec3(0.45, 0.66, 0.36);' : ''}
+  if (vRoc < 0.5) {
+    vec3 fn = normalize(cross(dFdx(vP), dFdy(vP))); if (fn.y < 0.0) fn = -fn;
+    vec3 ns = normalize(vNrm);
+    float pt = length(ns.xz) / max(ns.y, 0.05);
+    if (pt > 0.12) {
+      float th = fract(vY / ${LV.toFixed(5)} + 0.0004);
+      vec2 dn = normalize(ns.xz);
+      bool cote = abs(dn.x) > abs(dn.y);
+      vec2 px = floor(vTx);
+      float col = cote ? px.y : px.x;
+      float along = cote ? vTx.y : vTx.x;
+      q = 1.0;
+      ${tal('lum') || tal('lumface') ? `{
+        vec3 Ls = normalize(vec3(${LX}, 1.0, ${tal('lumface') ? '0.45' : LZ}));
+        vec3 nl = ${tal('facette') ? 'fn' : 'normalize(vNrm)'};
+        float f = 1.0 + ${K} * (dot(nl, Ls) / Ls.y - 1.0);
+        q = 0.58 + 0.105 * floor(clamp((f - 0.58) / 0.105 + bay - 0.5, 0.0, 6.0));
+      }` : ''}
+      ${tal('sec') ? 'diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.1, 1.04, 0.7), clamp(pt * 0.9, 0.0, 0.55));' : ''}
+      ${tal('terre') ? `if (th > 0.62 && r3Hash(floor(px / 3.0)) > 0.8 - (th - 0.62) * 0.6) diffuseColor.rgb = r3Hash(px) > 0.5 ? vec3(0.56, 0.4, 0.24) : vec3(0.47, 0.32, 0.19);` : ''}
+      ${tal('courbes') || tal('courbes2') ? `{
+        float N = ${tal('courbes2') ? '5.0' : '3.0'}, c = fract(vY / (${LV.toFixed(5)} / N) + 0.5);
+        float keep = r3Hash(vec2(floor(along / 7.0), floor(vY / (${LV.toFixed(5)} / N) + 0.5)));
+        if (keep > 0.22) { if (c < 0.09) q *= 0.74; else if (c < 0.17) q *= 1.12; }
+      }` : ''}
+      ${tal('hachures') ? `{
+        float a = dot(vTx, vec2(-dn.y, dn.x));
+        float lane = floor(a / 3.0), r = r3Hash(vec2(lane, 7.0));
+        if (mod(floor(a), 3.0) < 1.0 && fract(th * 2.0 + r) < 0.55) q *= 0.8;
+      }` : ''}
+      ${tal('arete') ? 'if (th > 0.9) q *= 1.18; else if (th > 0.84 && bay > 0.5) q *= 1.08;' : ''}
+      ${tal('pied') ? 'if (th < 0.05) q *= 0.6; else if (th < 0.13) q *= 0.76; else if (th < 0.2 && bay > 0.5) q *= 0.88;' : ''}
+      ${tal('frange') ? `{
+        float tooth = 0.07 + 0.2 * r3Hash(vec2(floor(col / 2.0), 3.0)) + 0.06 * r3Hash(vec2(floor(col / 5.0), 9.0));
+        if (th > 1.0 - tooth) q = ${tal('lum') ? 'max(q, 1.0)' : '1.0'};
+        else if (th > 1.0 - tooth - 0.045) q *= 0.6;
+      }` : ''}
+    }
+  }`;
+}
 
 /** sol généré posé sur le relief : paliers d'ombre selon la pente, herbe plus sombre au pied des parois */
 export function matSol(mat, w, h) {
@@ -183,10 +235,11 @@ export function matSol(mat, w, h) {
           float t = vFr + (bay - 0.5) * 0.18;
           q = t < 0.08 ? 1.14 : t < 0.28 ? 0.96 : t < 0.5 ? 0.8 : t < 0.72 ? 0.66 : 0.52;
         }` : ''}
-        if (vPied < 22.0 && (1.0 - vPied / 22.0) * 1.25 > bay) q *= vPied < 6.0 ? 0.66 : 0.8;
+        ${glslTalus()}
+        ${tal('nopied') ? '' : 'if (vPied < 22.0 && (1.0 - vPied / 22.0) * 1.25 > bay) q *= vPied < 6.0 ? 0.66 : 0.8;'}
         diffuseColor.rgb *= q * r3Fond(vY);`);
   };
-  mat.customProgramCacheKey = () => 'r3sol' + (modePente() ? 'p' : '');
+  mat.customProgramCacheKey = () => 'r3sol' + (modePente() ? 'p' : '') + [...TAL].join('');
   return mat;
 }
 let MAT_PAROI = null;
@@ -428,6 +481,10 @@ export class Relief3D {
   /** hauteur d'un sommet (px, pz) : celle du replat qui le contient, sinon interpolée entre les replats voisins */
   sommet(px, pz) {
     const cx = Math.floor(px), cz = Math.floor(pz);
+    // ESSAI (?r3lisse=R) : talus d'herbe lissés — la hauteur est la moyenne des niveaux des cases sous un carré de côté 2R
+    // centré sur le sommet (flou en boîte) : replats plats, rampe droite avec une arête nette en haut et en bas, et un
+    // contour arrondi au lieu des marches d'escalier de la grille ; r3lk2 > 1 resserre la rampe sans perdre l'arrondi
+    if (LISSE > 0) { const h = this.sommetLisse(px, pz); if (h != null) return h; }
     // un ravin a des parois verticales : un sommet sur son bord appartient à la case d'à côté, et le fond du ravin ne
     // compte pas dans les pentes autour (seuls les sommets tout entiers dans le ravin sont au fond)
     const xs = px - cx < 1e-6 ? [cx - 1, cx] : [cx], zs = pz - cz < 1e-6 ? [cz - 1, cz] : [cz];
@@ -463,6 +520,26 @@ export class Relief3D {
     return s / sw;
   }
 
+  /** hauteur lissée (flou en boîte des niveaux) si toutes les cases sous le carré sont de l'herbe ou un talus d'herbe */
+  sommetLisse(px, pz) {
+    const R = LISSE, b = this.base;
+    const x0 = Math.floor(px - R), x1 = Math.floor(px + R - 1e-9), z0 = Math.floor(pz - R), z1 = Math.floor(pz + R - 1e-9);
+    let s = 0, lo = Infinity, hi = -Infinity;
+    for (let y = z0; y <= z1; y++) for (let x = x0; x <= x1; x++) {
+      const i = this.cell(x, y), so = this.sorte[i];
+      const herbe = so === W || so === TR || (so === C && b.in(x, y) && b.pentes && b.pentes[y * b.w + x]);
+      if (!herbe || this.abrupt(x, y)) return null;
+      const L = this.niv[i];
+      const ax = Math.max(0, Math.min(x + 1, px + R) - Math.max(x, px - R)), az = Math.max(0, Math.min(y + 1, pz + R) - Math.max(y, pz - R));
+      s += ax * az * L; if (ax * az > 1e-9) { lo = Math.min(lo, L); hi = Math.max(hi, L); }
+    }
+    let h = s / (4 * R * R);
+    if (hi - lo < 1e-6) return h;
+    // la rampe resserrée autour du milieu de chaque marche de niveau (les replats restent plats)
+    const K = LISSE_K * (this.varAngleLisse ? this.varAngleLisse(px, pz) : 1);
+    const n = Math.floor((h - lo) / LV + 1e-6), f = (h - lo) / LV - n;
+    return lo + LV * (n + Math.max(0, Math.min(1, (f - 0.5) * K + 0.5)));
+  }
   /** hauteurs d'un bloc (sommets de la case ci·16 − P/4 à … , (16·RN + 1 + 2P)²), gardées */
   bloc(ci, cj) {
     const k = ci + ',' + cj; let b = this.blocs.get(k);

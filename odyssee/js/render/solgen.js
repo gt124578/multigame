@@ -107,7 +107,16 @@ export function zoneBloc(m, ci, cj, CH = 16) {
   if (RELIEF3D && m.outdoor) {
     for (let y = MARGIN - 1; y < MARGIN + bh && !roche; y++) for (let x = MARGIN; x < MARGIN + bw; x++) { const k = kinds[y * zw + x]; if (k === K.MR || k === K.MT) { roche = ROCHE_PLUS; break; } }
   }
-  return { kinds, zw, zh, zx0, zy0, bw, bh, rel, roche };
+  // ESSAI (?relief3d&r3calme) : les grandes taches d'herbe s'effacent près des talus (la lumière du relief s'y lit seule)
+  let calme = null;
+  if (RELIEF3D && m.outdoor && m.hg && typeof location !== 'undefined' && /[?&]r3calme/.test(location.search)) {
+    calme = new Uint8Array(zw * zh); const R = 2;
+    for (let y = 0; y < zh; y++) for (let x = 0; x < zw; x++) {
+      let lo = 99, hi = -99; for (let b = -R; b <= R; b++) for (let a = -R; a <= R; a++) { const h = m.height(zx0 + x + a, zy0 + y + b); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+      calme[y * zw + x] = hi > lo ? 1 : 0;
+    }
+  }
+  return { kinds, zw, zh, zx0, zy0, bw, bh, rel, roche, calme };
 }
 /** cases de roche ajoutées sous le bloc dans la bande de roche (le motif déroulé d'une pente descend plus bas que la case) */
 export const ROCHE_PLUS = 4;
@@ -437,12 +446,20 @@ function brins(cap) {
   };
 }
 
-function herbe(Z, img, mask, block, foret = null) {
+function herbe(Z, img, mask, block, foret = null, calme = null) {
   const s = Z.s, c = Z.c, Wd = Z.W;
   const light = Z.field(120, s + 1), patch = Z.field(30, s + 2), colony = Z.field(70, s + 3, 2);
   const lv = new Uint8Array(Z.N);
   // forêt : l'herbe y est plus sombre d'un ton (bord tramé, voir foretMasque)
-  for (let i = 0; i < Z.N; i++) { lv[i] = digitize(0.65 * light[i] + 0.35 * patch[i], [0.42, 0.58]) + 2 - (foret && foret[i] ? 1 : 0); if (mask[i]) img[i] = G[lv[i] + 1]; }
+  const cw = Z.cw, ch = Z.ch, cc = Z.c, cal = (i) => {   // poids « calme » lissé (interpolé entre les centres des cases)
+    const fx = Math.max(0, Math.min(cw - 1.001, (i % Wd) / cc - 0.5)), fy = Math.max(0, Math.min(ch - 1.001, ((i / Wd) | 0) / cc - 0.5));
+    const x = fx | 0, y = fy | 0, tx = fx - x, ty = fy - y, at = (a, b) => calme[Math.min(ch - 1, b) * cw + Math.min(cw - 1, a)];
+    return (at(x, y) * (1 - tx) + at(x + 1, y) * tx) * (1 - ty) + (at(x, y + 1) * (1 - tx) + at(x + 1, y + 1) * tx) * ty; };
+  for (let i = 0; i < Z.N; i++) {
+    let v = 0.65 * light[i] + 0.35 * patch[i];
+    if (calme) { const w = cal(i); if (w > 0) v = v + (0.5 - v) * Math.min(1, w * 1.3); }
+    lv[i] = digitize(v, [0.42, 0.58]) + 2 - (foret && foret[i] ? 1 : 0); if (mask[i]) img[i] = G[lv[i] + 1];
+  }
   // brins : tirés case par case, puis dessinés de haut en bas (tri par pixel, l'ordre du tirage départage) ; les cases
   // sans herbe sont sautées (rien n'y serait dessiné)
   const fl = [], nb = Math.floor(c * c / 5.5), occ = occupees(Z, mask);
@@ -1169,7 +1186,7 @@ function marchesTalus(Z, img, rel) {
  */
 /** style des talus d'herbe (propositions) : actuel, hgss, terre, roche, douce */
 let STYLE_TALUS = 'actuel';
-export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = null, rel = null, talus: styleTalus = null }) {
+export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = null, rel = null, talus: styleTalus = null, calme = null }) {
   STYLE_TALUS = styleTalus || globalThis.TALUS_STYLE || 'actuel';
   const Z = new Zone(kinds, zw, zh, zx0, zy0, seed), c = CELL;
   const img = new Uint8Array(Z.N).fill(TRANSPARENT);
@@ -1202,7 +1219,7 @@ export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = n
   let lv = null;
   if (!cave) {
     const grass = new Uint8Array(Z.N); for (let i = 0; i < Z.N; i++) grass[i] = hard[i] | path[i] | (mont ? mont[i] : 0) ? 0 : 1;
-    lv = herbe(Z, img, grass, water, foret);
+    lv = herbe(Z, img, grass, water, foret, calme);
     if (mont) grotte(Z, img, andNot(mont, or(path, hard)), caveRamp('montagne'), K.MR);
     let fondAll = new Uint8Array(Z.N);
     for (const [k, mk] of fonds) {
