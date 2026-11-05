@@ -68,7 +68,17 @@ export class GameMap {
     }
   }
   zone(x0, y0, x1, y1, o) { this.zones.push({ x0, y0, x1, y1, ...o }); }
-  zoneAt(x, y) { for (let i = this.zones.length - 1; i >= 0; i--) { const z = this.zones[i]; if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) return z; } return null; }
+  /** la zone d'une case (la dernière posée l'emporte). Index par carreaux de 32 cases, refait quand la liste change :
+   *  la grande carte compte des centaines de zones et le rendu interroge chaque case */
+  zoneAt(x, y) {
+    const Z = this.zones;
+    if (!this.in(x, y)) { for (let i = Z.length - 1; i >= 0; i--) { const z = Z[i]; if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) return z; } return null; }
+    let I = this._zi;
+    if (!I || I.z !== Z || I.n !== Z.length) I = this._zi = indexZones(Z, this.w, this.h);
+    const c = I.cells[(y >> 5) * I.cw + (x >> 5)];
+    if (c) for (let k = c.length - 1; k >= 0; k--) { const z = Z[c[k]]; if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) return z; }
+    return null;
+  }
   warp(x, y, to) { this.warps.set(key(x, y), to); }
   warpAt(x, y) { return this.warps.get(key(x, y)); }
   sign(x, y, text, kind = 'sign') { this.under.set(key(x, y), this.get(x, y)); this.set(x, y, T.SIGN); this.signs.set(key(x, y), text); this.deco.push({ k: kind === 'sign' ? 'sign' : kind, x, y }); }
@@ -104,7 +114,17 @@ export class GameMap {
   }
 
   npc(o) { const n = { dir: 'down', move: 'static', sprite: 'youngster', ...o }; this.npcs.push(n); return n; }
-  item(x, y, item, qty = 1, id) { this.items.push({ x, y, item, qty, id: id || `${this.id}:${x},${y}` }); }
+  item(x, y, item, qty = 1, id) {
+    // objets posés avant le grand remaniement de la carte : chacun garde son ancien identifiant (les sauvegardes notent les
+    // objets ramassés par identifiant). La file `anciensObjets` les donne dans l'ordre où ils sont posés ; un objet sans
+    // identifiant qui ne correspond pas arrête tout (tout nouvel objet doit recevoir un identifiant fixe)
+    if (!id && this.anciensObjets?.length) {
+      const [oid, quoi] = this.anciensObjets.shift();
+      if (quoi !== item) throw new Error(`objet sans identifiant (${item} en ${x},${y}) : on attendait ${quoi} (${oid}). Donne un identifiant fixe aux nouveaux objets.`);
+      id = oid;
+    }
+    this.items.push({ x, y, item, qty, id: id || `${this.id}:${x},${y}` });
+  }
 
   /** remplace l'herbe proche de l'eau par du sable */
   beaches(radius = 1) {
@@ -143,6 +163,16 @@ export class GameMap {
     }
     return seen;
   }
+}
+
+/** index des zones par carreaux de 32 cases (indices dans l'ordre de la liste) */
+function indexZones(Z, w, h) {
+  const cw = Math.ceil(w / 32), ch = Math.ceil(h / 32), cells = new Array(cw * ch);
+  Z.forEach((z, i) => {
+    const a = Math.max(0, z.x0 >> 5), b = Math.max(0, z.y0 >> 5), c = Math.min(cw - 1, Math.max(0, z.x1) >> 5), d = Math.min(ch - 1, Math.max(0, z.y1) >> 5);
+    for (let y = b; y <= d; y++) for (let x = a; x <= c; x++) (cells[y * cw + x] ||= []).push(i);
+  });
+  return { z: Z, n: Z.length, cw, cells };
 }
 
 /* ======================================================================
