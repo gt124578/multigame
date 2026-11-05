@@ -102,7 +102,29 @@ export function zoneBloc(m, ci, cj, CH = 16) {
     for (let y = 0; y < zh; y++) for (let x = 0; x < zw; x++) { const v = reliefCase(m, zx0 + x, zy0 + y); rel[y * zw + x] = v; if (v & REL.HERBE) any = true; }
     if (!any) rel = null;
   }
-  return { kinds, zw, zh, zx0, zy0, bw, bh, rel };
+  // relief en 3D : bande de roche en plus (cases sous le bloc) pour dérouler le motif des pentes de roche (rendreRoche)
+  let roche = 0;
+  if (RELIEF3D && m.outdoor) {
+    for (let y = MARGIN - 1; y < MARGIN + bh && !roche; y++) for (let x = MARGIN; x < MARGIN + bw; x++) { const k = kinds[y * zw + x]; if (k === K.MR || k === K.MT) { roche = ROCHE_PLUS; break; } }
+  }
+  return { kinds, zw, zh, zx0, zy0, bw, bh, rel, roche };
+}
+/** cases de roche ajoutées sous le bloc dans la bande de roche (le motif déroulé d'une pente descend plus bas que la case) */
+export const ROCHE_PLUS = 4;
+/**
+ * PROTOTYPE (?relief3d) : la roche des montagnes seule, sans sentier ni herbe, sur la largeur du bloc et bh + roche cases
+ * de haut, au même endroit du monde que le bloc (mêmes bruits : le motif est celui du sol de roche, pixel pour pixel).
+ * Les pentes de roche y lisent leur motif déroulé sur la vraie longueur de la pente (relief3d.js, geoSol) : il continue
+ * la roche du replat d'au-dessus, sans jamais aller lire le sentier de la case d'à côté. Pas de flaques sur une pente.
+ */
+export function rendreRoche({ kinds: kz, zw, zx0, zy0, bw, bh, seed = 7, roche = ROCHE_PLUS }) {
+  const ch = bh + roche, kinds = new Uint8Array(bw * ch).fill(K.MT);
+  const Z = new Zone(kinds, bw, ch, zx0 + MARGIN, zy0 + MARGIN, seed);
+  // seulement là où une pente de roche peut lire son motif : sous une case de roche (au plus roche + 1 cases plus bas)
+  const estR = (cx, cy) => { const k = kz[(cy + MARGIN) * zw + cx + MARGIN]; return k === K.MR || k === K.MT; };
+  const img = new Uint8Array(Z.N), mask = Z.pxC((cx, cy) => { for (let r = Math.max(-1, cy - roche - 1); r <= Math.min(bh - 1, cy); r++) if (estR(cx, r)) return true; return false; });
+  grotte(Z, img, mask, caveRamp('montagne'), K.MR, false);
+  return img;
 }
 
 /* ------------------------------------------------------------------ palette ------------------------------------------ */
@@ -730,7 +752,7 @@ function feuilles(Z, img, mask) {
     const sx = ox + 1, sy = oy + (vert ? 3 : 2); if (sx < Wd && sy < Z.H && mask[sy * Wd + sx] && hash2(X, Y, s + 7) < 0.6) img[sy * Wd + sx] = AG[1];
   }
 }
-function grotte(Z, img, mask, C, roche = K.CW) {
+function grotte(Z, img, mask, C, roche = K.CW, flaques = true) {
   const s = Z.s, Wd = Z.W;
   const t1 = Z.field(50, s + 80), t2 = Z.field(12, s + 81, 3, mask), plate = Z.field(20, s + 82);
   const cr = Z.field(26, s + 84, 3, mask), crz = Z.field(60, s + 89, 2), pf = Z.field(22, s + 85, 2);
@@ -745,7 +767,7 @@ function grotte(Z, img, mask, C, roche = K.CW) {
     const g = hash2(X, Y, s + 83);
     if (g < 0.025) o = C[0]; else if (g > 0.98) o = C[4];
     if (Math.abs(cr[i] - 0.5) < 0.008 && crz[i] > 0.55) o = C[0];           // fissures
-    if (pf[i] > 0.9) pud[i] = 1;                                            // petites flaques
+    if (flaques && pf[i] > 0.9) pud[i] = 1;                                 // petites flaques
     img[i] = o;
   }
   if (anyOf(pud)) {
