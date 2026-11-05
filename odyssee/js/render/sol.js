@@ -29,7 +29,7 @@ function actif() {
   } catch (e) { return true; }
 }
 const graine = (id) => { let h = 7; for (const ch of String(id)) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0; return (h >>> 0) % 100000; };
-function remplir(data, idx) { const u = new Uint32Array(data.buffer); for (let i = 0; i < idx.length; i++) u[i] = LUT[idx[i]]; }
+function remplir(data, idx) { const u = new Uint32Array(data.buffer, data.byteOffset, idx.length); for (let i = 0; i < idx.length; i++) u[i] = LUT[idx[i]]; }
 const memes = (a, b) => { if (!a || !b || a.length !== b.length) return false; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; };
 /** l'image d'un bloc vaut-elle encore pour ces cases ? (sortes des cases, et relief des plateaux d'herbe) */
 const pareil = (c, z) => memes(c.kinds, z.kinds) && (!c.rel && !z.rel ? true : memes(c.rel, z.rel));
@@ -66,7 +66,7 @@ export class Sol {
   lire(k) { const c = this.cache.get(k); if (c) { this.cache.delete(k); this.cache.set(k, c); } return c; }
   ranger(k, c) {
     const old = this.cache.get(k); if (old) { this.octets -= old.octets; this.cache.delete(k); }
-    c.octets = c.frames.length * c.frames[0].length; this.cache.set(k, c); this.octets += c.octets;
+    c.octets = c.frames.length * c.frames[0].length + (c.roche ? c.roche.length : 0); this.cache.set(k, c); this.octets += c.octets;
     for (const [k2, c2] of this.cache) { if (this.octets <= BUDGET) break; if (k2 === k) continue; this.cache.delete(k2); this.octets -= c2.octets; }
   }
 
@@ -150,7 +150,7 @@ export class Sol {
   recu(w, d) {
     w.libre = true; w.cle = null; this.enCours.delete(d.key);
     if (d.error) { console.warn('[sol]', d.key, d.error); this.pump(); return; }
-    const c = { frames: d.frames, bw: d.bw, bh: d.bh, kinds: d.kinds, rel: d.rel || null };
+    const c = { frames: d.frames, bw: d.bw, bh: d.bh, kinds: d.kinds, rel: d.rel || null, roche: d.roche || null, rocheH: d.rocheH || 0 };
     this.ranger(d.key, c);
     const grp = this.groups.get(d.key);
     if (grp && grp.parent) {
@@ -172,22 +172,24 @@ export class Sol {
     const grp = this.groups.get(key); if (!grp) return;
     if (grp.userData.sol?.d === d) return;
     this.liberer(grp);
-    const [ci, cj] = bloc(key), w = d.bw * CELL, h = d.bh * CELL;
+    const [ci, cj] = bloc(key), w = d.bw * CELL, r3d = this.view.r3d;
+    // relief en 3D : la bande de roche (pentes de roche déroulées, relief3d.js) est rangée sous l'image du bloc
+    const roche = r3d && d.roche ? d.roche : null, h = d.bh * CELL + (roche ? d.rocheH * CELL : 0);
     const data = new Uint8Array(w * h * 4);
     const f = d.frames.length > 1 ? this.frame % d.frames.length : 0;
     remplir(data, d.frames[f]);
+    if (roche) remplir(data.subarray(w * d.bh * CELL * 4), roche);
     const tex = new THREE.DataTexture(data, w, h, THREE.RGBAFormat);
     tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
     tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
     // dessiné juste après l'ancien sol (ordre -3) et avant tout le reste, sans écrire la profondeur : rien ne se bat avec lui
     // relief en 3D (?relief3d, relief3d.js) : le sol est un maillage posé sur les hauteurs, il écrit la profondeur
-    const r3d = this.view.r3d;
     const mat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, depthTest: !!r3d, depthWrite: !!r3d });
     if (r3d) matSol(mat, w, h);
     mat.userData.sol = true; mat.userData.own = true; mat.color.copy(this.view.tint); this.view.tinted.push(mat);
     const x0 = ci * CH, z0 = cj * CH, x1 = x0 + d.bw, z1 = z0 + d.bh;
     let geo;
-    if (r3d) geo = r3d.geoSol(ci, cj, d.bw, d.bh);
+    if (r3d) geo = r3d.geoSol(ci, cj, d.bw, d.bh, roche ? d.rocheH : 0);
     else {
       geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute([x0, Y, z0, x1, Y, z0, x1, Y, z1, x0, Y, z1], 3));

@@ -172,7 +172,9 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   Prototype de sol en vrai relief, seulement avec `?relief3d` dans l'adresse (`odyssee/js/render/relief3d.js`) : hauteurs
   fines (4 × 4 sommets par case) tirées des niveaux du jeu, sol généré posé dessus, parois striées plaquées comme vues de la
   caméra, projection orthographique calée sur les pixels ; réglages `r3k` (hauteur d'un niveau), `r3t` (seuil des parois),
-  `r3ville` / `r3levee` (ville surélevée de démonstration, Sylvebourg), `r3persp` (garder la perspective). Sans le paramètre,
+  `r3ville` / `r3levee` (ville surélevée de démonstration, Sylvebourg), `r3persp` (garder la perspective). Pentes de roche des
+  montagnes déroulées dans une bande de roche générée avec le sol (`rendreRoche` de `solgen.js`, rangée sous l'image du bloc),
+  ombrées gradin par gradin ; ravins à parois verticales (`geoRavin`, `r3fond` : profondeur du fondu au noir). Sans le paramètre,
   rien ne change.
 - Island Rush (battle royale, `royale/`) : l'île vient d'une graine (`royale/engine/map.js`, île officielle `ILE`), `royale/carte.html`
   la montre en 2D. `node tools/test-royale.mjs` vérifie l'île sur plusieurs graines, le déplacement (portes, escaliers, murs, nage),

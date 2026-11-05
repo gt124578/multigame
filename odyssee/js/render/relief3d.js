@@ -13,6 +13,10 @@
 //     caméra (u = x, v = position à l'écran) : un pixel de texture = un pixel d'écran, sans étirement, quelle que soit la
 //     pente (la « texture déformée » du joueur). Lèvre d'herbe et arête claire en haut, pied sombre en bas.
 //  4. Ombrage par paliers nets (lumière en haut à gauche), tramé sur la grille des pixels de texture.
+//  5. Pentes déroulées : sur une pente, le motif suit la vraie longueur de l'hypoténuse (v = z + le « reste »). Pentes de
+//     roche des montagnes : le motif se lit dans une bande de roche seule, générée avec le sol (rendreRoche de solgen.js),
+//     jamais dans le sentier d'à côté ; chaque gradin a son arête claire et son pied sombre (selon la hauteur dans le niveau).
+//  6. Ravins : parois verticales (geoRavin) du bord jusqu'au fond, la roche plonge dans le noir ; facettes en volume.
 import * as THREE from 'three';
 import { T } from '../world/tiles.js';
 import { ravin, mont, pente } from '../world/relief.js';
@@ -48,6 +52,7 @@ const PENTE_PAROI = num('r3t', 0.75);   // pente (dy / dx) au-delà de laquelle 
 const PENTE_DOUCE_MAX = 1.6;            // … entre deux replats où l'on marche (pelouse, chemin) : bien plus raide
 const WD = 0.16 * LV;                // l'eau est un peu plus basse que la berge
 const RAVIN = -3.2 * LV;             // fond d'un ravin
+const FOND_RAVIN = num('r3fond', 3);   // profondeur (niveaux) où la paroi d'un ravin a plongé dans le noir
 const DOUX = 1.5;                    // largeur (cases) d'une pente douce entre deux replats d'un niveau d'écart
 const ROC = num('r3roc', 0.42);   // largeur de la paroi d'un gradin de roche abrupt (neige, canyon, volcan)
 const ROC_PENTE = num('r3rocp', 0.95);   // … d'un gradin de roche en pente (montagnes ordinaires)
@@ -158,14 +163,22 @@ export function matSol(mat, w, h) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uTx = { value: new THREE.Vector2(w, h) };
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec3 nrm; attribute float pied; attribute float fr; varying vec3 vNrm; varying float vPied; varying float vY; varying vec2 vTx; varying float vFr; uniform vec2 uTx;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNrm = nrm; vPied = pied; vY = transformed.y; vTx = uv * uTx; vFr = fr;');
+      .replace('#include <common>', '#include <common>\nattribute vec3 nrm; attribute float pied; attribute float fr; attribute float roc; varying vec3 vNrm; varying float vPied; varying float vY; varying vec2 vTx; varying float vFr; varying float vRoc; varying vec3 vP; uniform vec2 uTx;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNrm = nrm; vPied = pied; vY = transformed.y; vTx = uv * uTx; vFr = fr; vRoc = roc; vP = transformed;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vNrm; varying float vPied; varying float vY; varying vec2 vTx; varying float vFr;' + GLSL_COMMUN)
+      .replace('#include <common>', '#include <common>\nvarying vec3 vNrm; varying float vPied; varying float vY; varying vec2 vTx; varying float vFr; varying float vRoc; varying vec3 vP;' + GLSL_COMMUN)
       .replace('#include <map_fragment>', `#include <map_fragment>
         float bay = r3Bayer(vTx);
         float q = r3Palier(vNrm, bay);
-        ${modePente() ? `if (vFr >= 0.0) {
+        ${modePente() ? `if (vRoc > 0.5) {
+          // gradins de roche : sur un pan en pente (normale du triangle), la position dans le niveau (hauteur) donne
+          // l'arête claire en haut, puis la roche fonce jusqu'au pli sombre du pied ; chaque niveau a son dégradé
+          vec3 fn = normalize(cross(dFdx(vP), dFdy(vP)));
+          if (abs(fn.y) < 0.97) {
+            float t = 1.0 - fract(vY / ${LV.toFixed(5)} - 0.02) + (bay - 0.5) * 0.12;
+            q = t < 0.07 ? 1.75 : t < 0.25 ? 1.3 : t < 0.45 ? 1.0 : t < 0.65 ? 0.76 : t < 0.86 ? 0.56 : 0.38;   // (lumière linéaire)
+          }
+        } else if (vFr >= 0.0) {
           // pente d'un étage : bord haut éclairé, puis l'herbe fonce jusqu'au pied, en paliers tramés
           float t = vFr + (bay - 0.5) * 0.18;
           q = t < 0.08 ? 1.14 : t < 0.28 ? 0.96 : t < 0.5 ? 0.8 : t < 0.72 ? 0.66 : 0.52;
@@ -184,10 +197,10 @@ export function matParoi() {
   const mat = new THREE.MeshBasicMaterial({ map: A.tex, side: THREE.FrontSide });
   mat.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec2 suv; attribute float tuile; attribute vec2 hb; attribute vec3 nrm; attribute vec4 levre;\nvarying vec2 vSuv; varying float vTuile; varying vec2 vHb; varying vec3 vNrm; varying vec4 vLevre; varying float vY;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSuv = suv; vTuile = tuile; vHb = hb; vNrm = nrm; vLevre = levre; vY = transformed.y;');
+      .replace('#include <common>', '#include <common>\nattribute vec2 suv; attribute float tuile; attribute vec2 hb; attribute vec3 nrm; attribute vec4 levre; attribute float fond;\nvarying vec2 vSuv; varying float vTuile; varying vec2 vHb; varying vec3 vNrm; varying vec4 vLevre; varying float vY; varying float vFond;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSuv = suv; vTuile = tuile; vHb = hb; vNrm = nrm; vLevre = levre; vY = transformed.y; vFond = fond;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec2 vSuv; varying float vTuile; varying vec2 vHb; varying vec3 vNrm; varying vec4 vLevre; varying float vY;' + GLSL_COMMUN)
+      .replace('#include <common>', '#include <common>\nvarying vec2 vSuv; varying float vTuile; varying vec2 vHb; varying vec3 vNrm; varying vec4 vLevre; varying float vY; varying float vFond;' + GLSL_COMMUN)
       .replace('#include <map_fragment>', `
         if (vHb.x < 0.0 || vHb.y < 0.0) discard;
         // perspective : le haut de la paroi est plus près de la caméra que son pied, les stries s'y resserrent
@@ -221,6 +234,8 @@ export function matParoi() {
         // pied sombre
         if (vHb.y < 2.0) col *= 0.55; else if (vHb.y < 4.0 && bay < 0.6) col *= 0.75;
         float q = edge > 0.5 ? r3Palier(vNrm, bay) : 1.0;
+        // paroi d'un ravin : la roche plonge dans le noir, en paliers tramés (1 : tout au fond)
+        if (vFond > 0.001) q *= vFond >= 0.999 ? 0.0 : floor((1.0 - vFond) * 5.0 + bay * 0.999) / 5.0;
         diffuseColor.rgb *= col * q * r3Fond(vY);`);
   };
   mat.customProgramCacheKey = () => 'r3paroi';
@@ -294,6 +309,8 @@ export class Relief3D {
     if (b.in(cx, cz) && b.get(cx, cz) === T.BRIDGE && ravin(b, cx, cz)) return b.height(cx, cz) * LV + this.leveeVille(cx, cz);
     return this.H(x, z);
   }
+  /** le point (x, z) est-il au fond d'un ravin ? */
+  fondRavin(x, z) { return this.sorteDe(Math.floor(x), Math.floor(z)) === V; }
   /** le point (x, z) est-il sur une paroi (case de falaise, ou pente raide) ? */
   surParoi(x, z) { const s = this.sorteDe(Math.floor(x), Math.floor(z)); if (s === C) return true; const e = 0.25; return Math.hypot(this.H(x + e, z) - this.H(x - e, z), this.H(x, z + e) - this.H(x, z - e)) / (2 * e) > PENTE_DOUCE_MAX; }
   /** hauteur où poser un sprite (arbre, rocher) : sur une paroi, le haut de sa case (il se tient au bord du replat) */
@@ -353,7 +370,7 @@ export class Relief3D {
   bande(sh, sl, dir, dl, roc = ROC) {
     if (dl < 0.01 || LIBRE(sh) || LIBRE(sl)) return [0, 0];
     let a = 0, b = 0;
-    if (sl === V) b = 0.12;
+    if (sl === V) b = 0;   // bord d'un ravin : le replat va jusqu'au bord, la paroi verticale est à part (geoRavin)
     else if (sl === EAU) b = 0.22;
     else if (sh === EAU) a = 0.2;
     else if (sh === B) b = Math.min(0.98, DOUX * Math.min(1.5, dl));
@@ -368,12 +385,11 @@ export class Relief3D {
     }
     return [a, b];
   }
-  /** le relief de la case est-il abrupt (parois) : neige, canyon, désert, volcan, ou bord d'un ravin */
+  /** le relief de la case est-il abrupt (parois) : neige, canyon, désert, volcan (les ravins ont leurs parois à part,
+   *  verticales : geoRavin ; la roche qui les borde est en pente comme le reste de la montagne) */
   abrupt(x, y) {
-    const th = this.m.zoneAt?.(x, y)?.theme, b = this.base;
-    if (th === 'snow' || th === 'canyon' || th === 'desert' || th === 'volcanic') return true;
-    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (b.in(x + i, y + j) && ravin(b, x + i, y + j)) return true;
-    return false;
+    const th = this.m.zoneAt?.(x, y)?.theme;
+    return th === 'snow' || th === 'canyon' || th === 'desert' || th === 'volcanic';
   }
   largRoc(x, y) { return modePente() && penteRoche() && !this.abrupt(x, y) ? ROC_PENTE : ROC; }
   /** cette case se dessine-t-elle en vraie pente (true) ou avec une paroi (false) ? */
@@ -412,11 +428,17 @@ export class Relief3D {
   /** hauteur d'un sommet (px, pz) : celle du replat qui le contient, sinon interpolée entre les replats voisins */
   sommet(px, pz) {
     const cx = Math.floor(px), cz = Math.floor(pz);
+    // un ravin a des parois verticales : un sommet sur son bord appartient à la case d'à côté, et le fond du ravin ne
+    // compte pas dans les pentes autour (seuls les sommets tout entiers dans le ravin sont au fond)
+    const xs = px - cx < 1e-6 ? [cx - 1, cx] : [cx], zs = pz - cz < 1e-6 ? [cz - 1, cz] : [cz];
+    let toutV = true;
+    for (const y of zs) for (const x of xs) if (this.sorte[this.cell(x, y)] !== V) toutV = false;
+    if (toutV) return RAVIN;
     // cas courant : le sommet est dans le replat de toutes les cases qui le touchent
     {
-      const xs = px - cx < 1e-6 ? [cx - 1, cx] : [cx], zs = pz - cz < 1e-6 ? [cz - 1, cz] : [cz];
       let ok = true, Lm = -Infinity;
       for (const y of zs) for (const x of xs) {
+        if (this.sorte[this.cell(x, y)] === V) continue;
         const r = this.retraits(x, y); if (!r) { ok = false; break; }
         if (px < x + r[3] - 1e-6 || px > x + 1 - r[1] + 1e-6 || pz < y + r[0] - 1e-6 || pz > y + 1 - r[2] + 1e-6) { ok = false; break; }
         Lm = Math.max(Lm, this.niv[this.cell(x, y)]);
@@ -425,7 +447,7 @@ export class Relief3D {
     }
     let dedans = -Infinity; const lv = [], dv = [];
     for (let y = cz - 3; y <= cz + 3; y++) for (let x = cx - 3; x <= cx + 3; x++) {
-      const r = this.retraits(x, y); if (!r) continue;
+      const r = this.retraits(x, y); if (!r || this.sorte[this.cell(x, y)] === V) continue;
       const x0 = x + r[3], x1 = x + 1 - r[1], z0 = y + r[0], z1 = y + 1 - r[2];
       const dx = Math.max(x0 - px, 0, px - x1), dz = Math.max(z0 - pz, 0, pz - z1);
       const L = this.niv[this.cell(x, y)];
@@ -471,8 +493,10 @@ export class Relief3D {
     const { h, N } = b, n = N * N, e = 1 / RN;
     const gx = new Float32Array(n), gz = new Float32Array(n), raide = new Uint8Array(n), ecran = new Float32Array(n);
     const ht = new Float32Array(n).fill(-64), hbas = new Float32Array(n).fill(-64), pied = new Float32Array(n).fill(99);
+    // le fond d'un ravin et ce qui le borde sont séparés par une paroi verticale : la pente ne se calcule pas au travers
+    const fond = (q) => h[q] < RAVIN + 1e-3;
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-      const k = j * N + i, at = (a, c) => h[Math.max(0, Math.min(N - 1, c)) * N + Math.max(0, Math.min(N - 1, a))];
+      const k = j * N + i, f0 = fond(k), at = (a, c) => { const q = Math.max(0, Math.min(N - 1, c)) * N + Math.max(0, Math.min(N - 1, a)); return fond(q) !== f0 ? h[k] : h[q]; };
       gx[k] = (at(i + 1, j) - at(i - 1, j)) / (2 * e); gz[k] = (at(i, j + 1) - at(i, j - 1)) / (2 * e);
       const g = Math.hypot(gx[k], gz[k]);
       // une paroi : assez raide, et pas tournée vers le nord (ces versants-là restent du sol, vus de biais) ; entre deux
@@ -508,62 +532,91 @@ export class Relief3D {
     return b.det;
   }
 
-  /** maillage du sol généré d'un bloc (bw × bh cases) : position, uv (alignées sur les cases), normale, pied */
-  geoSol(ci, cj, bw, bh) {
+  /** maillage du sol généré d'un bloc (bw × bh cases) : position, uv (alignées sur les cases), normale, pied.
+   *  rocheH : cases de la bande de roche rangée sous l'image du bloc (sol.js, rendreRoche de solgen.js), 0 sans elle */
+  geoSol(ci, cj, bw, bh, rocheH = 0) {
     const b = this.bloc(ci, cj), D = this.details(ci, cj), nx = bw * RN + 1, nz = bh * RN + 1;
+    const TH = bh + rocheH;   // hauteur de l'image, en cases (le bloc, puis la bande de roche)
     const pos = new Float32Array(nx * nz * 3), uv = new Float32Array(nx * nz * 2), nrm = new Float32Array(nx * nz * 3), pied = new Float32Array(nx * nz), fr = new Float32Array(nx * nz).fill(-1);
     for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
       const v = j * nx + i, k = (j + P) * b.N + i + P;
       pos[v * 3] = b.x0 + i / RN; pos[v * 3 + 1] = b.h[k]; pos[v * 3 + 2] = b.z0 + j / RN;
-      uv[v * 2] = i / (nx - 1); uv[v * 2 + 1] = j / (nz - 1);
+      uv[v * 2] = i / (nx - 1); uv[v * 2 + 1] = j / RN / TH;
       const l = Math.hypot(D.gx[k], 1, D.gz[k]); nrm[v * 3] = -D.gx[k] / l; nrm[v * 3 + 1] = 1 / l; nrm[v * 3 + 2] = -D.gz[k] / l;
       pied[v] = D.pied[k];
       if (D.ht[k] > -64 && D.hbas[k] > -64) fr[v] = Math.max(0, Math.min(1, D.ht[k] / Math.max(1, D.ht[k] + D.hbas[k])));
     }
+    // fond des ravins : une case entière à plat, tout au fond (ses bords sont des parois verticales, geoRavin)
+    const vide = new Uint8Array(bw * bh);
+    for (let cy = 0; cy < bh; cy++) for (let cx = 0; cx < bw; cx++) vide[cy * bw + cx] = this.sorteDe(b.x0 + cx, b.z0 + cy) === V ? 1 : 0;
     // les cases plates (25 sommets à la même hauteur) sont fusionnées par rangées : deux triangles au lieu de 32 ; leurs
     // bords tombent sur des sommets de la même hauteur que les cases voisines (pas de fente)
     const idx = [], plate = new Uint8Array(bw * bh);
     for (let cy = 0; cy < bh; cy++) for (let cx = 0; cx < bw; cx++) {
+      if (vide[cy * bw + cx]) continue;
       const h0 = pos[((cy * RN) * nx + cx * RN) * 3 + 1]; let ok = true;
       for (let j = 0; j <= RN && ok; j++) for (let i = 0; i <= RN; i++) { const v = ((cy * RN + j) * nx) + cx * RN + i; if (Math.abs(pos[v * 3 + 1] - h0) > 1e-5 || pied[v] < 99 || nrm[v * 3 + 1] < 0.9999) { ok = false; break; } }
       plate[cy * bw + cx] = ok ? 1 : 0;
     }
     // quarts de case en pente : leurs sommets sont doublés, avec une texture déroulée selon la longueur réelle de la pente
-    // (le sol généré continue sur l'hypoténuse : 1,46 case de motif sur un étage, au lieu d'une case étirée)
+    // (le sol continue sur l'hypoténuse : 1,46 case de motif sur un étage, au lieu d'une case étirée). Le long de chaque
+    // colonne de sommets, ex = longueur parcourue sur la pente moins la longueur à plat (le « reste » de Pythagore), remis à
+    // zéro sur le plat : la texture se lit en v = z + ex, raccordée au replat d'en haut, la même pour deux bandes voisines.
     const deroule = !/[?&]r3etire/.test(globalThis.location?.search || '');
     const kq = (i, j) => (j + P) * b.N + i + P;
-    // pas dans les montagnes : le motif déroulé déborderait sur le sentier d'à côté (le sol généré y change d'une case à l'autre)
-    const enMont = (i, j) => { const x = b.x0 + Math.floor(i / RN), z = b.z0 + Math.floor(j / RN); return this.base.in(x, z) && (mont(this.base, x, z) || mont(this.base, x, z + 1) || mont(this.base, x, z - 1)); };
-    const pq = (i, j) => deroule && !enMont(i, j) && (D.raide[kq(i, j)] || D.raide[kq(i + 1, j)] || D.raide[kq(i, j + 1)] || D.raide[kq(i + 1, j + 1)]);
-    const XP = [], XU = [], XN = [], XPi = [], XF = [], xidx = [];
-    let nv = nx * nz;
-    if (deroule) for (let i = 0; i < nx - 1; i++) {
-      let j = 0;
-      while (j < nz - 1) {
-        if (!pq(i, j)) { j++; continue; }
-        let j1 = j; while (j1 + 1 < nz - 1 && pq(i, j1 + 1)) j1++;
-        // distance parcourue sur la pente (moyenne des deux bords de la bande), de la rangée j à j1 + 1
-        let sacc = 0; const sv = [0];
-        for (let jj = j; jj <= j1; jj++) {
-          const d = (vv) => Math.hypot(pos[(vv + nx) * 3 + 1] - pos[vv * 3 + 1], pos[(vv + nx) * 3 + 2] - pos[vv * 3 + 2]);
-          sacc += (d(jj * nx + i) + d(jj * nx + i + 1)) / 2; sv.push(sacc);
-        }
-        const base = nv;
-        for (let r = 0; r <= j1 + 1 - j; r++) for (const ii of [i, i + 1]) {
-          const v = (j + r) * nx + ii;
-          XP.push(pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]); XN.push(nrm[v * 3], nrm[v * 3 + 1], nrm[v * 3 + 2]); XPi.push(pied[v]); XF.push(fr[v]);
-          XU.push(uv[v * 2], Math.min(1, (j + sv[r] * RN) / (nz - 1))); nv++;
-        }
-        for (let r = 0; r <= j1 - j; r++) { const a = base + r * 2, c = a + 2; xidx.push(c, c + 1, a + 1, c, a + 1, a); }
-        j = j1 + 1;
+    const ex = new Float32Array(nx * nz);
+    if (deroule) for (let i = 0; i < nx; i++) {
+      // depuis la marge au nord du bloc : une pente qui commence dans le bloc d'au-dessus garde le même motif
+      let e = 0;
+      for (let j = -P + 1; j < nz; j++) {
+        const h1 = b.h[kq(i, j)], h0 = b.h[kq(i, j - 1)], dy = h1 - h0;
+        // remis à zéro sur le plat, et au bord d'un ravin (la paroi verticale n'est pas une pente du sol)
+        e = Math.abs(dy) < 1e-5 || h0 < RAVIN + 1e-3 || h1 < RAVIN + 1e-3 ? 0 : e + Math.hypot(1 / RN, dy) - 1 / RN;
+        if (j >= 0) ex[j * nx + i] = e;
       }
     }
+    // pentes de roche (montagnes) : le motif déroulé se lit dans la bande de roche (rien que de la roche, le même motif que
+    // le sol de roche du replat), jamais dans le sentier de la case d'à côté ; les autres pentes des montagnes restent étirées
+    const rocC = new Uint8Array(bw * bh);
+    for (let cy = 0; cy < bh; cy++) for (let cx = 0; cx < bw; cx++) {
+      const x = b.x0 + cx, z = b.z0 + cy, p = this.paroiDe(x, z);
+      const rp = !vide[cy * bw + cx] && !p.levre && this.enPente(p, x, z);
+      rocC[cy * bw + cx] = rp && rocheH > 0 ? 1 : rp ? 3 : this.base.in(x, z) && (mont(this.base, x, z) || mont(this.base, x, z + 1) || mont(this.base, x, z - 1)) ? 2 : 0;
+    }
+    // 1 : pente de roche ; 3 : pente de roche sans bande de roche ; 2 : autre case de montagne ; 0 : ailleurs
+    const roc = (i, j) => rocC[Math.floor(j / RN) * bw + Math.floor(i / RN)];
+    // un quart à plat (au pied ou en haut d'une pente) reste dessiné comme le sol d'à côté
+    const plat = (i, j) => { const h0 = b.h[kq(i, j)]; return Math.abs(b.h[kq(i + 1, j)] - h0) < 1e-5 && Math.abs(b.h[kq(i, j + 1)] - h0) < 1e-5 && Math.abs(b.h[kq(i + 1, j + 1)] - h0) < 1e-5; };
+    const pq = (i, j) => deroule && !vide[Math.floor(j / RN) * bw + Math.floor(i / RN)] && (D.raide[kq(i, j)] || D.raide[kq(i, j + 1)] || D.raide[kq(i + 1, j)] || D.raide[kq(i + 1, j + 1)]) && roc(i, j) < 2 && !plat(i, j);
+    const XP = [], XU = [], XN = [], XPi = [], XF = [], XR = [], xidx = [];
+    let nv = nx * nz;
+    const plus = (v, U, Vv, y = pos[v * 3 + 1]) => { XP.push(pos[v * 3], y, pos[v * 3 + 2]); XN.push(nrm[v * 3], nrm[v * 3 + 1], nrm[v * 3 + 2]); XPi.push(pied[v]); XF.push(fr[v]); XR.push(0); XU.push(U, Vv); return nv++; };
+    // sommets de la grille touchant une pente de roche : ombrés en gradins (matSol)
+    const rocG = new Float32Array(nx * nz);
+    if (modePente()) for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      for (const [di, dj] of [[0, 0], [-1, 0], [0, -1], [-1, -1]]) { const a = i + di, c = j + dj; if (a >= 0 && c >= 0 && a < nx - 1 && c < nz - 1 && (roc(a, c) & 1) && !vide[Math.floor(c / RN) * bw + Math.floor(a / RN)]) { rocG[j * nx + i] = 1; break; } }
+    }
+    for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {
+      if (!pq(i, j)) continue;
+      const r = roc(i, j) === 1, lim = r ? TH - 0.5 / 32 : bh;
+      const w = (v) => { const z = pos[v * 3 + 2] - b.z0 + ex[v]; return (r ? bh + Math.min(rocheH - 0.5 / 32, z) : Math.min(lim, z)) / TH; };
+      const d = j * nx + i, c = d + 1, a = d + nx, bb = a + 1;
+      const A = plus(a, uv[a * 2], w(a)), B = plus(bb, uv[bb * 2], w(bb)), C = plus(c, uv[c * 2], w(c)), Dd = plus(d, uv[d * 2], w(d));
+      if (r) for (const q of [A, B, C, Dd]) XR[q - nx * nz] = 1;
+      xidx.push(A, B, C, A, C, Dd);
+    }
     for (let cy = 0; cy < bh; cy++) for (let cx = 0; cx < bw;) {
+      if (vide[cy * bw + cx]) {
+        const d = cy * RN * nx + cx * RN, c = d + RN, a = d + RN * nx, bb = a + RN;
+        const A = plus(a, uv[a * 2], uv[a * 2 + 1], RAVIN), B = plus(bb, uv[bb * 2], uv[bb * 2 + 1], RAVIN), C = plus(c, uv[c * 2], uv[c * 2 + 1], RAVIN), Dd = plus(d, uv[d * 2], uv[d * 2 + 1], RAVIN);
+        for (const q of [A, B, C, Dd]) { XN[(q - nx * nz) * 3] = 0; XN[(q - nx * nz) * 3 + 1] = 1; XN[(q - nx * nz) * 3 + 2] = 0; XPi[q - nx * nz] = 99; XF[q - nx * nz] = -1; }
+        xidx.push(A, B, C, A, C, Dd); cx++; continue;
+      }
       if (plate[cy * bw + cx]) {
         const h0 = pos[((cy * RN) * nx + cx * RN) * 3 + 1];
-        let ex = cx + 1; while (ex < bw && plate[cy * bw + ex] && Math.abs(pos[((cy * RN) * nx + ex * RN) * 3 + 1] - h0) < 1e-5) ex++;
-        const d = cy * RN * nx + cx * RN, c = cy * RN * nx + ex * RN, a = d + RN * nx, bb = c + RN * nx;
-        idx.push(a, bb, c, a, c, d); cx = ex; continue;
+        let ex2 = cx + 1; while (ex2 < bw && plate[cy * bw + ex2] && Math.abs(pos[((cy * RN) * nx + ex2 * RN) * 3 + 1] - h0) < 1e-5) ex2++;
+        const d = cy * RN * nx + cx * RN, c = cy * RN * nx + ex2 * RN, a = d + RN * nx, bb = c + RN * nx;
+        idx.push(a, bb, c, a, c, d); cx = ex2; continue;
       }
       for (let j = cy * RN; j < (cy + 1) * RN; j++) for (let i = cx * RN; i < (cx + 1) * RN; i++) {
         if (pq(i, j)) continue;   // quart en pente : dessiné avec ses propres sommets (texture déroulée)
@@ -573,13 +626,14 @@ export class Relief3D {
       cx++;
     }
     const cat = (A, X) => { const o = new Float32Array(A.length + X.length); o.set(A); o.set(X, A.length); return o; };
-    idx.push(...xidx);
+    for (const q of xidx) idx.push(q);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(cat(pos, XP), 3));
     g.setAttribute('uv', new THREE.BufferAttribute(cat(uv, XU), 2));
     g.setAttribute('nrm', new THREE.BufferAttribute(cat(nrm, XN), 3));
     g.setAttribute('pied', new THREE.BufferAttribute(cat(pied, XPi), 1));
     g.setAttribute('fr', new THREE.BufferAttribute(cat(fr, XF), 1));
+    g.setAttribute('roc', new THREE.BufferAttribute(cat(rocG, XR), 1));
     g.setIndex(idx); g.computeBoundingSphere();
     return g;
   }
@@ -610,6 +664,7 @@ export class Relief3D {
       if (!ks.some((k) => D.ht[k] > -64)) continue;
       if (!ks.some((k) => D.ht[k] >= 0 && D.hbas[k] >= 0)) continue;
       const cx = b.x0 + Math.floor(i / RN), cz = b.z0 + Math.floor(j / RN), ck = cx + ',' + cz;
+      if (this.sorteDe(cx, cz) === V) continue;   // ravins : geoRavin
       let p = cache.get(ck); if (!p) { p = this.paroiDe(cx, cz); cache.set(ck, p); }
       if (this.enPente(p, cx, cz)) continue;
       const lc = p.levre ? rgb(p.levre).map((v) => (v / 255) ** 2.2) : [0, 0, 0];
@@ -635,6 +690,7 @@ export class Relief3D {
     g.setAttribute('hb', new THREE.Float32BufferAttribute(hb, 2));
     g.setAttribute('nrm', new THREE.Float32BufferAttribute(nrm, 3));
     g.setAttribute('levre', new THREE.Float32BufferAttribute(lev, 4));
+    g.setAttribute('fond', new THREE.Float32BufferAttribute(new Float32Array(n), 1));
     g.setIndex(idx); g.computeBoundingSphere();
     return g;
   }
@@ -670,6 +726,7 @@ export class Relief3D {
       const r1 = runs[i + 1].find((r) => Math.abs(r.j0 - r0.j0) <= 2 && Math.abs(r.j1 - r0.j1) <= 3);
       if (!r1) continue;
       const cx = b.x0 + Math.floor(i / RN), cz = b.z0 + Math.floor(Math.max(r0.j0, 0) / RN);
+      if (this.sorteDe(cx, cz + 1) === V) continue;   // ravins : geoRavin
       const pz = this.paroiDe(cx, cz + 1);
       if (pz.t >= MURS.length) continue;   // les marches gardent leur dessin
       if (this.enPente(pz, cx, cz + 1)) continue;
@@ -692,6 +749,110 @@ export class Relief3D {
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     g.computeBoundingSphere();
     return g;
+  }
+
+  /** parois des ravins d'un bloc : verticales (90°), du bord jusqu'au fond, là où une case qui n'est pas le ravin touche
+   *  une case du ravin. Paroi du fond (tournée vers la caméra, au nord du ravin) : roche striée vue de la caméra, qui
+   *  plonge dans le noir en paliers (FOND niveaux sous le bord), et facettes de roche en volume par-dessus ; côtés est et
+   *  ouest : la même roche (vus par la tranche avec la caméra orthographique, ils bouchent seulement les fentes).
+   *  Renvoie { paroi, facettes } (géométries, ou null) */
+  geoRavin(ci, cj, bw, bh) {
+    const b = this.bloc(ci, cj), N = b.N;
+    const pos = [], suv = [], tuile = [], hb = [], nrm = [], lev = [], fond = [], idx = []; let n = 0;
+    const fpos = [], fcol = [];
+    const hAt = (x, z) => { const i = Math.round((x - b.x0) * RN) + P, j = Math.round((z - b.z0) * RN) + P; return b.h[Math.max(0, Math.min(N - 1, j)) * N + Math.max(0, Math.min(N - 1, i))]; };
+    const ecr = (y, z) => (z - y / TAN) * 32;
+    const FD = FOND_RAVIN * LV;
+    // un quadrilatère de paroi (sommets [x, y, z, ht, hbas, fond]), tourné vers nW (vecteur voulu de sa normale)
+    const quad = (Q, t, nW) => {
+      const [a, c, d] = Q, ux = c[0] - a[0], uy = c[1] - a[1], uz = c[2] - a[2], vx = d[0] - a[0], vy = d[1] - a[1], vz = d[2] - a[2];
+      const cr = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx];
+      const ok = cr[0] * nW[0] + cr[1] * nW[1] + cr[2] * nW[2] > 0;
+      for (const q of Q) {
+        pos.push(q[0], q[1], q[2]); suv.push((nW[0] !== 0 ? q[2] : q[0]) * 32, ecr(q[1], q[2])); tuile.push(t);
+        hb.push(q[3], q[4]); nrm.push(nW[0], nW[1], nW[2]); lev.push(0, 0, 0, 0); fond.push(q[5]);
+      }
+      if (ok) idx.push(n, n + 1, n + 2, n, n + 2, n + 3); else idx.push(n, n + 2, n + 1, n, n + 3, n + 2);
+      n += 4;
+    };
+    // une bande verticale de paroi entre (x0, z0) et (x1, z1), hauts y0 et y1 : partie en roche (FD sous le bord), puis noire
+    const bande = (x0, z0, y0, x1, z1, y1, t, nW) => {
+      const m0 = Math.max(RAVIN, y0 - FD), m1 = Math.max(RAVIN, y1 - FD);
+      const e0 = ecr(y0, z0), e1 = ecr(y1, z1), f0 = ecr(y0 - FD, z0), f1 = ecr(y1 - FD, z1);
+      const sv = (x, y, z, eT, eB, yT) => [x, y, z, ecr(y, z) - eT, eB - ecr(y, z), Math.min(1, (yT - y) / FD)];
+      // ordre : haut-gauche, haut-droite, bas-droite, bas-gauche
+      quad([sv(x0, y0, z0, e0, f0, y0), sv(x1, y1, z1, e1, f1, y1), sv(x1, m1, z1, e1, f1, y1), sv(x0, m0, z0, e0, f0, y0)], t, nW);
+      if (m0 > RAVIN + 1e-4 || m1 > RAVIN + 1e-4) quad([[x0, m0, z0, 99, 99, 1], [x1, m1, z1, 99, 99, 1], [x1, RAVIN, z1, 99, 99, 1], [x0, RAVIN, z0, 99, 99, 1]], t, nW);
+    };
+    const Lgt = new THREE.Vector3(-0.55, 0.75, 0.45).normalize();
+    const tri = (A, C, Dv, pal, haut, yT) => {
+      const nn = new THREE.Vector3().subVectors(C, A).cross(new THREE.Vector3().subVectors(Dv, A)).normalize();
+      if (nn.z < 0) { nn.negate(); [C, Dv] = [Dv, C]; }
+      const f = nn.dot(Lgt), lv = f > 0.62 ? 5 : f > 0.42 ? 4 : f > 0.2 ? 3 : f > 0.0 ? 2 : 1;
+      const lvl = Math.max(0, Math.min(4, lv - (haut ? 0 : 2)));
+      // plongée dans le noir : même palier que la paroi derrière (au centre du triangle)
+      const fd = Math.min(1, (yT - (A.y + C.y + Dv.y) / 3) / FD), k = fd >= 0.999 ? 0 : Math.floor((1 - fd) * 5 + 0.5) / 5;
+      const cc = rgb(pal[lvl]).map((v) => ((v / 255) ** 2.2) * k);
+      for (const v of [A, C, Dv]) { fpos.push(v.x, v.y, v.z); fcol.push(...cc); }
+    };
+    const pals = new Map();
+    for (let cz = b.z0; cz < b.z0 + bh; cz++) for (let cx = b.x0; cx < b.x0 + bw; cx++) {
+      if (this.sorteDe(cx, cz) !== V) continue;
+      let t = pals.get(cx + ',' + cz); if (t == null) { t = this.paroiDe(cx, cz).t; pals.set(cx + ',' + cz, t); }
+      const pal = PALS[MURS[t]] || PALS.montagne;
+      // paroi du fond : la case au nord n'est pas le ravin
+      if (this.sorteDe(cx, cz - 1) !== V) {
+        for (let i = 0; i < RN; i++) {
+          const xa = cx + i / RN, xb = xa + 1 / RN;
+          bande(xa, cz, hAt(xa, cz), xb, cz, hAt(xb, cz), t, [0, 0, 1]);
+        }
+        // facettes : des colonnes de roche d'un quart ou d'une demi-case, chacune un prisme en dents de scie qui part du
+        // bord et descend plus ou moins loin dans le noir (bas irrégulier)
+        for (let i = 0; i < RN;) {
+          const rnd = (q) => hash(cx * RN + i, cz, 977 + q);
+          const w = i < RN - 1 && rnd(0) < 0.4 ? 2 : 1;
+          const xa = cx + i / RN, xb = cx + (i + w) / RN, ya = hAt(xa, cz), yb = hAt(xb, cz), yT = (ya + yb) / 2;
+          const hh = FD * (0.55 + rnd(1) * 0.4), y0a = ya - 0.08 * LV, y0b = yb - 0.08 * LV;
+          const T0 = new THREE.Vector3(xa, y0a, cz), T1 = new THREE.Vector3(xb, y0b, cz);
+          const B0 = new THREE.Vector3(xa, Math.max(RAVIN, y0a - hh * (0.85 + rnd(2) * 0.3)), cz), B1 = new THREE.Vector3(xb, Math.max(RAVIN, y0b - hh * (0.85 + rnd(3) * 0.3)), cz);
+          const tr = 0.3 + rnd(4) * 0.4, dep = (0.06 + rnd(5) * 0.1) * w;
+          const Tm = T0.clone().lerp(T1, tr), Bm = B0.clone().lerp(B1, tr);
+          Tm.z += dep * 0.4; Bm.z += dep * 0.3; Bm.y -= hh * 0.12 * rnd(6);   // la pointe du bas descend un peu plus
+          const mid = (A, C, e, k) => { const m = A.clone().lerp(C, k); m.z += e; return m; };
+          const kM = 0.3 + rnd(7) * 0.2, M0 = mid(T0, B0, dep * 0.6, kM), M1 = mid(T1, B1, dep * 0.6, kM), Mm = mid(Tm, Bm, dep * 1.3, kM);
+          for (const [A, C, Dv, E, haut] of [[T0, Tm, Mm, M0, 1], [Tm, T1, M1, Mm, 1], [M0, Mm, Bm, B0, 0], [Mm, M1, B1, Bm, 0]]) { tri(A, C, Dv, pal, haut, yT); tri(A, Dv, E, pal, haut, yT); }
+          i += w;
+        }
+      }
+      // côtés : la case à l'ouest ou à l'est n'est pas le ravin
+      for (const [dx, xw, nx] of [[-1, cx, 1], [1, cx + 1, -1]]) {
+        if (this.sorteDe(cx + dx, cz) === V) continue;
+        for (let j = 0; j < RN; j++) {
+          const za = cz + j / RN, zb = za + 1 / RN;
+          bande(xw, za, hAt(xw, za), xw, zb, hAt(xw, zb), t, [nx, 0, 0]);
+        }
+      }
+    }
+    let paroi = null, facettes = null;
+    if (n) {
+      paroi = new THREE.BufferGeometry();
+      paroi.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      paroi.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2), 2));
+      paroi.setAttribute('suv', new THREE.Float32BufferAttribute(suv, 2));
+      paroi.setAttribute('tuile', new THREE.Float32BufferAttribute(tuile, 1));
+      paroi.setAttribute('hb', new THREE.Float32BufferAttribute(hb, 2));
+      paroi.setAttribute('nrm', new THREE.Float32BufferAttribute(nrm, 3));
+      paroi.setAttribute('levre', new THREE.Float32BufferAttribute(lev, 4));
+      paroi.setAttribute('fond', new THREE.Float32BufferAttribute(fond, 1));
+      paroi.setIndex(idx); paroi.computeBoundingSphere();
+    }
+    if (fpos.length && facettesActives()) {
+      facettes = new THREE.BufferGeometry();
+      facettes.setAttribute('position', new THREE.Float32BufferAttribute(fpos, 3));
+      facettes.setAttribute('color', new THREE.Float32BufferAttribute(fcol, 3));
+      facettes.computeBoundingSphere();
+    }
+    return paroi || facettes ? { paroi, facettes } : null;
   }
 
   /** tuiles inclinées sur les pentes (cases en pente) : texture répétée plaquée selon la longueur réelle de la pente
