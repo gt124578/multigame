@@ -1257,7 +1257,7 @@ function chaine(W, towns) {
     roc[at(x, y)] = 1;
   }
   // 2. la roche : la distance au pied (dans la roche) et des crêtes (bruit en arêtes) donnent la hauteur ; gradins serrés
-  //    près du pied, sommets qui culminent à dix niveaux, neige au-dessus du septième
+  //    près du pied, sommets qui culminent à dix niveaux, neige vers le huitième
   const d = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) d[i] = roc[i] ? 1e9 : 0;
   for (let y = Y0 + 1; y <= Y1; y++) for (let x = X0 + 1; x < X1; x++) { const p = at(x, y); if (d[p]) d[p] = Math.min(d[p], d[p - 1] + 1, d[p - w] + 1, d[p - w - 1] + 1.41, d[p - w + 1] + 1.41); }
@@ -1271,9 +1271,9 @@ function chaine(W, towns) {
     W.set(x, y, T.CAVEWALL); W.setHeight(x, y, H); cells.push([x, y]);
   }
   rochesHautes(W, cells);
-  // 3. la neige des sommets : au-dessus du septième niveau (la limite des neiges ondule), la roche devient glace (W.neige)
+  // 3. la neige des sommets : au-dessus du huitième niveau (la limite des neiges ondule), la roche devient glace (W.neige)
   if (!W.neige) W.neige = new Uint8Array(W.w * W.h);
-  for (const [x, y] of cells) if (W.height(x, y) >= 7 - Math.round(bruit(x, y, 13, 51) * 2)) W.neige[y * W.w + x] = 1;
+  for (const [x, y] of cells) if (W.height(x, y) >= 8 - Math.round(bruit(x, y, 13, 51) * 1.4)) W.neige[y * W.w + x] = 1;
   // 4. des lacs d'altitude au creux des vallées
   const R0 = rng(4141);
   for (let k = 0, fait = 0; k < 300 && fait < 9; k++) {
