@@ -281,3 +281,38 @@ export function renommerModuleProjet(classeur, ancien, nouveau) {
   for (const o of objetsAMacro(classeur)) { const r = ref(o.macro); if (r) { o.macro = r; objets++; } }
   return { nom: n, appels, objets };
 }
+
+/**
+ * Function du projet utilisables dans une formule, avec le nom de leurs arguments :
+ * [{ nom, params: ['x', 'n', '[techRate]'], module, cle, ligne, prive }] (entre crochets : Optional).
+ */
+export function fonctionsDuProjet(classeur) {
+  const out = [];
+  for (const m of classeur.modulesVBA()) {
+    const lignes = String(m.code || '').replace(/\r\n?/g, '\n').split('\n');
+    for (const p of listerProcedures(m.code)) {
+      if (p.genre !== 'Function') continue;
+      // Déclaration complète, lignes continuées par « _ » comprises
+      let decl = '', i = p.ligne - 1;
+      do { decl += ' ' + lignes[i].replace(/\s_\s*$/, ''); } while (/\s_\s*$/.test(lignes[i]) && ++i < lignes.length);
+      const a = decl.indexOf('('), params = [];
+      if (a >= 0) {
+        let prof = 0, j = a, morceau = '';
+        for (j = a + 1; j < decl.length; j++) {
+          const ch = decl[j];
+          if (ch === '(') prof++;
+          if (ch === ')') { if (!prof) break; prof--; }
+          if (ch === ',' && !prof) { params.push(morceau); morceau = ''; } else morceau += ch;
+        }
+        if (morceau.trim()) params.push(morceau);
+      }
+      const noms = params.map((x) => {
+        const opt = /^\s*Optional\b/i.test(x) || /\bParamArray\b/i.test(x);
+        const n = x.replace(/\b(Optional|ByVal|ByRef|ParamArray)\b/gi, '').replace(/\bAs\b[\s\S]*$/i, '').replace(/=[\s\S]*$/, '').replace(/[()]/g, '').trim();
+        return opt ? '[' + n + ']' : n;
+      }).filter(Boolean);
+      out.push({ nom: p.nom, params: noms, module: m.nom, libelle: m.libelle, cle: m.cle, ligne: p.ligne, prive: p.prive, genreModule: m.genre });
+    }
+  }
+  return out;
+}

@@ -14,6 +14,7 @@ export class ErreurFormule extends Error {
   constructor(code, detail) {
     super(code + (detail ? ' ' + detail : ''));
     this.code = code;
+    this.detail = detail || '';
   }
 }
 

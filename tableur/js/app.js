@@ -7,7 +7,7 @@ import { lireClasseur, ecrireClasseur, lireDocx, nettoyerModuleVBA } from './xls
 import { estChiffre, dechiffrerOffice, ErreurMotDePasse, sha512, sha384, sha256, sha1 } from './chiffrement.js';
 import { hacherMotDePasse, verifierShaMotDePasse, DROITS } from './page-xlsx.js';
 import { executerMacro, analyserVBA, ErreurVBA, InterpreteurVBA, creerUDF } from './vba.js';
-import { listerProcedures, procedureALaLigne, insererMacro, supprimerProcedure, ajouterAuProjet, nomVBAValide, renommerProcedure, renommerModuleProjet } from './projetvba.js';
+import { listerProcedures, procedureALaLigne, insererMacro, supprimerProcedure, ajouterAuProjet, nomVBAValide, renommerProcedure, renommerModuleProjet, fonctionsDuProjet } from './projetvba.js';
 import { installerGraphiques } from './ui-graphiques.js';
 import { styleConditionnel, validationDe, valeurValide, iconeSVG } from './donnees.js';
 import { installerDonnees } from './ui-donnees.js';
@@ -239,7 +239,7 @@ function htmlCellules(f, F, r1, r2, c1, c2, dx = 0, dy = 0) {
       const gardee = cel.f != null ? classeur.evaluateur.erreurGardee(F, r, c) : null;
       if (gardee) cls += ' gardee';
       if (entourerInvalides && f.validations.length) { const dv = validationDe(f, r, c); if (dv && !valeurValide(classeur, F, dv, r, c)) cls += ' invalide'; }
-      const bulle = cel.note || (cel.lien ? cel.lien + ' — Ctrl+clic pour suivre le lien' : '') || (v instanceof ErreurFormule && v.message ? v.code + ' — ' + v.message : '') || (gardee ? 'Valeur enregistrée dans le fichier : la fonction VBA ne répond pas encore (' + gardee.code + (gardee.message ? ' : ' + gardee.message : '') + '). Lancez la macro qui prépare ses données, ou corrigez le code.' : '');
+      const bulle = cel.note || (cel.lien ? cel.lien + ' — Ctrl+clic pour suivre le lien' : '') || (v instanceof ErreurFormule && v.detail ? v.code + ' — ' + v.detail : '') || (gardee ? 'Valeur enregistrée dans le fichier : la fonction VBA ne répond pas encore (' + gardee.code + (gardee.detail ? ' : ' + gardee.detail : '') + '). Lancez la macro qui prépare ses données, ou corrigez le code.' : '');
       const riche = cel.riche && cel.f == null && typeof v === 'string' && !afficherFormules && texteRuns(cel.riche) === v;
       // Jeu d'icônes (mise en forme conditionnelle) : l'icône à gauche, la valeur garde sa place
       const icone = mfc && mfc.icone && !afficherFormules ? `<span class="icone-mfc">${iconeSVG(mfc.icone.jeu, mfc.icone.i)}</span>` : '';
@@ -942,7 +942,7 @@ function rendreStatut() {
   const fmt = (x) => afficherValeur(Math.round(x * 1e10) / 1e10);
   // Une seule cellule en erreur : la raison (#VALUE! : ligne 12 de Package : Type incompatible…)
   const vc = classeur.valeur(fi(), curseur.r, curseur.c), garde = classeur.evaluateur.erreurGardee(fi(), curseur.r, curseur.c);
-  const raison = !nb && vc instanceof ErreurFormule && vc.message ? vc.code + ' — ' + vc.message : !nb && garde ? 'Valeur du fichier : la fonction VBA répond ' + garde.code + (garde.message ? ' — ' + garde.message : '') : '';
+  const raison = !nb && vc instanceof ErreurFormule && vc.detail ? vc.code + ' — ' + vc.detail : !nb && garde ? 'Valeur du fichier : la fonction VBA répond ' + garde.code + (garde.detail ? ' — ' + garde.detail : '') : '';
   $('statut').textContent = nbNum ? `Somme : ${fmt(somme)}   Moyenne : ${fmt(somme / nbNum)}   Nb : ${nb}` + (nbNum > 1 && innerWidth > 900 ? `   Min : ${fmt(mini)}   Max : ${fmt(maxi)}` : '') : raison || (nb ? `Nb : ${nb}` : (classeur.nomFichier || ''));
   $('statut').title = raison;
   $('zoom-valeur').textContent = Math.round(Z() * 100) + ' %';
@@ -1074,6 +1074,38 @@ function commencerEdition(initial, origine = 'cellule') {
     editeur.setSelectionRange(editeur.value.length, editeur.value.length);
     barre.value = texte;
   }
+  noterEdition('debut');
+  positionnerSelection();
+}
+// ----- Annuler / rétablir pendant la saisie : notre propre historique (celui du navigateur se mélange quand
+// Sprezz écrit lui-même dans la saisie : référence cliquée, F4, fonction proposée) -----
+function cibleSaisie() { return edition && edition.origine === 'barre' ? barre : editeur; }
+function noterEdition(quoi = 'code') {
+  if (!edition) return;
+  const t = cibleSaisie();
+  const etat = { v: t.value, s: t.selectionStart, e: t.selectionEnd, quoi, quand: Date.now() };
+  const h = edition.histo || (edition.histo = []);
+  if (edition.iHisto !== undefined && edition.iHisto < h.length - 1) h.length = edition.iHisto + 1; // ce qui était rétabli est perdu
+  const der = h[h.length - 1];
+  if (der && der.v === etat.v) { der.s = etat.s; der.e = etat.e; edition.iHisto = h.length - 1; return; }
+  // Une frappe continue compte pour une seule étape
+  if (der && quoi === 'frappe' && der.quoi === 'frappe' && etat.quand - der.quand < 700 && h.length > 1) h[h.length - 1] = etat;
+  else h.push(etat);
+  if (h.length > 200) h.shift();
+  edition.iHisto = h.length - 1;
+}
+function annulerDansSaisie(sens) {
+  const h = edition && edition.histo;
+  if (!h) return;
+  const cour = h[edition.iHisto ?? h.length - 1];
+  if (!cour || cour.v !== cibleSaisie().value) noterEdition('code'); // ce qui vient d'être tapé devient une étape
+  const i = (edition.iHisto ?? h.length - 1) + sens;
+  if (i < 0 || i >= h.length) return;
+  edition.iHisto = i;
+  const x = h[i], t = cibleSaisie();
+  t.value = x.v; t.setSelectionRange(x.s, x.e);
+  if (t === editeur) { barre.value = x.v; ajusterEditeur(); } else editeur.value = x.v;
+  edition.refEnCours = null;
   positionnerSelection();
 }
 // ----- Texte riche : une partie du texte d'une cellule en gras, en couleur… (cel.riche = [{ t, s }]) -----
@@ -1251,10 +1283,12 @@ function insererReference(r1, c1, r2, c2) {
   const avant = txt.slice(0, debut);
   if (!edition.refEnCours && !/[=(+\-*/^&,;<>:]\s*$/.test(avant)) return false;
   const ref = r1 === r2 && c1 === c2 ? adresse(r1, c1) : adresse(Math.min(r1, r2), Math.min(c1, c2)) + ':' + adresse(Math.max(r1, r2), Math.max(c1, c2));
+  if (!edition.refEnCours) noterEdition();
   cible.value = avant + ref + txt.slice(fin);
   edition.refEnCours = { debut, fin: debut + ref.length };
   cible.setSelectionRange(debut + ref.length, debut + ref.length);
   if (cible === editeur) { barre.value = cible.value; ajusterEditeur(); } else editeur.value = cible.value;
+  noterEdition('ref');
   positionnerSelection();
   return true;
 }
@@ -2151,10 +2185,13 @@ function rendreArbreVBA(forcer = true) {
       q.className = 'arbre-proc' + (p.macro ? ' macro' : '');
       q.textContent = (p.genre === 'Function' ? 'ƒ ' : p.macro ? '▸ ' : '· ') + p.nom + (p.params ? '(…)' : '') + (p.prive ? ' (privée)' : '');
       q.title = p.genre + ' ' + p.nom + ' — ligne ' + p.ligne + (p.macro ? ' — double-clic : exécuter' : '');
-      q.addEventListener('click', () => afficherModule(m.cle, p.ligne));
+      q.addEventListener('click', () => { if (edition && p.genre === 'Function') return; afficherModule(m.cle, p.ligne); });
       if (p.macro) q.addEventListener('dblclick', () => executerMacroUI(m.nom + '.' + p.nom));
+      // Une Function : double-clic l'écrit dans la cellule choisie (=Nom( … ), comme « Insérer une fonction » d'Excel
+      if (p.genre === 'Function') { q.title += ' — double-clic : l\'écrire dans la cellule ' + adresse(curseur.r, curseur.c); q.addEventListener('mousedown', (e) => { if (edition) e.preventDefault(); }); q.addEventListener('dblclick', () => insererFonctionDansCellule(p.nom)); }
       q.addEventListener('contextmenu', (e) => { e.preventDefault(); ouvrirMenu(e.clientX, e.clientY, [
         ...(p.macro ? [['▶ Exécuter', () => executerMacroUI(m.nom + '.' + p.nom)]] : []),
+        ...(p.genre === 'Function' ? [['ƒ Insérer dans la cellule ' + adresse(curseur.r, curseur.c), () => insererFonctionDansCellule(p.nom)]] : []),
         ['Modifier', () => afficherModule(m.cle, p.ligne)],
         ['Renommer…', () => renommerMacroUI(m.cle, p.nom)],
         null,
@@ -2514,12 +2551,27 @@ function rendreFonctions() {
   const filtre = $('filtre-fonctions').value.trim().toUpperCase();
   const inverse = {}; for (const [fr, en] of Object.entries(ALIAS)) (inverse[en] = inverse[en] || []).push(fr);
   const liste = $('liste-fonctions'); liste.innerHTML = '';
+  // En tête : les fonctions VBA du classeur (catégorie « Personnalisées » d'Excel)
+  const vba = fonctionsVBA().filter((u) => !filtre || u.nom.toUpperCase().includes(filtre));
+  if (vba.length) {
+    const t = document.createElement('div'); t.className = 'fonctions-titre'; t.textContent = 'Fonctions VBA du classeur'; liste.appendChild(t);
+    for (const u of vba) {
+      const d = document.createElement('div'); d.className = 'fonction fonction-vba';
+      d.innerHTML = `<b>${echapper(u.nom)}</b> <small>(${echapper(u.params.join('; '))}) · ${echapper(u.libelle)}${u.prive ? ' · privée' : ''}</small>`;
+      d.title = 'Clic : l\'écrire dans la cellule choisie (ou dans la formule en cours)';
+      d.addEventListener('mousedown', (e) => e.preventDefault()); // garde la saisie en cours
+      d.addEventListener('click', () => insererFonctionDansCellule(u.nom));
+      liste.appendChild(d);
+    }
+    const t2 = document.createElement('div'); t2.className = 'fonctions-titre'; t2.textContent = 'Fonctions d\'Excel'; liste.appendChild(t2);
+  }
   for (const nom of NOMS_FONCTIONS) {
     const fr = inverse[nom] || [];
     if (filtre && !nom.includes(filtre) && !fr.some((x) => x.includes(filtre))) continue;
     const d = document.createElement('div'); d.className = 'fonction';
     d.innerHTML = `<b>${fr[0] || nom}</b> <small>${nom}${fr.length > 1 ? ' · ' + fr.slice(1).join(', ') : ''}</small>`;
-    d.addEventListener('click', () => { const texte = '=' + (fr[0] || nom) + '('; if (!edition) commencerEdition(texte); else { const cible = edition.origine === 'barre' ? barre : editeur; cible.value += (fr[0] || nom) + '('; } (edition && edition.origine === 'barre' ? barre : editeur).focus(); });
+    d.addEventListener('mousedown', (e) => e.preventDefault());
+    d.addEventListener('click', () => insererFonctionDansCellule(fr[0] || nom));
     liste.appendChild(d);
   }
 }
@@ -2574,6 +2626,7 @@ function rendreAide() {
 <tr><td>Ctrl++ / Ctrl+-</td><td>Insérer / supprimer des cellules, lignes ou colonnes</td></tr>
 <tr><td>Ctrl+9 / Ctrl+0</td><td>Masquer les lignes / colonnes (avec Maj : les afficher)</td></tr>
 <tr><td>Ctrl+F / Ctrl+H · Maj+F4</td><td>Rechercher / remplacer · suivant</td></tr>
+<tr><td>Maj+F3</td><td>Insérer une fonction (celles d'Excel et les fonctions VBA du classeur)</td></tr>
 <tr><td>Ctrl+G ou F5</td><td>Atteindre une cellule ou un nom</td></tr>
 <tr><td>Ctrl+K · Maj+F2</td><td>Lien hypertexte · note</td></tr>
 <tr><td>Ctrl+L (ou Ctrl+T) · Ctrl+Maj+T</td><td>Mettre sous forme de tableau · ligne de total du tableau</td></tr>
@@ -2628,6 +2681,7 @@ function rendreAide() {
 <li><b>Formules qui débordent</b> : <code>=TRIER(A2:B9;2;-1)</code>, <code>=UNIQUE(…)</code>, <code>=FILTRE(…)</code>, <code>=SEQUENCE(10)</code> remplissent les cellules voisines (cadre pointillé) ; <code>A1#</code> désigne tout le résultat ; <code>#SPILL!</code> si la place est prise.</li>
 <li><b>Analyse</b> (menu ⋯) : <b>Valeur cible</b> ; <b>Solveur</b> (maximiser, minimiser ou atteindre une valeur en changeant des cellules, avec contraintes ≤ ≥ = entier binaire ; exact pour les modèles linéaires) ; <b>Table de données</b> à une ou deux entrées, recalculée quand le modèle change.</li>
 <li><b>Finance et comptabilité</b> : formats <b>Comptabilité</b>, milliers (k€), millions (M€) et négatifs entre parenthèses dans la liste des formats ; <b>Plan</b> (⋯ › Plan, ou clic droit › Données › Grouper) : boutons + / − à côté des en-têtes et niveaux 1, 2, 3 dans le coin ; <b>Sous-totaux…</b> (clic droit › Données) : un total à chaque changement de valeur d'une colonne, avec le plan prêt à replier ; <b>Gestionnaire de scénarios</b> et <b>Utilitaire d'analyse</b> (⋯ › Analyse : statistiques descriptives, histogramme, régression, corrélation, moyenne mobile, tests t et F, ANOVA…) ; <b>Fenêtre espion</b> et <b>Calcul itératif</b> (⋯ › Formules) pour les modèles qui se citent eux-mêmes ; graphique <b>Cascade</b> ; <b>champs calculés</b> dans les tableaux croisés. Modèles (Nouveau ▾ › Finance et actuariat) : emprunt, rentabilité d'un projet, compte de résultat, table de mortalité, Chain Ladder.</li>
+<li><b>Fonctions VBA dans les cellules</b> : comme « Insérer une fonction » d'Excel, le bouton <b>ƒx</b> les liste en tête (avec leurs arguments) et un clic écrit <code>=Nom(</code> dans la cellule choisie, ou dans la formule en cours ; dans le projet VBA, double-clic sur une fonction (ƒ) fait de même. En tapant <code>=Ex…</code>, elles se proposent avec les fonctions d'Excel, et la bulle montre leurs arguments. Pendant la saisie, <code>Ctrl+Z</code> / <code>Ctrl+Y</code> défont et refont la saisie elle-même (y compris les références cliquées).</li>
 <li><b>LET et LAMBDA</b> : <code>=LET(x;A1*2;x+1)</code>, <code>=MAP(A1:A9;LAMBDA(v;v*2))</code>, <code>=REDUCE(0;A1:A9;LAMBDA(s;v;s+v))</code> ; un nom défini <code>=LAMBDA(x;x*1,2)</code> devient une fonction (<code>=TTC(A1)</code>).</li>
 <li><b>Formules</b> (menu ⋯) : flèches des antécédents et des dépendants, évaluer la formule pas à pas, vérification des erreurs (d'où vient un #DIV/0!, formule différente de ses voisines, nombre stocké en texte), calcul manuel (F9).</li>
 <li><b>Imprimer</b> (<code>Ctrl+P</code>) : aperçu des pages à droite, réglages à gauche (orientation, papier, toutes les colonnes sur une page, marges, en-tête et pied « Page 1 sur 3 », zone d'impression, lignes à répéter, quadrillage). Sauts de page : menu ⋯ › Mise en page.</li>
@@ -3082,7 +3136,8 @@ conteneur.addEventListener('keydown', (e) => {
   if (k === 'F11' && e.altKey) { e.preventDefault(); return ouvrirPanneau('macros'); }
   if (k === 'F8' && e.altKey) { e.preventDefault(); return ouvrirDialogueMacros(); }
   if (k === '=' && e.altKey) { e.preventDefault(); return uiD.sommeAuto(); }
-  if (k === 'F3' || (k === 'F4' && e.shiftKey)) { e.preventDefault(); return uiD.rechercherSuivant(e.shiftKey && k === 'F3' ? -1 : 1); }
+  if (k === 'F3' && e.shiftKey && !ctrl) { e.preventDefault(); return ouvrirPanneau('fonctions'); } // Insérer une fonction, comme Excel
+  if (k === 'F3' || (k === 'F4' && e.shiftKey)) { e.preventDefault(); return uiD.rechercherSuivant(1); }
   if (k === 'Escape') { pressePapier = null; return rendre(); }
   if (ctrl) {
     const K = k.toLowerCase();
@@ -3220,7 +3275,7 @@ conteneur.addEventListener('paste', (e) => { if (edition) return; clearTimeout(a
 
 // ----- Éditeur de cellule -----
 editeur.lang = 'fr';
-editeur.addEventListener('input', () => { barre.value = editeur.value; edition.refEnCours = null; editeur.spellcheck = !editeur.value.startsWith('='); ajusterEditeur(); positionnerSelection(); });
+editeur.addEventListener('input', (e) => { noterEdition(e.inputType && e.inputType.startsWith('insert') && !/Paste|Drop/.test(e.inputType) ? 'frappe' : 'code'); barre.value = editeur.value; edition.refEnCours = null; editeur.spellcheck = !editeur.value.startsWith('='); ajusterEditeur(); positionnerSelection(); });
 editeur.addEventListener('input', (e) => {
   if (!edition || edition.origine !== 'cellule' || !e.inputType || !e.inputType.startsWith('insert')) return;
   const t = editeur.value;
@@ -3229,8 +3284,8 @@ editeur.addEventListener('input', (e) => {
   if (prop) { editeur.value = prop; editeur.setSelectionRange(t.length, prop.length); barre.value = prop; }
 });
 editeur.addEventListener('keydown', (e) => toucheEdition(e, 'cellule'));
-barre.addEventListener('focus', () => { if (barre.classList.contains('fantome')) { barre.value = ''; barre.classList.remove('fantome'); } if (!edition) { edition = { r: curseur.r, c: curseur.c, origine: 'barre' }; positionnerSelection(); } });
-barre.addEventListener('input', () => { if (edition) { editeur.value = barre.value; edition.refEnCours = null; positionnerSelection(); } });
+barre.addEventListener('focus', () => { if (barre.classList.contains('fantome')) { barre.value = ''; barre.classList.remove('fantome'); } if (!edition) { edition = { r: curseur.r, c: curseur.c, origine: 'barre' }; noterEdition('debut'); positionnerSelection(); } });
+barre.addEventListener('input', (e) => { if (edition) { noterEdition(e.inputType && e.inputType.startsWith('insert') && !/Paste|Drop/.test(e.inputType) ? 'frappe' : 'code'); editeur.value = barre.value; edition.refEnCours = null; positionnerSelection(); } });
 barre.addEventListener('keydown', (e) => toucheEdition(e, 'barre'));
 barre.addEventListener('blur', () => { if (edition && edition.origine === 'barre' && !glisse) setTimeout(() => { if (edition && edition.origine === 'barre' && document.activeElement !== barre) validerEdition(); }, 150); });
 editeur.addEventListener('blur', () => { if (edition && edition.origine === 'cellule' && !glisse) setTimeout(() => { if (edition && edition.origine === 'cellule' && document.activeElement !== editeur && document.activeElement !== barre) validerEdition(); }, 150); });
@@ -3244,7 +3299,35 @@ const NOMS_PROPOSES = (() => {
   const en = NOMS_FONCTIONS.filter((n) => !['TRUE', 'FALSE'].includes(n)).map((n) => ({ nom: n, en: n, fr: false }));
   return [...fr, ...en];
 })();
-function aideDe(nom) { const f = fonction(nom); return f ? AIDE[f.nom] || AIDE[nom.toUpperCase()] : null; }
+function aideDe(nom) {
+  const u = fonctionVBA(nom);
+  if (u && !estNomFrancais(nom)) return [u.params.join(';'), 'Fonction VBA du module ' + u.libelle];
+  const f = fonction(nom); return f ? AIDE[f.nom] || AIDE[nom.toUpperCase()] : null;
+}
+/** Les Function VBA du classeur (mises en cache tant que le code ne change pas). */
+let cacheFonctionsVBA = { sig: null, liste: [] };
+function fonctionsVBA() {
+  const sig = classeur.modulesVBA().map((m) => m.code).join('\u0000');
+  if (cacheFonctionsVBA.sig !== sig || cacheFonctionsVBA.c !== classeur) cacheFonctionsVBA = { sig, c: classeur, liste: fonctionsDuProjet(classeur) };
+  return cacheFonctionsVBA.liste;
+}
+function fonctionVBA(nom) { const n = String(nom).toUpperCase(); return fonctionsVBA().find((f) => f.nom.toUpperCase() === n) || null; }
+/** Écrit « =Nom( » dans la cellule choisie, ou à l'endroit du curseur si une formule est en cours de saisie (comme Insérer une fonction). */
+function insererFonctionDansCellule(nom) {
+  if (!edition) { commencerEdition('=' + nom + '('); cibleSaisie().focus(); majSuggestions(); return; }
+  const t = cibleSaisie();
+  noterEdition();
+  let v = t.value, d = t.selectionStart, f = t.selectionEnd;
+  let ajout = nom + '(';
+  if (!v.startsWith('=')) { v = '=' + v; d++; f++; }
+  else if (d > 1 && !/[=(;,+\-*/^&<>:\s]$/.test(v.slice(0, d))) ajout = '+' + ajout;
+  t.value = v.slice(0, d) + ajout + v.slice(f);
+  t.setSelectionRange(d + ajout.length, d + ajout.length);
+  if (t === editeur) { barre.value = t.value; ajusterEditeur(); } else editeur.value = t.value;
+  noterEdition();
+  edition.refEnCours = null;
+  t.focus(); positionnerSelection(); majSuggestions();
+}
 function fermerSuggestions() { boiteSugg.hidden = true; bulleArgs.hidden = true; sugg = null; }
 function cibleEdition() { return edition ? (edition.origine === 'barre' ? barre : editeur) : null; }
 function placerSous(el, cible) { const r = cible.getBoundingClientRect(); el.style.left = Math.max(4, Math.min(r.left, window.innerWidth - el.offsetWidth - 4)) + 'px'; const h = el.offsetHeight; el.style.top = (r.bottom + h + 4 > window.innerHeight ? Math.max(4, r.top - h - 2) : r.bottom + 2) + 'px'; }
@@ -3280,6 +3363,8 @@ function majSuggestions() {
     // D'abord le nom exact, puis les fonctions courantes (celles qui ont une aide), en français, les plus courtes
     const courante = (x) => (AIDE[x.en] ? 0 : 1);
     liste.sort((a, b) => (a.nom === P ? -1 : b.nom === P ? 1 : 0) || courante(a) - courante(b) || (a.fr === b.fr ? a.nom.length - b.nom.length || a.nom.localeCompare(b.nom) : a.fr ? -1 : 1));
+    // Fonctions VBA du classeur, comme dans Excel : elles se proposent avec les autres
+    for (const u of fonctionsVBA()) if (u.nom.toUpperCase().startsWith(P) && !estNomFrancais(u.nom)) { liste = liste.filter((x) => x.nom !== u.nom.toUpperCase()); liste.unshift({ nom: u.nom, vba: u }); }
     // Noms définis (plages nommées)
     for (const d of [...classeur.noms.values(), ...feuille().noms.values()]) if (d.nom.toUpperCase().startsWith(P)) liste.unshift({ nom: d.nom, nomDefini: true, ref: d.ref });
     for (const f2 of classeur.feuilles) for (const t of f2.tableaux || []) if (t.nom.toUpperCase().startsWith(P)) liste.unshift({ nom: t.nom, nomDefini: true, ref: 'tableau ' + f2.nom + '!' + adresse(t.r1, t.c1) + ':' + adresse(t.r2, t.c2), suffixe: '[' });
@@ -3289,7 +3374,7 @@ function majSuggestions() {
   if (liste.length) {
     const ancien = sugg && sugg.liste[sugg.i] && sugg.liste[sugg.i].nom;
     sugg = { liste, i: Math.max(0, liste.findIndex((x) => x.nom === ancien)), debut: avant.length - m[2].length, fin: avant.length, navigue: sugg ? sugg.navigue : false };
-    boiteSugg.innerHTML = liste.map((x, i) => { const a = x.nomDefini ? null : aideDe(x.nom); return `<div data-i="${i}" class="${i === sugg.i ? 'choisi' : ''}"><b>${echapper(x.nom)}</b>${x.nomDefini ? ` <small>${echapper(x.ref)}</small>` : a ? ` <small>${echapper(a[1])}</small>` : x.fr ? '' : ` <small>${echapper(Object.keys(ALIAS).find((k) => ALIAS[k] === x.nom) || '')}</small>`}</div>`; }).join('');
+    boiteSugg.innerHTML = liste.map((x, i) => { const a = x.nomDefini ? null : aideDe(x.nom); if (x.vba) return `<div data-i="${i}" class="${i === sugg.i ? 'choisi' : ''}"><b>${echapper(x.nom)}</b> <small>VBA · ${echapper(x.vba.module)}${x.vba.params.length ? ' · ' + echapper(x.vba.params.join('; ')) : ''}</small></div>`; return `<div data-i="${i}" class="${i === sugg.i ? 'choisi' : ''}"><b>${echapper(x.nom)}</b>${x.nomDefini ? ` <small>${echapper(x.ref)}</small>` : a ? ` <small>${echapper(a[1])}</small>` : x.fr ? '' : ` <small>${echapper(Object.keys(ALIAS).find((k) => ALIAS[k] === x.nom) || '')}</small>`}</div>`; }).join('');
     boiteSugg.hidden = false; bulleArgs.hidden = true;
     placerSous(boiteSugg, cible);
     return;
@@ -3319,12 +3404,14 @@ function accepterSuggestion(i = sugg && sugg.i) {
   if (!sugg || !cible || !sugg.liste[i]) return false;
   const x = sugg.liste[i], txt = cible.value;
   const ajout = x.nom + (x.suffixe != null ? x.suffixe : x.nomDefini ? '' : '(');
+  noterEdition();
   cible.value = txt.slice(0, sugg.debut) + ajout + txt.slice(sugg.fin);
   const pos = sugg.debut + ajout.length;
   cible.setSelectionRange(pos, pos);
   if (cible === editeur) { barre.value = editeur.value; ajusterEditeur(); } else editeur.value = barre.value;
   edition.refEnCours = null;
   sugg = null;
+  noterEdition();
   positionnerSelection();
   majSuggestions();
   return true;
@@ -3359,6 +3446,9 @@ function toucheEdition(e, origine) {
     const prop = kk === 'b' || kk === 'g' || e.code === 'Digit2' ? 'gras' : kk === 'i' || e.code === 'Digit3' ? 'italique' : kk === 'u' || e.code === 'Digit4' ? 'souligne' : e.code === 'Digit5' ? 'barre' : null;
     if (prop && styleDansSaisie(prop)) { e.preventDefault(); return; }
   }
+  // Ctrl+Z / Ctrl+Y dans la saisie : défait ou refait la saisie elle-même (pas le classeur), étape par étape
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && (kk === 'z' || kk === 'y')) { e.preventDefault(); annulerDansSaisie(kk === 'y' || e.shiftKey ? 1 : -1); return; }
+  if (e.key === 'F3' && e.shiftKey) { e.preventDefault(); ouvrirPanneau('fonctions'); return; }
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.altKey) { e.preventDefault(); remplirSelection(); }
   else if (e.key === 'Enter' && !e.altKey) { e.preventDefault(); validerEdition({ dr: e.shiftKey ? -1 : 1 }); }
   else if (e.key === 'Enter' && e.altKey) { e.preventDefault(); const t = e.target; const p = t.selectionStart; t.value = t.value.slice(0, p) + '\n' + t.value.slice(p); t.setSelectionRange(p + 1, p + 1); if (origine === 'cellule') ajusterEditeur(); }
@@ -3371,8 +3461,10 @@ function toucheEdition(e, origine) {
     const cycle = (part) => { const m = /^(\$?)([A-Za-z]{1,3})(\$?)(\d+)$/.exec(part); if (!m) return part; const etat = (m[1] ? 2 : 0) + (m[3] ? 1 : 0); const suivant = [3, 2, 0, 1][etat]; return (suivant & 2 ? '$' : '') + m[2] + (suivant & 1 ? '$' : '') + m[4]; };
     const nouveau = ref.ref.split(':').map(cycle).join(':');
     const deb = txt.slice(0, ref.fin).lastIndexOf(ref.ref);
+    noterEdition();
     t.value = txt.slice(0, deb) + nouveau + txt.slice(deb + ref.ref.length);
     t.setSelectionRange(deb + nouveau.length, deb + nouveau.length);
+    noterEdition();
     if (origine === 'cellule') barre.value = t.value; else editeur.value = t.value;
     positionnerSelection();
   }
