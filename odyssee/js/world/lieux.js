@@ -164,7 +164,9 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
     const cloture = (x, y) => { if (W.get(x, y) === T.GRASS && !sent.has(x + ',' + y) && !occ.has(x + ',' + y)) W.set(x, y, T.FENCE); };
     const maison = (x, y, o = {}) => {
       const w = o.w || 5, d = o.d || 5;
-      for (let j = -1; j <= d; j++) for (let i = -1; i <= w; i++) if (!dedans(x + i, y + j) || W.get(x + i, y + j) !== T.GRASS || occ.has((x + i) + ',' + (y + j))) return null;
+      const ok = (u, v) => { const t = W.get(u, v); return dedans(u, v) && (t === T.GRASS || t === T.FLOWER || FORET(t)) && !occ.has(u + ',' + v) && !sent.has(u + ',' + v); };
+      for (let j = -1; j <= d + 1; j++) for (let i = -1; i <= w; i++) if (!ok(x + i, y + j)) return null;
+      for (let j = -1; j <= d + 1; j++) for (let i = -1; i <= w; i++) W.set(x + i, y + j, T.GRASS);
       const Bt = W.building('house', x, y, { w, d, door: o.door ?? 1, modele: o.modele || 'chalet', name: o.name || 'Maison', roof: o.roof || pick(['brown', 'red', 'green', 'gray']) });
       const mid = `${id}:m${no++}`, ins = houseInterior(mid, o.name || 'Maison', { w: 9, h: 8, kitchen: true });
       ins.outside = { map: W.id, x: Bt.doorX, y: Bt.doorY + 1, dir: 'down' }; ins.warp(ins.exitX, ins.exitY, ins.outside);
@@ -176,7 +178,8 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
       return Bt;
     };
     const decor = (modele, x, y, w, d, h = 3) => {
-      for (let j = -1; j <= d; j++) for (let i = -1; i <= w; i++) if (!dedans(x + i, y + j) || W.get(x + i, y + j) !== T.GRASS || occ.has((x + i) + ',' + (y + j))) return null;
+      for (let j = -1; j <= d; j++) for (let i = -1; i <= w; i++) { const t = W.get(x + i, y + j); if (!dedans(x + i, y + j) || !(t === T.GRASS || FORET(t)) || occ.has((x + i) + ',' + (y + j)) || sent.has((x + i) + ',' + (y + j))) return null; }
+      for (let j = -1; j <= d; j++) for (let i = -1; i <= w; i++) W.set(x + i, y + j, T.GRASS);
       return W.building('tower', x, y, { w, d, h, door: -1, modele, name: modele, roof: 'gray' });
     };
     const enc = z.enc || [];
@@ -190,7 +193,7 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
     };
     // le contenu
     if (kind === 'hameau') {
-      const L = [[X - 7, Y - 6], [X + 2, Y - 6], [X - 3, Y + 1]];
+      const L = [[X - 8, Y - 7], [X + 2, Y - 7], [X - 8, Y + 1], [X + 3, Y + 1]];
       let n = 0;
       for (const [x, y] of L) if (maison(x, y, { name: 'Maison', modele: pick(['chalet', 'chalet', 'maisonL']), door: 1 })) n++;
       decor('puits', X - 1, Y - 1, 2, 2, 2);
