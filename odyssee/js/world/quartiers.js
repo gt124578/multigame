@@ -159,7 +159,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
       // une ou deux rangées de maisons tournées vers le sud (la seconde devant une ruelle), séparées par des jardins :
       // arbres, massifs de fleurs, bancs, lampadaires, parfois un terrain resté en jardin
       let yd = b.y1 - 1;
-      for (let rang = 0; rang < 6; rang++) {
+      for (let rang = 0; rang < 14; rang++) {
         let x = b.x0 + 1 + Math.floor(r() * 3), hmax = 0;
         if (rang > 0) rect(b.x0, yd + 1, b.x1, yd + 1, T.PATH);
         while (x < b.x1 - 3) {
@@ -291,25 +291,38 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
     },
     affaires(b) {
       rect(b.x0, b.y0, b.x1, b.y1, T.PAVE);
-      let x = b.x0 + 1;
-      while (x < b.x1 - 5) {
-        const tw = 6 + Math.floor(r() * 4), td = Math.min(6, b.y1 - b.y0 - 3);
-        if (x + tw - 1 > b.x1 - 1 || td < 4) break;
-        if (libre(x, b.y0 + 1, x + tw - 1, b.y0 + td)) W.building('tower', x, b.y0 + 1, { w: tw, d: td, h: 7 + Math.floor(r() * 8), door: -1, kit: 'gc' + Math.floor(r() * 4), flat: true, name: 'Tour', roof: 'gray' });
-        x += tw + 2;
+      // des rangées de tours séparées par des allées plantées, tant que l'îlot a de la place
+      for (let y0 = b.y0 + 1; y0 + 4 <= b.y1 - 1; ) {
+        const td = Math.min(6, b.y1 - 1 - y0);
+        if (td < 4) break;
+        let x = b.x0 + 1;
+        while (x < b.x1 - 5) {
+          const tw = 6 + Math.floor(r() * 4);
+          if (x + tw - 1 > b.x1 - 1) break;
+          if (libre(x, y0, x + tw - 1, y0 + td - 1)) W.building('tower', x, y0, { w: tw, d: td, h: 7 + Math.floor(r() * 8), door: -1, kit: 'gc' + Math.floor(r() * 4), flat: true, name: 'Tour', roof: 'gray' });
+          x += tw + 2;
+        }
+        for (let xx = b.x0 + 2; xx < b.x1; xx += 5) if (y0 + td + 1 < b.y1) prop(r() < 0.5 ? 'erable' : 'lamp', xx, y0 + td + 1);
+        y0 += td + 4;
       }
       for (let xx = b.x0 + 2; xx < b.x1; xx += 5) prop(r() < 0.5 ? 'erable' : 'lamp', xx, b.y1);
       pnj(Math.round(b.cx), b.y1 - 1, { sprite: pick(['topdresseur', 'topdresseuse', 'scientifique']), move: 'wander' });
     },
     esplanade(b) {
       // une esplanade dallée, des colonnades, des statues, des parterres : la grandeur du Plateau Céleste
+      // une esplanade dallée : une colonnade sur le côté nord, un long parterre de pelouse et de fleurs au milieu,
+      // des statues aux deux bouts, une fontaine au centre des plus grandes
       rect(b.x0, b.y0, b.x1, b.y1, T.PAVE);
-      for (let x = b.x0 + 1; x <= b.x1 - 1; x += 4) { prop('colonne', x, b.y0); prop('colonne', x, b.y1); }
-      for (let y = b.y0 + 3; y <= b.y1 - 3; y += 5) for (let x = b.x0 + 3; x <= b.x1 - 3; x += 6) {
-        if ((x + y) % 3 === 0) prop(pick(['gymstatue', 'statue']), x, y);
-        else { rect(x - 1, y, x + 1, y + 1, T.FLOWER); }
+      for (let x = b.x0 + 2; x <= b.x1 - 2; x += 6) prop('colonne', x, b.y0);
+      const mx = Math.round(b.cx), my = Math.round(b.cy), large = b.x1 - b.x0 >= b.y1 - b.y0;
+      const [px0, py0, px1, py1] = large ? [b.x0 + 4, my - 1, b.x1 - 4, my + 1] : [mx - 1, b.y0 + 4, mx + 1, b.y1 - 4];
+      if (px1 - px0 >= 2 && py1 - py0 >= 2) {
+        rect(px0, py0, px1, py1, T.GRASS); rect(px0 + 1, py0 + 1, px1 - 1, py1 - 1, T.FLOWER);
+        prop(pick(['gymstatue', 'statue']), large ? px0 - 2 : mx, large ? my : py0 - 2);
+        prop(pick(['gymstatue', 'statue']), large ? px1 + 2 : mx, large ? my : py1 + 2);
       }
-      if (b.aire > 180) decor('fontaine', Math.round(b.cx) - 1, Math.round(b.cy) - 1, 3, 3, { h: 2 });
+      if (b.aire > 400) { rect(mx - 3, my - 3, mx + 3, my + 3, T.PAVE); decor('fontaine', mx - 1, my - 1, 3, 3, { h: 2 }); }
+      for (const [x, y] of [[b.x0 + 1, b.y1 - 1], [b.x1 - 1, b.y1 - 1]]) prop('lamp', x, y);
       pnj(Math.round(b.cx) + 2, Math.round(b.cy) + 2, { sprite: pick(['topdresseur', 'topdresseuse', 'vieil_homme']), move: 'wander' });
     },
     port(b) {

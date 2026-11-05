@@ -168,6 +168,17 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   et ses dresseurs gardent leurs anciens identifiants (`grue:tour…`, `mapId` de `buildTown`) : un bâtiment déplacé garde ainsi son intérieur.
   Mine de Pierrefort (trois niveaux, échelles, rails) : `odyssee/js/world/mine.js`. Villes agrandies : `fermer`, emprises `GRAND`,
   `lotir: { n }` pose des maisons habitées dans l'herbe libre sans couper de passage ; un garde se tient dans le couloir de sortie.
+  Grande région (1200 × 1392 cases, `CARTE_VERSION` de `region.js`) : plan en blocs de 24 cases dans `odyssee/js/world/plan.js`
+  (`VILLES` : emprise, centre, thème, quartiers, sorties et leurs gardes ; `TERR` : territoire de chaque route ; `CHAINE` : la Chaîne
+  Céleste ; `TORII`, `LUNAIRE` : décalages des lieux faits main). Une ville = l'ancienne ville au centre (identifiants inchangés)
+  et des quartiers générés autour (`grandeVille` de `quartiers.js` : maisons, parc, place, marché, jardins, ferme, affaires,
+  esplanade, port ; `relier` raccorde portes, habitants et objets aux rues). Une route = un tracé qui serpente dans son territoire
+  (`grandeRoute` de `chemins.js` : paysages par bloc, impasses récompensées, raccourci à Coupe / Éclate-Roc / Surf, dresseurs
+  `route:dN`, objets `route:oN`). Les lieux faits main à l'ancienne échelle (îles de l'Est, Forêt des Torii, Mont Lunaire) sont
+  construits dans un brouillon puis recopiés avec leur décalage (`atelier.js`). Les objets des anciennes cartes gardent leurs
+  identifiants (`anciens-objets.js`, file vérifiée à la construction). Paroles des habitants : `voix.js`. Une sauvegarde d'avant
+  la grande région repart du Centre de la dernière ville visitée (`migration.js`, `state.carte`) : `node tools/test-odyssee-migration.mjs`.
+  Rendu : bâtiments posés bloc par bloc à l'approche (`poserBatimentsBloc` de `world3d.js`), morceaux lointains défaits.
   Décor ajouté hors planches (`odyssee/js/data/decor-plus.js`) : `python3 tools/odyssee-automne.py` (arbres d'automne),
   `tools/odyssee-mine.py` (étais, wagonnets…), `tools/odyssee-desert.py` (cactus).
   Métropole : Bourse (`odyssee/js/core/bourse.js`, pricers et entretien de Pierre) et Casino (`odyssee/js/core/casino.js` ;
