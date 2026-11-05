@@ -100,19 +100,19 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   /* 4. les îlots entre les rues */
   const bornes = (a, b, L) => { const o = []; let p = a; for (const v of L) { o.push([p, v - 1]); p = v + 2; } o.push([p, b]); return o; };
   const ilots = [];
-  for (const [x0, x1] of bornes(X + ib, X1 - ib, xs)) for (const [y0, y1] of bornes(Y + ib, Y1 - ib, ys)) {
-    let b = { x0, y0, x1, y1 };
-    if (!(b.x1 < R.x0 || b.x0 > R.x1 || b.y1 < R.y0 || b.y0 > R.y1)) {
-      // îlot entamé par le centre : on garde le plus grand morceau autour
-      const parts = [{ x0, y0, x1, y1: R.y0 - 1 }, { x0, y0: R.y1 + 1, x1, y1 }, { x0, y0, x1: R.x0 - 1, y1 }, { x0: R.x1 + 1, y0, x1, y1 }].filter((p) => p.x1 - p.x0 >= 5 && p.y1 - p.y0 >= 4);
-      if (!parts.length) continue;
-      b = parts.sort((p, q) => (q.x1 - q.x0) * (q.y1 - q.y0) - (p.x1 - p.x0) * (p.y1 - p.y0))[0];
-    }
-    if (b.x1 - b.x0 < 5 || b.y1 - b.y0 < 4) { for (let y = b.y0; y <= b.y1; y++) for (let x = b.x0; x <= b.x1; x++) if (W.get(x, y) === sol && r() < 0.5) W.set(x, y, T.FLOWER); continue; }
+  const ajoute = (b) => {
+    if (b.x1 - b.x0 < 5 || b.y1 - b.y0 < 4) { for (let y = b.y0; y <= b.y1; y++) for (let x = b.x0; x <= b.x1; x++) if (W.get(x, y) === sol && r() < 0.5) W.set(x, y, T.FLOWER); return; }
     // l'eau du port ne fait pas partie de l'îlot
     let eau = 0; for (let y = b.y0; y <= b.y1; y++) for (let x = b.x0; x <= b.x1; x++) if (W.get(x, y) === T.WATER) eau++;
     b.eau = eau; b.cx = (b.x0 + b.x1) / 2; b.cy = (b.y0 + b.y1) / 2; b.aire = (b.x1 - b.x0 + 1) * (b.y1 - b.y0 + 1);
     ilots.push(b);
+  };
+  for (const [x0, x1] of bornes(X + ib, X1 - ib, xs)) for (const [y0, y1] of bornes(Y + ib, Y1 - ib, ys)) {
+    if (x1 < R.x0 || x0 > R.x1 || y1 < R.y0 || y0 > R.y1) { ajoute({ x0, y0, x1, y1 }); continue; }
+    // îlot entamé par le centre : les quatre morceaux autour (haut, bas, puis les côtés entre les deux)
+    const hy0 = Math.max(y0, R.y0), hy1 = Math.min(y1, R.y1);
+    for (const b of [{ x0, y0, x1, y1: R.y0 - 1 }, { x0, y0: R.y1 + 1, x1, y1 }, { x0, y0: hy0, x1: R.x0 - 1, y1: hy1 }, { x0: R.x1 + 1, y0: hy0, x1, y1: hy1 }])
+      if (b.x1 >= b.x0 && b.y1 >= b.y0) ajoute(b);
   }
 
   /* 5. outils de pose */
@@ -133,6 +133,8 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
     occ.add(x + ',' + y);
     return W.npc({ id: `${def.id}:h${nn++}`, x, y, dir: o.dir || pick(['down', 'left', 'right', 'up']), sprite: o.sprite || pick(SPRITES), move: o.move || pick(['wander', 'turn', 'turn']), text: o.text || parole() });
   };
+  // un arbre d'ornement de la ville (érable, cerisier…) une fois sur trois ; sinon un arbre ordinaire de la forêt
+  const arbre = (x, y) => { if (r() < 0.35) prop(pick(V.arbres || ['erable', 'cerisier']), x, y); else { const t = W.get(x, y); if ((t === sol || t === T.GRASS || t === T.FLOWER) && !occ.has(x + ',' + y) && !rues.has(x + ',' + y)) W.set(x, y, T.TREE); } };
   const prop = (k, x, y, o) => { const t = W.get(x, y); if ((t === sol || t === T.GRASS || t === T.FLOWER || t === T.PAVE || t === T.PATH) && !occ.has(x + ',' + y) && !rues.has(x + ',' + y) && !W.signs.has(x + ',' + y)) W.prop(k, x, y, true, o); };
   const objet = (x, y, item, qty = 1) => { if (walkable(W.get(x, y)) && W.get(x, y) !== T.DOOR) W.item(x, y, item, qty, `${def.id}:o${no++}`); };
   const rect = (x0, y0, x1, y1, t, only) => W.rect(x0, y0, x1, y1, t, only);
@@ -150,41 +152,48 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   if (Q.place) prendre('place', Q.place, (a, b) => pres(a) - pres(b));
   if (Q.marche) prendre('marche', Q.marche, (a, b) => pres(a) - pres(b));
   for (const [s, k] of Object.entries(Q)) if (!['parc', 'place', 'marche', 'maisons'].includes(s)) for (let i = 0; i < k; i++) sortes.push(s);
-  for (const b of reste()) b.sorte = sortes.length && r() < 0.3 ? sortes.splice(Math.floor(r() * sortes.length), 1)[0] : 'maisons';
+  for (const b of reste()) b.sorte = sortes.length && r() < 0.3 ? sortes.splice(Math.floor(r() * sortes.length), 1)[0] : (V.defaut || 'maisons');
 
   const QUARTIERS = {
     maisons(b) {
-      // rangées de maisons tournées vers le sud ; une ruelle devant chaque rangée qui n'a pas de rue
+      // une ou deux rangées de maisons tournées vers le sud (la seconde devant une ruelle), séparées par des jardins :
+      // arbres, massifs de fleurs, bancs, lampadaires, parfois un terrain resté en jardin
       let yd = b.y1 - 1;
-      for (let rang = 0; rang < 3; rang++) {
-        let x = b.x0 + 1 + Math.floor(r() * 2), hmax = 0;
-        if (rang > 0) { rect(b.x0, yd + 1, b.x1, yd + 1, T.PATH); }
+      for (let rang = 0; rang < 6; rang++) {
+        let x = b.x0 + 1 + Math.floor(r() * 3), hmax = 0;
+        if (rang > 0) rect(b.x0, yd + 1, b.x1, yd + 1, T.PATH);
         while (x < b.x1 - 3) {
           const M = pick(V.maisons || MAISONS);
           const top = yd - (M.d - 1);
           if (top < b.y0 + 1 || x + M.w - 1 > b.x1 - 1) { x++; if (x + 4 > b.x1) break; continue; }
+          if (r() < 0.14) {
+            // un terrain resté en jardin : un arbre, des fleurs, un banc
+            rect(x, top + 1, x + 2, yd, T.FLOWER, [sol, T.GRASS]); arbre(x + 1, top); prop('banc', x + 1, yd);
+            x += 5; continue;
+          }
           if (maison(x, top, M)) {
             hmax = Math.max(hmax, M.d);
-            // le jardin d'à côté : fleurs, un arbre, un banc, un lampadaire
-            const gx = x + M.w;
-            if (gx <= b.x1 - 1) {
+            // derrière la maison, une barrière de jardin
+            if (r() < 0.5 && top - 1 >= b.y0) for (let xx = x; xx < x + M.w; xx++) if (W.get(xx, top - 1) === sol || W.get(xx, top - 1) === T.GRASS) W.set(xx, top - 1, T.FENCE);
+            // le jardin d'à côté
+            const gx = x + M.w, g = 2 + Math.floor(r() * 2);
+            if (gx + g <= b.x1) {
               const q = r();
-              if (q < 0.35) rect(gx, top + 1, gx, yd, T.FLOWER, [sol, T.GRASS]);
-              else if (q < 0.55) prop(pick(V.arbres || ['erable', 'cerisier']), gx, top + 1);
-              else if (q < 0.7) prop('lamp', gx, yd);
-              else if (q < 0.8) prop('banc', gx, yd);
+              if (q < 0.3) rect(gx, yd, gx + g - 2, yd, T.FLOWER, [sol, T.GRASS]);
+              else if (q < 0.6) arbre(gx, top + Math.floor(r() * M.d));
+              else if (q < 0.75) prop('lamp', gx, yd);
+              else if (q < 0.85) prop('banc', gx, yd);
+              else if (q < 0.92) prop('pot', gx, yd);
             }
-            x += M.w + 1 + Math.floor(r() * 2);
+            x += M.w + g;
           } else x++;
         }
         if (!hmax) break;
-        // derrière la rangée : une haie basse ou une barrière, des fleurs
-        const yb = yd - hmax;
-        if (yb >= b.y0) for (let xx = b.x0 + 1; xx < b.x1; xx++) if (W.get(xx, yb) === sol) W.set(xx, yb, r() < 0.5 ? T.FLOWER : sol);
-        yd = yb - 2;
+        yd = yd - hmax - 3;
         if (yd - 3 < b.y0 + 1) break;
       }
-      // un habitant qui se promène, parfois
+      // ce qui reste en haut de l'îlot : un verger ou une pelouse fleurie
+      for (let k = 0; k < (b.x1 - b.x0) / 6; k++) { const x = b.x0 + 1 + Math.floor(r() * (b.x1 - b.x0 - 1)), y = b.y0 + Math.floor(r() * 2); arbre(x, y); }
       if (r() < 0.6) pnj(Math.round(b.cx), b.y1, { move: 'wander' });
     },
     parc(b) {
@@ -200,14 +209,19 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
         if (x1 - x0 < 3 || y1 - y0 < 2) return;
         const q = (i + Math.floor(r() * 4)) % 4;
         if (q === 0 && x1 - x0 >= 5 && y1 - y0 >= 4) {
-          W.blob((x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2 - 0.5, (y1 - y0) / 2 - 0.5, T.WATER, r, [T.GRASS]);
+          const ray = Math.min((x1 - x0) / 2 - 0.5, (y1 - y0) / 2 + 1.5);
+          W.blob((x0 + x1) / 2, (y0 + y1) / 2, ray, Math.min(ray * 0.7, (y1 - y0) / 2 - 0.5), T.WATER, r, [T.GRASS]);
           prop('banc', x0, y1); if (r() < 0.6) pnj(x1, y1, { sprite: 'pecheur', move: 'turn' });
         } else if (q === 1) {
-          for (let k = 0; k < (x1 - x0) * (y1 - y0) / 6; k++) prop(pick(V.arbres || ['erable', 'cerisier', 'erable']), x0 + Math.floor(r() * (x1 - x0 + 1)), y0 + Math.floor(r() * (y1 - y0 + 1)));
+          // un bosquet : des arbres serrés au milieu, quelques arbres d'ornement autour
+          W.blob((x0 + x1) / 2, (y0 + y1) / 2, Math.max(1.2, (x1 - x0) / 2 - 1), Math.max(1, (y1 - y0) / 2 - 1), T.TREE, r, [T.GRASS]);
+          for (let k = 0; k < 3; k++) prop(pick(V.arbres || ['erable', 'cerisier']), x0 + Math.floor(r() * (x1 - x0 + 1)), y0 + Math.floor(r() * (y1 - y0 + 1)));
         } else if (q === 2) {
           rect(x0, y0, x1, y1, T.FLOWER, [T.GRASS]); rect(Math.round((x0 + x1) / 2), y0, Math.round((x0 + x1) / 2), y1, T.PATH, [T.FLOWER]);
         } else {
-          for (let y = y0; y <= y1; y += 2) for (let x = x0; x <= x1; x += 3) if (r() < 0.5) W.set(x, y, T.TREE);
+          // une pelouse plantée d'arbres en quinconce, un banc à l'ombre
+          for (let y = y0; y <= y1; y += 3) for (let x = x0 + (y % 2); x <= x1; x += 4) W.set(x, y, T.TREE);
+          prop('banc', x0 + 1, y1);
         }
       });
       for (const [x, y] of [[mx - 1, my - 4], [mx + 2, my - 4], [mx - 4, my + 5], [mx + 5, my + 5]]) prop('banc', x, y);
@@ -228,26 +242,41 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
       pnj(mx - 2, my + 4); pnj(mx + 3, my - 3); if (b.aire > 200) pnj(b.x0 + 3, my, { move: 'wander' });
     },
     marche(b) {
+      // la place du marché : deux rangées d'étals sous leurs auvents, un marchand derrière chacun, des caisses, une fontaine
       rect(b.x0, b.y0, b.x1, b.y1, T.PAVE);
       const stores = ['#d84a3a', '#3a78c8', '#e8b030', '#4a9a5a', '#c85aa0', '#e07a2a'];
-      for (let yr = b.y0 + 1; yr + 3 <= b.y1; yr += 5) {
-        for (let x = b.x0 + 1; x + 1 <= b.x1 - 1; x += 4) {
+      let n = 0;
+      for (const yr of [b.y0 + 1, b.y0 + 7]) {
+        if (yr + 3 > b.y1) break;
+        for (let x = b.x0 + 2; x + 1 <= b.x1 - 2 && n < 10; x += 6) {
           if (decor('etal', x, yr + 1, 2, 2, { h: 2, opts: { store: pick(stores) } })) {
-            pnj(x, yr, { sprite: pick(['vendeur', 'habitante', 'habitant', 'dame', 'pecheur']), dir: 'down', move: 'static', text: pick(ETALS) });
-            if (r() < 0.4) prop(pick(['caisse', 'tonneau', 'caisses']), x + 2, yr);
+            n++;
+            pnj(x, yr, { sprite: pick(['vendeur', 'habitante', 'habitant', 'dame', 'pecheur', 'montagnard']), dir: 'down', move: 'static', text: pick(ETALS) });
+            if (n % 2) prop(pick(['tonneau', 'caisse']), x + 2, yr + 1);
+            if (n % 3 === 0) pnj(x + 1, yr + 3, { move: 'wander' });
           }
         }
       }
-      W.sign(b.x0, b.y1, `MARCHÉ DE ${def.name.toUpperCase()}\nProduits frais tous les matins.`);
-      pnj(Math.round(b.cx), b.y1, { move: 'wander' });
+      if (b.y1 - b.y0 >= 14) decor('fontaine', Math.round(b.cx) - 1, b.y1 - 4, 3, 3, { h: 2 });
+      for (const [x, y] of [[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]]) prop('lamp', x, y);
+      W.sign(b.x0 + 1, b.y1, `MARCHÉ DE ${def.name.toUpperCase()}\nProduits frais tous les matins.`);
     },
     jardins(b) {
+      // jardins ouvriers : des parcelles fleuries bordées de barrières, des allées, une cabane à outils, un puits
       rect(b.x0, b.y0, b.x1, b.y1, T.GRASS, [sol, T.PATH, T.PAVE]);
-      for (let y = b.y0 + 1; y + 2 <= b.y1 - 1; y += 4) for (let x = b.x0 + 1; x + 3 <= b.x1 - 1; x += 5) rect(x, y, x + 3, y + 2, T.FLOWER);
-      for (let x = b.x0; x <= b.x1; x++) if ((x - b.x0) % 5 && W.get(x, b.y0) === T.GRASS) W.set(x, b.y0, T.FENCE);
-      decor('puits', b.x1 - 2, b.y1 - 2, 2, 2, { h: 2 });
-      pnj(b.x0 + 1, b.y1, { sprite: 'jardinier', move: 'turn', text: ['Mes tomates poussent mieux depuis que mon Mystherbe dort à côté.', 'Il paraît que ça les rassure.'] });
-      if (r() < 0.6) objet(b.x0 + 4, b.y0 + 4, pick(['oran-berry', 'potion', 'antidote']));
+      const mx = Math.round(b.cx);
+      rect(mx, b.y0, mx, b.y1, T.PATH); rect(b.x0, Math.round(b.cy), b.x1, Math.round(b.cy), T.PATH);
+      for (let y = b.y0 + 1; y + 3 <= b.y1 - 1; y += 5) for (let x = b.x0 + 1; x + 4 <= b.x1 - 1; x += 6) {
+        if (x <= mx && x + 4 >= mx || y <= Math.round(b.cy) && y + 3 >= Math.round(b.cy)) continue;
+        rect(x + 1, y + 1, x + 3, y + 2, T.FLOWER);
+        // une barrière basse devant et derrière la parcelle (jamais en colonne : de face, ce ne serait qu'un piquet)
+        for (let i = x; i <= x + 4; i++) if (i !== x + 2) W.set(i, y + 3, T.FENCE);
+        if (r() < 0.5) prop(pick(['pot', 'tonneau']), x, y);
+      }
+      decor('cabaneChasseur', b.x1 - 4, b.y0 + 1, 4, 3, { h: 3, name: 'Cabane à outils' }) || decor('puits', b.x1 - 3, b.y0 + 1, 2, 2, { h: 2 });
+      decor('puits', b.x0 + 1, b.y1 - 2, 2, 2, { h: 2 });
+      pnj(mx + 1, Math.round(b.cy) + 1, { sprite: 'jardinier', move: 'turn', text: ['Mes tomates poussent mieux depuis que mon Mystherbe dort à côté.', 'Il paraît que ça les rassure.'] });
+      if (r() < 0.6) objet(mx - 1, b.y1, pick(['oran-berry', 'potion', 'antidote']));
     },
     ferme(b) {
       rect(b.x0, b.y0, b.x1, b.y1, T.GRASS, [sol]);
@@ -268,6 +297,17 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
       }
       for (let xx = b.x0 + 2; xx < b.x1; xx += 5) prop(r() < 0.5 ? 'erable' : 'lamp', xx, b.y1);
       pnj(Math.round(b.cx), b.y1 - 1, { sprite: pick(['topdresseur', 'topdresseuse', 'scientifique']), move: 'wander' });
+    },
+    esplanade(b) {
+      // une esplanade dallée, des colonnades, des statues, des parterres : la grandeur du Plateau Céleste
+      rect(b.x0, b.y0, b.x1, b.y1, T.PAVE);
+      for (let x = b.x0 + 1; x <= b.x1 - 1; x += 4) { prop('colonne', x, b.y0); prop('colonne', x, b.y1); }
+      for (let y = b.y0 + 3; y <= b.y1 - 3; y += 5) for (let x = b.x0 + 3; x <= b.x1 - 3; x += 6) {
+        if ((x + y) % 3 === 0) prop(pick(['gymstatue', 'statue']), x, y);
+        else { rect(x - 1, y, x + 1, y + 1, T.FLOWER); }
+      }
+      if (b.aire > 180) decor('fontaine', Math.round(b.cx) - 1, Math.round(b.cy) - 1, 3, 3, { h: 2 });
+      pnj(Math.round(b.cx) + 2, Math.round(b.cy) + 2, { sprite: pick(['topdresseur', 'topdresseuse', 'vieil_homme']), move: 'wander' });
     },
     port(b) {
       // quai pavé au bord de l'eau, pontons de bois, bateaux, caisses, pêcheurs ; une cabane de pêcheur, un phare au bout

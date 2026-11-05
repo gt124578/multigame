@@ -40,7 +40,7 @@ export const VILLES = {
     sorties: [{ dir: 'e', k: 50, vers: 'r11' }, { dir: 'n', k: 60, vers: 'cap', garde: 'garde-cap' }, { dir: 's', k: 60, vers: 'r12' }] },
   I: { bx: 15, by: 24, bw: 4, bh: 4, cx: 32, cy: 36, theme: 'cime', devise: 'La cité des dragons anciens.', statue: 'statue_dragon', quartiers: { maisons: 5, parc: 1, place: 1, marche: 1, jardins: 0 },
     sorties: [{ dir: 'w', k: 52, vers: 'r10' }, { dir: 'n', k: 30, vers: 'r9', garde: 'garde' }, { dir: 'e', k: 52, vers: 'plage' }] },
-  J: { bx: 11, by: 9, bw: 5, bh: 6, cx: 43, cy: 70, theme: 'plateau', releve: false, organique: false, devise: 'Le sommet des dresseurs.', quartiers: { maisons: 2, parc: 2, place: 1, marche: 0, jardins: 1 },
+  J: { bx: 11, by: 9, bw: 5, bh: 6, cx: 43, cy: 70, theme: 'plateau', releve: false, organique: false, devise: 'Le sommet des dresseurs.', quartiers: { maisons: 0, parc: 2, place: 0, marche: 0, jardins: 0 }, defaut: 'esplanade', arbres: ['erable', 'cerisier'], statue: 'statue',
     sorties: [{ dir: 's', k: 59, vers: 'r9b' }] },
   // Terres du Sud
   SM: { bx: 3, by: 36, bw: 12, bh: 8, cx: 96, cy: 66, theme: 'metro', releve: true, organique: false, devise: 'La ville qui ne dort jamais.', quartiers: { maisons: 6, parc: 2, place: 2, marche: 1, jardins: 0, affaires: 8 },

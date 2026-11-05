@@ -78,7 +78,7 @@ export function grandeRoute(W, S, ctx) {
   chemin.forEach((b, i) => P.push(centre(b, i > 0 && i < chemin.length - 1 ? 1 : 0)));
   P.push([S.vers.x + 0.5 - dv[0] * 6, S.vers.y + 0.5 - dv[1] * 6], [S.vers.x + 0.5 + dv[0] * 0.5, S.vers.y + 0.5 + dv[1] * 0.5]);
   const pts = sinueuse(P, 3).map(([x, y]) => [x - 0.5, y - 0.5]);
-  const res = carveRoute(W, pts, { seed: S.graine || 7, w: S.w || 11, grass: S.grass ?? 0.75, trees: S.trees ?? 0.04, flowers: S.flowers ?? 0.03, rocks: S.rocks ?? 0.01, tall: S.tall, treeT: S.treeT, ground: S.ground, overwrite: S.overwrite, bridge: S.bridge ?? true, taperStart: S.effile?.[0] ?? true, taperEnd: S.effile?.[1] ?? true });
+  const res = carveRoute(W, pts, { seed: S.graine || 7, w: (S.w || 11) + (S.elargir ?? 2), grass: S.grass ?? 0.75, trees: S.trees ?? 0.04, flowers: S.flowers ?? 0.03, rocks: S.rocks ?? 0.01, tall: S.tall, treeT: S.treeT, ground: S.ground, overwrite: S.overwrite, bridge: S.bridge ?? true, taperStart: S.effile?.[0] ?? true, taperEnd: S.effile?.[1] ?? true });
   const cells = new Set(res.info.keys()), info = res.info;
   const base = S.base || 0;
   if (base) for (const k of cells) { const [x, y] = k.split(',').map(Number); W.setHeight(x, y, base); }
@@ -157,14 +157,23 @@ export function grandeRoute(W, S, ctx) {
 
   /* paysages, tronçon par tronçon */
   const PAYS = (S.paysages || ['prairie', 'bosquet', 'fleurs', 'etang', 'rochers']).filter((q) => !S.monte || (q !== 'plateau' && q !== 'riviere'));
-  let pays = pick(PAYS), reste = 2 + Math.floor(r() * 2);
+  let pays = pick(PAYS), reste = 2 + Math.floor(r() * 2), riviereFaite = false;
   const marque = [];
   chemin.forEach((b, i) => {
     if (i === 0 || i === chemin.length - 1) return;
     if (--reste <= 0) { pays = pick(PAYS); reste = 2 + Math.floor(r() * 2); }
     const C = casesBloc(b), cx = b[0] * BLOC + 12, cy = b[1] * BLOC + 12;
     marque.push([b, pays]);
-    if (pays === 'prairie') { for (const [x, y] of C) if (loin(x, y) && W.get(x, y) === herbe && r() < 0.45) W.set(x, y, S.tall ?? T.TALL); }
+    if (pays === 'prairie') {
+      // la forêt s'ouvre : une grande clairière d'herbes hautes autour du chemin
+      const p = along(pts, tBloc[i]);
+      for (let y = Math.floor(p.y - 9); y <= p.y + 9; y++) for (let x = Math.floor(p.x - 9); x <= p.x + 9; x++) {
+        if (!dansBloc(b, x, y) || x <= b[0] * BLOC + 1 || y <= b[1] * BLOC + 1 || x >= (b[0] + 1) * BLOC - 2 || y >= (b[1] + 1) * BLOC - 2) continue;
+        const q = ((x - p.x) / 8.5) ** 2 + ((y - p.y) / 7.5) ** 2 + (r() - 0.5) * 0.35;
+        if (q <= 1 && (W.get(x, y) === T.TREE || W.get(x, y) === T.PINE)) { W.set(x, y, herbe); W.setHeight(x, y, base); cells.add(key(x, y)); }
+      }
+      for (const [x, y] of casesBloc(b)) if (loin(x, y) && W.get(x, y) === herbe && r() < 0.4) W.set(x, y, S.tall ?? T.TALL);
+    }
     else if (pays === 'bosquet') { for (const [x, y] of C) if (loin(x, y, 2.8) && W.get(x, y) === herbe && r() < 0.12) W.set(x, y, S.treeT ?? T.TREE); }
     else if (pays === 'fleurs') { for (const [x, y] of C) if (loin(x, y, 1.6) && W.get(x, y) === herbe && (Math.sin(x * 0.7) + Math.sin(y * 0.9)) > 0.6) W.set(x, y, T.FLOWER); }
     else if (pays === 'rochers') {
@@ -179,14 +188,20 @@ export function grandeRoute(W, S, ctx) {
         const v = info.get(key(x, y)); if ((v && v.d < 3.2) || sentiersImpasses.has(key(x, y))) continue;
         if (q <= 1 && [T.TREE, T.PINE, herbe, T.TALL, T.FLOWER].includes(W.get(x, y))) { W.set(x, y, T.WATER); W.setHeight(x, y, base); }
       }
-    } else if (pays === 'riviere') {
-      // une rivière traverse le bloc en travers du chemin ; on la passe sur un pont
-      const p = along(pts, tBloc[i]), vertical = Math.abs(p.dx) > Math.abs(p.dy);
-      for (let k = -1; k <= 1; k++) for (let u = 0; u < BLOC; u++) {
-        const x = vertical ? Math.round(cx + k) : b[0] * BLOC + u, y = vertical ? b[1] * BLOC + u : Math.round(cy + k);
-        const t = W.get(x, y), v = info.get(key(x, y));
-        if ((v && v.d <= 1.05) || sentiersImpasses.has(key(x, y))) { W.set(x, y, T.BRIDGE); continue; }
-        if ([T.TREE, T.PINE, herbe, T.TALL, T.FLOWER, T.ROCK].includes(t)) W.set(x, y, T.WATER);
+    } else if (pays === 'riviere' && !riviereFaite) {
+      // une rivière qui serpente en travers du bloc ; on la passe sur un pont de planches
+      riviereFaite = true;
+      const p = along(pts, tBloc[i]), travers = Math.abs(p.dx) > Math.abs(p.dy);   // la route va d'est en ouest : la rivière du nord au sud
+      const ph = r() * 6, amp = 2.5 + r() * 2.5, larg = (u) => 1.2 + 0.8 * Math.sin(u * 0.31 + ph);
+      for (let u = -2; u < BLOC + 2; u++) {
+        const centreR = 12 + amp * Math.sin(u * 0.22 + ph) + 1.5 * Math.sin(u * 0.57 + 2 * ph);
+        for (let k = -3; k <= 3; k++) {
+          if (Math.abs(k) > larg(u) + 0.3) continue;
+          const x = travers ? b[0] * BLOC + Math.round(centreR + k) : b[0] * BLOC + u, y = travers ? b[1] * BLOC + u : b[1] * BLOC + Math.round(centreR + k);
+          const t = W.get(x, y), v = info.get(key(x, y));
+          if ((v && v.d <= 1.05) || sentiersImpasses.has(key(x, y))) { if (t !== T.WATER) W.set(x, y, T.BRIDGE); continue; }
+          if ([T.TREE, T.PINE, herbe, T.TALL, T.DARKTALL, T.FLOWER, T.ROCK].includes(t)) W.set(x, y, T.WATER);
+        }
       }
     } else if (pays === 'plateau') {
       const R = plateau(W, C.filter(([x, y]) => W.get(x, y) !== T.WATER), base + 1);
@@ -237,7 +252,7 @@ export function grandeRoute(W, S, ctx) {
   }
 
   /* dresseurs ajoutés (identifiants fixes) et promeneurs */
-  const nd = S.dresseurs ?? Math.max(0, Math.round(chemin.length / 2.4) - (S.anciens || 0));
+  const nd = S.dresseurs ?? Math.max(1, Math.round(chemin.length * 0.85) - (S.anciens || 0));
   const enc = (ctx.ENC?.[S.enc] || []).filter(([sp]) => sp < 1000 || sp >= 1000);
   const niv = S.niveaux || (enc.length ? [Math.min(...enc.map((e) => e[1])), Math.max(...enc.map((e) => e[2]))] : [5, 8]);
   const CLASSES = S.classes || ['Gamin', 'Fillette', 'Randonneuse', 'Montagnard', 'Topdresseur', 'Topdresseuse', 'Insectomane', 'Karatéka'];

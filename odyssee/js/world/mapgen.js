@@ -304,7 +304,8 @@ export function caseLibre(map, x, y) {
   const occ = (a, b) => map.npcs.some((n) => n.x === a && n.y === b) || map.items.some((i) => i.x === a && i.y === b);
   const SOL = new Set([T.GRASS, T.PATH, T.TALL, T.SAND, T.CAVE, T.ASH, T.FLOOR, T.FLOWER, T.DARKTALL, T.SNOW, T.PAVE]);
   const libre = (a, b) => SOL.has(map.get(a, b)) && !occ(a, b) && !map.warpAt(a, b) && map.get(a, b) !== T.SIGN;
-  const pres = (a, b) => { for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) if (Math.abs(i) + Math.abs(j) <= 2 && (map.warpAt(a + i, b + j) || map.get(a + i, b + j) === T.DOOR)) return true; return false; };
+  // près d'une porte, d'un téléporteur ou au pied d'un escalier : on ne s'y met pas (on boucherait le passage)
+  const pres = (a, b) => { for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) { const d = Math.abs(i) + Math.abs(j); if (d <= 2 && (map.warpAt(a + i, b + j) || map.get(a + i, b + j) === T.DOOR)) return true; if (d === 1 && (map.get(a + i, b + j) === T.STAIRS || map.get(a + i, b + j) === T.BRIDGE)) return true; } return false; };
   const simple = (a, b) => {
     const h = map.height(a, b), ok = (i, j) => (i || j) && walkable(map.get(a + i, b + j)) && !occ(a + i, b + j) && map.height(a + i, b + j) === h;
     const ring = []; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (ok(i, j)) ring.push(i + ',' + j);
