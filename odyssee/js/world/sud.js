@@ -344,7 +344,7 @@ function desert(W, pts, terr, graine) {
   }
   const mesa = [];
   for (const [c0, r0, c1, r1] of terr) for (let y = r0 * 24; y < (r1 + 1) * 24; y++) for (let x = c0 * 24; x < (c1 + 1) * 24; x++) {
-    const t = W.get(x, y); if (!(t === T.TREE || t === T.PINE) || auBord(x, y, terr, 14)) continue;
+    const t = W.get(x, y); if (!(t === T.TREE || t === T.PINE) || auBord(x, y, terr, 30)) continue;
     // entre les mesas, des cuvettes de sable (on les voit d'en haut, on n'y descend pas)
     if (bruit(x, y, 14, graine + 3) > 0.7) { W.set(x, y, T.SAND); continue; }
     mesa.push([x, y]);
@@ -361,7 +361,7 @@ function auBord(x, y, terr, amp = 4) {
 /** le Canyon d'Ocre : de hautes parois de roche ocre de part et d'autre de la route 17 */
 function canyon(W, terr) {
   const roc = [];
-  for (const [c0, r0, c1, r1] of terr) for (let y = r0 * 24; y < (r1 + 1) * 24; y++) for (let x = c0 * 24; x < (c1 + 1) * 24; x++) { const t = W.get(x, y); if ((t === T.TREE || t === T.PINE) && !auBord(x, y, terr, 12)) roc.push([x, y]); }
+  for (const [c0, r0, c1, r1] of terr) for (let y = r0 * 24; y < (r1 + 1) * 24; y++) for (let x = c0 * 24; x < (c1 + 1) * 24; x++) { const t = W.get(x, y); if ((t === T.TREE || t === T.PINE) && !auBord(x, y, terr, 30)) roc.push([x, y]); }
   // de hautes parois en gradins serrés (le canyon), des tables de roche ocre au-delà
   reliefMontagne(W, roc, { g: 1717, pente: 0.9, max: 7, crete: 3.5, masse: 3, palier: 1, echelle: 30 });
 }

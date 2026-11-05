@@ -1237,8 +1237,9 @@ function chaine(W, towns) {
   const J = towns.J?.ville;
   if (J) for (let y = J.y; y < J.y + J.h; y++) for (let x = J.x; x < J.x + J.w; x++) W.setHeight(x, y, 4);
   const dedans = (x, y) => CHAINE.some(([c0, r0, c1, r1]) => x >= c0 * BLOC && y >= r0 * BLOC && x < (c1 + 1) * BLOC && y < (r1 + 1) * BLOC);
-  const X0 = Math.min(...CHAINE.map((q) => q[0])) * BLOC, Y0 = Math.min(...CHAINE.map((q) => q[1])) * BLOC;
-  const X1 = (Math.max(...CHAINE.map((q) => q[2])) + 1) * BLOC - 1, Y1 = (Math.max(...CHAINE.map((q) => q[3])) + 1) * BLOC - 1;
+  // (une case de marge autour du plan : le pied se mesure aussi depuis ses bords extérieurs)
+  const X0 = Math.min(...CHAINE.map((q) => q[0])) * BLOC - 1, Y0 = Math.max(0, Math.min(...CHAINE.map((q) => q[1])) * BLOC - 1);
+  const X1 = (Math.max(...CHAINE.map((q) => q[2])) + 1) * BLOC, Y1 = (Math.max(...CHAINE.map((q) => q[3])) + 1) * BLOC;
   const w = X1 - X0 + 1, h = Y1 - Y0 + 1, at = (x, y) => (y - Y0) * w + (x - X0);
   const foret = (x, y) => { const t = W.get(x, y); return (t === T.TREE || t === T.PINE) && !(W.monts && W.monts[y * W.w + x]) && W.height(x, y) === 0; };
   // 1. le pied : la forêt monte à l'assaut des pentes en dents de scie ; les vallées boisées (pins) entre les crêtes
@@ -1249,7 +1250,8 @@ function chaine(W, towns) {
   for (let y = Y1 - 1; y >= Y0; y--) for (let x = X1 - 1; x > X0; x--) { const p = at(x, y); lisiere[p] = Math.min(lisiere[p], lisiere[p + 1] + 1, lisiere[p + w] + 1, lisiere[p + w + 1] + 1.41, lisiere[p + w - 1] + 1.41); }
   for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) {
     if (!dedans(x, y) || !foret(x, y)) continue;
-    const pied = 3 + 16 * bruit(x, y, 23, 13) + 4 * bruit(x, y, 6, 14);
+    // (de profondes avancées de forêt remontent les vallées : le massif n'a jamais le bord droit de son plan)
+    const pied = 3 + 40 * Math.max(0, bruit(x, y, 37, 13) - 0.35) + 10 * bruit(x, y, 13, 15) + 4 * bruit(x, y, 6, 14);
     if (lisiere[at(x, y)] < pied) { if (r2(x, y) < 0.6) W.set(x, y, T.PINE); continue; }
     // vallées : de longs couloirs boisés entre les crêtes (cols), où dorment des lacs d'altitude
     const val = Math.abs(2 * bruit(x, y, 38, 41) - 1), large = 0.02 + 0.2 * bruit(x, y, 17, 43) * (1 - bruit(x, y, 70, 44));
