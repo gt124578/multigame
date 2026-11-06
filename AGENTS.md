@@ -124,7 +124,7 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   (`show`, `bring`, `check`, `relay`, `duel`, jouées par `mission()` de `js/story.js`, acceptées = drapeau `A:id`) ;
   `node tools/test-odyssee-habitants.mjs` les joue toutes, `node tools/test-odyssee-journal-quetes.mjs` teste le journal.
   Odyssée Test (`odyssee/test/`, jeu `odysseetest` du Hub) : le vrai jeu avec `window.ODYSSEE_TEST`, un labo pour choisir
-  lieu et équipe (`odyssee/js/labo/labo.js`, rien n'est sauvegardé) et un éditeur de carte (`odyssee/js/labo/editeur.js`) ;
+  lieu et équipe (`odyssee/js/labo/labo.js`, rien n'est sauvegardé) et un éditeur de carte (`odyssee/js/labo/editeur.js` : bouton du menu du labo, vue de haut sans dresseur, ou touche B en jeu ; palette repliable à glisser sur la carte, sélection, copier / couper / coller, déplacer à la souris, annuler ; nouvelles retouches `mb`, `mp`, `mi`, `mn`, `-b`, `r`, `vide` dans `retouches.js`) ;
   ses retouches exportées se collent dans `odyssee/js/world/retouches.js`, appliquées à la fin de `buildWorld`.
   Schéma des cartes à dessiner par-dessus : `node tools/odyssee-schema.mjs [tout|monde|grottes|<carte>] [dossier]` (par défaut
   `/tmp/schema`) exporte pour le dehors et chaque grotte un schéma 1 pixel = 1 case (une couleur par type de case, `legende.png`

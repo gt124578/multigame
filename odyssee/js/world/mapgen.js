@@ -92,6 +92,7 @@ export class GameMap {
   building(kind, x, y, o = {}) {
     const B = { ...BUILDINGS[kind] }; for (const [k, v] of Object.entries(o)) if (v !== undefined) B[k] = v;
     const b = { kind, x, y, w: B.w, d: B.d, h: B.h, door: B.door, style: B.style || (kind === 'house2' ? 'house2' : 'house'), roof: B.roof || 'red', id: o.id, label: o.label, name: o.name, kit: o.kit, flat: o.flat, modele: B.modele, opts: B.opts };
+    Object.defineProperty(b, 'o', { value: o, enumerable: false, writable: true });   // réglages d'origine (l'éditeur de carte déplace et copie les bâtiments)
     // emprise : rectangle w × d bâti, sauf les cases « libres » (porche, cour de devant…) ; « blocs » : cases bloquées
     // autour (étal, statues, colonnes, lampadaires du modèle 3D) ; porte sur la rangée du bas, ou sur porteY
     const libres = new Set((B.libres || []).map(([i, j]) => i + ',' + j));

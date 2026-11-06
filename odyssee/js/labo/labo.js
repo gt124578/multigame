@@ -121,14 +121,15 @@ export async function startLabo({ game, world, view, ui, input, sound, setMode }
           <label class="labo-eq"><input type="checkbox" name="dresseurs"${choix.dresseurs ? ' checked' : ''}><span>Combats de dresseurs<small>décoché : les dresseurs ne t'arrêtent plus</small></span></label>
           <small>Toujours : toutes les CS, vélo, permis bateau, sac plein, 9 999 999 ₽, Pokédex et journal.</small></div>
       </div>
-      <div class="labo-go"><button type="button" class="labo-btn" data-go>▶ APPARAÎTRE ICI</button></div>
+      <div class="labo-go"><button type="button" class="labo-btn" data-go>▶ APPARAÎTRE ICI</button> <button type="button" class="labo-btn labo-btn2" data-edit title="Vue de haut, sans dresseur : terrain, bâtiments, décor, habitants… à la souris">✏️ ÉDITEUR DE CARTE</button></div>
       <div class="labo-help">En jeu : barre d'outils en haut · <b>T</b> se téléporter · <b>G</b> revenir à ce menu · <b>B</b> éditeur de carte</div>
     </div>`;
     ui.root.appendChild(s);
     const sel = s.querySelector('.labo-lieu');
     s.querySelector('.labo-cherche').addEventListener('input', (e) => { const q = e.target.value.toLowerCase(); for (const o of sel.querySelectorAll('option')) o.hidden = q && !o.textContent.toLowerCase().includes(q); });
     for (const i of s.querySelectorAll('input, select')) i.addEventListener('keydown', (e) => e.stopPropagation());
-    const go = () => {
+    const go = (mode = 'jeu') => {
+      choix.mode = mode;
       choix.lieu = +sel.value || 0;
       choix.equipe = s.querySelector('input[name=eq]:checked')?.value || 'moyenne';
       choix.perso = s.querySelector('input[name=pp]:checked')?.value || 'm';
@@ -137,13 +138,14 @@ export async function startLabo({ game, world, view, ui, input, sound, setMode }
       choix.libre = s.querySelector('[name=libre]').checked; choix.domaine = s.querySelector('[name=domaine]').checked; choix.dresseurs = s.querySelector('[name=dresseurs]').checked;
       garde(); pop(); s.remove(); resolve();
     };
-    s.querySelector('[data-go]').addEventListener('click', go);
-    sel.addEventListener('dblclick', go);
+    s.querySelector('[data-go]').addEventListener('click', () => go());
+    s.querySelector('[data-edit]').addEventListener('click', () => go('editeur'));
+    sel.addEventListener('dblclick', () => go());
     const pop = input.push((k) => { if (k === 'a') go(); });
   });
 
   const lancer = async () => {
-    setMode('menu'); bar?.remove(); editeur.close(); fermerPanneau();
+    setMode('menu'); bar?.remove(); bar = null; if (editeur.on) { editeur.retour = null; editeur.close(); } fermerPanneau();
     document.querySelector('.title-scr')?.remove(); ui.closeDialog();
     await menu();
     const eq = EQUIPES.find((e) => e.id === choix.equipe) || EQUIPES[1];
@@ -153,6 +155,8 @@ export async function startLabo({ game, world, view, ui, input, sound, setMode }
     game.noTrainers = !choix.dresseurs;
     setMode('game');
     await game.start(st);
+    // éditeur de carte ouvert depuis le menu : vue de haut, sans dresseur ; en le quittant, on revient au menu
+    if (choix.mode === 'editeur') { editeur.open({ seul: true, retour: () => lancer() }); return; }
     bar = barre();
   };
 
@@ -239,7 +243,7 @@ export async function startLabo({ game, world, view, ui, input, sound, setMode }
   };
   addEventListener('keydown', (e) => {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
-    if (!game.state || document.querySelector('.labo-scr')) return;
+    if (!game.state || document.querySelector('.labo-scr') || editeur.seul) return;
     if (e.code === 'KeyB' && !game.bv.alive) { e.preventDefault(); editeur.toggle(); }
     if (e.code === 'KeyG' && !game.busy && !editeur.on) { e.preventDefault(); lancer(); }
     if (e.code === 'KeyT' && !editeur.on && !game.bv.alive) { e.preventDefault(); teleporter(); }

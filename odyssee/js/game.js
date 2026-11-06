@@ -510,7 +510,7 @@ export class Game {
       for (const q of syncJournal(this)) if (!q.done) this.ui.toast(`📖 Journal : « ${q.name} »`, 2200);
     }
     // PNJ et autres joueurs
-    for (const n of this.npcs) this.npcTick(n, dt);
+    if (!this.figer) for (const n of this.npcs) this.npcTick(n, dt);   // figés dans l'éditeur de carte
     this.peersTick?.(dt);
     // la carte n'est pas redessinée sous un combat ou un écran plein cadre
     if (this.bv.alive || this.ui.root.querySelector('.screen')) { this.drawTags?.(false); return; }
@@ -562,6 +562,11 @@ export class Game {
       { const gx = Math.round(nx), gy = Math.round(ny); v.cover(na, ...(isGrassEnc(this.mapObj.get(gx, gy)) ? [gx, gy] : [null])); }
       if (n.bang) { const b = v.actor('bang:' + n.id, { kind: 'bang' }); b.mesh.position.set(nx + 0.5, 34 * HPX + v.hAt(nx + 0.5, ny + 0.55), ny + 0.56); }
       else if (v.actors.has('bang:' + n.id)) v.removeActor('bang:' + n.id);
+    }
+    // éditeur de carte : caméra libre, sans dresseur ni compagnon
+    if (this.camLibre) {
+      px = this.camLibre.x; py = this.camLibre.y;
+      for (const k of ['player', 'follower', 'velo', 'wake']) { const x = v.actors.get(k); if (x) { x.mesh.visible = false; if (x.shadow) x.shadow.visible = false; } }
     }
     v.update(dt, px, py);
     v.render();

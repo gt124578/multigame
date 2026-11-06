@@ -33,7 +33,8 @@ const SW = (r) => r.w * WPX / (r.d || 1), SH = (r) => r.h * HPX / (r.d || 1);
  * profondeur vient de la 3D (celle d'un panneau vertical à cet endroit) : un arbre passe derrière une maison, un
  * personnage devant un autre, sans jamais être déformé par la perspective, en haut comme en bas de l'écran.
  */
-export const SPRITE_UNIFORMS = { uRes: { value: new THREE.Vector2(400, 240) } };
+// uEch : les sprites rapetissent quand l'éditeur de carte voit de plus haut (1 en jeu : pixel pour pixel)
+export const SPRITE_UNIFORMS = { uRes: { value: new THREE.Vector2(400, 240) }, uEch: { value: 1 } };
 /**
  * Bâtiments : leur profondeur est celle de leur façade (comme un grand sprite posé sur sa rangée de devant). Un arbre
  * ou un personnage dont les pieds sont derrière la façade passe derrière toute la maison, toit compris ; devant la
@@ -58,15 +59,15 @@ const DECALS = new Set(['fleche', 'vent', 'courant', 'dalle', 'tp', 'socle']);
 const WIDE_DECO = new Set(['healer', 'sofa', 'bench', 'startertable', 'fireplace', 'rug']);
 function screenSprite(mat) {
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uRes = SPRITE_UNIFORMS.uRes;
+    sh.uniforms.uRes = SPRITE_UNIFORMS.uRes; sh.uniforms.uEch = SPRITE_UNIFORMS.uEch;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec3 anchor;\nuniform vec2 uRes;')
+      .replace('#include <common>', '#include <common>\nattribute vec3 anchor;\nuniform vec2 uRes;\nuniform float uEch;')
       .replace('#include <project_vertex>', `
         vec4 sW = modelMatrix * vec4( transformed, 1.0 );
         vec4 sA = modelMatrix * vec4( anchor, 1.0 );
         vec3 sD = sW.xyz - sA.xyz;
         vec4 sAC = projectionMatrix * viewMatrix * sA;
-        vec2 sPx = floor( ( sAC.xy / sAC.w * 0.5 + 0.5 ) * uRes + 0.5 ) + vec2( sD.x / ${WPX_STR}, sD.y / ${HPX_STR} );
+        vec2 sPx = floor( ( sAC.xy / sAC.w * 0.5 + 0.5 ) * uRes + 0.5 ) + vec2( sD.x / ${WPX_STR}, sD.y / ${HPX_STR} ) / uEch;
         vec4 mvPosition = viewMatrix * sW;
         vec4 sPC = projectionMatrix * mvPosition;
         // deux sprites sur la même rangée auraient exactement la même profondeur (pixels qui se battent, « hachurés ») :
@@ -1008,7 +1009,8 @@ export class WorldView {
   ensureChunks(px, py) {
     const ci = Math.floor(px / CH), cj = Math.floor(py / CH), k = ci + ',' + cj;
     if (k === this.lastChunk) return; this.lastChunk = k;
-    for (let j = cj - 2; j <= cj + 2; j++) for (let i = ci - 2; i <= ci + 2; i++) {
+    const R = this.rayon || 2;   // blocs autour du point de vue (l'éditeur de carte voit plus loin)
+    for (let j = cj - R; j <= cj + R; j++) for (let i = ci - R; i <= ci + R; i++) {
       // au-delà des bords, deux blocs de décor (forêt, mer, montagnes, roche) pour qu'on ne voie jamais le vide
       const ex = this.map.ext ? 2 : 0;
       if (i < -ex || j < -ex || (i - ex) * CH >= this.map.w || (j - ex) * CH >= this.map.h) continue;
@@ -1019,8 +1021,8 @@ export class WorldView {
     // milliers : la mémoire ne grossit pas à mesure qu'on voyage)
     for (const [kk, g] of this.chunks) {
       const [i, j] = kk.split(',').map(Number), d = Math.max(Math.abs(i - ci), Math.abs(j - cj));
-      g.visible = d <= 2;
-      if (d > 6) { this.root.remove(g); g.traverse((o) => o.geometry?.dispose()); this.chunks.delete(kk); }
+      g.visible = d <= R;
+      if (d > R + 4) { this.root.remove(g); g.traverse((o) => o.geometry?.dispose()); this.chunks.delete(kk); }
     }
   }
 
@@ -1062,6 +1064,12 @@ export class WorldView {
     if (this.map.buildings.length < 200) { for (const L of this.batAttente.values()) for (const b of L) this.poserBat(b); this.batAttente.clear(); }
   }
   /** construit les bâtiments en attente d'un morceau (i, j) */
+  /** éditeur de carte : retire le rendu d'un bâtiment (déplacé ou effacé) */
+  retirerBat(b) {
+    for (const g of this.buildingMeshes.filter((q) => q.userData.b === b)) { this.root.remove(g); if (g.userData.win) this.nightGroup.remove(g.userData.win); }
+    this.buildingMeshes = this.buildingMeshes.filter((q) => q.userData.b !== b);
+    for (const L of this.batAttente?.values() || []) { const i = L.indexOf(b); if (i >= 0) L.splice(i, 1); }
+  }
   poserBatimentsBloc(i, j) { const k = i + ',' + j, L = this.batAttente?.get(k); if (!L) return; this.batAttente.delete(k); for (const b of L) this.poserBat(b); }
   poserBat(b) {
     const cache = this._texBat;
@@ -1394,7 +1402,7 @@ export class WorldView {
     for (const g of this.buildingMeshes || []) {
       const b = g.userData.b; if (!b) continue;
       // derrière le bâtiment, son toit et ses murs cachent environ h + 0,4 cases au nord de son emprise
-      const hid = fx > b.x - 1 && fx < b.x + b.w && fy < b.y - 0.5 && fy > b.y - b.h - 1.2;
+      const hid = !this.sansFondu && fx > b.x - 1 && fx < b.x + b.w && fy < b.y - 0.5 && fy > b.y - b.h - 1.2;   // sansFondu : éditeur de carte
       const t = hid ? 0.45 : 1;
       const o = g.userData.opacity ?? 1;
       if (o === t) continue;
