@@ -2,6 +2,7 @@
 import { MOVES } from './moves.js';
 
 export const SPECIFIC_MOVE_DESCS = {
+  10002: "Projette un nuage de pollen gluant qui englue la cible : elle subit des dégâts et sa Vitesse baisse.",
   // Capacités uniques et tactiques
   18: "Souffle un violent coup de vent qui force l'ennemi à fuir ou à changer de Pokémon.",
   46: "Un rugissement effrayant qui met fin au combat sauvage ou force l'adversaire à échanger.",

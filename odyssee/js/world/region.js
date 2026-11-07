@@ -17,6 +17,7 @@ import { enrichirTout, equipeDeType } from './rencontres.js';
 import { addHabitants } from './habitants.js';
 import { applyRetouches } from './retouches.js';
 import { buildArena } from './arenes.js';
+import { areneSylve } from './arene-sylve.js';
 import { buildSud, BADGES_SUD, LEADERS_SUD, GYM_TRAINERS_SUD } from './sud.js';
 import { addVehicules } from './vehicules.js';
 import { addMine } from './mine.js';
@@ -115,7 +116,7 @@ enrichirTout(ENC);
 const CLS = {
   Gamin: ['gamin', 16], Fillette: ['fillette', 16], Montagnard: ['montagnard', 24], Marin: ['marin', 24],
   Topdresseur: ['topdresseur', 40], Topdresseuse: ['topdresseuse', 40], Scientifique: ['scientifique', 30], Pêcheur: ['pecheur', 20],
-  Insectomane: ['insectomane', 16], Randonneuse: ['randonneuse', 20], Médium: ['medium', 30], Karatéka: ['karateka', 28],
+  Insectomane: ['insectomane', 16], Jardinière: ['randonneuse', 20], Randonneuse: ['randonneuse', 20], Médium: ['medium', 30], Karatéka: ['karateka', 28],
   'Garde d\'Écaille': ['garde', 36],
   // troisième valeur : portrait en combat quand le personnage n'a pas le sien
   'Sbire de la Brume': ['brume', 32], 'Sbire': ['brume_f', 32], 'Admin de la Brume': ['sylas', 70], 'Chef de la Brume': ['nox', 120], Voleur: ['voleur', 24], Moine: ['pretre', 34, 'pretre'], 'Dame Kimono': ['kimono', 40],
@@ -123,7 +124,14 @@ const CLS = {
   Sage: ['vieil_homme', 32, 'medium'], 'Grand Sage': ['vieil_homme', 60, 'medium'], Skieuse: ['randonneuse', 30], Alpiniste: ['montagnard', 30],
 };
 export const LEADERS = [
-  { name: 'Hector', type: 'bug', ow: 'hector', team: [[1018, 9, null, [33, 81, 106]], [167, 10], [1020, 10], [1019, 12]], intro: 'Les insectes ne crient pas : ils observent. Et toi, que vois-tu dans ce combat ?', lose: 'Tu as l\'œil vif ! Le Badge Élytre est à toi.' },
+  // Hector : trois Pokémon qui jouent ensemble. Mimigal tisse et ralentit (Sécrétion, Grimace), Couverdure encaisse et endort
+  // (Abri, Siffl'Herbe), Bourdonnet frappe vite et puise dans ses Sacoches de Pollen quand il faiblit (talent propre à Odyssée)
+  // équipe : [espèce, niveau, objet tenu, attaques, talent]
+  { name: 'Hector', type: 'bug', ow: 'hector', team: [
+    [167, 13, null, [81, 184, 40, 132]],
+    [541, 14, null, [182, 320, 75, 106]],
+    [1020, 15, null, [42, 210, 98, 230], 'sacoches-pollen'],
+  ], intro: ['Bienvenue sous mon dôme. Ici, chaque insecte a sa place, et chaque souffle d\'air compte.', 'Tu as su guider le pollen jusqu\'aux stèles... Voyons si tu sais guider tes Pokémon !'], lose: 'Tu as l\'œil vif et la main sûre ! Le Badge Élytre est à toi.' },
   { name: 'Marine', type: 'water', ow: 'marine', team: [[1031, 19], [1029, 19], [120, 20], [1033, 22]], intro: 'La marée monte ! Tu vas te faire emporter par mes créatures de l\'océan !', lose: 'Ouah, tu as tenu face à la vague. Voici le Badge Écume !' },
   { name: 'Volta', type: 'electric', ow: 'volta', team: [[1034, 25], [1036, 26], [82, 26], [1035, 29]], intro: 'Ça grésille ! Prépare-toi à recevoir le choc de ta vie !', lose: 'Court-circuit total ! Tu remportes le Badge Volt.' },
   { name: 'Flora', type: 'grass', ow: 'flora', team: [[1021, 30], [1038, 31], [114, 31], [1022, 34]], intro: 'Mes fleurs sont belles, mais elles savent piquer. Prêt ?', lose: 'Tu as fait éclore quelque chose de beau. Le Badge Pétale te revient.' },
@@ -246,7 +254,11 @@ export function poserBatiment(W, maps, def, b) {
   if (b.interior) inside = b.interior(id);
   else if (b.kind === 'center') inside = centerInterior(id, 'Centre de soins');
   else if (b.kind === 'mart') inside = martInterior(id, 'Boutique', STOCK[def.stock || 1]);
-  else if (b.kind === 'gym') { const ar = buildArena(id, def.gym, LEADERS[def.gym].type, 'Arène de ' + def.name); inside = ar.map; def.gymArena = ar; }
+  else if (b.kind === 'gym') {
+    // la première arène (Sylvebourg) est dessinée à la main : la Grande Serre (world/arene-sylve.js) ; les autres sont tirées d'une graine
+    const ar = def.gym === 0 ? areneSylve(id, 'Arène de ' + def.name) : buildArena(id, def.gym, LEADERS[def.gym].type, 'Arène de ' + def.name);
+    inside = ar.map; def.gymArena = ar;
+  }
   else if (b.kind === 'lab') inside = labInterior(id);
   else if (b.kind === 'league') inside = leagueInterior(id);
   else inside = houseInterior(id, b.name || 'Maison', { w: b.kind === 'bighouse' || b.kind === 'tower' ? 11 : 9, h: b.kind === 'bighouse' || b.kind === 'tower' ? 9 : 8, bed: b.bed, extraBooks: b.kind === 'tower', kitchen: b.kitchen });
@@ -1168,12 +1180,14 @@ export function buildWorld() {
     g.npc({ id: g.id + ':guide', x: ar.guide[0], y: ar.guide[1], sprite: 'habitant', dir: 'left', script: 'gymguide', gym: t.gym });
     // les dresseurs se tiennent à côté du parcours de l'énigme, tournés vers lui : ils ne bloquent jamais le passage
     const spots = ar.spots;
+    // arène dessinée à la main (Sylvebourg) : ses dresseurs, leurs places et leurs cadeaux viennent d'elle
+    if (ar.dresseurs) for (const d of ar.dresseurs) trainerNpc(g, d.x, d.y, d.dir, d.cls, d.name, d.team, { sight: d.sight, ow: d.ow, bs: d.ow, intro: d.intro, after: d.after, onWin: d.gift && (async (A) => { await A.say(`${d.cls} ${d.name} : « Tiens, prends ça. Tu l\'as bien mérité ! »`); await A.give(d.gift[0], d.gift[1]); }) });
     // arène Feu : des gardiens du savoir posent une question avant de s'écarter
     ar.quiz.forEach(([x, y], k) => g.npc({ id: `${g.id}:savoir${k}`, x, y, sprite: 'scientifique', dir: 'down', script: 'savoir', quiz: k + t.gym, hideIf: `QZ:${g.id}:savoir${k}` }));
     // quatre dresseurs par arène ; chacun garde ses Pokémon et en ajoute un ou deux du type de l'arène, pris dans
     // les six générations (un Pokémon différent d'une arène à l'autre, toujours le même pour une arène donnée)
-    const list = gymTrainers[t.gym].slice();
-    const extra = GYM_EXTRA[t.gym]; if (list.length < 4 && extra) list.push(extra);
+    const list = ar.dresseurs ? [] : gymTrainers[t.gym].slice();
+    const extra = GYM_EXTRA[t.gym]; if (!ar.dresseurs && list.length < 4 && extra) list.push(extra);
     list.forEach(([cls, name, team], i) => {
       const lvl = Math.max(...team.map((m) => m[1]));
       const more = equipeDeType(L2.type, lvl, team.length >= 3 ? 1 : 2, t.gym * 31 + i * 7 + 3).filter(([sp]) => !team.some((m) => m[0] === sp));

@@ -657,6 +657,15 @@ export class Battle {
     const m = this.act(i), before = m.hp;
     m.hp = Math.max(0, Math.min(m.stats[0], m.hp + delta));
     if (m.hp !== before) this.ev.push({ t: 'hp', side: i, hp: m.hp, from: before, cause });
+    // Sacoches de Pollen (Bourdonnet d'Hector) : une fois par combat, en passant sous la moitié de ses PV, il se soigne
+    // d'un quart et gagne un cran de Vitesse
+    const half = m.stats[0] / 2;
+    if (m.hp > 0 && m.hp <= half && before > half && this.ab(i) === 'sacoches-pollen' && !(this.sacoches ||= new Set()).has(m.uid)) {
+      this.sacoches.add(m.uid);
+      this.say(`${this.Nm(i)} puise dans ses Sacoches de Pollen !`);
+      this.hp(i, Math.max(1, Math.floor(m.stats[0] / 4)));
+      this.boost(i, 6, 1);
+    }
     return before - m.hp;
   }
 

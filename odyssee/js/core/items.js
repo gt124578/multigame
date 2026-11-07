@@ -47,6 +47,8 @@ export const ITEMS = {
   'cs-force': { pocket: 'ct', price: 0, key: true, field: 'force', icon: 'notebook', name: 'CS06 Force', desc: 'Pousse les gros rochers. Place-toi face au rocher, appuie sur F, puis marche contre lui. Badge Volt requis.' },
   medaillon: { pocket: 'cles', price: 0, key: true, icon: 'soothe-bell', name: 'Médaillon', desc: 'Un médaillon gravé d\'une petite fleur. Quelqu\'un de Sylvebourg doit le chercher partout.' },
   'prism-shard': { pocket: 'cles', price: 0, key: true, icon: 'shoal-shell', name: 'Éclat de Prisme', desc: 'Un fragment noir du Prisme de la Team Éclipse. Il est glacé au toucher.' },
+  // CT01 : donnée par Hector avec le Badge Élytre ; ne s'use pas
+  'ct-01': { pocket: 'ct', price: 0, key: true, ct: 10002, types: ['bug'], icon: 'notebook', name: 'CT01 Pollen Collant', desc: 'Insecte · Spéciale · Puissance 55 · Précision 95. Un nuage de pollen gluant englue la cible et baisse sa Vitesse. Pour les Pokémon Insecte et ceux qui connaissent des attaques Insecte. La CT ne s\'use pas.' },
   'cs-vol': { pocket: 'ct', price: 0, key: true, field: 'vol', icon: 'notebook', name: 'CS04 Vol', desc: 'Ramène en un instant dans une ville déjà visitée (depuis le menu, ou en utilisant cet objet). Badge Braise requis.' },
   // objets de quête des légendaires
   'gs-ball': { pocket: 'cles', price: 0, key: true, icon: 'gift', name: 'Balle GS', desc: 'Une capsule dorée gravée des lettres G et S. Elle semble attirée par l\'autel du Bois Murmure.' },

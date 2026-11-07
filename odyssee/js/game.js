@@ -4,7 +4,7 @@ import { T, walkable, isGrassEnc, DIRS, OPP } from './world/tiles.js';
 import { nearestWalkable } from './world/mapgen.js';
 import { MEGAS_OF, MEGA_RING, LEGEND, STONE_FORM, revertMegas } from './core/mega.js';
 import { MEGA_FORMS } from './core/mega.js';
-import { createMon, monName, healFull, levelEvolution, itemEvolution, evolve, setUidBase, levelCap, ensureNature } from './core/mon.js';
+import { createMon, monName, healFull, levelEvolution, itemEvolution, evolve, setUidBase, levelCap, ensureNature, apteCT } from './core/mon.js';
 import { Battle } from './core/battle.js';
 import { ITEMS, itemName, applyItem, canUseOn, useCandy, formatFindItem, formatObtainItem, itemPocketName } from './core/items.js';
 import { SPECIES } from './data/species.js';
@@ -26,6 +26,7 @@ import { installSocial, talkToPeer } from './net/social.js';
 import { storyTalk, storyTrigger, storyWin, lugiaBattle, placeLugia, purify, overlay } from './story.js';
 import { syncJournal } from './core/questsData.js';
 import { QUIZ } from './world/arenes.js';
+import { souffle, stelesPleines, moitieDe } from './world/arene-sylve.js';
 import { casinoScreen, bourseScreen, entretienPierre } from './ui/metropole.js';
 import { arcadeScreen } from './ui/arcade.js';
 import { apparenceScreen } from './ui/apparence.js';
@@ -214,6 +215,8 @@ export class Game {
     const mv = this.world.moved?.[state.map];
     if (mv) Object.assign(state, { map: mv.map, x: mv.x, y: mv.y, dir: mv.dir || state.dir, surf: false });
     if (state.map === 'monde' && !state.surf && !walkable(this.world.maps.monde.get(state.x, state.y))) [state.x, state.y] = nearestWalkable(this.world.maps.monde, state.x, state.y);
+    // intérieur redessiné depuis (l'Arène de Sylvebourg, par exemple) : une partie arrêtée dans un mur reprend à l'entrée
+    { const M0 = this.world.maps[state.map]; if (M0 && state.map !== 'monde' && !state.surf && M0.exitX != null && (!M0.in(state.x, state.y) || !walkable(M0.get(state.x, state.y)))) Object.assign(state, { x: M0.exitX, y: M0.exitY - 1, dir: 'up' }); }
     this.state = state; this._seen = null;
     revertMegas(state.party); revertMegas(state.box);
     this.stepLock = false; this.stepGap = false;
@@ -606,7 +609,7 @@ export class Game {
       p.walking = false; if (p.bumpT <= 0) { this.sound.sfx('bump'); p.bumpT = 0.3; } return;
     }
     // Force : pousser un rocher
-    if (t === T.BOULDER && (this.strengthOn === m.id || m.pushFree)) {
+    if (t === T.BOULDER && !m.bloc && (this.strengthOn === m.id || m.pushFree)) {
       const bx = tx + dx, by = ty + dy, bt = m.get(bx, by);
       if (walkable(bt) && ![T.DOOR, T.MAT, T.CAVEDOOR, T.STAIRS].includes(bt) && !this.occupied(bx, by) && !m.warpAt(bx, by)) {
         this.setTile(tx, ty, m.outdoor ? T.GRASS : T.CAVE); this.setTile(bx, by, T.BOULDER);
@@ -637,6 +640,7 @@ export class Game {
     const mo = m.objectAt(p.x, p.y);
     if (!mv.slid && (mo?.type === 'glace' || mo?.type === 'fleche')) { this.busy = true; try { await this.glisse(mo.type === 'fleche' ? mo.dir : p.dir); } finally { this.busy = false; } return this.onStep({ slid: true }); }
     if (mo?.type === 'dalle') this.dalle(mo);
+    if (mo?.type === 'souffle' && !mv.slid) { this.busy = true; try { await this.souffle(mo); } finally { this.busy = false; } }
     if (mo?.type === 'tp' && !mv.slid) { this.busy = true; try { await this.teleporte(mo); } finally { this.busy = false; } return this.onStep({ slid: true }); }
     if (isGrassEnc(t)) this.view.rustle(p.x, p.y);
     const w = m.warpAt(p.x, p.y);
@@ -686,6 +690,56 @@ export class Game {
     if (st.flags[k] === up) return;
     st.flags[k] = up; this.sound.sfx('select'); this.view.shake = 0.05;
     for (const [x, y, g] of m.barriers || []) { const raise = g === up; if (this.player.x === x && this.player.y === y) continue; this.setTile(x, y, raise ? (g === 'r' ? T.BARRIER_R : T.BARRIER_B) : T.FLOOR); }
+  }
+  /* ---------------- la Grande Serre (Arène de Sylvebourg, world/arene-sylve.js) ---------------- */
+  /** dalle-interrupteur : la soufflerie reliée souffle ; le premier bloc de pollen dans son axe glisse jusqu'au premier
+   *  obstacle, ou tombe dans la stèle-alvéole qu'il croise ; les deux stèles pleines ouvrent le portail du dôme */
+  async souffle(o) {
+    const m = this.mapObj, s = m.serre?.souffleries[o.i]; if (!s) return;
+    this.sound.sfx('select'); this.view.shake = 0.04;
+    const r = souffle(m, s, (x, y) => this.occupied(x, y) || (this.player.x === x && this.player.y === y));
+    if (!r) { await this.ui.say('Fffffff... La soufflerie tourne, mais son souffle ne pousse rien.', { auto: 1300 }); return; }
+    let [x, y] = r.de;
+    for (const [nx, ny] of r.chemin) {
+      this.setTile(x, y, T.FLOOR); this.setTile(nx, ny, T.BOULDER); [x, y] = [nx, ny];
+      await wait(55);
+    }
+    this.sound.sfx('ledge'); this.view.shake = 0.06;
+    if (!r.stele) return;
+    await wait(150); this.sound.sfx('item'); this.view.shake = 0.12;
+    await this.ui.say(`Le bloc de pollen tombe dans l'alvéole... La stèle de ${r.stele.cote} s'illumine !`);
+    if (stelesPleines(m) && m.serre.portail.some(([px, py]) => m.get(px, py) !== T.FLOOR)) {
+      for (const [px, py] of m.serre.portail) this.setTile(px, py, T.FLOOR);
+      this.sound.sfx('door'); this.view.shake = 0.2;
+      await this.ui.say(['Un long froissement de feuilles parcourt la serre...', 'Les lianes du portail du dôme se sont écartées !']);
+    }
+    this.save(true);
+  }
+  /** remet en place les blocs d'une demi-serre (ou de toute la serre) : les cases changées reprennent leur état d'origine */
+  remiseSerre(m, moitie = null) {
+    const t = this.state.tiles?.[m.id]; if (!t) return 0;
+    const portail = new Set((m.serre?.portail || []).map(([x, y]) => x + ',' + y));
+    let n = 0;
+    for (const k of Object.keys(t)) {
+      const [x, y] = k.split(',').map(Number);
+      if (portail.has(k) || (moitie && moitieDe(x) !== moitie)) continue;
+      const v0 = m._orig?.get(k); delete t[k]; n++;
+      if (v0 != null) { m.set(x, y, v0); m._orig.delete(k); }
+      if (m === this.mapObj) this.view.rebuildAt(x, y);
+    }
+    return n;
+  }
+  /** pupitre près d'une porte de la serre : remettre les blocs de cette demi-serre en place */
+  async pupitreSerre(moitie) {
+    const m = this.mapObj, ui = this.ui, cote = moitie === 'g' ? 'gauche' : 'droite';
+    if (stelesPleines(m)) { await ui.say('Pupitre de la serre : « Les deux stèles sont allumées. Le dôme vous attend ! »'); return; }
+    const pleine = (m.serre?.steles || []).find((s) => moitieDe(s.x) === moitie && m.get(s.x, s.y) === T.BOULDER);
+    if (pleine) { await ui.say(`Pupitre de la serre : « La stèle de ${cote} est déjà allumée. Rien à remettre en place de ce côté. »`); return; }
+    if (!(await ui.yesNo(`Pupitre de la serre : « Remettre les blocs de pollen de la demi-serre de ${cote} à leur place ? »`))) return;
+    const n = this.remiseSerre(m, moitie);
+    this.sound.sfx('door'); this.view.shake = 0.08;
+    await ui.say(n ? 'Les souffleries ronronnent en sens inverse... Les blocs de pollen sont revenus à leur place.' : 'Les blocs de pollen sont déjà à leur place.');
+    this.save(true);
   }
   /** téléporteur : on réapparaît sur l'autre dalle */
   async teleporte(o) {
@@ -742,6 +796,7 @@ export class Game {
     // les dresseurs de l'arène (pas le Champion) reprennent leur place et redeviennent à battre
     for (const k of Object.keys(st.flags)) if (k.startsWith('T:' + m.id + ':') && !k.endsWith(':leader')) delete st.flags[k];
     st.flags['IN:' + m.id] = false;
+    if (m.serre) { delete st.tiles?.[m.id]; this.applyTiles(m); }   // la Grande Serre repart de zéro
     this.busy = false;
     await this.warp(w, 'exit');
   }
@@ -864,6 +919,7 @@ export class Game {
         else if (t === T.BLOCK && this.view.decoAt.get(key(fx, fy))) await this.furniture(this.view.decoAt.get(key(fx, fy)).k, fx, fy);
         else if (t === T.CUT) await this.fieldObstacle('coupe', fx, fy, 'Ce petit arbre pourrait être coupé.');
         else if (t === T.SMASH) await this.fieldObstacle('eclate', fx, fy, 'Ce rocher est plein de fissures. Il pourrait être brisé.');
+        else if (t === T.BOULDER && m.bloc) await this.ui.say(['Un gros bloc de pollen, tout collant.', 'Impossible de le pousser à la main... Un bon courant d\'air ferait l\'affaire !']);
         else if (t === T.BOULDER) await this.useForce();
         else if (t === T.WATER && (m.outdoor || m.surf) && !p.surf) await this.trySurf(fx, fy);
       }
@@ -1353,6 +1409,33 @@ export class Game {
     st.velo = !st.velo; this.sound.sfx(st.velo ? 'select' : 'cancel');
     return true;
   }
+  /** CT : apprendre son attaque à un Pokémon de l'équipe (la CT ne s'use pas) */
+  async utiliserCT(k) {
+    const it = ITEMS[k], M = MOVES[it.ct], st = this.state, ui = this.ui;
+    if (!st.party.length) { await ui.say('Tu n\'as encore aucun Pokémon.'); return; }
+    await ui.say(`${it.name} : ${it.desc}`, { keep: true });
+    if (!(await ui.yesNo(`Apprendre ${M.n} à un Pokémon ?`))) return;
+    const i = await partyScreen(this, { mode: 'pick', prompt: `Qui doit apprendre ${M.n} ?` });
+    if (i < 0) return;
+    const m = st.party[i], nom = monName(m);
+    if (!apteCT(m.sp, it)) { await ui.say(`${nom} ne peut pas apprendre ${M.n}.`); return; }
+    if (m.moves.some((x) => x.id === it.ct)) { await ui.say(`${nom} connaît déjà ${M.n} !`); return; }
+    if (m.moves.length < 4) {
+      m.moves.push({ id: it.ct, pp: M.pp }); this.sound.sfx('learn');
+      await ui.say(`${nom} apprend ${M.n} !`); this.save(true); return;
+    }
+    await ui.say(`${nom} veut apprendre ${M.n}, mais il connaît déjà quatre attaques.`);
+    const j = await ui.list({
+      title: `Quelle attaque oublier pour ${M.n} ?`,
+      items: m.moves.map((x) => ({ label: MOVES[x.id].n, right: `${TYPE_FR[MOVES[x.id].t]} · PP ${x.pp}/${MOVES[x.id].pp}` })).concat([{ label: 'Annuler' }]),
+      cls: 'psub learn', cancel: 4,
+    });
+    if (j < 0 || j >= 4) { await ui.say(`${nom} n'apprend pas ${M.n}.`); return; }
+    const old = MOVES[m.moves[j].id].n;
+    m.moves[j] = { id: it.ct, pp: M.pp }; this.sound.sfx('learn');
+    await ui.say(['1, 2, 3... et Pouf !', `${nom} oublie ${old}...`, `Et ${nom} apprend ${M.n} !`]);
+    this.save(true);
+  }
   /** fin d'un Repousse : on propose d'en utiliser un autre tout de suite (le même s'il en reste, sinon un autre) */
   async repelFini() {
     const st = this.state, ui = this.ui;
@@ -1371,6 +1454,7 @@ export class Game {
       if (it.ball) { await this.ui.say('Ce n\'est pas le moment d\'utiliser ça !'); continue; }
       if (r.item === 'town-map') { await mapScreen(this); continue; }
       if (r.item === 'velo') { if (await this.toggleVelo()) return true; continue; }
+      if (it.ct) { await this.utiliserCT(r.item); continue; }
       if (it.field) {
         if (it.field === 'vol') {
           if (this.canField('vol')) {
@@ -1533,11 +1617,12 @@ export class Game {
       return typeBoosters[type] || 'sitrus-berry';
     };
     const party = tr.team.map((entry) => {
-      const [sp, lvl, heldItem, customMoves] = Array.isArray(entry) ? entry : [entry.sp, entry.lvl, entry.item, entry.moves];
+      const [sp, lvl, heldItem, customMoves, ability] = Array.isArray(entry) ? entry : [entry.sp, entry.lvl, entry.item, entry.moves, entry.ability];
       return createMon(sp, lvl, {
         iv: Array(6).fill(isBoss ? 31 : Math.min(31, 8 + lvl / 2 | 0)),
         item: heldItem || (isBoss ? leaderDefaultItem(sp, lvl) : null),
         moves: customMoves || null,
+        ability: ability || null,
         shiny: false
       });
     });
@@ -1574,7 +1659,7 @@ export class Game {
     this.sound.sfx('badge');
     await ui.say(`${st.name} reçoit le ${BADGES[g].name} de la part de ${name} !`);
     const lines = {
-      0: ['Avec ce badge, tu prouves ta valeur de dresseur.', 'Le garde au nord de la ville te laissera passer vers le Bois Murmure.'],
+      0: ['Avec ce badge, tu prouves ta valeur de dresseur.', 'Le garde au nord de la ville te laissera passer vers le Bois Murmure.', 'Et prends aussi ceci : une technique de ma serre, que mes Pokémon utilisent pour coller leurs proies au sol.'],
       1: ['La route 4, à l\'est, t\'est désormais ouverte.', 'Voltacité t\'attend au bout de la côte.'],
       2: ['Le garde de la route 5 te laissera passer.', 'Floralia et sa Championne sont au sud-ouest.'],
       3: [
@@ -1600,6 +1685,12 @@ export class Game {
       const itk = FIELD[gift]?.item || ('cs-' + gift);
       this.give(itk); this.sound.sfx('item');
       await ui.say(formatObtainItem(st.name, itk, 1, FIELD[gift]));
+    }
+    // CT01 Pollen Collant (Hector) : une attaque Insecte propre à Odyssée
+    if (g === 0 && !st.bag['ct-01']) {
+      this.give('ct-01'); this.sound.sfx('item');
+      await ui.say(formatObtainItem(st.name, 'ct-01'));
+      await ui.say(['La CT01 contient Pollen Collant : une attaque Insecte qui englue la cible et baisse sa Vitesse.', 'Une CT ne s\'use pas : tu peux l\'apprendre à autant de Pokémon que tu veux !'], { speaker: name });
     }
     if (g === 7) { st.flags.drakos = true; this.give('town-map'); }
     this.refreshGates();

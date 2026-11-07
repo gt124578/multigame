@@ -3,6 +3,12 @@
 import { TALENTS, TALENTS_ESPECES } from './talents.js';
 import { SPECIES } from './species.js';
 
+// talents propres à Odyssée qui ne viennent pas de PokeAPI (les trois des partenaires de départ sont dans talents.js)
+Object.assign(TALENTS, {
+  'sacoches-pollen': ['Sacoches de Pollen', 'Une fois par combat, quand ses PV passent sous la moitié, le Pokémon puise dans ses réserves de pollen : il récupère un quart de ses PV et sa Vitesse augmente.'],
+});
+// Bourdonnet : le n° 1020 de PokeAPI est un autre Pokémon ; ses sacoches de pollen lui donnent son propre talent
+TALENTS_ESPECES[1020] = ['sacoches-pollen', null, null];
 export const ABILITIES = Object.fromEntries(Object.entries(TALENTS).map(([id, [name, desc]]) => [id, { id, name, desc }]));
 
 // créatures originales (sans entrée dans PokeAPI) : un talent selon leur premier type

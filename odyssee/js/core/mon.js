@@ -6,6 +6,8 @@ import { EFFORT } from '../data/rencontres.js';
 
 // attaque propre aux Pokémon Obscurs (Lugia Obscur) : n'existe dans aucun jeu officiel sous ce nom
 MOVES[10001] = { id: 10001, key: 'shadow-blast', n: 'Rafale Obscure', t: 'dark', c: 'special', p: 100, a: 100, pp: 10, pr: 0, tg: 10, m: { cat: 0, crit: 1 } };
+// CT01 d'Hector (Arène de Sylvebourg) : attaque Insecte propre à Odyssée, un nuage de pollen gluant qui baisse la Vitesse
+MOVES[10002] = { id: 10002, key: 'pollen-collant', n: 'Pollen Collant', t: 'bug', c: 'special', p: 55, a: 95, pp: 15, pr: 0, tg: 10, m: { cat: 6, st: [[6, -1]], stc: 100 } };
 
 export const STAT_NAMES = ['PV', 'Attaque', 'Défense', 'Atq. Spé.', 'Déf. Spé.', 'Vitesse'];
 
@@ -209,4 +211,14 @@ export function gainEffort(m, foeSp) {
     m.ev[k] += add; got += add;
   }
   return got;   // les stats suivent au prochain niveau ou au prochain soin (comme dans les jeux)
+}
+
+/** un Pokémon peut-il apprendre la CT ? Ceux des types de la CT, ceux qui apprennent déjà une attaque de ces types en
+ *  montant de niveau, et les espèces nommées à part (it : l'objet CT de core/items.js) */
+export function apteCT(sp, it) {
+  const S = SPECIES[sp]; if (!S || !it?.ct) return false;
+  const types = it.types || [MOVES[it.ct]?.t];
+  if ((it.especes || []).includes(sp)) return true;
+  if (S.t.some((t) => types.includes(t))) return true;
+  return (S.ls || []).some(([, id]) => types.includes(MOVES[id]?.t));
 }

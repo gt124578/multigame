@@ -4,6 +4,7 @@
 import { SOL16_JEUX } from '../data/sol16.js';
 import { REGLES, kitCell } from '../data/regles.js';
 import { texturesRelief, tourbillon, quart, remous, koi } from './relief-tex.js';
+import { texturesSerre, spritesSerre } from './serre-tex.js';
 
 export const CELL = 16, PITCH = 18;
 
@@ -272,6 +273,8 @@ export function buildAtlas() {
     putImg(`dec_${kind}_up`, up);
     for (const [d, rot] of [['right', 1], ['down', 2], ['left', 3]]) { const c = canvas(C2, C2), x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.translate(C2 / 2, C2 / 2); x.rotate(rot * Math.PI / 2); x.drawImage(up, -C2 / 2, -C2 / 2); putImg(`dec_${kind}_${d}`, c); }
   }
+  // Arène de Sylvebourg (la Grande Serre) : sol, mur de verre, alvéoles, stèles, interrupteurs, estrade, tapis
+  texturesSerre(putImg);
   // chaussées de Métropole : asphalte, avec la ligne pointillée du milieu sur le bord commun des deux voies
   const asph = (P) => { P.fill('#5a5c64'); P.speck(18, '#64666e'); P.speck(10, '#4e5058'); };
   put('asph', asph);
@@ -549,6 +552,8 @@ export function buildSprites() {
   (() => { const ox = 432, oy = 48, c = PAL.rock; for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const dx = x - 7.5, dy = y - 9; const q = dx * dx / 56 + dy * dy / 44; if (q > 1) continue; P.p(ox + x, oy + y, q > 0.78 ? c[4] : dy < -2 && dx < 2 ? c[2] : dy > 2 ? c[3] : c[0]); } for (const [x, y] of [[7, 3], [8, 4], [7, 5], [8, 6], [9, 7], [8, 8], [6, 7], [5, 8], [10, 8], [11, 9]]) P.p(ox + x, oy + y, '#3a3a3a'); add('crackrock', ox, oy, 16, 16); })();
   // sillage autour du joueur qui surfe
   (() => { const ox = 448, oy = 48; for (let y = 0; y < 10; y++) for (let x = 0; x < 24; x++) { const dx = (x - 11.5) / 11.5, dy = (y - 4.5) / 4.5, q = dx * dx + dy * dy; if (q > 1) continue; P.p(ox + x, oy + y, q > 0.62 ? '#ffffff' : q > 0.4 ? '#bfe4ff' : '#3a86d8'); } add('wake', ox, oy, 24, 10); })();
+  // Arène de Sylvebourg : bloc de pollen, bordure du bassin, fleur géante, massif, soufflerie, lianes, pupitre (32 px par case)
+  spritesSerre(P.x, (k, x, y, w, h, d) => { add(k, x, y, w, h); rects[k].d = d; });
   return { canvas: P.c, rects, size: SIZE };
 }
 /** pose les images dessinées (nature, mobilier) dans l'atlas des sprites, à la place des dessins du code */

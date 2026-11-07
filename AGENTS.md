@@ -144,6 +144,10 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   Terres du Sud (`odyssee/js/world/sud.js`, sous la mer du Sud, Pont de l'Austral à 8 badges) : sept villes à arène dont Métropole ; 15 badges en tout.
   Arènes à énigmes (`odyssee/js/world/arenes.js`) : chaque énigme est tirée d'une graine et vérifiée par un solveur
   (aller jusqu'au Champion et revenir) ; `node tools/test-odyssee-arenes.mjs [type]` les résout toutes (le type affiché en caractères).
+  Sauf la première, l'Arène de Sylvebourg (`odyssee/js/world/arene-sylve.js`), dessinée à la main dans un plan ASCII : la Grande Serre
+  (accueil, deux demi-serres où des souffleries poussent des blocs de pollen jusqu'aux stèles, dôme d'Hector). Le souffle est dans
+  `souffle()` (même code pour le jeu et le test) ; `node tools/test-odyssee-arene-sylve.mjs` vérifie qu'elle se résout sans impasse et
+  sans croiser les dresseurs, le talent Sacoches de Pollen et la CT01 Pollen Collant. Graphismes : `odyssee/js/render/serre-tex.js`.
   Quêtes du vélo et du permis bateau (`odyssee/js/world/vehicules.js`) : `node tools/test-odyssee-vehicules.mjs`.
   Relief du dehors (`odyssee/js/world/relief.js`) : chaque case a une hauteur (`GameMap.hg`) ; `plateau()` élève une zone,
   pose une paroi (`T.CLIFF`) sous son bord sud et des marches (`T.STAIRS`, un niveau d'écart) là où un chemin franchit un bord ;
