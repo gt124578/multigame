@@ -36,6 +36,8 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
   for (let rr = 0; rr < R; rr++) for (let c = 0; c < C; c++) {
     let ok = true;
     for (let y = rr * B; y < (rr + 1) * B && ok; y++) for (let x = c * B; x < (c + 1) * B; x++) if (!FORET(W.get(x, y)) || W.height(x, y) !== 0) { ok = false; break; }
+    // pas de lieu dans la marge du bord de la carte (14 cases sur les côtés, 11 en haut et en bas : voir acces.js)
+    if (c * B < 14 || (c + 1) * B > W.w - 14 || rr * B < 11 || (rr + 1) * B > W.h - 11) ok = false;
     if (ok && W.zones.some((z) => z.town && z.x0 <= (c + 1) * B && z.x1 >= c * B && z.y0 <= (rr + 1) * B && z.y1 >= rr * B)) ok = false;
     libre[rr * C + c] = ok ? 1 : 0;
   }
