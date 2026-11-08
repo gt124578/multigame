@@ -553,10 +553,10 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   let nb = 0, nn = 0, no = 0;
   const occ = new Set(W.npcs.filter((n) => n.x >= X && n.y >= Y && n.x <= X1 && n.y <= Y1).map((n) => n.x + ',' + n.y));
   const SOLS = new Set([sol, T.GRASS, T.FLOWER, T.PAVE, T.PATH, T.SAND]);
-  const libre = (x0, y0, x1, y1) => {
+  const libre = (x0, y0, x1, y1, surPave = false) => {
     const hh = W.height(x0, y0);
     // (jamais sur une allée : un chemin ou un quai coupé par un mur ne mène plus nulle part)
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const t = W.get(x, y); if (!dans(x, y) || (cur && reg[at(x, y)] !== cur) || !SOLS.has(t) || t === T.PATH || (t === T.PAVE && sol !== T.PAVE) || occ.has(x + ',' + y) || RU[at(x, y)] || W.height(x, y) !== hh || (W.pentes && W.pentes[y * W.w + x] && W.height(x, y + 1) !== hh)) return false; }
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const t = W.get(x, y); if (!dans(x, y) || (cur && reg[at(x, y)] !== cur) || !SOLS.has(t) || t === T.PATH || (!surPave && t === T.PAVE && sol !== T.PAVE) || occ.has(x + ',' + y) || RU[at(x, y)] || W.height(x, y) !== hh || (W.pentes && W.pentes[y * W.w + x] && W.height(x, y + 1) !== hh)) return false; }
     // devant (la rangée sous la porte) : au même niveau
     for (let x = x0; x <= x1; x++) { const t = W.get(x, y1 + 1); if (W.height(x, y1 + 1) !== hh || !dans(x, y1 + 1) || !(SOLS.has(t) || t === T.BRIDGE || t === T.FENCE || t === T.BUSH)) return false; }
     return true;
@@ -579,14 +579,15 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   };
   for (const B of W.buildings) if (B.x + B.w >= TX && B.x <= TX1 && B.y + B.d >= TY && B.y <= TY1) reserver(B);
   const maison = (x, y, Mo, o = {}) => {
-    if (!libre(x, y, x + Mo.w - 1, y + Mo.d - 1) || !degage(x, y, Mo.w, Mo.d, Mo.kind === 'bighouse' ? 3 : 2)) return null;
+    if (!libre(x, y, x + Mo.w - 1, y + Mo.d - 1, o.surPave) || !degage(x, y, Mo.w, Mo.d, Mo.kind === 'bighouse' ? 3 : 2)) return null;
     const npcs = o.vide ? [] : [{ x: 3, y: 4, sprite: o.sprite || pick(SPRITES), move: 'turn', text: o.text || parole() }];
     const B = poserBatiment(W, maps, def, { ...Mo, x: x - def.x, y: y - def.y, roof: o.roof || pick(toits), id: 'q' + nb++, name: o.name || Mo.name, npcs });
     reserver(B); return B;
   };
   const PETITS = new Set(['fontaine', 'puits', 'etal', 'kiosque']);
   const decor = (modele, x, y, wd, dd, o = {}) => {
-    if (!libre(x, y, x + wd - 1, y + dd - 1) || !degage(x, y, wd, dd, o.h ?? 3, PETITS.has(modele) ? 1 : 2)) return null;
+    // (le petit mobilier et ce qui est posé sur une place ou un quai dallés peuvent aller sur les pavés)
+    if (!libre(x, y, x + wd - 1, y + dd - 1, PETITS.has(modele) || o.surPave) || !degage(x, y, wd, dd, o.h ?? 3, PETITS.has(modele) ? 1 : 2)) return null;
     return W.building('tower', x, y, { w: wd, d: dd, h: o.h ?? 3, door: -1, modele, name: o.name || modele, roof: o.roof || 'gray', opts: o.opts });
   };
   const pnj = (x, y, o = {}) => {
@@ -633,7 +634,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
       if (b.repere) {
         const P = REPERES[b.repere], x = Math.round(b.cx - P.w / 2), y = b.y1 - P.d;
         rect(x - 2, b.y1 - P.d - 1, x + P.w + 1, b.y1, T.PAVE, [sol, T.GRASS, T.FLOWER]);
-        const B = maison(x, y, P, { sprite: P.sprite, text: P.text, name: P.name });
+        const B = maison(x, y, P, { sprite: P.sprite, text: P.text, name: P.name, surPave: true });
         if (B) { prop('lamp', x - 2, b.y1); prop('lamp', x + P.w + 1, b.y1); prop(r() < 0.5 ? 'pot' : 'banc', x - 1, b.y1 - 1); prop('pot', x + P.w, b.y1 - 1); }
         // de part et d'autre, des maisons
         rangee(b, b.x0 + 1, x - 4, b.y1); rangee(b, x + P.w + 3, b.x1 - 1, b.y1);
@@ -836,7 +837,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
       // la zone industrielle : hangars (tours basses), cuves, caisses empilées, tonneaux
       rect(b.x0, b.y0, b.x1, b.y1, T.PAVE, [sol, T.GRASS]);
       let x = b.x0 + 1;
-      while (x + 7 < b.x1) { const tw = 7 + Math.floor(r() * 3), td = Math.min(6, b.y1 - b.y0 - 4); if (td >= 4 && libre(x, b.y0 + 1, x + tw - 1, b.y0 + td) && degage(x, b.y0 + 1, tw, td, 3)) W.building('tower', x, b.y0 + 1, { w: tw, d: td, h: 4 + Math.floor(r() * 3), door: -1, kit: 'gc' + Math.floor(r() * 4), flat: true, name: 'Tour', roof: 'gray' }); x += tw + 3; }
+      while (x + 7 < b.x1) { const tw = 7 + Math.floor(r() * 3), td = Math.min(6, b.y1 - b.y0 - 4); if (td >= 4 && libre(x, b.y0 + 1, x + tw - 1, b.y0 + td, true) && degage(x, b.y0 + 1, tw, td, 3)) W.building('tower', x, b.y0 + 1, { w: tw, d: td, h: 4 + Math.floor(r() * 3), door: -1, kit: 'gc' + Math.floor(r() * 4), flat: true, name: 'Tour', roof: 'gray' }); x += tw + 3; }
       for (let xx = b.x0 + 1; xx < b.x1; xx += 3) prop(pick(['cuve', 'caisses', 'tonneau', 'caisse']), xx, b.y1 - 1);
       pnj(Math.round(b.cx), b.y1 - 2, { sprite: pick(['scientifique', 'montagnard']), move: 'wander', text: ['Les machines tournent jour et nuit. Les Magnéti adorent l\'ambiance.'] });
     },
@@ -856,7 +857,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
         while (x < b.x1 - 5) {
           const tw = 6 + Math.floor(r() * 4);
           if (x + tw - 1 > b.x1 - 1) break;
-          if (libre(x, y0, x + tw - 1, y0 + td - 1) && degage(x, y0, tw, td, 3)) W.building('tower', x, y0, { w: tw, d: td, h: 7 + Math.floor(r() * 8), door: -1, kit: 'gc' + Math.floor(r() * 4), flat: true, name: 'Tour', roof: 'gray' });
+          if (libre(x, y0, x + tw - 1, y0 + td - 1, true) && degage(x, y0, tw, td, 3)) W.building('tower', x, y0, { w: tw, d: td, h: 7 + Math.floor(r() * 8), door: -1, kit: 'gc' + Math.floor(r() * 4), flat: true, name: 'Tour', roof: 'gray' });
           x += tw + 2;
         }
         for (let xx = b.x0 + 2; xx < b.x1; xx += 5) if (y0 + td + 1 < b.y1) prop(r() < 0.5 ? pick(arbresV) : 'lamp', xx, y0 + td + 1);
@@ -993,6 +994,23 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
       else if (n > 0.6) W.set(x, y, T.FLOWER);
     }
     if (q >= 0.75 && y1 - b.y0 >= 3) { prop('banc', Math.round(b.cx), b.y0 + 1); pnj(Math.round(b.cx) + 2, b.y0 + 2, { sprite: pick(['gamin', 'fillette', 'enfant']), move: 'wander' }); }
+  }
+  // les bâtiments remarquables d'abord (auberge, chapelle, mairie…), avant que les maisons ne prennent la place : au plus
+  // près du centre, dans un îlot d'habitation, une rue à quelques pas de la porte ; un parvis, deux lampadaires
+  for (const b of ilots) if (b.repere) { reperes.push(b.repere); b.repere = null; }
+  for (const k of reperes) {
+    const P = REPERES[k]; let pose = null;
+    for (const b of [...ilots].sort((a, c) => pres(a) - pres(c))) {
+      if (pose || !['maisons', 'lisiere'].includes(b.sorte) || b.x1 - b.x0 + 1 < P.w + 2 || b.y1 - b.y0 + 1 < P.d + 1) continue;
+      cur = b.id;
+      for (let y = b.y1 - P.d + 1; y >= b.y0 && !pose; y--) for (let x = b.x0 + 1; x + P.w <= b.x1 && !pose; x++) {
+        const o = OUVERTS[P.modele], dc = o && o.w === P.w && o.d === P.d ? o.door : P.door, py = y + (o && o.w === P.w && o.d === P.d ? o.porteY : P.d - 1);
+        if (!accesRue(x + dc, py + 1, b, x, y, x + P.w - 1, y + P.d - 1)) continue;
+        pose = maison(x, y, P, { sprite: P.sprite, text: P.text, name: P.name });
+        if (pose) { for (const [a, c] of [[x - 1, py + 1], [x + P.w, py + 1]]) prop('lamp', a, c); for (let xx = x; xx < x + P.w; xx++) if (peutPoser(xx, py + 1) || reserve.has(xx + ',' + (py + 1))) W.set(xx, py + 1, T.PAVE); }
+      }
+    }
+    cur = 0;
   }
   for (const b of ilots) { cur = b.id; (QUARTIERS[b.sorte] || QUARTIERS.maisons)(b); }
   cur = 0;
