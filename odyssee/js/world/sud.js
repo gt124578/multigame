@@ -6,7 +6,7 @@
 import { T, walkable } from './tiles.js';
 import { room } from './interiors.js';
 import { bande, massif, plateau, boucher, sinueuse, reliefMontagne } from './relief.js';
-import { rng, along, nearestWalkable, GRAND } from './mapgen.js';
+import { rng, along, nearestWalkable, GRAND, sin } from './mapgen.js';
 import { VILLES, TERR, BLOC, porte, arrivee } from './plan.js';
 import { grandeVille, bruit } from './quartiers.js';
 
@@ -133,7 +133,7 @@ export function buildSud(ctx) {
     roads: [[44, 0, 45, 61, T.PAVE], [2, 30, 93, 31, T.PAVE], [2, 14, 93, 15, T.PAVE], [2, 46, 93, 47, T.PAVE], [20, 2, 21, 59, T.PAVE], [70, 2, 71, 59, T.PAVE]],
     deco: [
       ['sign', 43, 4, 'MÉTROPOLE\nLa ville qui ne dort jamais.'], ['sign', 46, 33, 'ARÈNE DE MÉTROPOLE\nChampionne : Margot\nLa reine des affaires.'],
-      ['sign', 37, 43, 'CASINO DE MÉTROPOLE\nJetons au comptoir — 20 ₽ pièce.'], ['sign', 64, 13, 'BOURSE DE MÉTROPOLE\nCotations en continu.'], ['sign', 74, 45, 'BOUTIQUE DE MODE\nChangez de style !'],
+      ['sign', 37, 43, 'CASINO DE MÉTROPOLE\nJetons au comptoir — 20 ₽ pièce.'], ['sign', 66, 13, 'BOURSE DE MÉTROPOLE\nCotations en continu.'], ['sign', 74, 45, 'BOUTIQUE DE MODE\nChangez de style !'],
       ['lamp', 42, 12], ['lamp', 47, 12], ['lamp', 42, 28], ['lamp', 47, 28], ['lamp', 42, 44], ['lamp', 47, 44], ['lamp', 18, 28], ['lamp', 23, 28], ['lamp', 68, 28], ['lamp', 73, 28],
       ['lamp', 18, 44], ['lamp', 73, 44], ['lamp', 18, 12], ['lamp', 73, 12],
       // le parc central : pelouse, fleurs, fontaine
@@ -156,6 +156,11 @@ export function buildSud(ctx) {
       { id: 'garde-sud', x: 46, y: 59, sprite: 'garde', dir: 'left', gate: { badges: 14, tiles: [[44, 60], [45, 60]] }, text: ['La route 20 file vers Ombreval, dans les ténèbres du sud.', 'Elle est fermée tant que tu n\'as pas treize badges… Fais le tour par l\'est !'] },
     ],
   };
+  // les gratte-ciel de Métropole (sans porte : des bureaux, la nuit leurs fenêtres s'allument), posés avec le centre pour
+  // que les nouveaux quartiers les voient
+  const tours = [[4, 3, 7, 5, 8], [11, 3, 7, 5, 11], [24, 3, 8, 5, 10], [74, 3, 7, 5, 12], [82, 3, 9, 5, 9], [4, 17, 6, 5, 7], [11, 17, 7, 5, 9], [24, 17, 8, 6, 13],
+    [49, 18, 9, 6, 6], [60, 18, 8, 6, 5], [74, 18, 8, 5, 10], [84, 17, 7, 5, 8], [4, 33, 7, 5, 6], [11, 33, 7, 5, 9], [82, 33, 9, 5, 10], [74, 50, 6, 5, 6]];
+  M.avantQuartiers = () => tours.forEach(([x, y, w, d, h], i) => W.building('tower', M.x + x, M.y + y, { w, d, h, door: -1, kit: 'gc' + (i % 4), flat: true, name: 'Tour', roof: 'gray' }));
   ville(M, 'SM');
   // chaussées : les avenues sont asphaltées (trottoirs pavés de part et d'autre), passages piétons aux carrefours
   {
@@ -164,16 +169,12 @@ export function buildSud(ctx) {
     for (const y of H2) for (let x = 2; x <= 93; x++) { const inter = V2.some((v) => x >= v - 1 && x <= v + 2); put(x, y, inter ? 'x' : 's'); put(x, y + 1, inter ? 'x' : 'n'); }
     for (const x of V2) for (let y = 0; y <= 61; y++) { if (H2.some((h) => y >= h && y <= h + 1)) continue; put(x, y, 'e'); put(x + 1, y, 'w'); }
   }
-  // les gratte-ciel de Métropole (sans porte : des bureaux, la nuit leurs fenêtres s'allument)
-  const tours = [[4, 3, 7, 5, 8], [11, 3, 7, 5, 11], [24, 3, 8, 5, 10], [74, 3, 7, 5, 12], [82, 3, 9, 5, 9], [4, 17, 6, 5, 7], [11, 17, 7, 5, 9], [24, 17, 8, 6, 13],
-    [49, 18, 9, 6, 15], [60, 18, 8, 6, 11], [74, 18, 8, 5, 10], [84, 17, 7, 5, 8], [4, 33, 7, 5, 6], [11, 33, 7, 5, 9], [82, 33, 9, 5, 10], [74, 50, 6, 5, 8]];
-  tours.forEach(([x, y, w, d, h], i) => W.building('tower', M.x + x, M.y + y, { w, d, h, door: -1, kit: 'gc' + (i % 4), flat: true, name: 'Tour', roof: 'gray' }));
   const asphAt = (x, y) => W.deco.some((d) => d.k === 'asph' && d.x === M.x + x && d.y === M.y + y);
   {
     // arbres d'alignement et bancs sur les trottoirs (là où rien d'autre ne se trouve)
     for (const y of [12, 17, 28, 33, 44, 49]) for (let x = 4; x <= 92; x += 6) {
       const ax = M.x + x, ay = M.y + y;
-      if (W.get(ax, ay) === T.PAVE && !asphAt(x, y) && !W.deco.some((d) => d.x === ax && d.y === ay) && !W.npcs.some((n) => n.x === ax && n.y === ay) && W.get(ax, ay + 1) !== T.DOOR && W.get(ax, ay - 1) !== T.DOOR) W.prop((x / 6) % 3 === 1 ? 'banc' : 'erable', ax, ay);
+      if (W.get(ax, ay) === T.PAVE && !asphAt(x, y) && !W.deco.some((d) => d.x === ax && d.y === ay) && !W.npcs.some((n) => n.x === ax && n.y === ay) && W.get(ax, ay + 1) !== T.DOOR && W.get(ax, ay - 1) !== T.DOOR && W.get(ax, ay - 2) !== T.DOOR) W.prop((x / 6) % 3 === 1 ? 'banc' : 'erable', ax, ay);
     }
   }
 
@@ -211,10 +212,10 @@ export function buildSud(ctx) {
   const N = towns.SN = {
     id: 'marais', name: 'Marais-Noir', x: 301, y: 305, w: 46, h: 38, exits: [['w', 13], ['s', 17]], gym: 10, stock: 7, music: 'mystic', fermer: true, lotir: { n: 5, seed: 113 },
     roads: [[2, 13, 43, 14, T.PATH], [17, 13, 18, 37, T.PATH], [2, 31, 43, 31, T.PATH]],
-    deco: [['sign', 15, 11, 'MARAIS-NOIR\nOn y entre en bottes, on en sort en rampant.'], ['sign', 23, 30, 'ARÈNE DE MARAIS-NOIR\nChampionne : Morgane\nLa dame des brumes.'],
-      ['water', 6, 20, 3, 2], ['water', 28, 6, 3, 2.5], ['tall', 40, 16, 43, 24]],
+    deco: [['sign', 16, 11, 'MARAIS-NOIR\nOn y entre en bottes, on en sort en rampant.'], ['sign', 23, 30, 'ARÈNE DE MARAIS-NOIR\nChampionne : Morgane\nLa dame des brumes.'],
+      ['water', 8, 22, 2.6, 1.6], ['water', 28, 6, 3, 2.5], ['tall', 40, 16, 43, 24]],
     buildings: [
-      { kind: 'center', ...GRAND.center, x: 3, y: 5 }, { kind: 'mart', ...GRAND.mart, x: 11, y: 6 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 15, roof: 'purple' },
+      { kind: 'center', ...GRAND.center, x: 3, y: 5 }, { kind: 'mart', ...GRAND.mart, x: 11, dx: 1, y: 6 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 15, roof: 'purple' },
       { kind: 'house', x: 4, y: 15, roof: 'brown', npcs: [{ x: 4, y: 4, sprite: 'vieil_homme', text: ['Dans l\'arène, les murs sont invisibles.', 'Avance à tâtons : chaque mur heurté est un mur de moins à chercher.'] }] },
     ],
     npcs: [{ id: 'garde', x: 19, y: 35, sprite: 'garde', dir: 'up', gate: { badges: 11, tiles: [[17, 36], [18, 36]] }, text: ['Au sud, les Dunes d\'Ocre. Le Badge Venin d\'abord !'] }],
@@ -234,13 +235,13 @@ export function buildSud(ctx) {
   const D = towns.SD = {
     id: 'dunes', name: 'Dunes d\'Ocre', x: 363, y: 360, w: 46, h: 38, exits: [['w', 12], ['s', 18]], gym: 11, stock: 7, music: 'city', ground: T.SAND, fermer: true,
     roads: [[2, 12, 43, 13, T.PATH], [18, 12, 19, 37, T.PATH], [2, 31, 43, 31, T.PATH], [42, 13, 43, 31, T.PATH]],
-    deco: [['sign', 16, 10, 'DUNES D\'OCRE\nLe vent sculpte la ville chaque nuit.'], ['sign', 23, 30, 'ARÈNE DES DUNES\nChampion : Gaspard\nLe bâtisseur de sable.'],
+    deco: [['sign', 17, 10, 'DUNES D\'OCRE\nLe vent sculpte la ville chaque nuit.'], ['sign', 23, 30, 'ARÈNE DES DUNES\nChampion : Gaspard\nLe bâtisseur de sable.'],
       ['rock', 4, 18], ['rock', 30, 4], ['rock', 31, 35], ['palm', 8, 21], ['palm', 28, 9], ['water', 10, 20, 2.5, 1.8]],
     buildings: [
-      { kind: 'center', ...GRAND.center, x: 4, y: 4 }, { kind: 'mart', ...GRAND.mart, x: 12, y: 5 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 15, roof: 'brown' },
-      { kind: 'house', x: 3, y: 27, roof: 'orange', npcs: [{ x: 4, y: 4, sprite: 'randonneuse', text: ['Ici, on balaie le sable devant sa porte trois fois par jour.'] }] },
-      { kind: 'house2', x: 8, y: 27, roof: 'brown', npcs: [{ x: 2, y: 4, sprite: 'habitant', text: ['Les caravanes du désert s\'arrêtent toujours ici avant le canyon.'] }] },
-      { kind: 'house', x: 13, y: 27, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'enfant', text: ['J\'ai trouvé un os énorme dans les dunes ! Maman dit que c\'est un fossile.'] }] },
+      { kind: 'center', ...GRAND.center, x: 4, y: 4 }, { kind: 'mart', ...GRAND.mart, x: 12, dx: 1, y: 5 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 15, roof: 'brown' },
+      { kind: 'house', x: 3, dx: -2, y: 27, roof: 'orange', npcs: [{ x: 4, y: 4, sprite: 'randonneuse', text: ['Ici, on balaie le sable devant sa porte trois fois par jour.'] }] },
+      { kind: 'house2', x: 8, dx: -1, y: 27, roof: 'brown', npcs: [{ x: 2, y: 4, sprite: 'habitant', text: ['Les caravanes du désert s\'arrêtent toujours ici avant le canyon.'] }] },
+      { kind: 'house', x: 13, dx: 1, y: 27, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'enfant', text: ['J\'ai trouvé un os énorme dans les dunes ! Maman dit que c\'est un fossile.'] }] },
       { kind: 'house', x: 33, y: 4, roof: 'brown', npcs: [{ x: 4, y: 4, sprite: 'montagnard', text: ['Dans l\'arène, le sable glisse.', 'Tu ne t\'arrêtes que contre un rocher : regarde bien où chacun t\'arrêtera.'] }] },
     ],
     npcs: [{ id: 'garde', x: 20, y: 35, sprite: 'garde', dir: 'up', gate: { badges: 12, tiles: [[18, 36], [19, 36]] }, text: ['La route 17 descend vers Forge-Acier. Il te faut le Badge Dune.'] }],
@@ -355,7 +356,7 @@ function desert(W, pts, terr, graine) {
 function auBord(x, y, terr, amp = 4) {
   let d = 0;
   for (const [c0, r0, c1, r1] of terr) d = Math.max(d, Math.min(x - c0 * 24, (c1 + 1) * 24 - 1 - x, y - r0 * 24, (r1 + 1) * 24 - 1 - y));
-  const prof = 2 + amp * (amp > 4 ? bruit(x, y, 17, 707) : (Math.sin(x * 0.11 + y * 0.04) + Math.sin(y * 0.09 - x * 0.06) + 2) / 2);
+  const prof = 2 + amp * (amp > 4 ? bruit(x, y, 17, 707) : (sin(x * 0.11 + y * 0.04) + sin(y * 0.09 - x * 0.06) + 2) / 2);
   return d < prof;
 }
 /** le Canyon d'Ocre : de hautes parois de roche ocre de part et d'autre de la route 17 */

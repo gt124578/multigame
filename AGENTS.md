@@ -200,6 +200,15 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   identifiants (`anciens-objets.js`, file vérifiée à la construction). Paroles des habitants : `voix.js`. Une sauvegarde d'avant
   la grande région repart du Centre de la dernière ville visitée (`migration.js`, `state.carte`) : `node tools/test-odyssee-migration.mjs`.
   Rendu : bâtiments posés bloc par bloc à l'approche (`poserBatimentsBloc` de `world3d.js`), morceaux lointains défaits.
+  Villes d'après Sylvebourg : la ville (`noyau`, `echelle` de `plan.js`, ¾ du territoire de chaque côté) au milieu d'une
+  forêt épaisse, avenues d'accès depuis les portes du territoire (les routes ne bougent pas) ; un plan par ville (`plan` de
+  `THEMES` : grille, terrasses, arête, anneaux, axe, étoile, croix, canaux, quais, dédale) ; deux cases au moins entre deux
+  bâtiments et devant chaque porte, aucune porte dans l'ombre d'un bâtiment au sud (`hauteurVue` de `mapgen.js`) ;
+  parties ouvertes des modèles (terrasse, porche, galerie : `OUVERTS` de `mapgen.js`, profondeur case par case au rendu,
+  `profondeurGrille` de `world3d.js`). Écrans de verdure entre les zones (`ecrans.js` : depuis une zone, jamais une autre
+  qu'on ne rejoint pas de près à moins de 13 cases de côté, 10 vers le haut, 8 vers le bas). `node tools/test-odyssee-villes.mjs`
+  mesure tout cela. La carte doit être la même dans Node et dans le navigateur : pas de `Math.sin` / `Math.cos` (prendre
+  `sin` / `cos` de `mapgen.js`) ni de `sort(() => r() - 0.5)` (prendre `melanger`) dans `world/`.
   Décor ajouté hors planches (`odyssee/js/data/decor-plus.js`) : `python3 tools/odyssee-automne.py` (arbres d'automne),
   `tools/odyssee-mine.py` (étais, wagonnets…), `tools/odyssee-desert.py` (cactus).
   Métropole : Bourse (`odyssee/js/core/bourse.js`, pricers et entretien de Pierre) et Casino (`odyssee/js/core/casino.js` ;

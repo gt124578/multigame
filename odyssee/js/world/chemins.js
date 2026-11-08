@@ -6,7 +6,7 @@
 // (clairière, cabane habitée, ruines, source, belvédère, campement, verger) ; parfois un raccourci à débloquer plus tard
 // (Coupe, Éclate-Roc, Surf). Les dresseurs ajoutés ont des identifiants fixes (`route:dN`), les objets aussi (`route:oN`).
 import { T, walkable } from './tiles.js';
-import { carveRoute, along, nearestWalkable, caseLibre, rng, ledges as _ledges } from './mapgen.js';
+import { carveRoute, along, nearestWalkable, caseLibre, rng, sin, melanger, ledges as _ledges } from './mapgen.js';
 import { plateau, sinueuse, massif } from './relief.js';
 import { bruit } from './quartiers.js';
 import { houseInterior } from './interiors.js';
@@ -43,7 +43,7 @@ export function trace(terr, de, vers, long, graine = 1) {
       const opts = N4.map(([dx, dy]) => [c + dx, rr + dy]).filter(([a, b]) => S.has(key(a, b)) && !vu.has(key(a, b)));
       // un peu de hasard, et une préférence pour continuer tout droit (de longues lignes, puis des virages)
       const prev = chemin[chemin.length - 2];
-      opts.sort(() => r() - 0.5);
+      melanger(opts, r);
       if (prev && r() < 0.45) opts.sort((p, q) => ((q[0] - c === c - prev[0] && q[1] - rr === rr - prev[1]) ? 1 : 0) - ((p[0] - c === c - prev[0] && p[1] - rr === rr - prev[1]) ? 1 : 0));
       for (const [a, b] of opts) {
         vu.add(key(a, b)); chemin.push([a, b]);
@@ -103,7 +103,7 @@ export function grandeRoute(W, S, ctx) {
   const T0 = blocs([...S.terr, ...(S.ext || [])]), pris = new Set(chemin.map((b) => key(...b))), cotes = [];
   const libres = [];
   chemin.forEach((b, i) => { if (i === 0 || i === chemin.length - 1) return; for (const [dx, dy] of N4) { const f = [b[0] + dx, b[1] + dy]; if (T0.has(key(...f)) && !pris.has(key(...f))) libres.push([b, f, i]); } });
-  libres.sort(() => r() - 0.5);
+  melanger(libres, r);
   const KINDS = S.impasses || ['clairiere', 'cabane', 'ruines', 'source', 'belvedere', 'campement', 'verger'];
   let no = 0, nc = 0;
   // objets des impasses : tirés dans la liste du rang de la route (badges pour y entrer, bareme.js)
@@ -180,7 +180,7 @@ export function grandeRoute(W, S, ctx) {
       for (const [x, y] of casesBloc(b)) if (loin(x, y) && W.get(x, y) === herbe && r() < 0.4) W.set(x, y, S.tall ?? T.TALL);
     }
     else if (pays === 'bosquet') { for (const [x, y] of C) if (loin(x, y, 2.8) && W.get(x, y) === herbe && r() < 0.12) W.set(x, y, S.treeT ?? T.TREE); }
-    else if (pays === 'fleurs') { for (const [x, y] of C) if (loin(x, y, 1.6) && W.get(x, y) === herbe && (Math.sin(x * 0.7) + Math.sin(y * 0.9)) > 0.6) W.set(x, y, T.FLOWER); }
+    else if (pays === 'fleurs') { for (const [x, y] of C) if (loin(x, y, 1.6) && W.get(x, y) === herbe && (sin(x * 0.7) + sin(y * 0.9)) > 0.6) W.set(x, y, T.FLOWER); }
     else if (pays === 'rochers') {
       for (const [x, y] of C) if (loin(x, y, 2.8) && W.get(x, y) === herbe && r() < 0.05) W.set(x, y, T.ROCK);
       for (let k = 0; k < 2; k++) { const [x, y] = pick(C); if (loin(x, y, 3) && W.get(x, y) === herbe) W.prop('rocher_grand', x, y); }
@@ -197,9 +197,9 @@ export function grandeRoute(W, S, ctx) {
       // une rivière qui serpente en travers du bloc ; on la passe sur un pont de planches
       riviereFaite = true;
       const p = along(pts, tBloc[i]), travers = Math.abs(p.dx) > Math.abs(p.dy);   // la route va d'est en ouest : la rivière du nord au sud
-      const ph = r() * 6, amp = 2.5 + r() * 2.5, larg = (u) => 1.2 + 0.8 * Math.sin(u * 0.31 + ph);
+      const ph = r() * 6, amp = 2.5 + r() * 2.5, larg = (u) => 1.2 + 0.8 * sin(u * 0.31 + ph);
       for (let u = -2; u < BLOC + 2; u++) {
-        const centreR = 12 + amp * Math.sin(u * 0.22 + ph) + 1.5 * Math.sin(u * 0.57 + 2 * ph);
+        const centreR = 12 + amp * sin(u * 0.22 + ph) + 1.5 * sin(u * 0.57 + 2 * ph);
         for (let k = -3; k <= 3; k++) {
           if (Math.abs(k) > larg(u) + 0.3) continue;
           const x = travers ? b[0] * BLOC + Math.round(centreR + k) : b[0] * BLOC + u, y = travers ? b[1] * BLOC + u : b[1] * BLOC + Math.round(centreR + k);

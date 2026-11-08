@@ -1,6 +1,38 @@
 // odyssee/js/world/mapgen.js — construction des cartes (sans DOM) : grille de terrain, bâtiments, PNJ, téléporteurs.
 import { T, walkable } from './tiles.js';
 
+/** sinus et cosinus calculés à la main (série de Taylor après réduction) : Math.sin ne donne pas exactement les mêmes
+ *  décimales d'un moteur JavaScript à l'autre (Node, Chrome, Firefox…), et la carte, tirée au hasard à partir de ces
+ *  valeurs, doit être la même partout (jeu, tests, joueurs en ligne) */
+export function sin(x) {
+  const PI = 3.141592653589793, H = 1.5707963267948966;
+  let r = x - Math.round(x / 6.283185307179586) * 6.283185307179586;
+  if (r > H) r = PI - r; else if (r < -H) r = -PI - r;
+  const q = r * r;
+  return r * (1 + q * (-1 / 6 + q * (1 / 120 + q * (-1 / 5040 + q * (1 / 362880 + q * (-1 / 39916800 + q * (1 / 6227020800 + q * (-1 / 1307674368000 + q / 355687428096000))))))));
+}
+export const cos = (x) => sin(x + 1.5707963267948966);
+/** mélange L comme le faisait L.sort(() => r() - 0.5) dans Chrome (V8 récent : tri par insertion dichotomique jusqu'à
+ *  15 éléments, puis une montée ou descente de départ et le même tri ; Node et les autres navigateurs ne posent pas les
+ *  mêmes comparaisons, et la carte en dépendait). Au-delà de 63 éléments, un simple mélange de Fisher-Yates. */
+export function melanger(L, r) {
+  const n = L.length, cmp = () => r() - 0.5;
+  if (n >= 64) { for (let i = n - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [L[i], L[j]] = [L[j], L[i]]; } return L; }
+  let debut = 1;
+  if (n >= 16) {
+    // la montée (ou descente, retournée) du début
+    let len = 2; const desc = cmp(L[1], L[0]) < 0; let prev = L[1];
+    for (let i = 2; i < n; i++) { const c = L[i], o = cmp(c, prev); if (desc ? o >= 0 : o < 0) break; prev = c; len++; }
+    if (desc) for (let i = 0, j = len - 1; i < j; i++, j--) [L[i], L[j]] = [L[j], L[i]];
+    debut = len;
+  }
+  for (let i = debut; i < n; i++) {
+    const p = L[i]; let a = 0, b = i;
+    while (a < b) { const m = a + ((b - a) >> 1); if (cmp(p, L[m]) < 0) b = m; else a = m + 1; }
+    for (let k = i; k > a; k--) L[k] = L[k - 1]; L[a] = p;
+  }
+  return L;
+}
 export function rng(seed) { let s = (seed >>> 0) || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
 const key = (x, y) => x + ',' + y;
 
@@ -21,7 +53,9 @@ export const GRAND = {
   // arène à portique (8 × 11, voûte, statue du champion) ; dx, dy : décalage depuis l'ancien emplacement (18 × 14),
   // pour garder la porte dans la même colonne et la façade sur la même rangée
   gym: { w: 8, d: 11, h: 8, door: 3, door2: 4, blocs: [[0, 11], [7, 11]], dx: 5, dy: 3 },
-  lab: { w: 10, d: 7, h: 4, door: 2, door2: 3 },
+  // laboratoire : le hall vitré et ses portes au milieu, sous la casquette ; on marche de part et d'autre du hall et
+  // devant la serre (le banc et les deux jardinières restent bloqués)
+  lab: { w: 10, d: 7, h: 4, door: 2, door2: 3, libres: [[0, 5], [5, 5], [6, 5], [8, 5], [9, 5], [1, 6], [4, 6], [6, 6], [7, 6], [8, 6], [9, 6]] },
   // la Ligue : bâtiment 30 × 14, puis une allée de 32 cases plein sud (x 11 → 18) bordée de colonnes, à laisser libre
   league: { w: 30, d: 14, h: 12, door: 14, door2: 15, blocs: [[11, 19], [18, 19], [11, 21], [18, 21], [11, 24], [18, 24], [11, 26], [18, 26], [11, 29], [18, 29], [11, 31], [18, 31], [11, 34], [18, 34], [11, 36], [18, 36], [11, 39], [18, 39], [11, 41], [18, 41], [11, 44], [18, 44], [11, 46], [18, 46], [9, 14], [10, 14], [9, 15], [10, 15], [19, 14], [20, 14], [19, 15], [20, 15], [12, 15], [17, 15], [10, 47], [19, 47]] },
   pagode: { w: 11, d: 11, h: 15, door: 5, modele: 'pagode' },
@@ -34,8 +68,34 @@ export const GRAND = {
   bourse: { w: 12, d: 8, h: 7, door: 5, door2: 6, blocs: [[0, 8], [11, 8]], modele: 'bourse' },
   mairie: { w: 9, d: 5, h: 5, door: 4, modele: 'mairie' },
   usine: { w: 32, d: 10, h: 8, door: 15, door2: 16, modele: 'usinePokeball' },
-  maisonL: { w: 5, d: 5, h: 3, door: 2, porteY: 2, libres: [[2, 3], [3, 3], [4, 3], [2, 4], [3, 4], [4, 4]], modele: 'maisonL' },
+  // maison en L : la terrasse devant le corps, à droite de l'aile ; le poteau du porche (3, 3) reste bloqué
+  maisonL: { w: 5, d: 5, h: 3, door: 2, porteY: 2, libres: [[2, 3], [4, 3], [2, 4], [3, 4], [4, 4]], modele: 'maisonL' },
 };
+/** modèles dont l'emprise a des parties ouvertes (terrasse, porche, galerie) : la porte est au fond, contre la façade, et
+ *  l'on marche devant elle. Appliqué à tout bâtiment posé avec ce modèle et cette emprise (villes, lieux, éditeur), même
+ *  quand la définition donne une autre porte : sinon la porte du jeu tombe au milieu de la terrasse du dessin. */
+export const OUVERTS = {
+  maisonL: GRAND.maisonL,
+  // chalet : le balcon de l'étage avance au-dessus de la dernière rangée, sur deux poteaux aux coins
+  chalet: { w: 5, d: 5, door: 1, porteY: 3, libres: [[1, 4], [2, 4], [3, 4]] },
+  // auberge : la terrasse et ses deux tables à parasol devant la façade ; porte de deux cases
+  auberge: { w: 6, d: 5, door: 2, door2: 3, porteY: 3, libres: [[1, 4], [2, 4], [3, 4], [4, 4]] },
+  // maison de thé : on monte à la galerie (engawa) par les marches, entre les deux lanternes de pierre
+  maisonThe: { w: 5, d: 5, door: 2, porteY: 3, libres: [[1, 4], [2, 4], [3, 4]] },
+  pavillon: GRAND.pavillon,
+};
+
+/** combien de rangées au nord de son emprise un bâtiment cache à l'écran (hauteur du modèle, caméra inclinée) : on ne
+ *  pose pas une porte dans cette ombre */
+const HAUT_VUE = { maisonHaute: 7, chapelle: 6, mairie: 5, auberge: 4, gare: 3, boulangerie: 3, maisonThe: 3, chalet: 3, maisonL: 3, residence: 3, moulin: 6, phare: 8, grange: 4 };
+export function hauteurVue(b) {
+  if (b.modele && HAUT_VUE[b.modele]) return HAUT_VUE[b.modele];
+  if (b.kind === 'gym') return 8;
+  if (b.kind === 'bighouse' || b.kind === 'center' || b.kind === 'mart') return 3;
+  if (b.kind === 'lab' || b.kind === 'league') return 4;
+  if (b.kind === 'tower') return Math.min(9, b.h || 3);
+  return 2;
+}
 
 export class GameMap {
   constructor(id, w, h, o = {}) {
@@ -91,12 +151,18 @@ export class GameMap {
   /** pose un bâtiment ; renvoie la position de la porte */
   building(kind, x, y, o = {}) {
     const B = { ...BUILDINGS[kind] }; for (const [k, v] of Object.entries(o)) if (v !== undefined) B[k] = v;
+    const ouv = OUVERTS[B.modele];
+    if (ouv && ouv.w === B.w && ouv.d === B.d) for (const k of ['door', 'door2', 'porteY', 'libres']) if (ouv[k] !== undefined) B[k] = ouv[k];
     const b = { kind, x, y, w: B.w, d: B.d, h: B.h, door: B.door, style: B.style || (kind === 'house2' ? 'house2' : 'house'), roof: B.roof || 'red', id: o.id, label: o.label, name: o.name, kit: o.kit, flat: o.flat, modele: B.modele, opts: B.opts };
     Object.defineProperty(b, 'o', { value: o, enumerable: false, writable: true });   // réglages d'origine (l'éditeur de carte déplace et copie les bâtiments)
     // emprise : rectangle w × d bâti, sauf les cases « libres » (porche, cour de devant…) ; « blocs » : cases bloquées
     // autour (étal, statues, colonnes, lampadaires du modèle 3D) ; porte sur la rangée du bas, ou sur porteY
     const libres = new Set((B.libres || []).map(([i, j]) => i + ',' + j));
-    for (let j = 0; j < B.d; j++) for (let i = 0; i < B.w; i++) if (!libres.has(i + ',' + j)) this.set(x + i, y + j, T.BUILD);
+    for (let j = 0; j < B.d; j++) for (let i = 0; i < B.w; i++) {
+      if (!libres.has(i + ',' + j)) this.set(x + i, y + j, T.BUILD);
+      else if (!walkable(this.get(x + i, y + j)) || this.get(x + i, y + j) === T.GRASS || this.get(x + i, y + j) === T.FLOWER || this.get(x + i, y + j) === T.TALL || this.get(x + i, y + j) === T.SAND) this.set(x + i, y + j, T.PAVE);   // terrasse dallée, au niveau du sol
+    }
+    if (libres.size) b.libres = [...libres].map((k) => k.split(',').map(Number));
     for (const [i, j] of B.blocs || []) { if (this.get(x + i, y + j) !== T.BLOCK) this.under.set(key(x + i, y + j), this.get(x + i, y + j)); this.set(x + i, y + j, T.BLOCK); }
     const dx = x + B.door, dy = y + (B.porteY ?? B.d - 1);
     if (B.door >= 0) this.set(dx, dy, T.DOOR);
@@ -214,7 +280,7 @@ export function carveRoute(map, pts, o = {}) {
   const total = routeLength(pts);
   const info = new Map();
   // bord irrégulier : demi-largeur bruitée le long de la route
-  const wob = (s) => Math.sin(s * 0.21 + (o.seed || 1)) * 0.9 + Math.sin(s * 0.53 + 2 * (o.seed || 1)) * 0.6;
+  const wob = (s) => sin(s * 0.21 + (o.seed || 1)) * 0.9 + sin(s * 0.53 + 2 * (o.seed || 1)) * 0.6;
   // distance de chaque case au tracé : chaque segment ne regarde que les cases de son voisinage (les longues routes
   // sinueuses ont des centaines de segments) ; à distance égale, le premier segment l'emporte
   const bw = x1 - x0 + 1, bh = y1 - y0 + 1, R = half + 3;
