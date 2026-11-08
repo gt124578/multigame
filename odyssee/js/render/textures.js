@@ -491,7 +491,7 @@ function tuftSprite(P, pal, ox, oy, frame = 0) {
   P.rect(ox, oy + 12, 16, 2, dd);
 }
 export function buildSprites() {
-  const SIZE = 1024; const P = new Pix(SIZE, SIZE, 4242);
+  const SIZE = 2048; const P = new Pix(SIZE, SIZE, 4242);   // 2048 : les variantes des arbres (arbres.js) ne tenaient plus dans 1024
   P.x.clearRect(0, 0, SIZE, SIZE);
   const rects = {};
   const add = (k, x, y, w, h) => { rects[k] = { x, y, w, h, u0: x / SIZE, v0: y / SIZE, u1: (x + w) / SIZE, v1: (y + h) / SIZE }; };
