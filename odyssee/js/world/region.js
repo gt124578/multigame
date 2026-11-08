@@ -16,6 +16,8 @@ import { addStory } from './story.js';
 import { enrichirTout, equipeDeType } from './rencontres.js';
 import { addHabitants } from './habitants.js';
 import { applyRetouches } from './retouches.js';
+import { redresserPonts } from './ponts.js';
+import { rangs, mers, tourbillonsDuBord, rendreALaForet, degager } from './acces.js';
 import { buildArena } from './arenes.js';
 import { areneSylve } from './arene-sylve.js';
 import { buildSud, BADGES_SUD, LEADERS_SUD, GYM_TRAINERS_SUD } from './sud.js';
@@ -1226,6 +1228,14 @@ export function buildWorld() {
   for (const [k, t] of Object.entries(towns)) if (VILLES[k]?.releve) relever(W, t);
   // petites barrières de bois le long des chemins des routes (jamais là où elles couperaient un passage)
   fenceRoutes(W, legends);
+  // les ponts au propre : droits, d'une ou deux cases de large, jamais deux côte à côte (ponts.js)
+  W.ponts = redresserPonts(W);
+  // finitions (acces.js) : des tourbillons au large, à la limite de la marge (on ne voit jamais le bord de la carte) ;
+  // ce qu'on n'atteint jamais redevient forêt ; rien ne bouche un passage
+  { const mer = mers(W); W.finitions = { tourbillons: tourbillonsDuBord(W, mer) };
+    const RG = rangs(maps, docks, { map: 'monde', x: towns.A.x + 5, y: towns.A.y + 7 }, { bloquants: false });   // un PNJ qui garde un passage ne rend pas la suite inatteignable
+    W.finitions.foret = rendreALaForet(W, RG.get('monde'), mer);
+    W.finitions.degages = degager(W); }
   // retouches faites dans l'éditeur de la version test et intégrées au jeu (world/retouches.js)
   applyRetouches(maps);
   // cartes disparues (lieux désormais posés sur la carte du monde) : une ancienne partie qui y était reprend ici
