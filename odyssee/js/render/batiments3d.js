@@ -3,6 +3,7 @@
 // de 1 ou 2 cases de large sur la façade sud) ; les hauteurs sont en cases « à plat », étirées de tan(EL) par l'appelant.
 import * as THREE from 'three';
 import { STATUES } from './statues-data.js';
+import { maisonsVilles } from './maisons-villes.js';
 
 export function atelier(D) {
   /* -------------------------------------------------------------- textures ------------------------------------------ */
@@ -2889,6 +2890,9 @@ export function atelier(D) {
     for (const [x, z] of [[-0.02, -0.02], [w + 0.02, -0.02], [-0.02, L], [w + 0.02, L], [-0.02, L / 2], [w + 0.02, L / 2]]) G.add(at(boite(0.05, 0.45, 0.05, COL('#5a3a22')), x, 0.22, z));
     return G;
   };
+
+  // maisons des villes (une architecture par ville) : modèle « maisonVille », réglé par styles-villes.js
+  maisonsVilles({ B, TX, tex, hash, mix, S, D, boite, at, M, COL, LUM, cyl, fenetre2, fenArc, porte, portesVitrees, toit4, toitChinois, cheminee, balustrade, bucher, socle });
 
   return { B, boite, at, M, COL, TX };
 }

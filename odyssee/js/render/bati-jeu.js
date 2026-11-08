@@ -5,6 +5,7 @@
 // de dessin par bâtiment au lieu de plusieurs centaines).
 import * as THREE from 'three';
 import { atelier, EMPRISES } from './batiments3d.js';
+import { maisonDeVille } from './styles-villes.js';
 
 const EL = 55 * Math.PI / 180, YS = Math.tan(EL);
 let AT = null;
@@ -24,6 +25,8 @@ export function choisirModele(b, ctx = {}) {
   const roof = TOITS[b.roof] || TOITS.red, h = hashB(b), n = b.name || '', th = ctx.theme || '';
   const egal = (nom) => { const e = EMPRISES[nom]; return e && e[0] === b.w && e[1] === b.d; };
   let r = null;
+  // maisons ordinaires des villes : l'architecture de la ville (styles-villes.js) ; ?styles=0 remet les anciennes
+  if (ctx.ville && !/[?&]styles=0/.test(globalThis.location?.search || '')) { const mv = maisonDeVille(b, ctx.ville); if (mv) return mv; }
   if (b.modele) return { nom: b.modele, o: { toit: roof, ...(b.opts || {}) } };
   if (b.kind === 'house') {
     const colombage = ctx.ville === 'aube' || /village|campagne|foret|forêt/.test(th) || h % 3 === 0;
