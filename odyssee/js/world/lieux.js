@@ -7,7 +7,7 @@
 // Un lieu reste dans son bloc, à trois cases du bord au moins : il ne relie jamais deux routes entre elles. Les PNJ et les
 // objets ont des identifiants fixes (`lieu:<bloc>:…`), tirés dans l'ordre des blocs.
 import { T, walkable } from './tiles.js';
-import { rng } from './mapgen.js';
+import { rng, sin, cos } from './mapgen.js';
 import { plateau, massif, sinueuse } from './relief.js';
 import { bruit } from './quartiers.js';
 import { houseInterior } from './interiors.js';
@@ -212,7 +212,7 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
     } else if (kind === 'lac') {
       W.blob(X + 0.5, Y - 0.5, 5.5, 3.8, T.WATER, r, [T.GRASS]);
       let x = X, y = Y + 5; while (W.get(x, y - 1) === T.WATER || W.get(x, y) === T.WATER) { if (W.get(x, y) === T.WATER) W.set(x, y, T.BRIDGE); y--; if (y < Y - 4) break; }
-      for (let k = 0; k < 8; k++) { const a = r() * 6.28; const u = Math.round(X + Math.cos(a) * 7.5), v = Math.round(Y + Math.sin(a) * 6); if (W.get(u, v) === T.GRASS && r() < 0.6) W.set(u, v, T.FLOWER); }
+      for (let k = 0; k < 8; k++) { const a = r() * 6.28; const u = Math.round(X + cos(a) * 7.5), v = Math.round(Y + sin(a) * 6); if (W.get(u, v) === T.GRASS && r() < 0.6) W.set(u, v, T.FLOWER); }
       pnj(X + 1, Y + 6, { sprite: 'pecheur', text: ['Ce lac n\'est sur aucune carte. Garde le secret, d\'accord ?', 'Il paraît qu\'un Pokémon très rare remonte à la surface les nuits de pleine lune.'] });
       prop('bateau', X - 6, Y + 1);
       objet(X - 6, Y + 5);

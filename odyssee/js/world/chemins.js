@@ -6,7 +6,7 @@
 // (clairière, cabane habitée, ruines, source, belvédère, campement, verger) ; parfois un raccourci à débloquer plus tard
 // (Coupe, Éclate-Roc, Surf). Les dresseurs ajoutés ont des identifiants fixes (`route:dN`), les objets aussi (`route:oN`).
 import { T, walkable } from './tiles.js';
-import { carveRoute, along, nearestWalkable, caseLibre, rng, ledges as _ledges } from './mapgen.js';
+import { carveRoute, along, nearestWalkable, caseLibre, rng, sin, ledges as _ledges } from './mapgen.js';
 import { plateau, sinueuse, massif } from './relief.js';
 import { bruit } from './quartiers.js';
 import { houseInterior } from './interiors.js';
@@ -177,7 +177,7 @@ export function grandeRoute(W, S, ctx) {
       for (const [x, y] of casesBloc(b)) if (loin(x, y) && W.get(x, y) === herbe && r() < 0.4) W.set(x, y, S.tall ?? T.TALL);
     }
     else if (pays === 'bosquet') { for (const [x, y] of C) if (loin(x, y, 2.8) && W.get(x, y) === herbe && r() < 0.12) W.set(x, y, S.treeT ?? T.TREE); }
-    else if (pays === 'fleurs') { for (const [x, y] of C) if (loin(x, y, 1.6) && W.get(x, y) === herbe && (Math.sin(x * 0.7) + Math.sin(y * 0.9)) > 0.6) W.set(x, y, T.FLOWER); }
+    else if (pays === 'fleurs') { for (const [x, y] of C) if (loin(x, y, 1.6) && W.get(x, y) === herbe && (sin(x * 0.7) + sin(y * 0.9)) > 0.6) W.set(x, y, T.FLOWER); }
     else if (pays === 'rochers') {
       for (const [x, y] of C) if (loin(x, y, 2.8) && W.get(x, y) === herbe && r() < 0.05) W.set(x, y, T.ROCK);
       for (let k = 0; k < 2; k++) { const [x, y] = pick(C); if (loin(x, y, 3) && W.get(x, y) === herbe) W.prop('rocher_grand', x, y); }
@@ -194,9 +194,9 @@ export function grandeRoute(W, S, ctx) {
       // une rivière qui serpente en travers du bloc ; on la passe sur un pont de planches
       riviereFaite = true;
       const p = along(pts, tBloc[i]), travers = Math.abs(p.dx) > Math.abs(p.dy);   // la route va d'est en ouest : la rivière du nord au sud
-      const ph = r() * 6, amp = 2.5 + r() * 2.5, larg = (u) => 1.2 + 0.8 * Math.sin(u * 0.31 + ph);
+      const ph = r() * 6, amp = 2.5 + r() * 2.5, larg = (u) => 1.2 + 0.8 * sin(u * 0.31 + ph);
       for (let u = -2; u < BLOC + 2; u++) {
-        const centreR = 12 + amp * Math.sin(u * 0.22 + ph) + 1.5 * Math.sin(u * 0.57 + 2 * ph);
+        const centreR = 12 + amp * sin(u * 0.22 + ph) + 1.5 * sin(u * 0.57 + 2 * ph);
         for (let k = -3; k <= 3; k++) {
           if (Math.abs(k) > larg(u) + 0.3) continue;
           const x = travers ? b[0] * BLOC + Math.round(centreR + k) : b[0] * BLOC + u, y = travers ? b[1] * BLOC + u : b[1] * BLOC + Math.round(centreR + k);

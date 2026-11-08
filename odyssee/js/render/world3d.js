@@ -56,6 +56,35 @@ function frontDepth(mat, zFront) {
   mat.customProgramCacheKey = () => 'frontDepth';
   return mat;
 }
+/** profondeur d'un bâtiment à parties ouvertes (terrasse, porche, galerie : `b.libres`) : chaque morceau prend la profondeur
+ *  du devant de la masse bâtie de sa colonne (comme frontDepth, mais case par case), et rien n'est avancé au-dessus d'une
+ *  case où l'on marche. Un personnage sur la terrasse passe ainsi devant la façade du fond et derrière l'aile qui avance.
+ *  Calculé au pixel (gl_FragDepth) : une même face peut couvrir des colonnes de profondeurs différentes. */
+const GRILLE_MAX = 128;
+function profondeurGrille(mat, b) {
+  const w = b.w, d = b.d, libre = new Set(b.libres.map(([i, j]) => i + ',' + j)), zf = new Float32Array(GRILLE_MAX).fill(-1);
+  for (let i = 0; i < w; i++) for (let j = 0; j < d; j++) {
+    if (libre.has(i + ',' + j)) continue;
+    let k = j; while (k + 1 < d && !libre.has(i + ',' + (k + 1))) k++;
+    zf[j * w + i] = b.y + k + 1 + 0.02;
+  }
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uZF = { value: zf }; sh.uniforms.uGrille = { value: new THREE.Vector4(b.x, b.y, w, d) };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vMondeG;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvMondeG = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>\nvarying vec3 vMondeG;\nuniform float uZF[${GRILLE_MAX}];\nuniform vec4 uGrille;\nuniform mat4 projectionMatrix;`)
+      .replace(/}\s*$/, `
+        int gi = int( clamp( floor( vMondeG.x - uGrille.x ), 0.0, uGrille.z - 1.0 ) ), gj = int( clamp( floor( vMondeG.z - uGrille.y ), 0.0, uGrille.w - 1.0 ) );
+        float gz = uZF[ gj * int( uGrille.z ) + gi ];
+        vec4 gC = projectionMatrix * viewMatrix * vec4( vMondeG.x, vMondeG.y, gz < 0.0 ? vMondeG.z : max( vMondeG.z, gz ), 1.0 );
+        gl_FragDepth = gC.z / gC.w * 0.5 + 0.5;
+      }`);
+  };
+  mat.customProgramCacheKey = () => 'profondeurGrille';
+  return mat;
+}
 const DECALS = new Set(['fleche', 'vent', 'courant', 'dalle', 'tp', 'socle', 'pollen', 'alveole', 'interrupteur', 'estrade', 'tapis']);
 const WIDE_DECO = new Set(['healer', 'sofa', 'bench', 'startertable', 'fireplace', 'rug']);
 function screenSprite(mat) {
@@ -1177,7 +1206,8 @@ export class WorldView {
     const zf = b.y + b.d + 0.02;
     for (const p of parts) {
       const m0 = p.mat0;
-      const mat = frontDepth(new THREE.MeshBasicMaterial({ map: m0.map || null, vertexColors: true, transparent: !!m0.transparent, opacity: m0.opacity ?? 1, side: m0.side, alphaTest: m0.alphaTest || 0 }), zf);
+      const mat0 = new THREE.MeshBasicMaterial({ map: m0.map || null, vertexColors: true, transparent: !!m0.transparent, opacity: m0.opacity ?? 1, side: m0.side, alphaTest: m0.alphaTest || 0 });
+      const mat = b.libres?.length && b.w * b.d <= GRILLE_MAX ? profondeurGrille(mat0, b) : frontDepth(mat0, zf);
       mat.userData.base = couleurBase(m0); mat.userData.ownTint = true; mat.userData.op0 = m0.transparent ? (m0.opacity ?? 1) : 1;
       const cle = m0.map?.userData?.cle || '';
       if (/^(verre|vr|vt|r#|rs|ev|ed)/.test(cle)) mat.userData.vitre = true;   // vitres : allumées la nuit
