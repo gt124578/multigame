@@ -186,7 +186,7 @@ export class Sol {
     // dessiné juste après l'ancien sol (ordre -3) et avant tout le reste, sans écrire la profondeur : rien ne se bat avec lui
     // relief en 3D (?relief3d, relief3d.js) : le sol est un maillage posé sur les hauteurs, il écrit la profondeur
     const mat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, depthTest: !!r3d, depthWrite: !!r3d });
-    if (r3d) (r3d.isHGSS ? matTerrain : matSol)(mat, w, h);
+    if (r3d) { if (r3d.isHGSS) matTerrain(mat, w, h, r3d.grotte); else matSol(mat, w, h); }
     mat.userData.sol = true; mat.userData.own = true; mat.color.copy(this.view.tint); this.view.tinted.push(mat);
     const x0 = ci * CH, z0 = cj * CH, x1 = x0 + d.bw, z1 = z0 + d.bh;
     let geo;
