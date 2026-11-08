@@ -235,10 +235,9 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   case sur celui du dessous ; au-delà c'est une falaise, dont les étages (`frac`) tiennent dans sa case avec un recul
   faible et régulier ; une marche d'un niveau est une pente arrondie (quart de sinus, 63° au pied) sur presque toute sa
   case, dont la texture suit la surface et s'éclaircit jusqu'au dessus ; un étage de falaise : pan incliné puis haut arrondi (`bosse`) ; le shader (`matTerrain`, posé par
-  `sol.js` sur le sol généré) dessine pixel par pixel les pans en caillasse (`caillasse` : cailloux de toutes tailles entassés,
-  ancrés à l'écran, rebord éclairé et ombre au pied de chaque étage de falaise), le pied à plat d'une roche avec le sol de
-  la voisine la plus basse (lu en miroir dans l'image du sol) et une ombre douce, la lèvre d'herbe ou de neige, le dessus clair des gradins de roche (dalles), les talus d'herbe ombrés
-  du haut vers le pied, les marches, le néant des ravins ; textures générées au chargement (`caillasse`, douce pour le dessus des gradins,
+  `sol.js` sur le sol généré) dessine pixel par pixel une rangée de grosses pierres bombées par étage (`etage`, comme les
+  parois de HGSS), la lèvre d'herbe ou de neige, le dessus clair des gradins de roche (dalles), les talus d'herbe ombrés
+  du haut vers le pied, les marches, le néant des ravins ; textures générées au chargement (`pierres`, `dalles`, `etage`,
   biomes `BIOMES`) ; raccords entre cases calculés au pixel par le shader (aucune tuile de transition) : `geoSol` joint à
   chaque bloc une petite texture de ses cases et de leur bordure (`uCases` : famille, biome, niveau), lue par `fCase` —
   frontière ondulée entre deux roches de biomes différents (dessus et pans), roche qui déborde sur le sol voisin au même
