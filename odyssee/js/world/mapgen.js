@@ -85,6 +85,18 @@ export const OUVERTS = {
   pavillon: GRAND.pavillon,
 };
 
+/** combien de rangées au nord de son emprise un bâtiment cache à l'écran (hauteur du modèle, caméra inclinée) : on ne
+ *  pose pas une porte dans cette ombre */
+const HAUT_VUE = { maisonHaute: 7, chapelle: 6, mairie: 5, auberge: 4, gare: 3, boulangerie: 3, maisonThe: 3, chalet: 3, maisonL: 3, residence: 3, moulin: 6, phare: 8, grange: 4 };
+export function hauteurVue(b) {
+  if (b.modele && HAUT_VUE[b.modele]) return HAUT_VUE[b.modele];
+  if (b.kind === 'gym') return 8;
+  if (b.kind === 'bighouse' || b.kind === 'center' || b.kind === 'mart') return 3;
+  if (b.kind === 'lab' || b.kind === 'league') return 4;
+  if (b.kind === 'tower') return Math.min(9, b.h || 3);
+  return 2;
+}
+
 export class GameMap {
   constructor(id, w, h, o = {}) {
     this.id = id; this.w = w; this.h = h;

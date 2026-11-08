@@ -7,7 +7,7 @@
 // légendaires (renvoyées dans `legends`, les quais dans `docks`).
 // Noms de lieux et personnages originaux ; les créatures du jeu côtoient les Pokémon du prototype.
 import { T, DIRS, walkable, isGrassEnc } from './tiles.js';
-import { GameMap, carveRoute, carveTown, ledges, along, nearestWalkable, caseLibre, rng, GRAND, sin, cos } from './mapgen.js';
+import { GameMap, carveRoute, carveTown, ledges, along, nearestWalkable, caseLibre, rng, GRAND, sin, cos, hauteurVue } from './mapgen.js';
 import { centerInterior, martInterior, houseInterior, labInterior, gymInterior, leagueInterior, caveMap } from './interiors.js';
 import { NEW_STARTERS } from '../data/creatures.js';
 import { R } from '../data/remplacants.js';
@@ -373,6 +373,8 @@ function lotir(W, def, poser) {
     if (!ok) continue;
     const dxd = G ? G.door : kind === 'house2' ? 2 : kind === 'bighouse' ? 2 : 1, doorY = y0 + (G ? G.porteY : bd - 1);
     if (BATI(W.get(x0 + dxd, doorY + 2)) || BATI(W.get(x0 + dxd, doorY + 3))) continue;
+    // ni porte cachée par un bâtiment plus haut, au sud
+    { let k = 1; while (k <= 10 && !BATI(W.get(x0 + dxd, doorY + k))) k++; const S = k <= 10 && W.buildings.find((q) => x0 + dxd >= q.x && x0 + dxd < q.x + q.w && doorY + k >= q.y && doorY + k < q.y + q.d); if (S && S.y - hauteurVue(S) <= doorY) continue; }
     let rue = -1; for (let k = 1; k <= 5; k++) { const t = W.get(x0 + dxd, doorY + k); if (route(t)) { rue = k; break; } if (!libre(t)) break; }
     if (rue < 0) continue;
     // la maison ne doit couper aucun passage

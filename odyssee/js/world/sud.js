@@ -156,6 +156,11 @@ export function buildSud(ctx) {
       { id: 'garde-sud', x: 46, y: 59, sprite: 'garde', dir: 'left', gate: { badges: 14, tiles: [[44, 60], [45, 60]] }, text: ['La route 20 file vers Ombreval, dans les ténèbres du sud.', 'Elle est fermée tant que tu n\'as pas treize badges… Fais le tour par l\'est !'] },
     ],
   };
+  // les gratte-ciel de Métropole (sans porte : des bureaux, la nuit leurs fenêtres s'allument), posés avec le centre pour
+  // que les nouveaux quartiers les voient
+  const tours = [[4, 3, 7, 5, 8], [11, 3, 7, 5, 11], [24, 3, 8, 5, 10], [74, 3, 7, 5, 12], [82, 3, 9, 5, 9], [4, 17, 6, 5, 7], [11, 17, 7, 5, 9], [24, 17, 8, 6, 13],
+    [49, 18, 9, 6, 6], [60, 18, 8, 6, 5], [74, 18, 8, 5, 10], [84, 17, 7, 5, 8], [4, 33, 7, 5, 6], [11, 33, 7, 5, 9], [82, 33, 9, 5, 10], [74, 50, 6, 5, 6]];
+  M.avantQuartiers = () => tours.forEach(([x, y, w, d, h], i) => W.building('tower', M.x + x, M.y + y, { w, d, h, door: -1, kit: 'gc' + (i % 4), flat: true, name: 'Tour', roof: 'gray' }));
   ville(M, 'SM');
   // chaussées : les avenues sont asphaltées (trottoirs pavés de part et d'autre), passages piétons aux carrefours
   {
@@ -164,10 +169,6 @@ export function buildSud(ctx) {
     for (const y of H2) for (let x = 2; x <= 93; x++) { const inter = V2.some((v) => x >= v - 1 && x <= v + 2); put(x, y, inter ? 'x' : 's'); put(x, y + 1, inter ? 'x' : 'n'); }
     for (const x of V2) for (let y = 0; y <= 61; y++) { if (H2.some((h) => y >= h && y <= h + 1)) continue; put(x, y, 'e'); put(x + 1, y, 'w'); }
   }
-  // les gratte-ciel de Métropole (sans porte : des bureaux, la nuit leurs fenêtres s'allument)
-  const tours = [[4, 3, 7, 5, 8], [11, 3, 7, 5, 11], [24, 3, 8, 5, 10], [74, 3, 7, 5, 12], [82, 3, 9, 5, 9], [4, 17, 6, 5, 7], [11, 17, 7, 5, 9], [24, 17, 8, 6, 13],
-    [49, 18, 9, 6, 15], [60, 18, 8, 6, 11], [74, 18, 8, 5, 10], [84, 17, 7, 5, 8], [4, 33, 7, 5, 6], [11, 33, 7, 5, 9], [82, 33, 9, 5, 10], [74, 50, 6, 5, 8]];
-  tours.forEach(([x, y, w, d, h], i) => W.building('tower', M.x + x, M.y + y, { w, d, h, door: -1, kit: 'gc' + (i % 4), flat: true, name: 'Tour', roof: 'gray' }));
   const asphAt = (x, y) => W.deco.some((d) => d.k === 'asph' && d.x === M.x + x && d.y === M.y + y);
   {
     // arbres d'alignement et bancs sur les trottoirs (là où rien d'autre ne se trouve)

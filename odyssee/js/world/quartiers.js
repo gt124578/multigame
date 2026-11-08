@@ -16,7 +16,7 @@
 //   quartiers        poids des sortes de quartier { maisons, parc, place, marche, jardins, ferme, affaires… }
 //   graine           tirages
 import { T, walkable } from './tiles.js';
-import { rng, sin, cos, melanger, OUVERTS } from './mapgen.js';
+import { rng, sin, cos, melanger, OUVERTS, hauteurVue } from './mapgen.js';
 import { plateau } from './relief.js';
 import { GENERAL, VILLES, ETALS } from './voix.js';
 
@@ -268,6 +268,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
 
   /* 4. le centre (l'ancienne ville) */
   buildTown(W, maps, def);
+  if (def.avantQuartiers) def.avantQuartiers(W);   // ce que le centre pose en plus (les tours de Métropole)
 
   /* 5. les rues : boulevard autour du centre, rues en grille irrégulière (larges chaussées en ville), avenues des portes */
   const libreRue = (x, y) => { if (!dans(x, y) || dansR(x, y)) return false; const t = W.get(x, y); return t === T.TREE || t === sol || t === T.GRASS || t === T.FLOWER || t === T.SAND || t === T.PAVE || t === T.PATH || (t === T.WATER && riv[at(x, y)]) || t === T.BRIDGE; };
@@ -566,9 +567,14 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   /** de l'air autour d'un bâtiment : rien de bâti à moins de deux cases, aucune porte au nord que son toit cacherait, et
    *  les deux cases devant sa porte (rangée du bas) libres de tout bâtiment */
   const BATI = (t) => t === T.BUILD || t === T.DOOR;
+  // (bâtiments de la ville par case, pour savoir qui est au sud d'une porte)
+  const batiDe = new Map(), noter = (B) => { for (let j = 0; j < B.d; j++) for (let i = 0; i < B.w; i++) batiDe.set((B.x + i) + ',' + (B.y + j), B); };
+  for (const B of W.buildings) if (B.x + B.w >= TX && B.x <= TX1 && B.y + B.d >= TY && B.y <= TY1) noter(B);
+  /** la porte (dx, dy) est-elle cachée par un bâtiment déjà posé au sud ? */
+  const porteCachee = (dx, dy) => { for (let k = 1; k <= 10; k++) { const S = batiDe.get(dx + ',' + (dy + k)); if (S) return S.y - hauteurVue(S) <= dy; } return false; };
   const degage = (x, y, wd, dd, hh = 2, marge = 2) => {
     for (let yy = y - marge; yy <= y + dd - 1 + marge; yy++) for (let xx = x - marge; xx <= x + wd - 1 + marge; xx++) if (BATI(W.get(xx, yy))) return false;
-    for (let yy = y - Math.min(hh, 3); yy < y - marge; yy++) for (let xx = x - 1; xx <= x + wd; xx++) if (W.get(xx, yy) === T.DOOR) return false;
+    for (let yy = y - hh; yy < y - marge; yy++) for (let xx = x; xx < x + wd; xx++) if (W.get(xx, yy) === T.DOOR) return false;
     for (let xx = x; xx < x + wd; xx++) for (const k of [1, 2]) { const q = W.get(xx, y + dd + k); if (BATI(q) || q === T.WATER || q === T.CLIFF) return false; }
     return true;
   };
@@ -581,16 +587,17 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   };
   for (const B of W.buildings) if (B.x + B.w >= TX && B.x <= TX1 && B.y + B.d >= TY && B.y <= TY1) reserver(B);
   const maison = (x, y, Mo, o = {}) => {
-    if (!libre(x, y, x + Mo.w - 1, y + Mo.d - 1, o.surPave) || !degage(x, y, Mo.w, Mo.d, Mo.kind === 'bighouse' ? 3 : 2)) return null;
+    const ouv = OUVERTS[Mo.modele], ok = ouv && ouv.w === Mo.w && ouv.d === Mo.d, pdx = x + (ok ? ouv.door : Mo.door ?? (Mo.kind === 'house2' || Mo.kind === 'bighouse' ? 2 : 1)), pdy = y + (ok ? ouv.porteY : Mo.d - 1);
+    if (!libre(x, y, x + Mo.w - 1, y + Mo.d - 1, o.surPave) || !degage(x, y, Mo.w, Mo.d, hauteurVue({ kind: Mo.kind, modele: Mo.modele, h: Mo.h })) || porteCachee(pdx, pdy)) return null;
     const npcs = o.vide ? [] : [{ x: 3, y: 4, sprite: o.sprite || pick(SPRITES), move: 'turn', text: o.text || parole() }];
     const B = poserBatiment(W, maps, def, { ...Mo, x: x - def.x, y: y - def.y, roof: o.roof || pick(toits), id: 'q' + nb++, name: o.name || Mo.name, npcs });
-    reserver(B); return B;
+    reserver(B); noter(B); return B;
   };
   const PETITS = new Set(['fontaine', 'puits', 'etal', 'kiosque']);
   const decor = (modele, x, y, wd, dd, o = {}) => {
     // (le petit mobilier et ce qui est posé sur une place ou un quai dallés peuvent aller sur les pavés)
-    if (!libre(x, y, x + wd - 1, y + dd - 1, PETITS.has(modele) || o.surPave) || !degage(x, y, wd, dd, o.h ?? 3, PETITS.has(modele) ? 1 : 2)) return null;
-    return W.building('tower', x, y, { w: wd, d: dd, h: o.h ?? 3, door: -1, modele, name: o.name || modele, roof: o.roof || 'gray', opts: o.opts });
+    if (!libre(x, y, x + wd - 1, y + dd - 1, PETITS.has(modele) || o.surPave) || !degage(x, y, wd, dd, PETITS.has(modele) ? 1 : hauteurVue({ kind: 'tower', modele, h: o.h ?? 3 }), PETITS.has(modele) ? 1 : 2)) return null;
+    const B = W.building('tower', x, y, { w: wd, d: dd, h: o.h ?? 3, door: -1, modele, name: o.name || modele, roof: o.roof || 'gray', opts: o.opts }); noter(B); return B;
   };
   const pnj = (x, y, o = {}) => {
     const t = W.get(x, y); if (!walkable(t) || t === T.DOOR || t === T.STAIRS || t === T.BRIDGE || occ.has(x + ',' + y) || W.warpAt(x, y) || [1, 2, 3].some((k) => W.get(x, y - k) === T.DOOR)) return null;
@@ -839,7 +846,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
       // la zone industrielle : hangars (tours basses), cuves, caisses empilées, tonneaux
       rect(b.x0, b.y0, b.x1, b.y1, T.PAVE, [sol, T.GRASS]);
       let x = b.x0 + 1;
-      while (x + 7 < b.x1) { const tw = 7 + Math.floor(r() * 3), td = Math.min(6, b.y1 - b.y0 - 4); if (td >= 4 && libre(x, b.y0 + 1, x + tw - 1, b.y0 + td, true) && degage(x, b.y0 + 1, tw, td, 3)) W.building('tower', x, b.y0 + 1, { w: tw, d: td, h: 4 + Math.floor(r() * 3), door: -1, kit: 'gc' + Math.floor(r() * 4), flat: true, name: 'Tour', roof: 'gray' }); x += tw + 3; }
+      while (x + 7 < b.x1) { const tw = 7 + Math.floor(r() * 3), td = Math.min(6, b.y1 - b.y0 - 4); if (td >= 4 && libre(x, b.y0 + 1, x + tw - 1, b.y0 + td, true) && degage(x, b.y0 + 1, tw, td, 6)) noter(W.building('tower', x, b.y0 + 1, { w: tw, d: td, h: 4 + Math.floor(r() * 3), door: -1, kit: 'gc' + Math.floor(r() * 4), flat: true, name: 'Tour', roof: 'gray' })); x += tw + 3; }
       for (let xx = b.x0 + 1; xx < b.x1; xx += 3) prop(pick(['cuve', 'caisses', 'tonneau', 'caisse']), xx, b.y1 - 1);
       pnj(Math.round(b.cx), b.y1 - 2, { sprite: pick(['scientifique', 'montagnard']), move: 'wander', text: ['Les machines tournent jour et nuit. Les Magnéti adorent l\'ambiance.'] });
     },
@@ -859,7 +866,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
         while (x < b.x1 - 5) {
           const tw = 6 + Math.floor(r() * 4);
           if (x + tw - 1 > b.x1 - 1) break;
-          if (libre(x, y0, x + tw - 1, y0 + td - 1, true) && degage(x, y0, tw, td, 3)) W.building('tower', x, y0, { w: tw, d: td, h: 7 + Math.floor(r() * 8), door: -1, kit: 'gc' + Math.floor(r() * 4), flat: true, name: 'Tour', roof: 'gray' });
+          if (libre(x, y0, x + tw - 1, y0 + td - 1, true) && degage(x, y0, tw, td, 9)) noter(W.building('tower', x, y0, { w: tw, d: td, h: 7 + Math.floor(r() * 8), door: -1, kit: 'gc' + Math.floor(r() * 4), flat: true, name: 'Tour', roof: 'gray' }));
           x += tw + 2;
         }
         for (let xx = b.x0 + 2; xx < b.x1; xx += 5) if (y0 + td + 1 < b.y1) prop(r() < 0.5 ? pick(arbresV) : 'lamp', xx, y0 + td + 1);

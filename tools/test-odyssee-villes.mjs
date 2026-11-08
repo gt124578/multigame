@@ -1,6 +1,7 @@
 // tools/test-odyssee-villes.mjs — les villes d'Odyssée, vues de près, et ce qu'on voit depuis chaque case de la carte :
 //   1. de l'air entre les bâtiments : deux cases au moins entre deux bâtiments, deux cases praticables devant chaque
-//      porte, et aucun bâtiment juste au sud qui cache la porte (son toit ne monte pas jusqu'à elle) ;
+//      porte, et aucun bâtiment au sud qui cache la porte (son toit, vu de la caméra, ne monte pas jusqu'à elle :
+//      hauteurVue de mapgen.js) ;
 //   2. les parties ouvertes des modèles (terrasse, porche, galerie) : on y marche, et la porte s'ouvre dessus ;
 //   3. la cohérence : pas de porte murée ni injoignable, pas de panneau ni de PNJ dans un mur, pas de rue qui bute contre
 //      un mur de bâtiment, pas de bout de chemin qui ne mène nulle part ;
@@ -10,6 +11,7 @@
 // node tools/test-odyssee-villes.mjs [--carte] [--detail]   (--carte : écrit /tmp/odyssee-vues.json, les cases fautives)
 import { buildWorld } from '../odyssee/js/world/region.js';
 import { T, walkable } from '../odyssee/js/world/tiles.js';
+import { hauteurVue } from '../odyssee/js/world/mapgen.js';
 import fs from 'fs';
 import { vues } from '../odyssee/js/world/ecrans.js';
 
@@ -46,7 +48,7 @@ for (const { t, r } of villes) {
     if (b.door < 0) continue;
     for (const dx of [b.doorX, b.door2X].filter((q) => q !== undefined)) {
       for (const k of [1, 2]) { const q = W.get(dx, b.doorY + k); if (!walkable(q) || q === T.DOOR) { pb.porte.push(`${b.name || b.modele || b.kind}@${b.x},${b.y} : case ${k} devant la porte (${dx},${b.doorY + k}) = ${q}`); break; } }
-      for (const s of B) if (s !== b && s.y > b.doorY && dx >= s.x && dx < s.x + s.w && s.y - Math.min(s.h, 3) <= b.doorY) pb.cache.push(`porte de ${b.name || b.modele || b.kind}@${b.x},${b.y} cachée par ${s.name || s.modele || s.kind}@${s.x},${s.y}`);
+      for (const s of B) if (s !== b && s.y > b.doorY && dx >= s.x && dx < s.x + s.w && s.y - hauteurVue(s) <= b.doorY) pb.cache.push(`porte de ${b.name || b.modele || b.kind}@${b.x},${b.y} cachée par ${s.name || s.modele || s.kind}@${s.x},${s.y}`);
     }
     // 2. parties ouvertes : praticables
     for (const [i, j] of b.libres || []) if (!walkable(W.get(b.x + i, b.y + j))) pb.terr.push(`${b.modele || b.kind}@${b.x},${b.y} : case libre ${i},${j} = ${W.get(b.x + i, b.y + j)}`);
