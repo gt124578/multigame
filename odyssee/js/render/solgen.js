@@ -10,6 +10,7 @@
 // Port de tools/pixelforge/terrain2.py (atelier).
 
 import { T } from '../world/tiles.js';
+import { sensPont } from '../world/ponts.js';
 
 export const NFRAMES = 8;      // images de l'eau animée
 export const CELL = 32;        // pixels par case
@@ -22,7 +23,9 @@ export const K = { X: 0, G: 1, F: 2, T: 3, TD: 4, P: 5, V: 6, W: 7, B: 8, C: 9, 
   // relief et lieux (world/relief.js) : feuilles mortes d'automne, gravier ratissé des jardins, mousse, sol ocre des canyons
   FA: 20, GR: 21, MO: 22, RC: 23, TA: 24,
   // montagnes à gravir (world/relief.js, montagne) : sol de roche (comme celui des grottes) et sol sous les gradins
-  MT: 25, MR: 26, MP: 27 };   // … hautes herbes dorées de l'automne   // … bitume des grandes villes
+  MT: 25, MR: 26, MP: 27,
+  // pont qu'on traverse du nord au sud (K.B : d'ouest en est) ; le sens se lit sur tout le pont (world/ponts.js)
+  BN: 28 };   // … hautes herbes dorées de l'automne   // … bitume des grandes villes
 /** grandes villes : rues en bitume et trottoirs, escaliers à l'entrée ; les autres sont des villages pavés */
 export const GRANDES_VILLES = new Set(['Métropole', 'Voltacité', 'Forge-Acier']);   // … hautes herbes enneigées   // herbe de forêt, neige, cendre, sable
 /** sols « d'herbe » : on y marche, le décor (arbres, rochers…) s'y pose ; la zone choisit lequel */
@@ -51,7 +54,7 @@ export function sorteCase(m, x, y) {
   if (!m.outdoor) {
     if (m.floor !== 'cave') return K.X;                                   // intérieurs : sols du jeu
     if (t === T.WATER) return K.W;
-    if (t === T.BRIDGE) return K.B;
+    if (t === T.BRIDGE) return sensPont(m, x, y) === 'ns' ? K.BN : K.B;
     if (t === T.CAVEWALL) return K.CW;                                    // sol fin sous les plateaux de roche du jeu
     return [T.CAVE, T.CAVEDOOR, T.ROCK, T.BOULDER, T.SMASH, T.BLOCK, T.SIGN].includes(t) ? K.C : K.X;
   }
@@ -68,7 +71,7 @@ export function sorteCase(m, x, y) {
   }
   switch (t) {
     case T.WATER: return K.W;
-    case T.BRIDGE: return m.ravins?.[y * m.w + x] ? K.X : K.B;   // passerelle au-dessus d'un ravin : dessinée par le jeu
+    case T.BRIDGE: return m.ravins?.[y * m.w + x] ? K.X : sensPont(m, x, y) === 'ns' ? K.BN : K.B;   // passerelle au-dessus d'un ravin : dessinée par le jeu
     case T.PAVE: return GRANDES_VILLES.has(m.zoneAt?.(x, y)?.name) ? K.A : K.V;
     case T.PATH: case T.DOOR: return K.P;
     case T.SNOW: return K.SN;
@@ -878,32 +881,45 @@ function eau(Z, img, E, frame) {
   }
 }
 
+/** planches des ponts : en travers du sens de la traversée (K.B : d'ouest en est, K.BN : du nord au sud), garde-corps
+ *  le long, seulement sur les bords du pont (deux voies côte à côte forment un seul pont, sans garde-corps au milieu) ;
+ *  pieux et ombre dans l'eau sous le bord aval */
 function ponton(Z, img, frame) {
   const c = Z.c, Wd = Z.W, ph = frame / NFRAMES, s = Z.s;
-  const isB = (cx, cy) => Z.kind(cx, cy) === K.B;
+  const isP = (k) => k === K.B || k === K.BN;
   const tile = new Uint8Array(c * c);
   for (let cy = 0; cy < Z.ch; cy++) for (let cx = 0; cx < Z.cw; cx++) {
-    if (!isB(cx, cy)) continue;
-    const horiz = isB(cx - 1, cy) || isB(cx + 1, cy);
+    const k = Z.kind(cx, cy); if (!isP(k)) continue;
+    const horiz = k === K.B;
     const at = (u, v) => horiz ? (cy * c + v) * Wd + cx * c + u : (cy * c + u) * Wd + cx * c + v;   // u : le long, v : en travers
+    // voies voisines du même pont, de part et d'autre (en travers) : on prolonge le tablier jusqu'à elles
+    const intA = horiz ? Z.kind(cx, cy - 1) === k : Z.kind(cx - 1, cy) === k;
+    const intB = horiz ? Z.kind(cx, cy + 1) === k : Z.kind(cx + 1, cy) === k;
     for (let v = 0; v < c; v++) for (let u = 0; u < c; u++) tile[v * c + u] = img[at(u, v)];
-    const a = c >> 3, b = c - (c >> 3), set = (u, v, col) => { if (u >= 0 && u < c && v >= 0 && v < c) tile[v * c + u] = col; };
-    for (let u = 0; u < c; u++) { for (let v = b; v < Math.min(c, b + 5); v++) set(u, v, W[0]); set(u, b, B[0]); set(u, b + 1, B[0]); }
-    const gx = cx + Z.rx0, gy = cy + Z.ry0;
-    for (const px of [Math.floor(c / 6), c - Math.floor(c / 6) - 4]) {                          // pieux et ronds dans l'eau
-      for (let v = b; v < Math.min(c, b + 6); v++) { for (let u = px; u < px + 4; u++) set(u, v, B[1]); set(px, v, B[3]); set(px + 3, v, B[0]); }
-      const rr = Math.floor(1 + 3 * ((ph + hash2(gx + px, gy, s + 61)) % 1)), vv = Math.min(c - 1, b + 6);
-      for (let du = -rr; du < 4 + rr; du++) if (Math.abs(du - 1.5) > rr) set(px + du, vv, W[5]);
+    const a = intA ? -4 : c >> 3, b = intB ? c + 4 : c - (c >> 3), set = (u, v, col) => { if (u >= 0 && u < c && v >= 0 && v < c) tile[v * c + u] = col; };
+    const gx = cx + Z.rx0, gy = cy + Z.ry0, le = horiz ? gx : gy, tr = horiz ? gy : gx;   // le long, en travers (monde)
+    if (!intB) {
+      for (let u = 0; u < c; u++) { for (let v = b; v < Math.min(c, b + 5); v++) set(u, v, W[0]); set(u, b, B[0]); set(u, b + 1, B[0]); }
+      for (const px of [Math.floor(c / 6), c - Math.floor(c / 6) - 4]) {                          // pieux et ronds dans l'eau
+        for (let v = b; v < Math.min(c, b + 6); v++) { for (let u = px; u < px + 4; u++) set(u, v, B[1]); set(px, v, B[3]); set(px + 3, v, B[0]); }
+        const rr = Math.floor(1 + 3 * ((ph + hash2(le + px, tr, s + 61)) % 1)), vv = Math.min(c - 1, b + 6);
+        for (let du = -rr; du < 4 + rr; du++) if (Math.abs(du - 1.5) > rr) set(px + du, vv, W[5]);
+      }
     }
+    const v0 = Math.max(0, a + 2), v1 = Math.min(c, b - 2);
     let u = 0;
     while (u < c) {                                                                            // planches en travers
-      const wv = 4 + Math.floor(hash2(u + gx * c, gy, s + 62) * 2), tone = hash2(u + gx * c, gy, s + 63) < 0.5 ? B[2] : B[3];
-      for (let uu = u; uu < Math.min(c, u + wv); uu++) for (let v = a + 2; v < b - 2; v++) set(uu, v, hash2(uu + gx * c, v + gy * c, s + 64) < 0.06 ? B[1] : tone);
-      for (let v = a + 2; v < b - 2; v++) set(Math.min(c - 1, u + wv - 1), v, B[0]);
-      if (u + 1 < c) { set(u + 1, a + 3, P[3]); set(u + 1, b - 4, P[3]); }
+      // mêmes planches sur toutes les voies du pont (le motif ne dépend que de la position le long)
+      const wv = 4 + Math.floor(hash2(u + le * c, 7, s + 62) * 2), tone = hash2(u + le * c, 7, s + 63) < 0.5 ? B[2] : B[3];
+      for (let uu = u; uu < Math.min(c, u + wv); uu++) for (let v = v0; v < v1; v++) set(uu, v, hash2(uu + le * c, v + tr * c, s + 64) < 0.06 ? B[1] : tone);
+      for (let v = v0; v < v1; v++) set(Math.min(c - 1, u + wv - 1), v, B[0]);
+      if (u + 1 < c) { if (!intA) set(u + 1, a + 3, P[3]); if (!intB) set(u + 1, b - 4, P[3]); }
       u += wv;
     }
-    for (let uu = 0; uu < c; uu++) { set(uu, a, B[3]); set(uu, a + 1, B[2]); set(uu, b - 2, B[1]); set(uu, b - 1, B[0]); }
+    for (let uu = 0; uu < c; uu++) {                                                            // garde-corps des bords
+      if (!intA) { set(uu, a, B[3]); set(uu, a + 1, B[2]); }
+      if (!intB) { set(uu, b - 2, B[1]); set(uu, b - 1, B[0]); }
+    }
     for (let v = 0; v < c; v++) for (let uu = 0; uu < c; uu++) img[at(uu, v)] = tile[v * c + uu];
   }
 }
@@ -1196,8 +1212,8 @@ export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = n
   const Z = new Zone(kinds, zw, zh, zx0, zy0, seed), c = CELL;
   const img = new Uint8Array(Z.N).fill(TRANSPARENT);
   const has = (k) => kinds.includes(k);
-  const isW = (k) => k === K.W || k === K.B;
-  const water = has(K.W) || has(K.B) ? Z.region(isW, seed + 100, { wobble: 0.7, round: 0.45 }) : new Uint8Array(Z.N);
+  const isW = (k) => k === K.W || k === K.B || k === K.BN;
+  const water = has(K.W) || has(K.B) || has(K.BN) ? Z.region(isW, seed + 100, { wobble: 0.7, round: 0.45 }) : new Uint8Array(Z.N);
   let path = has(K.P) || has(K.MP) ? Z.region((k) => k === K.P || k === K.MP, seed + 101, { wobble: 0.9, round: 0.55, band: c >> 1 }) : new Uint8Array(Z.N);
   const asph = has(K.A) ? Z.region((k) => k === K.A, seed + 104, { wobble: 0, round: 0.05, band: c >> 3 }) : new Uint8Array(Z.N);
   const pave = has(K.V) ? Z.region((k) => k === K.V, seed + 103, { wobble: 0.35, round: 0.1, band: c >> 2 }) : new Uint8Array(Z.N);
@@ -1255,13 +1271,13 @@ export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = n
   // transparence : cases que le jeu dessine lui-même (sable, neige, maisons, parois de grotte…)
   const keep = Z.px((k) => k !== K.X);
   for (let i = 0; i < Z.N; i++) if (!keep[i]) img[i] = TRANSPARENT;
-  const animated = anyOf(water) || has(K.B);
+  const animated = anyOf(water) || has(K.B) || has(K.BN);
   const E = anyOf(water) ? prepEau(Z, water, cave ? path : or(pave, path), C) : null;
   const frames = [];
   for (let f = 0; f < (animated ? NFRAMES : 1); f++) {
     const im = animated ? img.slice() : img;
     if (E) eau(Z, im, E, f);
-    if (has(K.B)) ponton(Z, im, f);
+    if (has(K.B) || has(K.BN)) ponton(Z, im, f);
     if (has(K.L) || has(K.LE) || has(K.LW)) rebords(Z, im);
     for (let i = 0; i < Z.N; i++) if (!keep[i]) im[i] = TRANSPARENT;
     // on ne garde que le bloc central
