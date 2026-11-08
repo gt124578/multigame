@@ -305,7 +305,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
     anneaux() {
       const hx = (R.x1 - R.x0 + 1) / 2, hy = (R.y1 - R.y0 + 1) / 2;
       const anneau = (d, ph) => { const pts = []; for (let i = 0; i <= 200; i++) { const a = i / 200 * 6.283185307179586, ca = cos(a), sa = sin(a), c2 = ca * ca, s2 = sa * sa, k = 1 / Math.sqrt(Math.sqrt(c2 * c2 + s2 * s2)), q = 1 + 0.05 * sin(a * 3 + ph); pts.push([cx0 + ca * k * (hx + d) * q, cy0 + sa * k * (hy + d * 0.85) * q]); } return pts; };
-      for (let d = 9 + Math.floor(r() * 3), n = 0; n < 4 && (hx + d < w / 2 + 8 || hy + d * 0.85 < h / 2 + 8); d += 14 + Math.floor(r() * 5), n++) trait(anneau(d, r() * 6), RW);
+      for (let d = 9 + Math.floor(r() * 3), n = 0; n < 4 && (hx + d < w / 2 + 8 || hy + d * 0.85 < h / 2 + 8); d += 14 + Math.floor(r() * 5), n++) { const A = anneau(d, r() * 6); trait(A, RW); ornements.push(['fleurs', A]); }
       for (const a of [0, 1, 2, 3].map((i) => i * 1.5707963267948966 + 0.785398 + (r() - 0.5) * 0.4)) trait(ondule([cx0, cy0], [cx0 + cos(a) * w, cy0 + sin(a) * h], 30, 2, r() * 6), 2);
     },
     /** étoile : des rues qui rayonnent du centre comme les coulées d'un volcan, un anneau qui les relie (Cendrelune) */
@@ -359,7 +359,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
       const [ix, iy] = so.interieur, vert = so.dir === 'n' || so.dir === 's';
       const fin = so.dir === 'n' ? [ix + 1, R.y0] : so.dir === 's' ? [ix + 1, R.y1 + 1] : so.dir === 'w' ? [R.x0, iy + 1] : [R.x1 + 1, iy + 1];
       const deb = vert ? [ix + 1, iy + (so.dir === 'n' ? -2 : 3)] : [ix + (so.dir === 'w' ? -2 : 3), iy + 1];
-      trait([deb, fin], 4); ornements.push(['axe', deb, fin]);
+      trait([deb, fin], 4, T.PAVE); ornements.push(['axe', deb, fin]);
       // ruelles parallèles qui serpentent, et traverses
       for (const o of [-1, 1]) for (let d = 11 + Math.floor(r() * 3); d < (vert ? w : h); d += 13 + Math.floor(r() * 4)) {
         const a = vert ? [deb[0] + o * d, Y] : [X, deb[1] + o * d], b = vert ? [deb[0] + o * d, Y1 + 1] : [X1 + 1, deb[1] + o * d];
@@ -374,7 +374,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
      *  lisière, un anneau autour du centre — la ville forte */
     croix() {
       const ax = Math.round(cx0) - 2, ay = Math.round(cy0) - 2;
-      trait([[ax + 2, Y], [ax + 2, Y1 + 1]], 4); trait([[X, ay + 2], [X1 + 1, ay + 2]], 4);
+      trait([[ax + 2, Y], [ax + 2, Y1 + 1]], 4, T.PAVE); trait([[X, ay + 2], [X1 + 1, ay + 2]], 4, T.PAVE);
       const m = ep + Math.min(amp, 4) + 3;
       trait([[X + m, Y + m], [X1 + 1 - m, Y + m], [X1 + 1 - m, Y1 + 1 - m], [X + m, Y1 + 1 - m], [X + m, Y + m]], 2);
       const d = 9; trait([[R.x0 - d, R.y0 - d], [R.x1 + 1 + d, R.y0 - d], [R.x1 + 1 + d, R.y1 + 1 + d], [R.x0 - d, R.y1 + 1 + d], [R.x0 - d, R.y0 - d]], 2);
@@ -397,7 +397,9 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
     quais() {
       if (!rivLigne.length) return PLANS.grille();
       const ns = rivLigne.ns, P = (u, c) => ns ? [X + c, Y + u] : [X + u, Y + c];
-      for (const s of [-1, 1]) for (const ecart of [3, 15 + Math.floor(r() * 4)]) trait(rivLigne.filter((q, i) => i % 2 === 0).map(([u, c, lg]) => P(u + 0.5, c + 0.5 + s * (lg + ecart))), 2);
+      for (const s of [-1, 1]) for (const ecart of [3, 15 + Math.floor(r() * 4)]) trait(rivLigne.filter((q, i) => i % 2 === 0).map(([u, c, lg]) => P(u + 0.5, c + 0.5 + s * (lg + ecart))), 2, ecart === 3 ? T.PAVE : rue);
+      // entre le quai et l'eau : une berge fleurie
+      ornements.push(['berge']);
       for (let i = 4 + Math.floor(r() * 4); i < rivLigne.length - 4; i += 10 + Math.floor(r() * 4)) { const [u] = rivLigne[i]; trait([P(u, -2), P(u, (ns ? w : h) + 2)].map(([x, y]) => ns ? [x, y + 1] : [x + 1, y]), 2); }
     },
     /** arête : une grande rue (le quai, au bord de la mer) et des rues perpendiculaires qui en partent, comme une arête de
@@ -408,7 +410,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
       let a = mer.includes('n') ? Y + ep + 14 : mer.includes('s') ? Y1 - ep - 15 : mer.includes('w') ? X + ep + 14 : mer.includes('e') ? X1 - ep - 15 : null;
       if (a === null) a = horiz ? (R.y1 + 9 < Y1 - 14 ? R.y1 + 7 : R.y0 - 10) : (R.x1 + 9 < X1 - 14 ? R.x1 + 7 : R.x0 - 10);
       const versLoin = horiz ? (a < cy0 ? 1 : -1) : (a < cx0 ? 1 : -1), fond = horiz ? (versLoin > 0 ? Y1 - ep - amp - 3 : Y + ep + amp + 2) : (versLoin > 0 ? X1 - ep - amp - 3 : X + ep + amp + 2);
-      trait(horiz ? [[X, a + 2], [X1 + 1, a + 2]] : [[a + 2, Y], [a + 2, Y1 + 1]], 4);
+      trait(horiz ? [[X, a + 2], [X1 + 1, a + 2]] : [[a + 2, Y], [a + 2, Y1 + 1]], 4, T.PAVE);
       trait(ondule(horiz ? [X, fond + 1] : [fond + 1, Y], horiz ? [X1 + 1, fond + 1] : [fond + 1, Y1 + 1], 40, 2, r() * 6), 2);
       const out = [];
       for (let v = (horiz ? X : Y) + ep + 5 + Math.floor(r() * 4); v < (horiz ? X1 : Y1) - ep - 4; v += 10 + Math.floor(r() * 4)) {
@@ -1081,6 +1083,11 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
       } else if (k === 'canaux') {
         let i = 0;
         for (let y = Y + ib; y <= Y1 - ib; y++) for (let x = X + ib; x <= X1 - ib; x++) if (riv[at(x, y)] && W.get(x, y) === T.WATER && W.get(x + 1, y) === T.WATER && W.get(x, y + 1) === T.WATER && hash(x, y, graine + 5) < 0.012 && i++ < 14) W.prop('bateau', x, y);
+      } else if (k === 'fleurs') {
+        // les anneaux de Floralia : des massifs de fleurs de part et d'autre
+        for (const [px, py] of a) for (const [dx, dy] of [[0, -2], [0, 2], [-2, 0], [2, 0]]) { const x = Math.round(px + dx), y = Math.round(py + dy); if (dans(x, y) && !RU[at(x, y)] && peutPoser(x, y) && (W.get(x, y) === T.GRASS || W.get(x, y) === sol)) W.set(x, y, T.FLOWER); }
+      } else if (k === 'berge') {
+        for (let y = Y + ib; y <= Y1 - ib; y++) for (let x = X + ib; x <= X1 - ib; x++) if (!RU[at(x, y)] && !riv[at(x, y)] && peutPoser(x, y) && W.get(x, y) === T.GRASS && [[1, 0], [-1, 0]].some(([dx]) => riv[at(x + dx, y)])) { if (hash(x, y, graine) < 0.25) prop('cerisier', x, y); else W.set(x, y, T.FLOWER); }
       } else if (k === 'arete') {
         const horiz = a, ligne = b;
         for (let v = (horiz ? X : Y) + ib; v <= (horiz ? X1 : Y1) - ib; v += 5) {
