@@ -4,6 +4,7 @@
 #
 #   python3 tools/odyssee-tileset.py            (tout)
 #   python3 tools/odyssee-tileset.py sol herbes kits
+#   python3 tools/odyssee-tileset.py violet   (retire l'ombre et le liseré violets laissés par le fond magenta des planches)
 #
 # Chaque élément est repéré par un point à l'intérieur de son dessin : la tuile est le bloc de pixels opaques qui le
 # contient (les tuiles du tileset sont séparées par du vide). Écrit odyssee/img/sol32/, odyssee/img/herbes/,
@@ -363,6 +364,62 @@ DECO = {
 }
 DECO_SCALE = {'squelette': 0.75, 'cloche': 0.85, 'machine_labo': 0.85, 'lampe_phare': 0.85}
 
+# objets vraiment violets (le coussin) : gardés tels quels
+GARDE_VIOLET = {'coussin'}
+
+def sans_violet(a):
+    """Les planches générées ont été dessinées sur un fond magenta : l'ombre portée au pied des objets (bancs, arbres,
+    fontaine…) et le liseré d'anticrénelage du contour en ont gardé la teinte, un violet sombre presque opaque (≈ #632169)
+    que le seuil d'alpha ne retire pas. On retire ces pixels violets reliés au vide autour du dessin (le jeu pose sa
+    propre ombre au sol) ; un violet à l'intérieur du dessin (coussin, cristal) est gardé."""
+    r, g, b = (a[..., i].astype(int) for i in range(3))
+    vide = a[..., 3] == 0
+    violet = ~vide & (np.abs(r - b) <= 24) & (np.minimum(r, b) - g >= 28) & (np.maximum(r, b) <= 150)
+    # violet relié au bord de l'image ou au vide, de proche en proche
+    lab, n = ndimage.label(violet | vide)
+    H, W = vide.shape
+    dehors = set(np.unique(lab[vide])) - {0}
+    dehors |= set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
+    ote = violet & np.isin(lab, list(dehors))
+    a = a.copy(); a[ote, 3] = 0
+    # puis le liseré : pixels un peu moins violets, au bord du dessin seulement (deux couches au plus)
+    lache = (np.abs(r - b) <= 40) & (np.minimum(r, b) - g >= 22) & (np.maximum(r, b) <= 170)
+    for _ in range(2):
+        vide = a[..., 3] == 0
+        bord = ndimage.binary_dilation(vide | np.pad(np.zeros((H - 2, W - 2), bool), 1, constant_values=True)) & ~vide
+        a[bord & lache, 3] = 0
+    return a
+
+def pieds(a):
+    """sans les rangées vides du bas : le sprite est posé par le bas de son image (ses pieds)"""
+    rows = np.nonzero(a[..., 3].any(1))[0]
+    return a[:rows.max() + 1] if len(rows) else a
+
+def do_violet():
+    """retire le violet des sprites de décor déjà découpés (odyssee/img/deco/, odyssee/img/nature/), sans les
+    redécouper : le tileset a bougé depuis leur découpe, les redécouper changerait leurs cadrages"""
+    import glob
+    n = 0
+    for f in sorted(glob.glob(os.path.join(OUT, 'deco', '*.png'))):
+        a = np.array(Image.open(f).convert('RGBA'))
+        b = a if os.path.basename(f)[:-4] in GARDE_VIOLET else sans_violet(a)
+        b = pieds(b)
+        k = int((a[..., 3] != b[..., 3]).sum()) if a.shape == b.shape else -1
+        if k: Image.fromarray(b).save(f, optimize=True); n += 1; print('violet retiré :', os.path.basename(f), k if k > 0 else f'{a.shape[0] - b.shape[0]} rangées vides en bas', 'pixels' if k > 0 else '')
+        META.setdefault('deco', {})[os.path.basename(f)[:-4]] = [b.shape[1], b.shape[0], 1]
+    # arbres, rochers et plantes (planches « version 2 », odyssee-sprites.py) : quelques pixels du contour ont gardé la
+    # teinte du fond magenta après la réduction ; ils prennent la couleur de leur voisin opaque, assombrie (contour)
+    for f in sorted(glob.glob(os.path.join(OUT, 'nature', '*.png'))) + [os.path.join(OUT, 'mobilier', 'plant.png')]:
+        a = np.array(Image.open(f).convert('RGBA')); r, g, b = (a[..., i].astype(int) for i in range(3))
+        vide = a[..., 3] < 128
+        violet = ~vide & (np.abs(r - b) <= 24) & (np.minimum(r, b) - g >= 28) & (np.maximum(r, b) <= 150) & ndimage.binary_dilation(vide)
+        if not violet.any(): continue
+        sain = ~vide & ~violet
+        _, (iy, ix) = ndimage.distance_transform_edt(~sain, return_indices=True)
+        a[violet, :3] = (a[iy[violet], ix[violet], :3].astype(int) * 0.7).astype(np.uint8)
+        Image.fromarray(a).save(f, optimize=True); n += 1; print('contour violet recoloré :', os.path.relpath(f, OUT), int(violet.sum()), 'pixels')
+    print(n, 'sprites nettoyés')
+
 def do_deco():
     lab, _ = ndimage.label(ndimage.binary_closing(OPAQUE, iterations=2))
     objs = ndimage.find_objects(lab)
@@ -377,6 +434,7 @@ def do_deco():
         o = objs[best - 1]; b = (o[1].start, o[0].start, o[1].stop, o[0].stop)
         a = np.array(IM.crop(b)); r, g, bb = (a[..., i].astype(int) for i in range(3))
         a[((r > 180) & (bb > 180) & (g < 110)) | (a[..., 3] < 128), 3] = 0; a[a[..., 3] > 0, 3] = 255
+        if k not in GARDE_VIOLET: a = pieds(sans_violet(a))
         img = Image.fromarray(a); sc = DECO_SCALE.get(k, 1.0)
         if sc != 1.0: img = crisp(img, max(1, round(img.width * sc)), max(1, round(img.height * sc)))
         save(img, 'deco', k + '.png'); meta[k] = [img.width, img.height, 1]
@@ -399,4 +457,5 @@ if __name__ == '__main__':
     if 'herbes' in want: do_herbes()
     if 'kits' in want: do_kits()
     if 'deco' in want: do_deco()
+    if 'violet' in want: do_violet()
     write_meta()
