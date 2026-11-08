@@ -10,6 +10,8 @@ export const ESSENCES = ['tree', 'tree2', 'tree3', 'pine', 'snowpine', 'deadtree
 export const NV = 5;
 // recettes : [symétrie (0 aucune, -1 depuis la gauche, 1 depuis la droite), colonnes en plus au milieu, rangées de tronc en plus]
 const RECETTES = [[-1, 0, 0], [1, 0, 2], [0, 2, 3], [-1, -2, 2], [1, 2, 4]];
+/** branches fines : une moitié recopiée laisserait des brindilles en l'air */
+const SANS_SYMETRIE = new Set(['deadtree']);
 
 function lire(img) {
   const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
@@ -67,8 +69,10 @@ export function variantesArbres(images, dens) {
   for (const k of ESSENCES) {
     const img = images[k]; if (!img || !img.width) continue;
     const I = lire(img);
-    RECETTES.forEach(([s, l, t], i) => {
-      let V = s ? symetrie(I, s) : I;
+    RECETTES.forEach(([s, l0, t], i) => {
+      let l = l0;
+      let V = s && !SANS_SYMETRIE.has(k) ? symetrie(I, s) : I;
+      if (SANS_SYMETRIE.has(k) && s) l = l || 2 * s;   // à la place : houppier plus large ou plus étroit
       const d1 = (dens[k] || 1) < 2;   // dessin à la densité des tuiles : un pixel en vaut deux à l'écran
       V = tronc(largeur(V, d1 && l ? Math.sign(l) : l), img.height < 30 ? 0 : d1 ? Math.ceil(t / 2) : t);
       images[`${k}~${i + 1}`] = ecrire(V); if (dens[k]) dens[`${k}~${i + 1}`] = dens[k];

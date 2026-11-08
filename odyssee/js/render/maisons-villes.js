@@ -348,6 +348,7 @@ export function maisonsVilles(K) {
       // pilotis : la maison est en retrait (recul) ; devant, la plate-forme de planches et l'escalier qui descend jusqu'au
       // bord sud de l'emprise, devant la porte (rien ne dépasse sur la rue)
       const dv = d - zf, PL = M({ map: TX.planches('#8a7a5e') }), BO = COL('#4a3a2a');
+      G.add(at(boite(bw + 0.3, 0.02, d - z0 + 0.1, COL('#3a3828')), cx, 0.01, (z0 + d) / 2));   // l'ombre sous la maison
       for (const x of [bx0 + 0.15, cx, bx1 - 0.15]) for (const z of [z0 + 0.15, zf - 0.15, d - 0.12]) G.add(at(cyl(0.08, 0.09, P + 0.05, BO, 6), x, P / 2, z));
       G.add(at(boite(bw + 0.2, 0.12, prof, PL), cx, P, z0 + prof / 2));
       for (const [xa, xb] of [[bx0 - 0.1, px - 0.45], [px + 0.45, bx1 + 0.1]]) if (xb - xa > 0.05) {
