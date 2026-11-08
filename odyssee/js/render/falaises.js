@@ -43,27 +43,28 @@ const F_SOL = 0, F_ROC = 1, F_VIDE = 3, F_MARCHE = 4;
 /* ------------------------------------------------------------------ biomes et palettes --------------------------------- */
 // pans (du plus sombre au plus clair) et dessus des gradins de roche
 export const BIOMES = ['montagne', 'granit', 'glace', 'ocre', 'magma', 'terre', 'mer', 'lune', 'grotte'];
+// palettes prises sur le modèle de HGSS : peu de teintes, des ombres froides (violacées) et des lumières chaudes
 const FACE = {
-  montagne: ['#2c1f19', '#4a3326', '#6b4a34', '#8c6343', '#ab7e56', '#c99d6e'],   // brun chaud des falaises de HGSS
-  granit: ['#26252a', '#3d3c42', '#57565c', '#737178', '#918e93', '#b3afb0'],
-  glace: ['#33445a', '#4f6884', '#7090ae', '#94b2cc', '#bcd2e4', '#e2eef8'],
-  ocre: ['#3e1c10', '#6a321c', '#8e4626', '#ae5e34', '#c87c4a', '#e0a06c'],
-  magma: ['#1e110d', '#352019', '#4e2e24', '#683f31', '#835342', '#9e6a56'],
-  terre: ['#2e2016', '#4f3826', '#704f35', '#8f6846', '#ad835a', '#c9a074'],
-  mer: ['#1f272e', '#334049', '#47555f', '#5c6c77', '#758893', '#93a6b0'],
-  lune: ['#262230', '#3d374a', '#554e65', '#6f6680', '#8a809c', '#a89eba'],
-  grotte: ['#24211d', '#433d35', '#655d50', '#877e6c', '#a99f89', '#c9c0a8'],     // parois beiges des grottes de HGSS
+  montagne: ['#584048', '#705040', '#886050', '#a07858', '#c09070', '#d8a878'],   // les falaises de HGSS
+  granit: ['#4a4650', '#5c5862', '#706c74', '#8a8690', '#a6a2a8', '#c2bec2'],
+  glace: ['#4a5878', '#5e7294', '#7890b0', '#98b0cc', '#bcd2e4', '#e2eef8'],
+  ocre: ['#683840', '#844830', '#a05a34', '#bc7444', '#d4925c', '#e8b07a'],
+  magma: ['#3a2a30', '#4e3530', '#644438', '#7c5646', '#946a58', '#ac806c'],
+  terre: ['#4e3c40', '#64503e', '#7c6448', '#967c5a', '#b0966e', '#c8ae86'],
+  mer: ['#3c4650', '#4c5a64', '#5e6e78', '#74868e', '#8ea0a8', '#aabcc2'],
+  lune: ['#3e3848', '#504a5e', '#665e76', '#7e7690', '#988eaa', '#b2a8c4'],
+  grotte: ['#504850', '#605848', '#706858', '#888070', '#989080', '#a8a090'],     // parois beiges des grottes de HGSS
 };
 const DESSUS = {
-  montagne: ['#5e4a3a', '#7a624c', '#957a5e', '#ae9472', '#c6ad88', '#dac6a2'],   // la roche plate des gradins (cliff01)
-  granit: ['#55535a', '#6c6a70', '#848288', '#9d9a9e', '#b5b2b3', '#cdcac8'],
-  glace: ['#a9bdd0', '#c0d2e2', '#d4e2ee', '#e4eef6', '#f0f6fa', '#fbfdff'],
-  ocre: ['#92522c', '#a8653a', '#be7c4c', '#d29660', '#e2ae78', '#efc694'],
-  magma: ['#352621', '#46342d', '#58433a', '#6b5347', '#7f6556', '#957a69'],
-  terre: ['#5a4632', '#715a42', '#887054', '#9f8666', '#b59c7a', '#cab290'],
-  mer: ['#4d5a62', '#617079', '#768790', '#8c9ea6', '#a3b4bb', '#bccbd0'],
-  lune: ['#4f4860', '#655d78', '#7c7390', '#948aa8', '#ada3be', '#c6bdd2'],
-  grotte: ['#3a352e', '#544d43', '#6f675a', '#8b8272', '#a79e8b', '#c2b9a3'],
+  montagne: ['#987060', '#a87860', '#b88868', '#c89870', '#d8a878', '#e8b888'],   // la roche plate de HGSS
+  granit: ['#6c6870', '#7e7a82', '#928e94', '#a6a2a6', '#bab6b8', '#cecaca'],
+  glace: ['#b0c4d8', '#c4d6e6', '#d6e4f0', '#e4eef6', '#f0f6fa', '#fbfdff'],
+  ocre: ['#a0604a', '#b07048', '#c48254', '#d49664', '#e2ac78', '#eec490'],
+  magma: ['#4a3836', '#5a4640', '#6a554c', '#7c6658', '#8e7866', '#a28c78'],
+  terre: ['#806a58', '#907a62', '#a08a6e', '#b09a7c', '#c0aa8a', '#d0ba9a'],
+  mer: ['#5e6c74', '#6e7e86', '#809098', '#94a4aa', '#a8b8bc', '#bccacc'],
+  lune: ['#625a72', '#726a84', '#847c96', '#968ea8', '#aaa2ba', '#beb6cc'],
+  grotte: ['#706858', '#787060', '#888070', '#989080', '#a8a090', '#b8b0a0'],
 };
 // roche des grottes selon leur biome (caveBiome de world3d.js)
 const BIO_GROTTE = { terre: 'grotte', mer: 'mer', magma: 'magma', glace: 'glace', montagne: 'granit' };
@@ -255,7 +256,7 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
     vec3 Ld = normalize(vec3(-0.5, 0.8, -0.3));
     float lum = dot(fn, Ld);
     // pans de roche : paliers doux (la texture porte déjà ses ombres) ; flanc ouest éclairé, flanc est et face sud plus sombres
-    float q = lum > 0.72 ? 1.06 : lum > 0.45 ? 0.98 : lum > 0.2 ? 0.92 : lum > -0.05 ? 0.87 : 0.82;
+    float q = lum > 0.72 ? 1.04 : lum > 0.45 ? 1.0 : lum > 0.2 ? 0.95 : lum > -0.05 ? 0.91 : 0.87;
     bool raide = fn.y < 0.8;
     float top = vNiv.x, bas = vNiv.y, LVv = ${LV.toFixed(6)};
     // distance (en cases) au pied d'une falaise voisine plus haute : côtés nord, est, sud, ouest de la case
@@ -366,14 +367,19 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       float ic;
       bool dessusLobe = false;
       if (r < tete) { dessusLobe = true; ic = 4.0; }                 // au-dessus de la tête : le replat
-      else if (db < cw) ic = r > He - 3.0 ? 0.0 : 1.0;              // la fente
+      else if (db < cw) ic = r > He * 0.7 || db < cw - 1.2 ? 0.0 : 1.0;   // la fente : plus sombre au cœur et en bas
       else {
-        ic = u < 0.32 ? 4.0 : u > 0.7 ? 2.0 : 3.0;                   // le lobe : gauche éclairé, droite dans l'ombre
+        ic = u < 0.3 ? 4.0 : u > 0.7 ? 2.0 : 3.0;                    // le lobe : gauche éclairé, droite dans l'ombre
         if (u > 0.5 && r > He * 0.55) ic = min(ic, 2.0);             // le bas du lobe, côté droit, dans l'ombre
-        if (r < tete + 2.0) ic = u > 0.78 ? 3.0 : 5.0;               // la tête claire et arrondie
-        else if (r < tete + 3.0 && u < 0.6) ic = 4.0;
+        // un pli : une facette plus sombre qui descend en biais dans les lobes larges
+        float pli = 0.6 - (r - tete) / He * 0.22 + (fHash(vec2(lid, 21.0)) - 0.5) * 0.2;
+        if (bR - bL > 6.5 && r > tete + 3.0 && u > pli && u < pli + 0.13) ic = min(ic, 2.0);
+        // la tête : arrondie, très claire au sommet, éclairée à gauche
+        if (r < tete + 1.0) ic = u > 0.82 ? 4.0 : 5.0;
+        else if (r < tete + 2.5) ic = u > 0.75 ? 3.0 : u < 0.55 ? 5.0 : 4.0;
+        else if (r < tete + 3.5 && u < 0.45) ic = 4.0;
         if (db < cw + 1.0 && u > 0.5) ic = min(ic, 2.0);             // le bord ombré de la fente
-        if (r > He - 2.5) ic = min(ic, 1.0);                         // le pied
+        if (r > He - 1.5) ic = min(ic, 0.0); else if (r > He - 3.0) ic = min(ic, 1.0);   // le pied
         float g = fHash(vec2(tx * 1.7, r * 2.3));
         if (g < 0.06) ic -= 1.0; else if (g > 0.95 && ic < 4.0) ic += 1.0;
       }
@@ -386,13 +392,13 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       }
       if (rond) {
         // les côtes s'estompent en montant, et le haut de la pente se fond dans le dessus (la pierre roule jusqu'au replat)
-        c *= ur + (bay - 0.5) * 0.12 < 0.2 ? 0.8 : ur < 0.45 ? 0.9 : ur < 0.75 ? 0.97 : 1.03;
+        c *= ur + (bay - 0.5) * 0.12 < 0.2 ? 0.9 : ur < 0.45 ? 0.95 : 1.0;
       }
       // pied : sombre au contact du sol
       if (duPied < 1.0) c *= 0.72; else if (duPied < 3.0 && bay < 0.5) c *= 0.86;
       // le bas d'un grand pan est plus sombre que son haut (la lumière vient d'en haut)
       float hh = clamp((vP.y - bas) / max(top - bas, 1e-3), 0.0, 1.0);
-      c *= 0.8 + 0.2 * floor(hh * 3.0 + bay) / 3.0;
+      c *= 0.92 + 0.08 * floor(hh * 3.0 + bay) / 3.0;
       // ravin : la roche plonge dans le noir
       if (vP.y < 0.0) c *= clamp(1.0 + vP.y / ${(-RAVIN * 0.9).toFixed(4)}, 0.0, 1.0);
       diffuseColor.rgb = diffuse * c * q;
