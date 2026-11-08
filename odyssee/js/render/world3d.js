@@ -10,6 +10,7 @@ import { archeGrotte, jourGrotte } from './grottes.js';
 import { sorteCase, K as SORTE } from './solgen.js';
 import { WeatherSystem } from './weather3d.js';
 import { choisirModele, geometriesModele, couleurBase, EMPRISES } from './bati-jeu.js';
+import { variantesArbres, variante, miroir, teinte } from './arbres.js';
 import { dessinHerbe, imageHerbe, NIMAGES, MARGE as HERBE_M, HAUTEUR as HERBE_H } from './herbes.js';
 import { Relief3D, relief3dActif, matParoi, matFacettes, facettesActives, matPente, matsPente, LV as R3LV } from './relief3d.js';
 import { setRelief3dSol, setReliefHGSSSol } from './solgen.js';
@@ -58,6 +59,8 @@ function frontDepth(mat, zFront) {
 }
 const DECALS = new Set(['fleche', 'vent', 'courant', 'dalle', 'tp', 'socle', 'pollen', 'alveole', 'interrupteur', 'estrade', 'tapis']);
 const WIDE_DECO = new Set(['healer', 'sofa', 'bench', 'startertable', 'fireplace', 'rug']);
+/** décor du dehors posé avec une ombre au sol (leur ombre violette, dessinée dans le sprite, a été retirée) */
+const OMBRE_DECO = new Set(['banc', 'parasol', 'tonneau', 'caisse', 'panneau_bois', 'borne', 'lanterne', 'stele']);
 function screenSprite(mat) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uRes = SPRITE_UNIFORMS.uRes; sh.uniforms.uEch = SPRITE_UNIFORMS.uEch;
@@ -312,7 +315,9 @@ class Geo {
     // a=bas-gauche, b=bas-droite, c=haut-droite, d=haut-gauche (du point de vue de la texture)
     this.p.push(...a, ...b, ...c, ...d);
     this.uv.push(u0, v1, u1, v1, u1, v0, u0, v0);
-    for (let k = 0; k < 4; k++) this.c.push(shade, shade, shade);
+    // teinte : un gris (ombrage) ou une couleur [r, g, b] (arbres teintés un à un)
+    if (Array.isArray(shade)) for (let k = 0; k < 4; k++) this.c.push(shade[0], shade[1], shade[2]);
+    else for (let k = 0; k < 4; k++) this.c.push(shade, shade, shade);
     const n = this.n; this.i.push(n, n + 1, n + 2, n, n + 2, n + 3); this.n += 4;
   }
   /** quad aux coordonnées de texture et teintes données sommet par sommet (pentes des grottes) */
@@ -415,8 +420,10 @@ export class WorldView {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(FOV, 1, 1, 400);
     const A = buildAtlas(), N = buildAnimAtlas(), S = buildSprites();
-    if (art.sprites) applySpriteImages(S, art.sprites, art.dens);
+    if (art.sprites) { const dens = art.dens || (art.dens = {}); variantesArbres(art.sprites, dens); applySpriteImages(S, art.sprites, dens); }
     this.A = A; this.N = N; this.S = S;
+    // ?arbres=0 : un seul dessin par essence, sans teinte (comparaison)
+    this.arbresUnis = /[?&]arbres=0/.test(globalThis.location?.search || '');
     this.charRows = charsImg ? Math.round(charsImg.height / CHH) : 10;
     this.texA = tex(A.canvas); this.texN = tex(N.canvas); this.texS = tex(S.canvas); this.texC = tex(this.packChars());
     const mk = (map, o = {}) => new THREE.MeshBasicMaterial({ map, vertexColors: true, ...o });
@@ -862,8 +869,10 @@ export class WorldView {
           if (theme === 'volcanic') key = 'deadtree';
           else if (theme === 'snow') key = 'snowpine';
           else if (theme === 'automne' && t === T.TREE && S.automne0) { const a = 'automne' + Math.floor(hash(x * 7 + 3, y * 3 + 9) * 6); if (S[a]) key = a; }
+          // un des dessins de l'essence (arbres.js), miroir et teinte tirés de la case
+          if (!this.arbresUnis) key = variante(S, key, x, y);
           const r = S[key], cx = x + 0.5 + (v - 0.5) * 0.2, cz = y + 0.7;
-          billboard(P, cx, cz, SW(r), SH(r), r, 0, vb > 0.5, 1);
+          billboard(P, cx, cz, SW(r), SH(r), r, 0, this.arbresUnis ? vb > 0.5 : miroir(x, y), this.arbresUnis ? 1 : teinte(x, y, key.startsWith('snowpine') || key.startsWith('deadtree')));
           flat(Sh, cx - 0.75, cz - 0.3, cx + 0.75, cz + 0.3, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
         }
       } else if (t === T.FENCE) {
@@ -872,7 +881,7 @@ export class WorldView {
         const r = vert ? (m.get(x, y - 1) === T.FENCE ? S.fence_v : S.fence_v0 || S.fence_v) : S.fence; billboard(P, x + 0.5, y + (vert ? 0.75 : 0.6), SW(r), SH(r), r);
       }
       else if (t === T.ROCK) { const r = S.rock; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
-      else if (t === T.BUSH) { const r = S.bush; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r); }
+      else if (t === T.BUSH) { const r = S[this.arbresUnis ? 'bush' : variante(S, 'bush', x, y)]; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r, 0, !this.arbresUnis && miroir(x, y), this.arbresUnis ? 1 : teinte(x, y)); }
       else if (t === T.CUT) { const r = S.cuttree; billboard(P, x + 0.5, y + 0.62, SW(r), SH(r), r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
       else if (t === T.BOULDER && m.bloc && S[m.bloc]) { const r = S[m.bloc]; billboard(P, x + 0.5, y + 0.66, SW(r) * 1.1, SH(r) * 1.1, r); flat(Sh, x + 0.14, y + 0.5, x + 0.86, y + 0.86, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
       else if (t === T.BOULDER) { const r = (m.bloc && S[m.bloc]) || (m.outdoor ? S.rock : S.caverock || S.rock); billboard(P, x + 0.5, y + 0.62, SW(r) * 1.15, SH(r) * 1.15, r); flat(Sh, x + 0.02, y + 0.35, x + 0.98, y + 0.9, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
@@ -946,9 +955,11 @@ export class WorldView {
         else if (d.k === 'lianes' && m.get(x, y) !== T.BLOCK) { /* portail de lianes ouvert */ }
         else if (d.allume && S[d.k + '_on'] && m.get(d.allume[0], d.allume[1]) === T.BOULDER) { const r = S[d.k + '_on']; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r); }
         else if (S[d.k]) {
-          const r = S[d.k];
+          // arbres de décor (cerisiers, érables, palmiers…) : variés comme ceux des forêts, avec leur ombre au sol
+          const arbre = !this.arbresUnis && S[d.k + '~1'], k = arbre ? variante(S, d.k, x, y) : d.k, r = S[k];
           // meubles de deux cases (le second est bloqué par l'intérieur) : centrés entre les deux ; les autres sur leur case
-          billboard(P, x + (d.w ? d.w / 2 : WIDE_DECO.has(d.k) ? 1 : 0.5), y + (d.dz ?? 0.6), SW(r), SH(r), r);
+          billboard(P, x + (d.w ? d.w / 2 : WIDE_DECO.has(d.k) ? 1 : 0.5), y + (d.dz ?? 0.6), SW(r), SH(r), r, 0, arbre ? miroir(x, y) : false, arbre ? teinte(x, y) : 1);
+          if (arbre || OMBRE_DECO.has(d.k)) flat(Sh, x - 0.1, y + 0.3, x + 1.1, y + 0.82, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
           if (d.k === 'lamp') glows.push([x + 0.5, y + 0.62, SH(r) * 0.82]);
           if (['statue', 'gymstatue', 'plant', 'lamp', 'mailbox', 'sign', 'pot', 'caverock', 'stalag', 'fridge', 'clock', 'books', 'pc', 'labmachine', 'vase', 'trash', 'machine_sous'].includes(d.k) || d.k.startsWith('borne_')) flat(Sh, x + 0.1, y + 0.4, x + 0.9, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
         }
@@ -1181,6 +1192,9 @@ export class WorldView {
       mat.userData.base = couleurBase(m0); mat.userData.ownTint = true; mat.userData.op0 = m0.transparent ? (m0.opacity ?? 1) : 1;
       const cle = m0.map?.userData?.cle || '';
       if (/^(verre|vr|vt|r#|rs|ev|ed)/.test(cle)) mat.userData.vitre = true;   // vitres : allumées la nuit
+      // maisons des villes : deux maisons du même modèle n'ont pas tout à fait la même lumière (murs, toit un peu
+      // plus clairs ou plus sombres, plus chauds ou plus froids)
+      if (mod.nom === 'maisonVille' && !mat.userData.vitre) { const f = 0.94 + hash(b.x * 3 + 1, b.y * 5 + 2) * 0.1, c = (hash(b.x * 7 + 5, b.y * 11 + 3) - 0.5) * 0.06; mat.userData.base.multiply(new THREE.Color(f * (1 + c), f, f * (1 - c))); }
       mat.color.copy(mat.userData.base).multiply(this.tint);
       this.tinted.push(mat);
       g.add(new THREE.Mesh(p.geo, mat));
