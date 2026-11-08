@@ -25,7 +25,7 @@ const W = world.maps.monde, w = W.w, h = W.h;
 console.log(`monde construit en ${((Date.now() - t0) / 1000).toFixed(1)} s`);
 
 const DECOR = new Set(['etal', 'puits', 'fontaine', 'kiosque', 'statueChampion']);   // petit mobilier bâti (pas une maison)
-const villes = Object.values(world.towns).map((t) => ({ t, r: t.territoire || t.ville || { x: t.x, y: t.y, w: t.w, h: t.h } }));
+const villes = Object.values(world.towns).map((t) => ({ t, r: t.ville || { x: t.x, y: t.y, w: t.w, h: t.h } }));
 const dansVille = (b, r) => b.x >= r.x && b.y >= r.y && b.x < r.x + r.w && b.y < r.y + r.h;
 const npcAt = new Map(W.npcs.map((n) => [n.x + ',' + n.y, n]));
 
