@@ -71,6 +71,8 @@ const BIO_GROTTE = { terre: 'grotte', mer: 'mer', magma: 'magma', glace: 'glace'
 // lèvres : rien (dessus de roche), herbe, neige, sable, herbe sombre de forêt
 const LEVRES = [null, ['#2c7236', '#52a446', '#8ad064'], ['#b8cad8', '#e2ecf4', '#ffffff'], ['#b89058', '#d8b478', '#f0d49c'], ['#1f5a2e', '#3d8c3c', '#6cbb52']];
 
+/** ondulation d'un bord de roche le long de u (0..1), la même en JS et dans le shader */
+const ondeBord = (u, seed) => 0.5 + 0.3 * Math.sin(u * 2.7 + seed * 1.3) + 0.2 * Math.sin(u * 6.1 + seed * 2.9);
 const hash = (x, y, s = 0) => { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s | 0, 1442695041)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; };
 const rgb = (h) => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
 /** bruit lisse 1D (valeurs sur une grille de `s`, interpolées) */
@@ -239,6 +241,14 @@ vec3 fFal(float tuile, float b, vec2 q) {
   q = mod(floor(q), ${TX}.0);
   return texture2D(uFal, vec2((q.x + tuile * ${TX}.0 + 0.5) / ${TX * 3}.0, (q.y + b * ${TX}.0 + 0.5) / ${(TX * A.n).toFixed(1)})).rgb;
 }
+float fOndeBord(float u, float seed) { return 0.5 + 0.3 * sin(u * 2.7 + seed * 1.3) + 0.2 * sin(u * 6.1 + seed * 2.9); }
+// un lobe de roche de la paroi (colonne tx en texels) : centre, bords gauche et droit
+vec3 fLobe(float tx) {
+  float i0 = floor(tx / 7.5), lid = i0, dmin = 1e9;
+  for (int d = -1; d <= 1; d++) { float ii = i0 + float(d), cc = ii * 7.5 + (fHash(vec2(ii, 11.0)) - 0.5) * 3.0, dd = abs(tx + 0.5 - cc); if (dd < dmin) { dmin = dd; lid = ii; } }
+  float cC = lid * 7.5 + (fHash(vec2(lid, 11.0)) - 0.5) * 3.0, cL = (lid - 1.0) * 7.5 + (fHash(vec2(lid - 1.0, 11.0)) - 0.5) * 3.0, cR = (lid + 1.0) * 7.5 + (fHash(vec2(lid + 1.0, 11.0)) - 0.5) * 3.0;
+  return vec3(lid, (cL + cC) * 0.5, (cC + cR) * 0.5);
+}
 // une teinte du nuancier d'un biome : pans (0 sombre … 5 clair) ou dessus
 vec3 fPal(float b, float i, bool dessus) { return fFal(0.0, b, vec2(clamp(floor(i + 0.5), 0.0, 5.0) * 10.0 + 5.0, dessus ? 40.0 : 8.0)); }
 ${glslCouleurs(LEVRES)}
@@ -359,7 +369,9 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       float cC = lid * 7.5 + (fHash(vec2(lid, 11.0)) - 0.5) * 3.0;
       float cL = (lid - 1.0) * 7.5 + (fHash(vec2(lid - 1.0, 11.0)) - 0.5) * 3.0, cR = (lid + 1.0) * 7.5 + (fHash(vec2(lid + 1.0, 11.0)) - 0.5) * 3.0;
       float bL = (cL + cC) * 0.5, bR = (cC + cR) * 0.5, X = tx + 0.5;
-      float u = clamp((X - bL) / max(bR - bL, 1.0), 0.0, 1.0), db = min(X - bL, bR - X);
+      float u = clamp((X - bL) / max(bR - bL, 1.0), 0.0, 1.0);
+      // la fente serpente un peu en descendant (pas de trait vertical)
+      float Xw = X + sin(r * 0.55 + fHash(vec2(lid, 31.0)) * 6.28) * 0.9, db = min(Xw - bL, bR - Xw);
       float bid = X - bL < bR - X ? lid - 1.0 : lid;                 // la fente la plus proche (à gauche ou à droite)
       float apex = He * (0.18 + 0.32 * fHash(vec2(bid, 5.0)));
       float cw = pow(max(0.0, (r - apex) / max(He - apex, 1.0)), 0.8) * (1.6 + 1.6 * fHash(vec2(bid, 8.0))) + (fHash(vec2(tx, r)) - 0.5) * 0.8;
@@ -379,7 +391,8 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
         else if (r < tete + 2.5) ic = u > 0.75 ? 3.0 : u < 0.55 ? 5.0 : 4.0;
         else if (r < tete + 3.5 && u < 0.45) ic = 4.0;
         if (db < cw + 1.0 && u > 0.5) ic = min(ic, 2.0);             // le bord ombré de la fente
-        if (r > He - 1.5) ic = min(ic, 0.0); else if (r > He - 3.0) ic = min(ic, 1.0);   // le pied
+        float ph = 1.5 + 2.5 * fHash(vec2(lid, 41.0));                // le pied, plus ou moins haut d'un lobe à l'autre
+        if (r > He - ph * 0.5) ic = min(ic, 0.0); else if (r > He - ph) ic = min(ic, 1.0);
         float g = fHash(vec2(tx * 1.7, r * 2.3));
         if (g < 0.06) ic -= 1.0; else if (g > 0.95 && ic < 4.0) ic += 1.0;
       }
@@ -706,7 +719,12 @@ export class ReliefHGSS {
   /** plus haut point d'une case (son niveau, ou le haut du pan qui monte vers un voisin) */
   hauteurMax(x, y) { const B = this.bordsDe(x, y); return B.s === VIDE ? RAVIN : Math.max(B.L, B.haut); }
   /** largeur d'un pan modulée le long du bord (un talus n'a pas le même angle partout) ; u : abscisse le long du bord */
-  largeur(c, u, seed) { return Math.min(c.w >= 0.99 ? 1 : 0.95, c.w * (0.82 + 0.36 * lisse1(u, 2.3, seed))); }
+  largeur(c, u, seed) {
+    // un pan de roche ondule nettement le long de son bord (la crête et le pied ne sont plus des droites) : même formule
+    // que le shader (ondeBord), qui en a besoin pour poser la tête des rochers sur la crête
+    if (c.roc && c.sens < 0) return Math.max(0.3, Math.min(0.95, c.w * (0.65 + 0.6 * ondeBord(u, seed))));
+    return Math.min(c.w >= 0.99 ? 1 : 0.95, c.w * (0.82 + 0.36 * lisse1(u, 2.3, seed)));
+  }
 
   /** hauteur d'un point (px, pz) de la case (x, y) selon ses bords (pans, coins arrondis, entonnoirs) */
   hauteurDans(x, y, px, pz) {
