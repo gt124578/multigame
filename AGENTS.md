@@ -238,7 +238,11 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   `sol.js` sur le sol généré) dessine pixel par pixel une rangée de grosses pierres bombées par étage (`etage`, comme les
   parois de HGSS), la lèvre d'herbe ou de neige, le dessus clair des gradins de roche (dalles), les talus d'herbe ombrés
   du haut vers le pied, les marches, le néant des ravins ; textures générées au chargement (`pierres`, `dalles`, `etage`,
-  biomes `BIOMES`). Grottes (`floor: 'cave'`) : mêmes parois, deux niveaux en terrasses tout autour du sol, le dessus de la
+  biomes `BIOMES`) ; raccords entre cases calculés au pixel par le shader (aucune tuile de transition) : `geoSol` joint à
+  chaque bloc une petite texture de ses cases et de leur bordure (`uCases` : famille, biome, niveau), lue par `fCase` —
+  frontière ondulée entre deux roches de biomes différents (dessus et pans), roche qui déborde sur le sol voisin au même
+  niveau avec un liseré, étages des pans comptés depuis le niveau 0 (mêmes rangées de pierres d'une case à l'autre).
+  Grottes (`floor: 'cave'`) : mêmes parois, deux niveaux en terrasses tout autour du sol, le dessus de la
   roche est un replat de pierre qui fonce vers le cœur du massif (`vBord`), roche selon `caveBiome` (biome `grotte` :
   beige de HGSS). La roche dépasse toujours d'un niveau le sol où l'on marche à côté,
   et ne monte jamais assez pour cacher les pieds de qui marche au nord (pan nord élargi, sinon niveau plafonné).

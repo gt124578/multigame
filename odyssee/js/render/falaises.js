@@ -202,6 +202,9 @@ export function matTerrain(mat, w, h, grotte = false) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uTx = { value: new THREE.Vector2(w, h) };
     sh.uniforms.uFal = { value: A.tex };
+    // les cases du bloc et leur bordure (famille, biome, niveau : geoSol), pour raccorder chaque pixel à ses voisines
+    sh.uniforms.uCases = { value: mat.userData.cases || null };
+    sh.uniforms.uOrig = { value: new THREE.Vector2(...(mat.userData.orig || [0, 0])) };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
 attribute vec4 fam; attribute vec2 niv; attribute vec4 pied; attribute vec4 bord;
@@ -210,6 +213,12 @@ flat varying vec4 vFam; flat varying vec2 vNiv; flat varying vec4 vPied; flat va
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 flat varying vec4 vFam; flat varying vec2 vNiv; flat varying vec4 vPied; flat varying vec4 vBord; varying vec3 vP; varying vec2 vTx; uniform sampler2D uFal;
+uniform sampler2D uCases; uniform vec2 uOrig;
+// une case voisine : famille d'affichage (0 sol, 1 roche, 3 néant, 4 marches), biome, niveau (unités du monde)
+vec3 fCase(ivec2 c) { vec4 v = texelFetch(uCases, c - ivec2(uOrig) + ivec2(1), 0) * 255.0; return vec3(floor(v.r + 0.5), floor(v.g + 0.5), (v.b - 64.0) / 4.0 * ${LV.toFixed(6)}); }
+// bruit doux le long d'un bord (0..1), le même vu des deux cases qui le partagent
+float fOnde(float t, float g) { float i = floor(t), u = fract(t); u = u * u * (3.0 - 2.0 * u);
+  return mix(fract(sin(i * 12.9898 + g * 78.233) * 43758.5453), fract(sin((i + 1.0) * 12.9898 + g * 78.233) * 43758.5453), u); }
 float fBayer(vec2 p) { p = mod(floor(p), 4.0); int i = int(p.x) + int(p.y) * 4;
   int b[16] = int[16](0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5); return (float(b[i]) + 0.5) / 16.0; }
 float fHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -240,7 +249,42 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
     vec2 fc = fract(vP.xz);
     // (au pied d'un mur au nord, l'ombre portée de HGSS ; contre un mur de côté, une ombre deux fois plus étroite)
     float pd = min(min(vPied.x > 0.5 ? fc.y : 9.0, vPied.z > 0.5 ? (1.0 - fc.y) * 2.0 : 9.0), min(vPied.y > 0.5 ? (1.0 - fc.x) * 2.0 : 9.0, vPied.w > 0.5 ? fc.x * 2.0 : 9.0));
+    pd += (fHash(floor(ep / 2.0)) - 0.5) * 0.06;
     int f = int(fam + 0.5);
+    // raccords entre cases voisines, calculés au pixel (aucune tuile de transition à dessiner) :
+    //  - au même niveau, la roche déborde sur le sol voisin (herbe, sable, chemin) en un bord irrégulier, cerné d'un liseré ;
+    //  - deux roches de biomes différents (neige et roche, granit et ocre) se partagent le bord selon une ligne qui ondule,
+    //    sur le dessus comme sur les pans ;
+    //  - le bord ondule selon la position dans le monde : les deux cases le voient pareil, aucune couture.
+    float lis = 1.0;
+    {
+      ivec2 cc = ivec2(floor(vP.xz)); vec2 fl = vP.xz - vec2(cc);
+      bool dessus = !raide && abs(vP.y - vFam.w) < 0.03 * LVv;
+      int fa = f == 5 ? 0 : f;                               // famille d'affichage du dessus
+      for (int ax = 0; ax < 2; ax++) {
+        float u = ax == 0 ? fl.x : fl.y, le = ax == 0 ? vP.z : vP.x;
+        int sx = u < 0.5 ? -1 : 1;
+        ivec2 nc = cc + (ax == 0 ? ivec2(sx, 0) : ivec2(0, sx));
+        vec3 nb = fCase(nc); int nf = int(nb.x);
+        float dd = sx > 0 ? 1.0 - u : u;                       // distance au bord partagé (en cases)
+        float g = float(ax == 0 ? cc.x + max(sx, 0) : cc.y + max(sx, 0)) * 1.618 + float(ax) * 7.1;
+        if (dessus && abs(nb.z - vFam.w) < 0.05 * LVv) {
+          if (fa == 0 && nf == 1) {
+            // la roche voisine déborde sur ce sol : de 0,06 à 0,3 case selon le bord, cernée d'un liseré sombre
+            float o = 0.06 + 0.24 * fOnde(le * 2.6, g) + 0.06 * fOnde(le * 9.0, g + 3.0);
+            if (dd < o) { f = ${F_ROC}; fa = 1; bio = nb.y; if (o - dd < 1.4 / ${PX}.0) lis = 0.62; }
+          } else if (fa == 1 && nf == 1 && abs(nb.y - bio) > 0.5) {
+            float o = (fOnde(le * 2.2, g) - 0.5) * 0.5;      // bord commun : décalé de ±0,25 case
+            float sg = (sx > 0 ? -1.0 : 1.0) * o;                // vu de cette case : la frontière est à dd = sg
+            if (dd < sg) bio = nb.y;
+          }
+        } else if (!dessus && ax == 0 && (f == ${F_ROC} || f == 5) && (nf == 1 || nf == 0) && abs(nb.y - bio) > 0.5) {
+          // pans : le changement de roche suit une ligne qui ondule avec la hauteur
+          float o = (fOnde(vP.y * 3.0, g) - 0.5) * 0.5, sg = (sx > 0 ? -1.0 : 1.0) * o;
+          if (dd < sg && nf == 1) bio = nb.y;
+        }
+      }
+    }
     // (le néant et la roche ne lisent pas le sol généré : jamais percés par ses trous, là où le jeu garde son propre sol)
     if (f == ${F_VIDE} || f == ${F_ROC} || (f == 5 || f == ${F_MARCHE}) && raide) diffuseColor.a = 1.0;
     if (f == ${F_VIDE}) {
@@ -248,7 +292,8 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
     } else if (((f == ${F_ROC} || f == 5) && (raide || vP.y < vFam.w - 0.03 * LVv || vP.y > vFam.w + 0.03 * LVv)) || (f == ${F_MARCHE} && fn.y < 0.45)) {
       // pan de roche : un étage de pierres par niveau (le haut de chaque pierre arrondi, comme la géométrie), étirées sur
       // la hauteur de l'étage à l'écran ; décalées d'un étage à l'autre ; la lèvre en haut du pan
-      float lf = (vP.y - bas) / LVv, k = min(floor(lf), floor((top - bas) / LVv + 0.5) - 1.0), t = lf - k;
+      // (étages comptés depuis le niveau 0 du monde : deux cases voisines dont le pied diffère gardent les mêmes rangées)
+      float lf = vP.y / LVv + 1e-3, k = min(floor(lf), floor(top / LVv + 0.5) - 1.0), t = clamp(lf - k, 0.0, 1.0);
       float rangs = 1.0 / max(abs(dFdy(lf)), 1e-4);           // pixels d'écran par niveau, sur ce pan
       float duHaut = (top - vP.y) / LVv * rangs, duPied = (vP.y - bas) / LVv * rangs;
       float col = floor(ep.x);
@@ -295,7 +340,7 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       diffuseColor.rgb = diffuse * c * k;
     } else if (f == ${F_ROC}) {
       // dessus d'un gradin de roche : la roche plate et claire de HGSS, un peu plus sombre en bas des gradins
-      vec3 c = fFal(1.0, bio, vec2(vP.x * ${PX}.0, vP.z * ${PX}.0));
+      vec3 c = fFal(1.0, bio, vec2(vP.x * ${PX}.0, vP.z * ${PX}.0)) * lis;
       if (pd < 0.14) c *= 0.72; else if (pd < 0.3 && bay < 0.55) c *= 0.86;
       diffuseColor.rgb = diffuse * c * (raide ? q : 1.0);
     } else if (f == ${F_MARCHE}) {
@@ -731,6 +776,16 @@ export class ReliefHGSS {
     g.setAttribute('pied', new THREE.BufferAttribute(pied.subarray(0, nv * 4), 4));
     g.setAttribute('bord', new THREE.BufferAttribute(bord.subarray(0, nv * 4), 4));
     g.setIndex(new THREE.BufferAttribute(idx.slice(0, ni), 1));
+    // les cases du bloc et leur bordure, lues par le shader pour raccorder les textures (famille, biome, niveau)
+    const cw = bw + 2, chh = bh + 2, cd = new Uint8Array(cw * chh * 4);
+    for (let j = 0; j < chh; j++) for (let i = 0; i < cw; i++) {
+      const Bq = this.bordsDe(x0 + i - 1, z0 + j - 1), o = (j * cw + i) * 4;
+      cd[o] = Bq.s === ROC ? 1 : Bq.s === VIDE ? 3 : Bq.s === MARCHE ? 4 : 0; cd[o + 1] = Bq.bio;
+      cd[o + 2] = Math.max(0, Math.min(255, Math.round(Bq.L / LV * 4) + 64)); cd[o + 3] = 255;
+    }
+    const ct = new THREE.DataTexture(cd, cw, chh, THREE.RGBAFormat);
+    ct.magFilter = THREE.NearestFilter; ct.minFilter = THREE.NearestFilter; ct.generateMipmaps = false; ct.needsUpdate = true;
+    g.userData.cases = ct; g.userData.orig = [x0, z0];
     g.computeBoundingSphere();
     return g;
   }
