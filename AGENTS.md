@@ -233,7 +233,8 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   arrondis, coins rentrants en entonnoir, 12 × 12 sommets par case ; la roche se met en terrasses (`terrasse`) : une pente
   faible à moyenne (trois niveaux au plus d'une case à sa voisine) monte d'un niveau par case, chaque étage reculé d'une
   case sur celui du dessous ; au-delà c'est une falaise, dont les étages (`frac`) tiennent dans sa case avec un recul
-  faible et régulier ; chaque étage : pan incliné (~63°) puis haut arrondi jusqu'au dessus plat (`bosse`) ; le shader (`matTerrain`, posé par
+  faible et régulier ; une marche d'un niveau est une pente arrondie (quart de sinus, 63° au pied) sur presque toute sa
+  case, dont la texture suit la surface et s'éclaircit jusqu'au dessus ; un étage de falaise : pan incliné puis haut arrondi (`bosse`) ; le shader (`matTerrain`, posé par
   `sol.js` sur le sol généré) dessine pixel par pixel une rangée de grosses pierres bombées par étage (`etage`, comme les
   parois de HGSS), la lèvre d'herbe ou de neige, le dessus clair des gradins de roche (dalles), les talus d'herbe ombrés
   du haut vers le pied, les marches, le néant des ravins ; textures générées au chargement (`pierres`, `dalles`, `etage`,

@@ -252,13 +252,25 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       float rangs = 1.0 / max(abs(dFdy(lf)), 1e-4);           // pixels d'écran par niveau, sur ce pan
       float duHaut = (top - vP.y) / LVv * rangs, duPied = (vP.y - bas) / LVv * rangs;
       float col = floor(ep.x);
-      float ve = clamp(floor((1.0 - t) * 32.0), 0.0, 31.0);
+      // un étage seul (les terrasses) est une pente arrondie (quart de sinus) : la texture suit la surface (son abscisse u,
+      // pas la hauteur) — les pierres se couchent en arrivant sur le dessus — et l'ombre aussi : sombre au pied, qui
+      // s'éclaircit à mesure que la pente tourne vers le ciel
+      bool rond = top - bas < 1.5 * LVv;
+      float ur = rond ? asin(clamp(t, 0.0, 1.0)) / 1.5707963 : t;
+      float ve = clamp(floor((1.0 - ur) * 32.0), 0.0, 31.0);
       vec3 c = fFal(2.0, bio, vec2(ep.x + k * 23.0, ve + mod(k, 2.0) * 32.0));
       float lh = 1.0 + floor(fHash(vec2(floor(col / 3.0), 3.0)) * 2.0) + floor(fHash(vec2(floor(col / 7.0), 5.0)) * 2.0);
       if (duHaut < lh && levre > 0.5) {
         // la lèvre : herbe, neige, sable qui débordent en haut du pan
         c = fLevre(levre, duHaut < 1.0 ? 2.0 : duHaut > lh - 1.0 ? 0.0 : 1.0);
         q = max(q, 0.96);
+      }
+      if (rond) {
+        // les côtes s'estompent en montant, et le haut de la pente se fond dans le dessus (la pierre roule jusqu'au replat)
+        float m = clamp((ur - 0.62) / 0.38 + (bay - 0.5) * 0.25, 0.0, 1.0);
+        vec3 dessus = f == ${F_ROC} ? fFal(1.0, bio, vec2(vP.x * ${PX}.0, vP.z * ${PX}.0)) : c;
+        c = mix(c, dessus, floor(m * 3.0) / 3.0 * 0.85);
+        c *= ur + (bay - 0.5) * 0.12 < 0.2 ? 0.72 : ur < 0.42 ? 0.84 : ur < 0.66 ? 0.94 : ur < 0.86 ? 1.02 : 1.08;
       }
       // pied : sombre au contact du sol
       if (duPied < 2.0) c *= 0.5; else if (duPied < 4.0 && bay < 0.6) c *= 0.72;
@@ -500,11 +512,11 @@ export class ReliefHGSS {
         else if (s === ROC) {
           // vers le nord, au-dessus d'un sol où l'on marche : le pan s'élargit pour ne pas cacher les pieds de qui s'y tient
           // (la caméra regarde vers le nord) ; ailleurs, pan de face large (HGSS), pans de côté étroits (vus de biais)
-          const wC = n === 1 ? 0.42 : 0.62;
+          const wC = n === 1 ? 0.55 : 0.62;
           const wN = pas(sn) || sn === EAU ? Math.min(0.95, Math.max(wC, dz / LV * KLV - 0.45)) : wC;
-          c = { w: d === 2 ? (n === 1 ? 0.7 : 0.95) : d === 0 ? wN : wC, d: dz, sens: -1, roc: true, n };
+          c = { w: d === 2 ? (n === 1 ? 0.8 : 0.95) : d === 0 ? wN : wC, d: dz, sens: -1, roc: true, n };
         }
-        else if (s === PAROI) c = d === 2 ? (herbe ? { w: 1.0, d: dz, sens: -1 } : { w: n === 1 ? 0.7 : 0.95, d: dz, sens: -1, roc: true, n }) : { w: 0.5, d: dz, sens: -1, roc: !herbe, n };
+        else if (s === PAROI) c = d === 2 ? (herbe ? { w: 1.0, d: dz, sens: -1 } : { w: n === 1 ? 0.85 : 0.95, d: dz, sens: -1, roc: true, n }) : { w: 0.5, d: dz, sens: -1, roc: !herbe, n };
         else if (s === EAU) c = { w: 0.15, d: dz, sens: -1 };
         else c = dz > 1.5 * LV ? { w: 0.42, d: dz, sens: -1, roc: true, n } : { w: 0.3, d: dz, sens: -1 };
         if (c && s !== ROC && s !== EAU && (s !== PAROI || !herbe) && (dz > 1.5 * LV || s === PAROI || sn === VIDE)) roche = true;
@@ -512,7 +524,7 @@ export class ReliefHGSS {
         // le voisin est plus haut : cette case porte le pan si c'est un obstacle et le voisin un sol où l'on marche
         const dz = Ln - L, n = Math.max(1, Math.round(dz / LV));
         if ((s === ROC || s === ARBRE) && pas(sn) && !(sn === SOL && s === ARBRE && dz < 1.5 * LV)) {
-          c = { w: s === ROC && d === 0 ? (n === 1 ? 0.7 : 0.95) : n === 1 ? 0.42 : 0.62, d: dz, sens: 1, roc: s === ROC || dz > 1.5 * LV, n };
+          c = { w: s === ROC && d === 0 ? (n === 1 ? 0.8 : 0.95) : n === 1 ? 0.55 : 0.62, d: dz, sens: 1, roc: s === ROC || dz > 1.5 * LV, n };
           roche = true;
         }
       }
@@ -533,13 +545,13 @@ export class ReliefHGSS {
           if (pas(s) && (sj === ROC || sj === ARBRE)) { coins.push(null); continue; }
           // largeur : celle des pans voisins qui descendent vers la diagonale
           const n = Math.max(1, Math.round(dz / LV)), roc = sj !== VIDE && sj !== EAU && (s === ROC || sa === ROC || sb === ROC || dz > 1.5 * LV);
-          const w = sj === VIDE ? 0.03 : sj === EAU ? 0.18 : roc ? (n === 1 ? 0.55 : 0.8) : s === PAROI ? 0.6 : 0.3;
+          const w = sj === VIDE ? 0.03 : sj === EAU ? 0.18 : roc ? (n === 1 ? 0.7 : 0.8) : s === PAROI ? 0.6 : 0.3;
           coins.push({ w, d: dz, sens: -1, roc, n }); continue;
         }
       }
       if (Lj > L + 1e-4 && !(A && A.sens > 0) && !(Bc && Bc.sens > 0) && (s === ROC || s === ARBRE) && pas(sj)) {
         const ja = this.cell(x + a, y), jb = this.cell(x, y + b);
-        if (this.niv[ja] <= L + 1e-4 && this.niv[jb] <= L + 1e-4) { const n = Math.max(1, Math.round((Lj - L) / LV)); coins.push({ w: s === ROC ? (n === 1 ? 0.55 : 0.8) : 0.42, d: Lj - L, sens: 1, roc: s === ROC, n }); continue; }
+        if (this.niv[ja] <= L + 1e-4 && this.niv[jb] <= L + 1e-4) { const n = Math.max(1, Math.round((Lj - L) / LV)); coins.push({ w: s === ROC ? (n === 1 ? 0.7 : 0.8) : 0.42, d: Lj - L, sens: 1, roc: s === ROC, n }); continue; }
       }
       coins.push(null);
     }
@@ -742,7 +754,9 @@ function frac(u, c) {
   u = Math.max(0, Math.min(1, u));
   if (!c.roc) return 1 - profil(1 - u);
   const n = c.n || 1;
-  if (n <= 1) return bosse(u);
+  // un seul niveau (les terrasses : de la place en largeur) : une pente arrondie sur toute sa largeur, comme les rochers
+  // de HGSS — 63° au pied, puis elle se courbe jusqu'à l'horizontale (un quart de sinus)
+  if (n <= 1) return Math.sin(u * Math.PI / 2);
   const a = 1 / (1 + (n - 1) * 1.12), sg = 1.12 * a, k = Math.min(n - 1, Math.floor(u / sg)), loc = u - k * sg;
   return (k + (loc >= a ? 1 : bosse(loc / a))) / n;
 }
