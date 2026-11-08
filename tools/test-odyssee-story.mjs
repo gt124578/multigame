@@ -154,7 +154,7 @@ leader(4); talk('mirage:voyante', () => { st.bag['plume-argent'] = 1; st.flags.p
 // la Tour Cendrée, dans la Forêt des Torii : on descend au sous-sol par l'échelle, les trois bêtes s'y réveillent
 // (elles ne se montrent ensuite dans les îles qu'à partir de 5 badges : légendaires `cond: 'beasts'`)
 { const sous = maps['cendree:sous-sol'], [ex, ey] = sous.betesSortie; if (reach('sous-sol de la Tour Cendrée', sous.id, ex, ey)) st.flags.beasts = true; }
-item('monde', 'rare-candy', W.towns.D.x + 26, W.towns.D.y + 1); // îlot du port (Surf)
+item('monde', 'super-potion', W.towns.D.x + 26, W.towns.D.y + 1); // îlot du port (Surf ; un Super Bonbon avant le barème des objets, world/bareme.js)
 leader(5); leader(6); leader(7);
 cannot('la Route Victoire reste fermée tant que dure l\'Éclipse', 'c4:1');
 reach('Lumen au Sanctuaire', 'sanctuaire', 13, 29);

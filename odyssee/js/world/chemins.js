@@ -11,6 +11,7 @@ import { plateau, sinueuse, massif } from './relief.js';
 import { bruit } from './quartiers.js';
 import { houseInterior } from './interiors.js';
 import { ROUTES, PRENOMS } from './voix.js';
+import { lotsPour, rangRoute, adapter } from './bareme.js';
 
 export const BLOC = 24;
 const key = (x, y) => x + ',' + y;
@@ -105,8 +106,10 @@ export function grandeRoute(W, S, ctx) {
   libres.sort(() => r() - 0.5);
   const KINDS = S.impasses || ['clairiere', 'cabane', 'ruines', 'source', 'belvedere', 'campement', 'verger'];
   let no = 0, nc = 0;
-  const objet = (x, y, item, qty = 1) => { const [a, c] = caseLibre(W, x, y); W.item(a, c, item, qty, `${S.id}:o${no++}`); };
-  const LOTS = S.lots || ['super-potion', 'great-ball', 'ether', 'revive', 'full-heal', 'hyper-potion', 'ultra-ball', 'rare-candy', 'max-repel', 'elixir'];
+  // objets des impasses : tirés dans la liste du rang de la route (badges pour y entrer, bareme.js)
+  const rang = S.rang ?? rangRoute(S.id);
+  const objet = (x, y, item, qty = 1) => { const [a, c] = caseLibre(W, x, y); W.item(a, c, adapter(item, rang), qty, `${S.id}:o${no++}`); };
+  const LOTS = S.lots || lotsPour(rang);
   for (const [b, f, i] of libres) {
     if (cotes.length >= Math.round(libres.length * (S.branches ?? 0.4)) || pris.has(key(...f))) continue;
     pris.add(key(...f));
@@ -130,7 +133,7 @@ export function grandeRoute(W, S, ctx) {
       W.warp(B.doorX, B.doorY, { map: id, x: inside.exitX, y: inside.exitY, dir: 'up' });
       if (W.get(B.doorX, B.doorY + 1) !== herbe) W.set(B.doorX, B.doorY + 1, herbe);
       inside.npc({ id: id + ':hote', x: 3, y: 4, sprite: pick(['montagnard', 'vieil_homme', 'randonneuse', 'dame', 'pecheur']), move: 'turn', text: pick([...ROUTES.general, ...(ROUTES[S.voix] || [])]) });
-      inside.item(6, 3, pick(LOTS), 1, id + ':o0');
+      inside.item(6, 3, adapter(pick(LOTS), rang), 1, id + ':o0');
       ctx.maps[id] = inside;
       W.prop('tonneau', X + 3, Y + 1); W.prop('caisses', X - 3, Y + 1);
     } else if (kind === 'ruines') {

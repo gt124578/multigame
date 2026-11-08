@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { T } from '../world/tiles.js';
 import { pente, ravin, mont } from '../world/relief.js';
+import { sensPont } from '../world/ponts.js';
 import { buildAtlas, buildAnimAtlas, buildSprites, applySpriteImages, facade, sideWall, roofTex, roofColors, kitColor, PAL, SOL16 } from './textures.js';
 import { SPRITES } from '../data/sprites.js';
 import { Sol } from './sol.js';
@@ -517,8 +518,8 @@ export class WorldView {
     // passerelle de bois au-dessus d'un ravin (montagne) : le vide dessous, planches et cordes dans le sens de la traversée
     if (t === T.BRIDGE && ravin(m, x, y)) {
       // sens de la traversée : vers les sentiers que la passerelle relie (ou le long de la passerelle)
-      const pont = (a, b) => m.get(a, b) === T.BRIDGE && ravin(m, a, b), terre = (a, b) => m.get(a, b) !== T.CAVEWALL && !pont(a, b);
-      const ew = pont(x - 1, y) || pont(x + 1, y) || terre(x - 1, y) || terre(x + 1, y);
+      const pont = (a, b) => m.get(a, b) === T.BRIDGE && ravin(m, a, b);
+      const ew = sensPont(m, x, y) === 'ew';   // le sens se lit sur toute la passerelle (world/ponts.js)
       const a = ew ? !pont(x, y - 1) : !pont(x - 1, y), b = ew ? !pont(x, y + 1) : !pont(x + 1, y);
       const d = ew ? !pont(x - 1, y) : !pont(x, y - 1), f = ew ? !pont(x + 1, y) : !pont(x, y + 1);
       return { c: A[`ravin_${hash(x, y) < 0.5 ? 0 : 1}`], passerelle: A[`passerelle_${ew ? 'ew' : 'ns'}_${(a ? 1 : 0) | (b ? 2 : 0) | (d ? 4 : 0) | (f ? 8 : 0)}`] };
@@ -548,7 +549,7 @@ export class WorldView {
       case T.PAVE: case T.DOOR: case T.BUILD: return { c: A['pave' + edge((q) => isPathish(q))] };
       case T.SAND: return { c: A['sand' + edge((q) => q !== T.GRASS && q !== T.TALL && q !== T.TREE && q !== T.FLOWER && q !== T.PINE)] };
       case T.WATER: return { anim: this.N.cells['water' + mask((q) => q === T.WATER || q === T.BRIDGE)] };
-      case T.BRIDGE: { const ns = m.get(x - 1, y) === T.WATER || m.get(x + 1, y) === T.WATER; return { anim: this.N.cells.water15, bridge: ns ? A.bridge : A.bridgeEW || A.bridge }; }
+      case T.BRIDGE: { const ns = sensPont(m, x, y) === 'ns'; return { anim: this.N.cells.water15, bridge: ns ? A.bridge : A.bridgeEW || A.bridge }; }
       // une couleur par massif (par carré de 3 × 3 cases), avec parfois une fleur d'une autre couleur
       case T.FLOWER: { const nf = this.N.cells.flower5 ? 6 : 4, pv = hash(Math.floor(x / 3) + 101, Math.floor(y / 3) + 37), k = v < 0.85 ? Math.floor(pv * nf) : Math.floor(v * 97) % nf; return { anim: this.N.cells['flower' + k] || this.N.cells.flower0 }; }
       case T.LEDGE: return { c: A.ledge }; case T.LEDGE_E: return { c: A.ledgeE }; case T.LEDGE_W: return { c: A.ledgeW };
@@ -852,7 +853,12 @@ export class WorldView {
       const zone = m.outdoor ? m.zoneAt(x, y) : null, theme = zone?.theme;
       if (this.relief) this.reliefDehors(O0, x, y, t, zone);
       if (m.outdoor && base.get(x, y) === T.WHIRL) this.tourbillonCell(NO, base, x, y);
-      if (m.outdoor && t === T.BRIDGE && theme === 'automne' && A.pont_rouge) flat(O0, x - 0.02, y, x + 1.02, y + 1, 0.0051, A.pont_rouge);
+      if (m.outdoor && t === T.BRIDGE && theme === 'automne') {
+        // garde-corps vermillon le long du pont, seulement sur ses bords (pas entre deux voies du même pont)
+        const ns = sensPont(m, x, y) === 'ns', pt = (a, b) => m.get(a, b) === T.BRIDGE;
+        const ha = ns ? !pt(x - 1, y) : !pt(x, y - 1), ba = ns ? !pt(x + 1, y) : !pt(x, y + 1), tex = A[`pont_rouge_${ns ? 'ns' : 'ew'}_${(ha ? 1 : 0) | (ba ? 2 : 0)}`];
+        if (tex && (ha || ba)) flat(O0, x - (ns ? 0 : 0.02), y - (ns ? 0.02 : 0), x + 1 + (ns ? 0 : 0.02), y + 1 + (ns ? 0.02 : 0), 0.0051, tex);
+      }
       if (this.decoAt.get(x + ',' + y)?.k === 'koi') flat(NO, x, y, x + 1, y + 1, 0.0055, this.N.cells.koi);
       // décor en volume
       if (t === T.TREE || t === T.PINE) {
