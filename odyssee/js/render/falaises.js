@@ -115,6 +115,41 @@ function pierres(seed) {
   }
   return px;
 }
+/** caillasse (64 × 64, raccord dans les deux sens) : des cailloux de toutes tailles (2 à 9 pixels de rayon) entassés au
+ *  hasard, sans rangées — chacun bombé, éclairé en haut à gauche, son ombre en bas à droite, des creux sombres entre eux,
+ *  du gravier dans les interstices. `doux` : moins de relief (le dessus des gradins). Indices de palette 0 à 5. */
+function caillasse(seed, doux = false) {
+  const W = TX, H = new Float32Array(W * W), id = new Int16Array(W * W).fill(-1), px = new Uint8Array(W * W);
+  const R = (() => { let s = seed >>> 0; return () => ((s = Math.imul(s ^ (s >>> 15), 2246822507) + 0x9e3779b9 | 0) >>> 0) / 4294967296; })();
+  const pierres = [];
+  for (let k = 0; k < (doux ? 70 : 95); k++) {
+    const r = k < 12 ? 6 + R() * 3.5 : k < 40 ? 3.5 + R() * 2.5 : 1.8 + R() * 1.8;
+    pierres.push({ x: R() * W, y: R() * W, rx: r * (1 + R() * 0.45), ry: r * (0.7 + R() * 0.3), a: (R() - 0.5) * 1.2, t: R() < 0.22 ? 2 : R() < 0.78 ? 3 : 4 });
+  }
+  pierres.forEach((p, k) => {
+    const ca = Math.cos(p.a), sa = Math.sin(p.a), m = Math.ceil(Math.max(p.rx, p.ry)) + 1;
+    for (let j = -m; j <= m; j++) for (let i = -m; i <= m; i++) {
+      const u = (i * ca + j * sa) / p.rx, v = (-i * sa + j * ca) / p.ry, d = u * u + v * v;
+      if (d >= 1) continue;
+      const h = Math.sqrt(1 - d) * Math.min(p.rx, p.ry) * (doux ? 0.35 : 0.8) + (doux ? 0 : 0.4 * (k % 3));
+      const X = ((Math.floor(p.x) + i) % W + W) % W, Y = ((Math.floor(p.y) + j) % W + W) % W, o = Y * W + X;
+      if (h > H[o]) { H[o] = h; id[o] = k; }
+    }
+  });
+  const at = (x, y) => H[((y % W + W) % W) * W + ((x % W + W) % W)];
+  const L = [-0.55, -0.6, 0.58];
+  for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
+    const o = y * W + x, k = id[o];
+    if (k < 0) { px[o] = doux ? 3 : hash(x, y, seed) < 0.3 ? 1 : 0; continue; }   // un creux entre les cailloux
+    const nx = at(x + 1, y) - at(x - 1, y), ny = at(x, y + 1) - at(x, y - 1), n = Math.hypot(nx, ny, 2);
+    const lum = (-nx * L[0] - ny * L[1] + 2 * L[2]) / n;                          // 1 face à la lumière, < 0.3 à l'ombre
+    let c = (doux ? (pierres[k].t < 3 ? 3 : pierres[k].t) : pierres[k].t) + Math.round((lum - 0.62) * (doux ? 2.2 : 5) + (hash(x, y, seed + 7) - 0.5) * (doux ? 0.5 : 0.9));
+    // bord d'un caillou plus haut qu'un voisin : une arête sombre (le caillou se détache)
+    if (!doux && (id[((y + 1) % W) * W + x] !== k && at(x, y + 1) < H[o] - 0.6 || id[y * W + (x + 1) % W] !== k && at(x + 1, y) < H[o] - 0.6)) c -= 1;
+    px[o] = Math.max(doux ? 2 : 1, Math.min(5, c));
+  }
+  return px;
+}
 /** un étage de paroi (64 × 32 : la bande d'un niveau, de son haut à son pied), comme les parois de HGSS : une rangée de
  *  grosses pierres (14 à 22 pixels) dont le haut s'arrondit en dôme clair (le dessus de la pierre, qui rejoint le replat),
  *  puis des flancs qui foncent vers le bas, une fente sombre entre deux pierres, l'ombre de contact au pied ; entre les
@@ -176,8 +211,8 @@ function atlas() {
   const n = BIOMES.length, c = document.createElement('canvas'); c.width = TX * 3; c.height = TX * n;
   const g = c.getContext('2d'), im = g.createImageData(TX * 3, TX * n);
   BIOMES.forEach((b, k) => {
-    const pf = FACE[b].map(rgb), pd = DESSUS[b].map(rgb), A = pierres(101 + k * 37), D = dalles(203 + k * 41);
-    const E = new Uint8Array(TX * TX); E.set(etage(307 + k * 43)); E.set(etage(409 + k * 47), TX * 32);   // deux étages
+    const pf = FACE[b].map(rgb), pd = DESSUS[b].map(rgb), A = caillasse(101 + k * 37), D = caillasse(203 + k * 41, true);
+    const E = caillasse(307 + k * 43);
     for (let y = 0; y < TX; y++) for (let x = 0; x < TX; x++) {
       for (const [ox, src, pal] of [[0, A, pf], [TX, D, pd], [TX * 2, E, pf]]) {
         const o = ((k * TX + y) * TX * 3 + ox + x) * 4, cc = pal[src[y * TX + x]];
@@ -287,6 +322,38 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
     }
     // (le néant et la roche ne lisent pas le sol généré : jamais percés par ses trous, là où le jeu garde son propre sol)
     if (f == ${F_VIDE} || f == ${F_ROC} || (f == 5 || f == ${F_MARCHE}) && raide) diffuseColor.a = 1.0;
+    // le pied d'une roche, à plat au niveau du bas (coins arrondis, bas des pentes) : c'est le sol de la case voisine la
+    // plus basse qui continue — lu dans l'image du sol en miroir de leur bord commun —, avec une ombre douce contre la roche
+    bool pied = (f == ${F_ROC} || f == 5) && fn.y > 0.97 && vP.y < vFam.w - 0.25 * LVv;
+    if (pied) {
+      ivec2 cc = ivec2(floor(vP.xz)); vec2 fl = vP.xz - vec2(cc);
+      float best = 1e9; vec2 cible = vP.xz;
+      for (int dj = -1; dj <= 1; dj++) for (int di = -1; di <= 1; di++) {
+        if (di == 0 && dj == 0) continue;
+        vec3 nb = fCase(cc + ivec2(di, dj)); int nf = int(nb.x);
+        if (nf != 0 || nb.z > vP.y + 0.1 * LVv) continue;
+        // point miroir dans la voisine (par son bord, ou son coin pour une diagonale)
+        vec2 bord = vec2(cc) + vec2(di > 0 ? 1.0 : 0.0, dj > 0 ? 1.0 : 0.0);
+        vec2 m = vP.xz; if (di != 0) m.x = 2.0 * bord.x - m.x; if (dj != 0) m.y = 2.0 * bord.y - m.y;
+        float d = distance(m, vP.xz) + (di != 0 && dj != 0 ? 0.3 : 0.0);
+        if (d < best) { best = d; cible = m; }
+      }
+      bool lu = false;
+      if (best < 1e8) {
+        vec2 uvM = (cible - uOrig) * ${PX}.0 / vec2(textureSize(map, 0));
+        if (uvM.x > 0.0 && uvM.y > 0.0 && uvM.x < 1.0 && uvM.y < 1.0) {
+          vec4 t2 = texture2D(map, uvM);
+          if (t2.a > 0.5) { diffuseColor.rgb = diffuse * t2.rgb; lu = true; }
+        }
+      }
+      // pas de sol voisin (une bosse sur un gradin) : le dessus de la roche du bas
+      if (!lu) diffuseColor.rgb = diffuse * fFal(1.0, bio, vec2(vP.x * ${PX}.0, vP.z * ${PX}.0));
+      // ombre douce contre la roche : plus on s'enfonce sous elle, plus c'est sombre
+      float ao = clamp((best < 1e8 ? best : 0.5) * 0.5 / 0.35, 0.0, 1.0);
+      diffuseColor.rgb *= ao > 0.66 + (bay - 0.5) * 0.2 ? 0.76 : ao > 0.33 + (bay - 0.5) * 0.2 ? 0.88 : 1.0;
+      diffuseColor.a = 1.0;
+      f = 99;   // rien d'autre à peindre ici
+    }
     if (f == ${F_VIDE}) {
       diffuseColor.rgb *= 0.0;
     } else if (((f == ${F_ROC} || f == 5) && (raide || vP.y < vFam.w - 0.03 * LVv || vP.y > vFam.w + 0.03 * LVv)) || (f == ${F_MARCHE} && fn.y < 0.45)) {
@@ -302,8 +369,13 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       // s'éclaircit à mesure que la pente tourne vers le ciel
       bool rond = top - bas < 1.5 * LVv;
       float ur = rond ? asin(clamp(t, 0.0, 1.0)) / 1.5707963 : t;
-      float ve = clamp(floor((1.0 - ur) * 32.0), 0.0, 31.0);
-      vec3 c = fFal(2.0, bio, vec2(ep.x + k * 23.0, ve + mod(k, 2.0) * 32.0));
+      // la caillasse, ancrée à l'écran (les cailloux gardent leur taille et se suivent d'une case à l'autre)
+      vec3 c = fFal(mod(k, 2.0) * 2.0, bio, ep);
+      if (!rond) {
+        // un étage de falaise : son rebord éclairé en haut, l'ombre de l'étage du dessus à son pied
+        float dh = (1.0 - t) * rangs, db = t * rangs;
+        if (dh < 2.0 && duHaut > 2.0) c *= 1.18; else if (db < 1.5 && duPied > 2.0) c *= 0.66; else if (db < 3.0 && duPied > 2.0 && bay < 0.5) c *= 0.82;
+      }
       float lh = 1.0 + floor(fHash(vec2(floor(col / 3.0), 3.0)) * 2.0) + floor(fHash(vec2(floor(col / 7.0), 5.0)) * 2.0);
       if (duHaut < lh && levre > 0.5) {
         // la lèvre : herbe, neige, sable qui débordent en haut du pan
@@ -312,13 +384,12 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       }
       if (rond) {
         // les côtes s'estompent en montant, et le haut de la pente se fond dans le dessus (la pierre roule jusqu'au replat)
-        float m = clamp((ur - 0.62) / 0.38 + (bay - 0.5) * 0.25, 0.0, 1.0);
-        vec3 dessus = f == ${F_ROC} ? fFal(1.0, bio, vec2(vP.x * ${PX}.0, vP.z * ${PX}.0)) : c;
-        c = mix(c, dessus, floor(m * 3.0) / 3.0 * 0.85);
-        c *= ur + (bay - 0.5) * 0.12 < 0.2 ? 0.72 : ur < 0.42 ? 0.84 : ur < 0.66 ? 0.94 : ur < 0.86 ? 1.02 : 1.08;
+        // sombre au pied, de plus en plus clair à mesure que la pente tourne vers le ciel, et l'arête claire en haut
+        c *= ur + (bay - 0.5) * 0.12 < 0.2 ? 0.7 : ur < 0.42 ? 0.8 : ur < 0.66 ? 0.9 : ur < 0.86 ? 1.0 : 1.08;
+        if (duHaut < 1.5 && levre < 0.5) c = min(vec3(1.0), c * 1.3 + 0.03); else if (duHaut < 3.0 && levre < 0.5 && bay < 0.5) c *= 1.12;
       }
       // pied : sombre au contact du sol
-      if (duPied < 2.0) c *= 0.5; else if (duPied < 4.0 && bay < 0.6) c *= 0.72;
+      if (duPied < 1.0) c *= 0.72; else if (duPied < 3.0 && bay < 0.5) c *= 0.86;
       // le bas d'un grand pan est plus sombre que son haut (la lumière vient d'en haut)
       float hh = clamp((vP.y - bas) / max(top - bas, 1e-3), 0.0, 1.0);
       c *= 0.8 + 0.2 * floor(hh * 3.0 + bay) / 3.0;
@@ -780,7 +851,7 @@ export class ReliefHGSS {
     const cw = bw + 2, chh = bh + 2, cd = new Uint8Array(cw * chh * 4);
     for (let j = 0; j < chh; j++) for (let i = 0; i < cw; i++) {
       const Bq = this.bordsDe(x0 + i - 1, z0 + j - 1), o = (j * cw + i) * 4;
-      cd[o] = Bq.s === ROC ? 1 : Bq.s === VIDE ? 3 : Bq.s === MARCHE ? 4 : 0; cd[o + 1] = Bq.bio;
+      cd[o] = Bq.s === ROC ? 1 : Bq.s === VIDE ? 3 : Bq.s === MARCHE ? 4 : Bq.s === SOL ? 0 : 2; cd[o + 1] = Bq.bio;
       cd[o + 2] = Math.max(0, Math.min(255, Math.round(Bq.L / LV * 4) + 64)); cd[o + 3] = 255;
     }
     const ct = new THREE.DataTexture(cd, cw, chh, THREE.RGBAFormat);
