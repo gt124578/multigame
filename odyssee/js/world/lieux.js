@@ -12,10 +12,12 @@ import { plateau, massif, sinueuse } from './relief.js';
 import { bruit } from './quartiers.js';
 import { houseInterior } from './interiors.js';
 import { ROUTES, PRENOMS } from './voix.js';
+import { lotsPour, rangRoute, adapter } from './bareme.js';
 
 const B = 24, N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const SPR = ['randonneuse', 'montagnard', 'vieil_homme', 'gamin', 'fillette', 'habitante', 'habitant', 'dame', 'pecheur', 'jardinier'];
-const LOTS = ['super-potion', 'great-ball', 'ether', 'revive', 'full-heal', 'hyper-potion', 'ultra-ball', 'rare-candy', 'max-repel', 'elixir', 'oran-berry', 'sitrus-berry'];
+// objets à trouver : la liste du rang de la route d'où part le sentier (bareme.js), et des baies
+const lotsLieu = (rang) => [...lotsPour(rang), 'oran-berry', 'sitrus-berry'];
 const NOMS = {
   hameau: ['Hameau des Saules', 'Hameau du Puits', 'Les Trois Toits', 'Hameau des Brumes', 'Hameau de la Combe'],
   ferme: ['Ferme des Écrémeuh', 'Ferme du Vallon', 'Ferme des Moissons', 'Ferme aux Ponchiot'],
@@ -157,7 +159,8 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
     for (const [x, y] of s4) for (const [a, b] of N4) if (FORET(W.get(x + a, y + b)) && bruit(x + a, y + b, 2, 31) > 0.5 && (dedans(x + a, y + b) || Math.floor((x + a) / B) !== c || Math.floor((y + b) / B) !== rr)) W.set(x + a, y + b, T.GRASS);
     W.zone(bx, by, bx + B - 1, by + B - 1, { name: NOMS[kind] ? NOMS[kind][(c * 7 + rr * 3) % NOMS[kind].length] : z.name, music: z.music, enc: z.enc, theme: z.theme, route: z.route, prio: 0, ombre: z.ombre });
     let no = 0, np = 0;
-    const objet = (x, y, item = pick(LOTS)) => { const p = proche(x, y); if (p) { W.item(p[0], p[1], item, 1, `${id}:o${no++}`); occ.add(p.join(',')); } };
+    const rang = rangRoute(z.route), LOTS = lotsLieu(rang);
+    const objet = (x, y, item = pick(LOTS)) => { const p = proche(x, y); if (p) { W.item(p[0], p[1], adapter(item, rang), 1, `${id}:o${no++}`); occ.add(p.join(',')); } };
     const pnj = (x, y, o = {}) => { const p = proche(x, y); if (!p) return null; occ.add(p.join(',')); return W.npc({ id: `${id}:p${np++}`, x: p[0], y: p[1], dir: o.dir || 'down', sprite: o.sprite || pick(SPR), move: o.move || 'turn', text: o.text || pick([...ROUTES.general, ...(ROUTES[o.voix] || [])]) }); };
     const proche = (x, y) => { for (let d = 0; d < 6; d++) for (let j = -d; j <= d; j++) for (const i of [-d, d]) for (const [u, v] of [[x + i, y + j], [x + j, y + i]]) { const t = W.get(u, v); if (dedans(u, v) && (t === T.GRASS || t === T.PATH || t === T.FLOWER || t === T.SAND) && !occ.has(u + ',' + v) && !W.warpAt(u, v) && W.get(u, v - 1) !== T.DOOR) return [u, v]; } return null; };
     const prop = (k, x, y) => { if (dedans(x, y) && W.get(x, y) === T.GRASS && !occ.has(x + ',' + y) && !sent.has(x + ',' + y)) { W.prop(k, x, y); return true; } return false; };
@@ -173,7 +176,7 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
       W.warp(Bt.doorX, Bt.doorY, { map: mid, x: ins.exitX, y: ins.exitY, dir: 'up' });
       W.set(Bt.doorX, Bt.doorY + 1, T.PATH);
       ins.npc({ id: mid + ':hote', x: 3, y: 4, sprite: o.sprite || pick(SPR), move: 'turn', text: o.text || pick([...ROUTES.general]) });
-      if (o.objet) ins.item(6, 3, o.objet, 1, mid + ':o0');
+      if (o.objet) ins.item(6, 3, adapter(o.objet, rang), 1, mid + ':o0');
       maps[mid] = ins;
       return Bt;
     };
