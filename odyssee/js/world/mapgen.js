@@ -12,6 +12,27 @@ export function sin(x) {
   return r * (1 + q * (-1 / 6 + q * (1 / 120 + q * (-1 / 5040 + q * (1 / 362880 + q * (-1 / 39916800 + q * (1 / 6227020800 + q * (-1 / 1307674368000 + q / 355687428096000))))))));
 }
 export const cos = (x) => sin(x + 1.5707963267948966);
+/** mélange L comme le faisait L.sort(() => r() - 0.5) dans Chrome (V8 récent : tri par insertion dichotomique jusqu'à
+ *  15 éléments, puis une montée ou descente de départ et le même tri ; Node et les autres navigateurs ne posent pas les
+ *  mêmes comparaisons, et la carte en dépendait). Au-delà de 63 éléments, un simple mélange de Fisher-Yates. */
+export function melanger(L, r) {
+  const n = L.length, cmp = () => r() - 0.5;
+  if (n >= 64) { for (let i = n - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [L[i], L[j]] = [L[j], L[i]]; } return L; }
+  let debut = 1;
+  if (n >= 16) {
+    // la montée (ou descente, retournée) du début
+    let len = 2; const desc = cmp(L[1], L[0]) < 0; let prev = L[1];
+    for (let i = 2; i < n; i++) { const c = L[i], o = cmp(c, prev); if (desc ? o >= 0 : o < 0) break; prev = c; len++; }
+    if (desc) for (let i = 0, j = len - 1; i < j; i++, j--) [L[i], L[j]] = [L[j], L[i]];
+    debut = len;
+  }
+  for (let i = debut; i < n; i++) {
+    const p = L[i]; let a = 0, b = i;
+    while (a < b) { const m = a + ((b - a) >> 1); if (cmp(p, L[m]) < 0) b = m; else a = m + 1; }
+    for (let k = i; k > a; k--) L[k] = L[k - 1]; L[a] = p;
+  }
+  return L;
+}
 export function rng(seed) { let s = (seed >>> 0) || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
 const key = (x, y) => x + ',' + y;
 

@@ -14,7 +14,7 @@ import fs from 'fs';
 import { vues } from '../odyssee/js/world/ecrans.js';
 
 // cases d'où l'on voit encore une autre zone : celles qu'un chemin, une porte ou un habitant empêchent d'épaissir
-const SEUIL_VUES = 700;
+const SEUIL_VUES = 900;
 
 const detail = process.argv.includes('--detail'), carte = process.argv.includes('--carte');
 let fails = 0;

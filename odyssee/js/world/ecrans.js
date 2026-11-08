@@ -106,7 +106,7 @@ export function ecrans(W, iter = 10) {
       let bord = false, relief = false;
       for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) {
         const q = W.get(x + a, y + b);
-        if (q === T.STAIRS || LEDGES.has(q) || q === T.CLIFF || (walkable(q) && W.height(x + a, y + b) !== W.height(x, y))) relief = true;
+        if (q === T.STAIRS || LEDGES.has(q) || (walkable(q) && W.height(x + a, y + b) !== W.height(x, y))) relief = true;
         if ((a === 0) !== (b === 0) && !walkable(q) && q !== T.WATER) bord = true;
       }
       if (!bord || relief) continue;

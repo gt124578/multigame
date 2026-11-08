@@ -16,7 +16,7 @@
 //   quartiers        poids des sortes de quartier { maisons, parc, place, marche, jardins, ferme, affaires… }
 //   graine           tirages
 import { T, walkable } from './tiles.js';
-import { rng, sin, cos, OUVERTS } from './mapgen.js';
+import { rng, sin, cos, melanger, OUVERTS } from './mapgen.js';
 import { plateau } from './relief.js';
 import { GENERAL, VILLES, ETALS } from './voix.js';
 
@@ -663,7 +663,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
       rect(mx - 3, my - 3, mx + 4, my + 4, T.PAVE);
       decor('fontaine', mx - 1, my - 1, 3, 3, { h: 2 }) || prop(V.statue || 'statue', mx, my);
       const coins = [[b.x0 + 1, b.y0 + 1, mx - 5, my - 4], [mx + 6, b.y0 + 1, b.x1 - 1, my - 4], [b.x0 + 1, my + 6, mx - 5, b.y1 - 1], [mx + 6, my + 6, b.x1 - 1, b.y1 - 1]];
-      const kinds = [0, 1, 2, 3].sort(() => r() - 0.5);
+      const kinds = melanger([0, 1, 2, 3], r);
       coins.forEach(([x0, y0, x1, y1], i) => {
         if (x1 - x0 < 3 || y1 - y0 < 2) return;
         const q = kinds[i];

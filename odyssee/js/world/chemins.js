@@ -6,7 +6,7 @@
 // (clairière, cabane habitée, ruines, source, belvédère, campement, verger) ; parfois un raccourci à débloquer plus tard
 // (Coupe, Éclate-Roc, Surf). Les dresseurs ajoutés ont des identifiants fixes (`route:dN`), les objets aussi (`route:oN`).
 import { T, walkable } from './tiles.js';
-import { carveRoute, along, nearestWalkable, caseLibre, rng, sin, ledges as _ledges } from './mapgen.js';
+import { carveRoute, along, nearestWalkable, caseLibre, rng, sin, melanger, ledges as _ledges } from './mapgen.js';
 import { plateau, sinueuse, massif } from './relief.js';
 import { bruit } from './quartiers.js';
 import { houseInterior } from './interiors.js';
@@ -42,7 +42,7 @@ export function trace(terr, de, vers, long, graine = 1) {
       const opts = N4.map(([dx, dy]) => [c + dx, rr + dy]).filter(([a, b]) => S.has(key(a, b)) && !vu.has(key(a, b)));
       // un peu de hasard, et une préférence pour continuer tout droit (de longues lignes, puis des virages)
       const prev = chemin[chemin.length - 2];
-      opts.sort(() => r() - 0.5);
+      melanger(opts, r);
       if (prev && r() < 0.45) opts.sort((p, q) => ((q[0] - c === c - prev[0] && q[1] - rr === rr - prev[1]) ? 1 : 0) - ((p[0] - c === c - prev[0] && p[1] - rr === rr - prev[1]) ? 1 : 0));
       for (const [a, b] of opts) {
         vu.add(key(a, b)); chemin.push([a, b]);
@@ -102,7 +102,7 @@ export function grandeRoute(W, S, ctx) {
   const T0 = blocs([...S.terr, ...(S.ext || [])]), pris = new Set(chemin.map((b) => key(...b))), cotes = [];
   const libres = [];
   chemin.forEach((b, i) => { if (i === 0 || i === chemin.length - 1) return; for (const [dx, dy] of N4) { const f = [b[0] + dx, b[1] + dy]; if (T0.has(key(...f)) && !pris.has(key(...f))) libres.push([b, f, i]); } });
-  libres.sort(() => r() - 0.5);
+  melanger(libres, r);
   const KINDS = S.impasses || ['clairiere', 'cabane', 'ruines', 'source', 'belvedere', 'campement', 'verger'];
   let no = 0, nc = 0;
   const objet = (x, y, item, qty = 1) => { const [a, c] = caseLibre(W, x, y); W.item(a, c, item, qty, `${S.id}:o${no++}`); };
