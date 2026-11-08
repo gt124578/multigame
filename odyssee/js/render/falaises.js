@@ -287,6 +287,36 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
     }
     // (le néant et la roche ne lisent pas le sol généré : jamais percés par ses trous, là où le jeu garde son propre sol)
     if (f == ${F_VIDE} || f == ${F_ROC} || (f == 5 || f == ${F_MARCHE}) && raide) diffuseColor.a = 1.0;
+    // le pied d'une roche, à plat au niveau du bas (coins arrondis, bas des pentes) : c'est le sol de la case voisine la
+    // plus basse qui continue — lu dans l'image du sol en miroir de leur bord commun —, avec une ombre douce contre la roche ;
+    // sans sol voisin (une bosse sur un gradin), le dessus de la roche du bas
+    bool piedR = (f == ${F_ROC} || f == 5) && fn.y > 0.97 && vP.y < vFam.w - 0.25 * LVv;
+    if (piedR) {
+      ivec2 cc = ivec2(floor(vP.xz));
+      float best = 1e9; vec2 cible = vP.xz;
+      for (int dj = -1; dj <= 1; dj++) for (int di = -1; di <= 1; di++) {
+        if (di == 0 && dj == 0) continue;
+        vec3 nb = fCase(cc + ivec2(di, dj));
+        if (int(nb.x) != 0 || nb.z > vP.y + 0.1 * LVv) continue;
+        vec2 bord = vec2(cc) + vec2(di > 0 ? 1.0 : 0.0, dj > 0 ? 1.0 : 0.0);
+        vec2 m = vP.xz; if (di != 0) m.x = 2.0 * bord.x - m.x; if (dj != 0) m.y = 2.0 * bord.y - m.y;
+        float d = distance(m, vP.xz) + (di != 0 && dj != 0 ? 0.3 : 0.0);
+        if (d < best) { best = d; cible = m; }
+      }
+      bool lu = false;
+      if (best < 1e8) {
+        vec2 uvM = (cible - uOrig) * ${PX}.0 / vec2(textureSize(map, 0));
+        if (uvM.x > 0.0 && uvM.y > 0.0 && uvM.x < 1.0 && uvM.y < 1.0) {
+          vec4 t2 = texture2D(map, uvM);
+          if (t2.a > 0.5) { diffuseColor.rgb = diffuse * t2.rgb; lu = true; }
+        }
+      }
+      if (!lu) diffuseColor.rgb = diffuse * fFal(1.0, bio, vec2(vP.x * ${PX}.0, vP.z * ${PX}.0));
+      float ao = clamp((best < 1e8 ? best : 0.5) * 0.5 / 0.35, 0.0, 1.0);
+      diffuseColor.rgb *= ao > 0.66 + (bay - 0.5) * 0.2 ? 0.76 : ao > 0.33 + (bay - 0.5) * 0.2 ? 0.88 : 1.0;
+      diffuseColor.a = 1.0;
+      f = 99;   // rien d'autre à peindre ici
+    }
     if (f == ${F_VIDE}) {
       diffuseColor.rgb *= 0.0;
     } else if (((f == ${F_ROC} || f == 5) && (raide || vP.y < vFam.w - 0.03 * LVv || vP.y > vFam.w + 0.03 * LVv)) || (f == ${F_MARCHE} && fn.y < 0.45)) {
@@ -318,7 +348,7 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
         c *= ur + (bay - 0.5) * 0.12 < 0.2 ? 0.72 : ur < 0.42 ? 0.84 : ur < 0.66 ? 0.94 : ur < 0.86 ? 1.02 : 1.08;
       }
       // pied : sombre au contact du sol
-      if (duPied < 2.0) c *= 0.5; else if (duPied < 4.0 && bay < 0.6) c *= 0.72;
+      if (duPied < 1.0) c *= 0.72; else if (duPied < 3.0 && bay < 0.5) c *= 0.86;
       // le bas d'un grand pan est plus sombre que son haut (la lumière vient d'en haut)
       float hh = clamp((vP.y - bas) / max(top - bas, 1e-3), 0.0, 1.0);
       c *= 0.8 + 0.2 * floor(hh * 3.0 + bay) / 3.0;
@@ -780,7 +810,7 @@ export class ReliefHGSS {
     const cw = bw + 2, chh = bh + 2, cd = new Uint8Array(cw * chh * 4);
     for (let j = 0; j < chh; j++) for (let i = 0; i < cw; i++) {
       const Bq = this.bordsDe(x0 + i - 1, z0 + j - 1), o = (j * cw + i) * 4;
-      cd[o] = Bq.s === ROC ? 1 : Bq.s === VIDE ? 3 : Bq.s === MARCHE ? 4 : 0; cd[o + 1] = Bq.bio;
+      cd[o] = Bq.s === ROC ? 1 : Bq.s === VIDE ? 3 : Bq.s === MARCHE ? 4 : Bq.s === SOL ? 0 : 2; cd[o + 1] = Bq.bio;
       cd[o + 2] = Math.max(0, Math.min(255, Math.round(Bq.L / LV * 4) + 64)); cd[o + 3] = 255;
     }
     const ct = new THREE.DataTexture(cd, cw, chh, THREE.RGBAFormat);
