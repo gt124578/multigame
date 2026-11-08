@@ -491,10 +491,26 @@ export class ReliefHGSS {
         if (B[q] - e <= 3 + 1e-4 && e + 1 < E[q]) E[q] = e + 1;
       }
     }
-    // un creux d'une case (les quatre voisins plus hauts) se comble : pas de trou isolé dans un massif
-    const c = R * N + R; let lo = Infinity, plus = 0;
-    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const e = E[(R + b) * N + R + a]; if (e === e && e > E[c] + 1e-4) { plus++; lo = Math.min(lo, e); } }
-    if (plus === 4) E[c] = Math.min(lo, B[c]);
+    // lissage : pas de bout de pente solitaire. Une bosse d'une case (au moins trois voisins plus bas) ou une arête d'une case
+    // de large (deux voisins opposés plus bas) s'abaisse au niveau de ses voisins ; un creux d'une case ou une tranchée d'une
+    // case de large se comble (sans dépasser le niveau du jeu). La roche reste d'un niveau au-dessus du sol voisin.
+    const D4 = [[1, 0], [-1, 0], [0, 1], [0, -1]], eps = 1e-4;
+    for (let it = 0; it < 3; it++) {
+      const F = E.slice();
+      for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
+        const q = j * N + i; if (!roc[q] || !(E[q] === E[q])) continue;
+        let fl = -Infinity;
+        for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const r = (j + b) * N + i + a; if ((a || b) && !roc[r] && E[r] === E[r]) fl = Math.max(fl, E[r] + 1); }
+        const v = D4.map(([a, b]) => E[(j + b) * N + i + a]).map((e) => (e === e ? e : E[q]));
+        const bas = v.filter((e) => e < E[q] - eps), hauts = v.filter((e) => e > E[q] + eps);
+        const arete = (v[0] < E[q] - eps && v[1] < E[q] - eps) || (v[2] < E[q] - eps && v[3] < E[q] - eps);
+        const tranchee = (v[0] > E[q] + eps && v[1] > E[q] + eps) || (v[2] > E[q] + eps && v[3] > E[q] + eps);
+        if (bas.length >= 3 || arete) F[q] = Math.min(E[q], Math.max(fl, ...bas));
+        else if (hauts.length >= 3 || tranchee) F[q] = Math.max(E[q], Math.min(B[q], ...hauts));
+      }
+      E.set(F);
+    }
+    const c = R * N + R;
     return E[c] * LV;
   }
 
