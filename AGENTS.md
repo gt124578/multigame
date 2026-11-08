@@ -230,14 +230,16 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   Relief du dehors en vraie 3D façon HeartGold, par défaut (`odyssee/js/render/falaises.js`, `ReliefHGSS` ; `?relief=plat`
   remet le relief peint à plat, `?relief3d` l'ancien prototype) : modèle des tuiles « Mountain » de HGSS (Pokémon DS Map
   Studio) — un pan logé dans la case où l'on ne marche pas (roche, paroi, arbre ; sinon la plus haute), coins sortants
-  arrondis, coins rentrants en entonnoir, 12 × 12 sommets par case ; un pan de roche monte en étages (`frac`), un par
-  niveau, chacun reculé d'une demi-case sur celui du dessous (moins quand la case est trop étroite pour tous), sa moitié
-  basse presque verticale, sa moitié haute arrondie jusqu'au replat (`bosse`) ; le shader (`matTerrain`, posé par
+  arrondis, coins rentrants en entonnoir, 12 × 12 sommets par case ; la roche se met en terrasses (`terrasse`) : une pente
+  faible à moyenne (trois niveaux au plus d'une case à sa voisine) monte d'un niveau par case, chaque étage reculé d'une
+  case sur celui du dessous ; au-delà c'est une falaise, dont les étages (`frac`) tiennent dans sa case avec un recul
+  faible et régulier ; chaque étage : pan incliné (~63°) puis haut arrondi jusqu'au dessus plat (`bosse`) ; le shader (`matTerrain`, posé par
   `sol.js` sur le sol généré) dessine pixel par pixel une rangée de grosses pierres bombées par étage (`etage`, comme les
   parois de HGSS), la lèvre d'herbe ou de neige, le dessus clair des gradins de roche (dalles), les talus d'herbe ombrés
   du haut vers le pied, les marches, le néant des ravins ; textures générées au chargement (`pierres`, `dalles`, `etage`,
-  biomes `BIOMES`). Grottes (`floor: 'cave'`) : mêmes parois, deux niveaux tout autour du sol, le dessus de la roche est le
-  noir du plafond bordé d'une lèvre claire (`vBord`), roche selon `caveBiome` (biome `grotte` : beige de HGSS). La roche dépasse toujours d'un niveau le sol où l'on marche à côté,
+  biomes `BIOMES`). Grottes (`floor: 'cave'`) : mêmes parois, deux niveaux en terrasses tout autour du sol, le dessus de la
+  roche est un replat de pierre qui fonce vers le cœur du massif (`vBord`), roche selon `caveBiome` (biome `grotte` :
+  beige de HGSS). La roche dépasse toujours d'un niveau le sol où l'on marche à côté,
   et ne monte jamais assez pour cacher les pieds de qui marche au nord (pan nord élargi, sinon niveau plafonné).
   `?r3zoom=Z` élargit la vue (regarder une montagne entière). Le Pic Céleste (`picCeleste` de `region.js`) : montagne
   géante au nord du Plateau Céleste, terrasses de quatre niveaux jusqu'au niveau 60 (la carte des hauteurs du schéma

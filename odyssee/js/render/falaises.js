@@ -269,8 +269,8 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       if (vP.y < 0.0) c *= clamp(1.0 + vP.y / ${(-RAVIN * 0.9).toFixed(4)}, 0.0, 1.0);
       diffuseColor.rgb = diffuse * c * q;
     } else if (f == ${F_ROC} && ${grotte ? 'true' : 'false'}) {
-      // dans une grotte, le dessus de la roche est le noir du plafond, bordé d'une lèvre claire qui s'assombrit (le haut
-      // arrondi de la paroi vu d'en haut, comme dans HGSS) : distance au haut du pan le plus proche
+      // dans une grotte, le dessus de la roche est un replat de pierre, clair au bord (le haut arrondi de la paroi) puis de
+      // plus en plus sombre vers le cœur du massif (l'ombre sous la voûte) : distance au haut du pan le plus proche
       float e = 9.0;
       if (vBord.x > 0.0) e = min(e, fc.y - vBord.x);
       if (vBord.y > 0.0) e = min(e, (1.0 - vBord.y) - fc.x);
@@ -278,7 +278,8 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       if (vBord.w > 0.0) e = min(e, fc.x - vBord.w);
       e += (fHash(vec2(floor(ep.x / 3.0), floor(ep.y / 3.0))) - 0.5) * 0.05;
       vec3 c = fFal(1.0, bio, vec2(vP.x * ${PX}.0, vP.z * ${PX}.0));
-      float k = e < 0.09 ? 1.12 : e < 0.17 ? 0.84 : e < 0.25 ? 0.58 : e < 0.33 ? 0.34 : e < 0.4 && bay < 0.5 ? 0.16 : 0.0;
+      float k = e < 0.08 ? 1.1 : e < 0.3 ? 1.0 : e < 0.55 && bay < 0.6 ? 0.9 : 0.8;
+      if (pd < 0.14) k *= 0.72; else if (pd < 0.3 && bay < 0.55) k *= 0.86;
       diffuseColor.rgb = diffuse * c * k;
     } else if (f == ${F_ROC}) {
       // dessus d'un gradin de roche : la roche plate et claire de HGSS, un peu plus sombre en bas des gradins
@@ -321,7 +322,7 @@ export class ReliefHGSS {
     this.M = 56;   // cases de marge autour de la carte (la région continue au-delà des bords)
     this.LW = map.w + 2 * this.M; this.LH = map.h + 2 * this.M;
     const n = this.LW * this.LH;
-    this.sorte = new Int8Array(n).fill(-1); this.niv = new Float32Array(n); this.bas = new Float32Array(n); this.bio = new Int8Array(n);
+    this.sorte = new Int8Array(n).fill(-1); this.niv = new Float32Array(n); this.brut = new Float32Array(n); this.fait = new Uint8Array(n); this.bas = new Float32Array(n); this.bio = new Int8Array(n);
     this.bords = new Map();   // par case : bords et coins (calculés à la demande)
     this.blocs = new Map();
     this.isHGSS = true;
@@ -350,7 +351,8 @@ export class ReliefHGSS {
     return th === 'snow' ? 2 : th === 'desert' || th === 'canyon' || th === 'beach' ? 3 : th === 'forest' || th === 'foretsombre' ? 4 : 1;
   }
   /** sorte, niveau (unités du monde) d'une case */
-  cell(x, y) {
+  /** sorte et niveau « brut » d'une case (avant les terrasses de la roche) */
+  cellBrut(x, y) {
     const i = this.idx(x, y);
     if (this.sorte[i] < 0) {
       const m = this.m, b = this.base, dans = b.in(x, y), t = m.get(x, y);
@@ -371,9 +373,44 @@ export class ReliefHGSS {
       if (s === ROC) this.niv[i] = this.niveauRoche(x, y, hg) * LV;
       if (s === PAROI) this.niv[i] = this.niveauParoi(x, y, hg) * LV;
       if (s === MARCHE) { const [lo, hi] = this.niveauxMarche(x, y, hg); this.bas[i] = lo * LV; this.niv[i] = hi * LV; }
+      this.brut[i] = this.niv[i];
     }
     return i;
   }
+  /** sorte, niveau (unités du monde) d'une case : la roche en terrasses (terrasse()) */
+  cell(x, y) {
+    const i = this.cellBrut(x, y);
+    if (!this.fait[i]) { this.fait[i] = 1; if (this.sorte[i] === ROC) this.niv[i] = this.terrasse(x, y); }
+    return i;
+  }
+  /** la roche en terrasses, comme les montagnes de HGSS : une pente faible à moyenne (trois niveaux au plus entre une case
+   *  et sa voisine plus basse) monte d'un niveau par case — chaque étage reculé d'une case entière sur celui du dessous ;
+   *  au-delà, c'est une falaise, gardée d'un bloc (ses étages, serrés et réguliers, tiennent dans sa case). Calculé sur
+   *  une fenêtre de 7 × 7 cases autour (la terrasse se propage de proche en proche). */
+  terrasse(x, y) {
+    const R = 3, N = 2 * R + 1, E = new Float32Array(N * N), B = new Float32Array(N * N), roc = new Uint8Array(N * N);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const k = this.cellBrut(x + i - R, y + j - R), s = this.sorte[k], q = j * N + i;
+      if (s === VIDE) { E[q] = NaN; continue; }
+      B[q] = this.brut[k] / LV; roc[q] = s === ROC ? 1 : 0;
+      E[q] = roc[q] ? B[q] : Math.round(B[q] + (s === EAU ? WD / LV : 0));
+    }
+    for (let it = 0; it < 4; it++) for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const q = j * N + i; if (!roc[q]) continue;
+      for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) {
+        if (!a && !b) continue;
+        const ii = i + a, jj = j + b; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue;
+        const e = E[jj * N + ii]; if (!(e === e)) continue;
+        if (B[q] - e <= 3 + 1e-4 && e + 1 < E[q]) E[q] = e + 1;
+      }
+    }
+    // un creux d'une case (les quatre voisins plus hauts) se comble : pas de trou isolé dans un massif
+    const c = R * N + R; let lo = Infinity, plus = 0;
+    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const e = E[(R + b) * N + R + a]; if (e === e && e > E[c] + 1e-4) { plus++; lo = Math.min(lo, e); } }
+    if (plus === 4) E[c] = Math.min(lo, B[c]);
+    return E[c] * LV;
+  }
+
   sorteDe(x, y) { return this.sorte[this.cell(x, y)]; }
   nivDe(x, y) { return this.niv[this.cell(x, y)]; }
   hg(x, y) { const b = this.base; return b.height(Math.max(0, Math.min(b.w - 1, x)), Math.max(0, Math.min(b.h - 1, y))); }
@@ -465,7 +502,7 @@ export class ReliefHGSS {
           // (la caméra regarde vers le nord) ; ailleurs, pan de face large (HGSS), pans de côté étroits (vus de biais)
           const wC = n === 1 ? 0.42 : 0.62;
           const wN = pas(sn) || sn === EAU ? Math.min(0.95, Math.max(wC, dz / LV * KLV - 0.45)) : wC;
-          c = { w: d === 2 ? (n === 1 ? 0.62 : 0.95) : d === 0 ? wN : wC, d: dz, sens: -1, roc: true, n };
+          c = { w: d === 2 ? (n === 1 ? 0.7 : 0.95) : d === 0 ? wN : wC, d: dz, sens: -1, roc: true, n };
         }
         else if (s === PAROI) c = d === 2 ? (herbe ? { w: 1.0, d: dz, sens: -1 } : { w: n === 1 ? 0.7 : 0.95, d: dz, sens: -1, roc: true, n }) : { w: 0.5, d: dz, sens: -1, roc: !herbe, n };
         else if (s === EAU) c = { w: 0.15, d: dz, sens: -1 };
@@ -475,7 +512,7 @@ export class ReliefHGSS {
         // le voisin est plus haut : cette case porte le pan si c'est un obstacle et le voisin un sol où l'on marche
         const dz = Ln - L, n = Math.max(1, Math.round(dz / LV));
         if ((s === ROC || s === ARBRE) && pas(sn) && !(sn === SOL && s === ARBRE && dz < 1.5 * LV)) {
-          c = { w: s === ROC && d === 0 ? (n === 1 ? 0.62 : 0.95) : n === 1 ? 0.42 : 0.62, d: dz, sens: 1, roc: s === ROC || dz > 1.5 * LV, n };
+          c = { w: s === ROC && d === 0 ? (n === 1 ? 0.7 : 0.95) : n === 1 ? 0.42 : 0.62, d: dz, sens: 1, roc: s === ROC || dz > 1.5 * LV, n };
           roche = true;
         }
       }
@@ -694,9 +731,10 @@ export class ReliefHGSS {
 
 /** profil d'une pente douce, de son haut (0) à son pied (1) : presque droit, le haut un peu arrondi */
 function profil(s) { s = Math.max(0, Math.min(1, s)); return s < 0.12 ? s * s / 0.24 : s - 0.06 + 0.06 * (s - 0.12) / 0.88; }
-/** un étage de roche, de son pied (0) à son haut (1), en fraction de sa hauteur : la moitié basse presque verticale, la
- *  moitié haute s'arrondit jusqu'à l'horizontale (un quart d'ellipse : une pierre bombée, comme les parois de HGSS) */
-function bosse(v) { v = Math.max(0, Math.min(1, v)); if (v < 0.25) return 2 * v; const q = (1 - v) / 0.75; return 0.5 + 0.5 * Math.sqrt(Math.max(0, 1 - q * q)); }
+/** un étage de roche, de son pied (0) à son haut (1), en fraction de sa hauteur : un pan incliné (~63°, comme les tuiles
+ *  de HGSS) sur un peu plus de la moitié de sa largeur, puis le haut s'arrondit jusqu'au replat (un quart d'ellipse : une
+ *  pierre bombée) ; le reste de la case est le dessus plat */
+function bosse(v) { v = Math.max(0, Math.min(1, v)); if (v < 0.55) return 0.62 * v / 0.55; const q = (1 - v) / 0.45; return 0.62 + 0.38 * Math.sqrt(Math.max(0, 1 - q * q)); }
 /** hauteur (fraction du dénivelé) d'un pan à la distance u (0 : son pied, 1 : son haut, rapportée à sa largeur) : pente
  *  douce, ou pan de roche en étages — un par niveau, chacun reculé d'une demi-case (ou moins si la case est trop étroite
  *  pour tous) sur celui du dessous, son haut arrondi */
