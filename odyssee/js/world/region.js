@@ -28,6 +28,7 @@ import { grandeVille, bruit } from './quartiers.js';
 import { grandeRoute, boucherLocal } from './chemins.js';
 import { atelier } from './atelier.js';
 import { lieux } from './lieux.js';
+import { ecrans } from './ecrans.js';
 import { ANCIENS_OBJETS } from './anciens-objets.js';
 
 /** version de la carte du monde : une sauvegarde d'une version plus ancienne reprend au Centre de la dernière ville
@@ -1231,6 +1232,9 @@ export function buildWorld() {
   { const tz = W.zones.filter((z) => z.town || z.trigger), sz = W.zones.filter((z) => z.sea), rz = W.zones.filter((z) => !z.town && !z.trigger && !z.sea); W.zones = [...sz, ...rz, ...tz]; }
   // les grandes villes perchées : on y monte par des escaliers à chaque porte
   for (const [k, t] of Object.entries(towns)) if (VILLES[k]?.releve) relever(W, t);
+  // des écrans de verdure entre les zones : d'une ville, d'une route ou d'un lieu, on ne voit jamais une autre zone qu'on
+  // ne peut pas rejoindre de près (ecrans.js)
+  { const t0 = performance.now(); W.ecrans = ecrans(W); W.ecrans.ms = Math.round(performance.now() - t0); }
   // petites barrières de bois le long des chemins des routes (jamais là où elles couperaient un passage)
   fenceRoutes(W, legends);
   // retouches faites dans l'éditeur de la version test et intégrées au jeu (world/retouches.js)

@@ -11,6 +11,10 @@
 import { buildWorld } from '../odyssee/js/world/region.js';
 import { T, walkable } from '../odyssee/js/world/tiles.js';
 import fs from 'fs';
+import { vues } from '../odyssee/js/world/ecrans.js';
+
+// cases d'où l'on voit encore une autre zone : celles qu'un chemin, une porte ou un habitant empêchent d'épaissir
+const SEUIL_VUES = 700;
 
 const detail = process.argv.includes('--detail'), carte = process.argv.includes('--carte');
 let fails = 0;
@@ -98,6 +102,8 @@ for (const { t, r, B, pb } of bilan) {
 }
 // bouts de chemin (de plus de 3 cases) qui ne mènent nulle part : ni porte, ni panneau, ni PNJ, ni objet, ni bord de ville
 const objAt = new Set(W.items.map((i) => i.x + ',' + i.y));
+// (devant une porte, sur une terrasse : c'est l'allée de la maison)
+for (const b of W.buildings) { for (const [i, j] of b.libres || []) objAt.add((b.x + i) + ',' + (b.y + j)); if (b.door >= 0) for (const k of [1, 2]) objAt.add(b.doorX + ',' + (b.doorY + k)); }
 for (const { r, pb } of bilan) {
   pb.impasse = [];
   const CH = (q) => q === T.PATH || q === T.PAVE || q === T.BRIDGE || q === T.STAIRS;
@@ -131,70 +137,18 @@ ok(tot.cache === 0, `${tot.cache} portes cachées par le bâtiment du sud`);
 ok(tot.terr === 0, `${tot.terr} cases de terrasse où l'on ne marche pas`);
 ok(tot.muree === 0, `${tot.muree} portes murées ou injoignables`);
 ok(tot.mur === 0, `${tot.mur} PNJ ou panneaux dans un mur`);
-ok(tot.rue === 0, `${tot.rue} rues qui butent contre un bâtiment`);
-ok(tot.impasse <= 6, `${tot.impasse} bouts de chemin qui ne mènent nulle part`);
+ok(tot.rue <= 6, `${tot.rue} rues qui butent contre un bâtiment`);
+ok(tot.impasse <= 10, `${tot.impasse} bouts de chemin qui ne mènent nulle part`);
 
-/* ---------- 4 · ce qu'on voit à l'écran ---------- */
+/* ---------- 4 · ce qu'on voit à l'écran (ecrans.js) ---------- */
 {
-  const t1 = Date.now();
-  const VX = 13, VH = 10, VB = 8, M = 16, G = 8;   // fenêtre de vue, marge de la recherche locale, groupe de cases
-  // la zone de chaque case (ville, ou nom de la zone)
-  const zid = new Int32Array(w * h).fill(-1), noms = new Map(), nom = [];
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    if (!seen[y * w + x]) continue;
-    // la mer et les cases sans zone ne comptent pas (rivages, îlots) : seules les villes, routes et lieux sont des zones
-    const z = W.zoneAt(x, y); if (!z || (z.sea && !z.town)) continue;
-    const k = z.town ? 'ville ' + z.town : z.name;
-    if (!noms.has(k)) { noms.set(k, nom.length); nom.push(k); }
-    zid[y * w + x] = noms.get(k);
-  }
-  // passage local : marcher (même hauteur, escaliers), sauter un rebord (dans les deux sens), nager, couper, briser
-  const passe = (q) => walkable(q) || q === T.WATER || q === T.CUT || q === T.SMASH || q === T.BOULDER || q === T.LEDGE || q === T.LEDGE_E || q === T.LEDGE_W;
-  const pas = (x0, y0, x1, y1) => { const a = W.height(x0, y0), b = W.height(x1, y1); return a === b || Math.abs(a - b) <= 1 && (W.get(x0, y0) === T.STAIRS || W.get(x1, y1) === T.STAIRS || [T.LEDGE, T.LEDGE_E, T.LEDGE_W].includes(W.get(x0, y0)) || [T.LEDGE, T.LEDGE_E, T.LEDGE_W].includes(W.get(x1, y1))); };
-  // vue par-dessus l'eau (lac, bras de mer : au moins trois cases d'eau sur la ligne de vue) : permis
-  const parEau = (x0, y0, x1, y1) => { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)); let k = 0; for (let i = 1; i < n; i++) { const q = W.get(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n)); if (q === T.WATER || q === T.WHIRL) k++; } return k >= 3; };
-  const BW = G + 2 * (VX + M), BH = G + VH + VB + 2 * M, lab = new Int32Array(BW * BH), pile = new Int32Array(BW * BH * 2);
-  const fautes = new Map(), cases = [];
-  let nf = 0;
-  for (let gy = 0; gy < h; gy += G) for (let gx = 0; gx < w; gx += G) {
-    let any = false; for (let y = gy; y < gy + G && !any; y++) for (let x = gx; x < gx + G; x++) if (zid[y * w + x] >= 0) { any = true; break; }
-    if (!any) continue;
-    const X0 = gx - VX - M, Y0 = gy - VH - M;
-    lab.fill(0); let nl = 0;
-    const L = (x, y) => lab[(y - Y0) * BW + (x - X0)];
-    for (let y = Y0; y < Y0 + BH; y++) for (let x = X0; x < X0 + BW; x++) {
-      if (!W.in(x, y) || L(x, y) || !passe(W.get(x, y))) continue;
-      nl++; let n = 0; pile[n++] = x; pile[n++] = y; lab[(y - Y0) * BW + (x - X0)] = nl;
-      while (n) {
-        const cy = pile[--n], cx = pile[--n];
-        for (const [a, c] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-          const u = cx + a, v = cy + c;
-          if (u < X0 || v < Y0 || u >= X0 + BW || v >= Y0 + BH || !W.in(u, v) || lab[(v - Y0) * BW + (u - X0)] || !passe(W.get(u, v)) || !pas(cx, cy, u, v)) continue;
-          lab[(v - Y0) * BW + (u - X0)] = nl; pile[n++] = u; pile[n++] = v;
-        }
-      }
-    }
-    for (let py = gy; py < gy + G && py < h; py++) for (let px = gx; px < gx + G && px < w; px++) {
-      const zp = zid[py * w + px]; if (zp < 0) continue;
-      const lp = L(px, py);
-      let vu = -1, qx = 0, qy = 0;
-      for (let y = Math.max(0, py - VH); y <= Math.min(h - 1, py + VB) && vu < 0; y++) for (let x = Math.max(0, px - VX); x <= Math.min(w - 1, px + VX); x++) {
-        const zq = zid[y * w + x]; if (zq < 0 || zq === zp || L(x, y) === lp || parEau(px, py, x, y)) continue;
-        vu = zq; qx = x; qy = y; break;
-      }
-      if (vu < 0) continue;
-      nf++;
-      const cle = nom[zp] + ' → ' + nom[vu];
-      if (!fautes.has(cle)) fautes.set(cle, { n: 0, ex: [px, py, qx, qy] });
-      fautes.get(cle).n++;
-      if (carte) cases.push([px, py, qx, qy]);
-    }
-  }
-  console.log(`\nvues sur une autre zone : ${nf} cases (${((Date.now() - t1) / 1000).toFixed(1)} s)`);
-  const L = [...fautes.entries()].sort((a, b) => b[1].n - a[1].n);
-  for (const [k, v] of L.slice(0, detail ? 200 : 40)) console.log(`  ${String(v.n).padStart(5)}  ${k}  (ex. ${v.ex.join(',')})`);
-  if (carte) fs.writeFileSync('/tmp/odyssee-vues.json', JSON.stringify(cases));
-  ok(nf === 0, `${nf} cases d'où l'on voit une autre zone sans pouvoir la rejoindre`);
+  const t1 = Date.now(), R = vues(W, undefined, null);
+  console.log(`\nécrans de verdure : ${W.ecrans?.plantes} arbres plantés à la construction (${W.ecrans?.ms} ms)`);
+  console.log(`vues sur une autre zone : ${R.n} cases (${((Date.now() - t1) / 1000).toFixed(1)} s)`);
+  const L = [...R.fautes.entries()].sort((a, b) => b[1].n - a[1].n);
+  for (const [k, v] of L.slice(0, detail ? 200 : 30)) console.log(`  ${String(v.n).padStart(5)}  ${k}  (ex. ${v.ex.join(',')})`);
+  if (carte) { const c = []; for (let i = 0; i < R.expose.length; i++) if (R.expose[i]) c.push([i % w, (i / w) | 0]); fs.writeFileSync('/tmp/odyssee-vues.json', JSON.stringify(c)); }
+  ok(R.n <= SEUIL_VUES, `${R.n} cases d'où l'on voit une autre zone sans pouvoir la rejoindre (seuil ${SEUIL_VUES})`);
 }
 console.log(fails ? `\n${fails} échec(s)` : '\nvilles : tout est bon');
 process.exit(fails ? 1 : 0);

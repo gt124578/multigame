@@ -1108,6 +1108,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
 
   /* 13. tout relier : chaque porte, chaque habitant et chaque objet rejoint les rues ; les recoins isolés se referment */
   relier(W, TX, TY, TX1, TY1, sorties.length ? sorties.flatMap((q) => q.cells) : [[def.x, def.y]], rue, `${def.id}:h`);
+  emonder(W, TX, TY, TX1, TY1, sorties.map((q) => q.poste));
   return def;
 }
 
@@ -1148,6 +1149,31 @@ function combler(W, X, Y, X1, Y1, o) {
       for (const [a, c] of [[-2, 0], [2, 0]]) o.prop('banc', mx + a, my + c);
       for (const [a, c] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1]]) o.prop(o.arbres[Math.floor(o.r() * o.arbres.length)], a, c);
     }
+  }
+}
+
+/** les bouts de chemin qui ne mènent nulle part (coincés entre des murs, des arbres, des haies, sans porte, panneau,
+ *  habitant ni objet au bout) retournent à la forêt, case par case depuis leur extrémité */
+function emonder(W, X, Y, X1, Y1, postes = []) {
+  const CH = (q) => q === T.PATH || q === T.PAVE;
+  const occupe = new Set([...W.npcs.map((n) => n.x + ',' + n.y), ...W.items.map((i) => i.x + ',' + i.y)]);
+  for (const b of W.buildings) {   // terrasses, deux cases devant chaque porte
+    for (const [i, j] of b.libres || []) occupe.add((b.x + i) + ',' + (b.y + j));
+    if (b.door >= 0) for (const dx of [b.doorX, b.door2X]) if (dx !== undefined) for (const k of [1, 2]) occupe.add(dx + ',' + (b.doorY + k));
+  }
+  for (const [x, y] of postes) occupe.add(x + ',' + y);   // le poste des gardes (et des sbires de l'histoire)
+  const utile = (x, y) => [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, c]) => { const q = W.get(x + a, y + c), k = (x + a) + ',' + (y + c); return q === T.DOOR || q === T.CAVEDOOR || q === T.SIGN || q === T.STAIRS || q === T.BRIDGE || occupe.has(k) || W.warpAt(x + a, y + c) || (walkable(q) && !CH(q)); });
+  let pile = [];
+  for (let y = Y + 1; y < Y1; y++) for (let x = X + 1; x < X1; x++) pile.push([x, y]);
+  for (let tour = 0; tour < 60 && pile.length; tour++) {
+    const suite = [];
+    for (const [x, y] of pile) {
+      if (!CH(W.get(x, y)) || W.gates.some((g) => g.tiles.some(([a, c]) => a === x && c === y))) continue;
+      const v = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([a, c]) => CH(W.get(x + a, y + c)));
+      if (v.length !== 1 || utile(x, y)) continue;
+      W.set(x, y, T.TREE); suite.push([x + v[0][0], y + v[0][1]]);
+    }
+    pile = suite;
   }
 }
 
@@ -1207,7 +1233,7 @@ export function relier(W, X, Y, X1, Y1, departs, rue = T.PATH, prefixe = null) {
       if (dec.has(u + ',' + v) && W.get(u, v) === T.BLOCK) { W.deco = W.deco.filter((d) => d.x !== u || d.y !== v || d.k === 'asph'); W.set(u, v, W.underAt(u, v) ?? rue); dec.delete(u + ',' + v); }
       if (m) W.set(u, v, T.STAIRS); else if (!walkable(W.get(u, v))) { W.set(u, v, rue); W.setHeight(u, v, W.height(x, y)); }
     }
-    if (!walkable(W.get(x, y))) W.set(x, y, rue);
+    if (!walkable(W.get(x, y)) && !W.signs.has(x + ',' + y)) W.set(x, y, rue);
     remplir(x, y); for (const [u, v] of L) remplir(u, v);   // (un habitant ou un objet ne laisse pas passer : on part aussi du chemin)
   }
   // bouts d'herbe isolés : un bosquet
