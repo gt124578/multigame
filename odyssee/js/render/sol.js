@@ -15,6 +15,7 @@
 import * as THREE from 'three';
 import { NFRAMES, LUT, CELL, MARGIN, zoneBloc } from './solgen.js';
 import { matSol } from './relief3d.js';
+import { matTerrain } from './falaises.js';
 
 const CH = 16;                 // taille d'un bloc de carte (comme world3d.js)
 const Y = 0.0044;              // hauteur du nouveau sol (au-dessus des décalques à 0,004, sous les plateaux de roche à 0,0049)
@@ -185,7 +186,7 @@ export class Sol {
     // dessiné juste après l'ancien sol (ordre -3) et avant tout le reste, sans écrire la profondeur : rien ne se bat avec lui
     // relief en 3D (?relief3d, relief3d.js) : le sol est un maillage posé sur les hauteurs, il écrit la profondeur
     const mat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, depthTest: !!r3d, depthWrite: !!r3d });
-    if (r3d) matSol(mat, w, h);
+    if (r3d) (r3d.isHGSS ? matTerrain : matSol)(mat, w, h);
     mat.userData.sol = true; mat.userData.own = true; mat.color.copy(this.view.tint); this.view.tinted.push(mat);
     const x0 = ci * CH, z0 = cj * CH, x1 = x0 + d.bw, z1 = z0 + d.bh;
     let geo;

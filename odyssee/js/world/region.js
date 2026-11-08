@@ -1357,9 +1357,15 @@ function chaine(W, towns) {
     W.set(x, y, T.CAVEWALL); W.setHeight(x, y, H); cells.push([x, y]);
   }
   rochesHautes(W, cells);
-  // 3. la neige des sommets : au-dessus du huitième niveau (la limite des neiges ondule), la roche devient glace (W.neige)
+  // 2 bis. le Pic Céleste : la montagne géante qui domine la Ligue, au nord du Plateau Céleste
+  const pic = J ? picCeleste(W, J, cells) : null;
+  // 3. la neige des sommets : au-dessus du huitième niveau (la limite des neiges ondule), la roche devient glace (W.neige) ;
+  //    sur le Pic Céleste, bien plus haut
   if (!W.neige) W.neige = new Uint8Array(W.w * W.h);
-  for (const [x, y] of cells) if (W.height(x, y) >= 8 - Math.round(bruit(x, y, 13, 51) * 1.4)) W.neige[y * W.w + x] = 1;
+  for (const [x, y] of cells) {
+    const lim = pic && pic.dans(x, y) ? 40 : 8;
+    if (W.height(x, y) >= lim - Math.round(bruit(x, y, 13, 51) * 1.4)) W.neige[y * W.w + x] = 1;
+  }
   // 4. des lacs d'altitude au creux des vallées
   const R0 = rng(4141);
   for (let k = 0, fait = 0; k < 300 && fait < 9; k++) {
@@ -1369,6 +1375,38 @@ function chaine(W, towns) {
     W.blob(x, y, 5 + R0() * 4, 3 + R0() * 2.5, T.WATER, R0, [T.PINE]); fait++;
   }
   W.zones.unshift({ x0: CHAINE[0][0] * BLOC, y0: CHAINE[0][1] * BLOC, x1: (CHAINE[0][2] + 1) * BLOC - 1, y1: (CHAINE[0][3] + 1) * BLOC - 1, name: 'Chaîne Céleste', music: 'route', prio: -1 });
+}
+/** le Pic Céleste : une montagne géante et abrupte au nord du Plateau Céleste (la Ligue). Sa roche monte en hautes
+ *  falaises de quatre niveaux séparées de replats étroits, jusqu'au soixantième niveau (deux niveaux par case en moyenne :
+ *  bien plus raide que le reste de la chaîne) ; des arêtes la découpent ; les pins des vallons qu'elle recouvre deviennent
+ *  roche. On ne la gravit pas : elle se dresse derrière la Ligue, comme le Mont Argenté. Rend { dans(x, y) } (la neige y
+ *  commence plus haut). */
+function picCeleste(W, J, cells) {
+  const cx = J.x + J.w / 2 + 4, cy = J.y - 30, rx = 50, ry = 28, SOMMET = 60;
+  const dans = (x, y) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 < 1;
+  // deux cimes : la grande à l'ouest, une épaule plus basse à l'est ; de larges arêtes en descendent (cinq ou six autour
+  // de chaque cime), séparées de combes : un relief lent, sans aiguilles, que les terrasses découpent en courbes de niveau
+  const cime = (x, y, ox, oy, sx, sy, k, g0) => {
+    const a = Math.atan2(y - oy, (x - ox) * sy / sx), r = Math.hypot((x - ox) / sx, (y - oy) / sy);
+    const arete = 0.5 + 0.5 * Math.cos(a * 5 + g0 + 2.4 * (bruit(a * 1.6 + g0, r * 1.2, 1, 77) - 0.5));
+    return k * (1 - r * (1.18 - 0.36 * arete * Math.min(1, r * 1.6)));
+  };
+  const forme = (x, y) => {
+    const g = Math.max(cime(x, y, cx - 10, cy - 3, rx * 0.8, ry, 1, 0.7), cime(x, y, cx + 24, cy + 4, rx * 0.5, ry * 0.72, 0.72, 2.1)) - 0.06 * (bruit(x, y, 14, 78) - 0.5);
+    return Math.max(0, Math.min(1, g));
+  };
+  for (let y = Math.floor(cy - ry); y <= cy + ry; y++) for (let x = Math.floor(cx - rx); x <= cx + rx; x++) {
+    if (!W.in(x, y) || !dans(x, y)) continue;
+    const t = W.get(x, y);
+    if (walkable(t) || t === T.WATER || t === T.BUILD || t === T.DOOR || (W.monts && W.monts[y * W.w + x])) continue;
+    if (y >= J.y - 1 && x >= J.x - 1 && x <= J.x + J.w) continue;   // le plateau et sa bordure
+    const g = forme(x, y); if (g <= 0.02) continue;
+    // falaises de quatre niveaux dont le bord ondule (bruit)
+    const H = 5 + (SOMMET - 5) * Math.pow(g, 0.85), q = 4, Hq = Math.floor((H + (bruit(x, y, 7, 79) - 0.5) * 2.4) / q) * q;
+    if (t !== T.CAVEWALL) { W.set(x, y, T.CAVEWALL); cells.push([x, y]); }
+    W.setHeight(x, y, Math.max(W.height(x, y), Math.min(SOMMET, Hq)));
+  }
+  return { dans };
 }
 /** hasard fixe d'une case (0..1) */
 function r2(x, y) { let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }

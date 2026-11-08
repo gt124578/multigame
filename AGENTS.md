@@ -227,6 +227,18 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   Touches reçues par les écrans : celles de `odyssee/js/input.js` uniquement (`a`, `b`, flèches, `map`, `menu`…), jamais `space` ni `enter`.
   Rendu : les sprites sont dessinés à l'écran pixel pour pixel, ancrés à leurs pieds
   (shader `screenSprite` de `odyssee/js/render/world3d.js`), les bâtiments prennent la profondeur de leur façade.
+  Relief du dehors en vraie 3D façon HeartGold, par défaut (`odyssee/js/render/falaises.js`, `ReliefHGSS` ; `?relief=plat`
+  remet le relief peint à plat, `?relief3d` l'ancien prototype) : modèle des tuiles « Mountain » de HGSS (Pokémon DS Map
+  Studio) — un niveau = une case de profondeur, un pan incliné (~63°) logé dans la case où l'on ne marche pas (roche,
+  paroi, arbre ; sinon la plus haute), coins sortants arrondis, coins rentrants en entonnoir, 8 × 8 sommets par case ; le
+  shader (`matTerrain`, posé par `sol.js` sur le sol généré) dessine pixel par pixel les pans de roche (bande lèvre /
+  pierres pentues / pied sombre, une strate par niveau, un pixel de texture par pixel d'écran), le dessus clair des gradins
+  de roche (dalles), les talus d'herbe ombrés du haut vers le pied, les marches, le néant des ravins ; textures générées
+  au chargement (`pierres`, `dalles`, biomes `BIOMES`). La roche dépasse toujours d'un niveau le sol où l'on marche à côté,
+  et ne monte jamais assez pour cacher les pieds de qui marche au nord (pan nord élargi, sinon niveau plafonné).
+  `?r3zoom=Z` élargit la vue (regarder une montagne entière). Le Pic Céleste (`picCeleste` de `region.js`) : montagne
+  géante au nord du Plateau Céleste, terrasses de quatre niveaux jusqu'au niveau 60 (la carte des hauteurs du schéma
+  plafonne l'affichage à 13 ; une case non retouchée garde sa hauteur).
   Prototype de sol en vrai relief, seulement avec `?relief3d` dans l'adresse (`odyssee/js/render/relief3d.js`) : hauteurs
   fines (4 × 4 sommets par case) tirées des niveaux du jeu, sol généré posé dessus, parois striées plaquées comme vues de la
   caméra, projection orthographique calée sur les pixels ; réglages `r3k` (hauteur d'un niveau), `r3t` (seuil des parois),

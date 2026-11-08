@@ -32,8 +32,13 @@ const SOLS = new Set([K.G, K.GF, K.SN, K.AS, K.SA, K.FA, K.GR, K.MO, K.RC]);
  *  d'un talus d'herbe sont du chemin, la roche des montagnes du dehors a son sol de roche. Réglé par world3d.js. */
 let RELIEF3D = false;
 export function setRelief3dSol(v) { RELIEF3D = !!v; }
+/** relief façon HeartGold (falaises.js) : les pentes et les falaises sont en 3D, le sol généré n'a plus de talus peints ;
+ *  les marches sont du chemin (le relief les dessine). Réglé par world3d.js. */
+let HGSS = false;
+export function setReliefHGSSSol(v) { HGSS = !!v; }
 /** sorte d'une case de la carte du jeu (K.X : le jeu garde son propre sol) */
 export function sorteCase(m, x, y) {
+  if (HGSS && m.outdoor && m.get(x, y) === T.STAIRS) return m.zoneAt?.(x, y)?.theme === 'snow' ? K.SN : K.P;
   if (RELIEF3D && m.outdoor) {
     const t = m.get(x, y), th = m.zoneAt?.(x, y)?.theme, dans = x >= 0 && y >= 0 && x < m.w && y < m.h;
     const monts = dans && m.monts && m.monts[y * m.w + x];
@@ -97,7 +102,7 @@ export function zoneBloc(m, ci, cj, CH = 16) {
   const kinds = new Uint8Array(zw * zh);
   for (let y = 0; y < zh; y++) for (let x = 0; x < zw; x++) kinds[y * zw + x] = sorteCase(m, zx0 + x, zy0 + y);
   let rel = null;
-  if (m.outdoor && m.pentes && !RELIEF3D) {
+  if (m.outdoor && m.pentes && !RELIEF3D && !HGSS) {
     rel = new Uint8Array(zw * zh); let any = false;
     for (let y = 0; y < zh; y++) for (let x = 0; x < zw; x++) { const v = reliefCase(m, zx0 + x, zy0 + y); rel[y * zw + x] = v; if (v & REL.HERBE) any = true; }
     if (!any) rel = null;

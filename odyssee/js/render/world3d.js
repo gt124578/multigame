@@ -12,7 +12,8 @@ import { WeatherSystem } from './weather3d.js';
 import { choisirModele, geometriesModele, couleurBase, EMPRISES } from './bati-jeu.js';
 import { dessinHerbe, imageHerbe, NIMAGES, MARGE as HERBE_M, HAUTEUR as HERBE_H } from './herbes.js';
 import { Relief3D, relief3dActif, matParoi, matFacettes, facettesActives, matPente, matsPente, LV as R3LV } from './relief3d.js';
-import { setRelief3dSol } from './solgen.js';
+import { setRelief3dSol, setReliefHGSSSol } from './solgen.js';
+import { ReliefHGSS, reliefHGSSActif } from './falaises.js';
 
 export const EL = 55 * Math.PI / 180, FOV = 13;
 
@@ -441,10 +442,13 @@ export class WorldView {
     this.ombre = 1; this.ombreCible = 1; this.tintBase = [1, 1, 1];
     this.animFrame = 0; this.animT = 0;
     this.sol = new Sol(this);   // sol en pixel art généré, posé sur chaque bloc (sol.js)
-    // PROTOTYPE (?relief3d) : le sol du dehors en vrai relief (relief3d.js) ; sans le paramètre, rien ne change
-    this.r3dOn = relief3dActif() && this.sol.on; this.r3d = null;
+    // le sol du dehors en vrai relief : façon HeartGold (falaises.js, par défaut) ou l'ancien prototype (?relief3d,
+    // relief3d.js) ; ?relief=plat garde le relief peint à plat
+    this.r3dHGSS = reliefHGSSActif() && !relief3dActif();
+    this.r3dOn = (relief3dActif() || this.r3dHGSS) && this.sol.on; this.r3d = null;
     this.r3dOrtho = this.r3dOn && !/[?&]r3persp\b/.test(globalThis.location?.search || '');
-    if (this.r3dOn) setRelief3dSol(true);
+    if (this.r3dOn && !this.r3dHGSS) setRelief3dSol(true);
+    if (this.r3dOn && this.r3dHGSS) setReliefHGSSSol(true);
     this.focus = new THREE.Vector3(); this.shake = 0;
     this.actors = new Map();
     this.root = null;
@@ -470,8 +474,8 @@ export class WorldView {
     this.map = map; this.root = new THREE.Group(); this.scene.add(this.root);
     this.chunks = new Map(); this.glows = new THREE.Group(); this.root.add(this.glows);
     this.sol.setMap(map);
-    this.r3d = this.r3dOn && map.outdoor && this.sol.couvre(map) ? new Relief3D(map) : null;
-    if (this.r3d && !this.tinted.includes(matParoi())) this.tinted.push(matParoi(), matFacettes());
+    this.r3d = this.r3dOn && map.outdoor && this.sol.couvre(map) ? (this.r3dHGSS ? new ReliefHGSS(map) : new Relief3D(map)) : null;
+    if (this.r3d && !this.r3dHGSS && !this.tinted.includes(matParoi())) this.tinted.push(matParoi(), matFacettes());
     for (const e of this.herbes?.values() || []) e.tex?.dispose(); this.herbes = new Map();   // herbes de devant (herbes.js)
     this.decoAt = new Map(); for (const d of map.deco) this.decoAt.set(d.x + ',' + d.y, d);
     this.tiers = map.outdoor ? null : caveTiers(map); this.biome = caveBiome(map);
@@ -1443,7 +1447,10 @@ export class WorldView {
     if (this.r3d && this.r3dOrtho) {
       // relief en 3D : projection orthographique (32 px par case, comme la perspective au centre de l'écran) ; un pas
       // de la caméra décale toute l'image d'un nombre entier de pixels, le sol ne « nage » pas en marchant
-      const u = SPRITE_UNIFORMS.uRes.value, l = -u.x / 64, t = u.y * Math.sin(EL) / 64, n = 1, f = 2000;
+      // (?r3zoom=Z : vue Z fois plus large, pour regarder une montagne entière ; les sprites rapetissent d'autant)
+      const z = this.r3zoom ??= Math.max(1, +(new URLSearchParams(globalThis.location?.search || '').get('r3zoom')) || 1);
+      if (z > 1) { SPRITE_UNIFORMS.uEch.value = z; this.rayon = Math.max(this.rayon || 2, Math.ceil(2 * z + 1)); }
+      const u = SPRITE_UNIFORMS.uRes.value, l = -u.x / 64 * z, t = u.y * Math.sin(EL) / 64 * z, n = 1, f = 4000;
       this.camera.projectionMatrix.set(2 / (2 * -l), 0, 0, 0, 0, 2 / (2 * t), 0, 0, 0, 0, -2 / (f - n), -(f + n) / (f - n), 0, 0, 0, 1);
       this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
       this._ortho = true;
