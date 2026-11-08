@@ -149,23 +149,32 @@ function etage(seed) {
   for (let i = 0; i < W; i++) { px[(H - 1) * W + i] = 0; if (hash(i, 7, seed) < 0.7) px[(H - 2) * W + i] = Math.max(0, px[(H - 2) * W + i] - 2); }   // ombre de contact
   return px;
 }
-/** dessus d'un gradin de roche (64 × 64, raccord) : dalles douces aux joints un peu plus sombres, quelques grains */
+/** dessus d'un gradin de roche (64 × 64 texels, raccord ; un texel = 2 pixels d'écran, comme les tuiles de HGSS agrandies) :
+ *  des bosses de roche arrondies en losange, posées en quinconce sur des diagonales (comme la roche plate de HGSS), chacune
+ *  éclairée en haut à gauche et ombrée en bas à droite, séparées de joints plus sombres ; tailles et places un peu au hasard */
 function dalles(seed) {
   const px = new Uint8Array(TX * TX), pts = [];
-  for (let k = 0; k < 22; k++) pts.push([hash(k, 1, seed) * TX, hash(k, 2, seed) * TX, hash(k, 3, seed) < 0.18 ? 3 : hash(k, 3, seed) < 0.75 ? 4 : 5]);
+  const R = (() => { let s = seed >>> 0; return () => ((s = Math.imul(s ^ (s >>> 15), 2246822507) + 0x9e3779b9 | 0) >>> 0) / 4294967296; })();
+  // un réseau en quinconce tourné de 45° (pas de 9 texels), un peu déformé
+  const P = 9;
+  for (let j = 0; j < TX / P * 2; j++) for (let i = 0; i < TX / P; i++) {
+    pts.push([(i * P + (j % 2) * P / 2 + (R() - 0.5) * 3) % TX, (j * P / 2 + (R() - 0.5) * 3) % TX, 0.8 + R() * 0.45, R() < 0.3 ? 3 : R() < 0.85 ? 4 : 5]);
+  }
   for (let y = 0; y < TX; y++) for (let x = 0; x < TX; x++) {
-    let d1 = 1e9, d2 = 1e9, c = 4;
-    for (const [a, b, cc] of pts) for (const ox of [-TX, 0, TX]) for (const oy of [-TX, 0, TX]) {
-      const dx = x - a - ox, dy = (y - b - oy) * 1.3, d = Math.sqrt(dx * dx + dy * dy);
-      if (d < d1) { d2 = d1; d1 = d; c = cc; } else if (d < d2) d2 = d;
+    let d1 = 1e9, d2 = 1e9, best = null, ox = 0, oy = 0;
+    for (const p of pts) for (const sx of [-TX, 0, TX]) for (const sy of [-TX, 0, TX]) {
+      const dx = x + 0.5 - p[0] - sx, dy = y + 0.5 - p[1] - sy;
+      // distance « losange » (norme 1 dans le repère tourné de 45°, adoucie) divisée par la taille de la bosse
+      const u = (dx + dy) * 0.7071, v = (dy - dx) * 0.7071, d = (Math.abs(u) ** 1.6 + Math.abs(v) ** 1.6) ** (1 / 1.6) / p[2];
+      if (d < d1) { d2 = d1; d1 = d; best = p; ox = dx; oy = dy; } else if (d < d2) d2 = d;
     }
-    // joints : un pixel plus sombre que la dalle, interrompus ; la lumière sur le bord haut-gauche de chaque dalle
-    let v = c;
-    if (d2 - d1 < 1.0 && hash(Math.floor(x / 3), Math.floor(y / 3), seed + 4) < 0.8) v = Math.max(2, c - 1);
-    else if (d2 - d1 < 2.2 && hash(x, y, seed) < 0.3) v = Math.min(5, c + 1);
-    if (hash(x, y, seed + 9) < 0.03) v = Math.max(1, v - 2);
-    else if (hash(x, y, seed + 11) < 0.04) v = Math.min(5, v + 1);
-    px[y * TX + x] = v;
+    let c = best[3];
+    const lum = -(ox + oy) / (P * 0.6 * best[2]);                 // > 0 vers le haut à gauche
+    if (lum > 0.45) c += 1; else if (lum < -0.35) c -= 1;
+    if (d2 - d1 < 0.9) c = 2;                                     // le joint
+    else if (d2 - d1 < 1.8 && lum < 0) c = Math.min(c, 3);
+    if (hash(x, y, seed + 9) < 0.04) c -= 1;
+    px[y * TX + x] = Math.max(1, Math.min(5, c));
   }
   return px;
 }
@@ -176,10 +185,12 @@ function atlas() {
   const n = BIOMES.length, c = document.createElement('canvas'); c.width = TX * 3; c.height = TX * n;
   const g = c.getContext('2d'), im = g.createImageData(TX * 3, TX * n);
   BIOMES.forEach((b, k) => {
-    const pf = FACE[b].map(rgb), pd = DESSUS[b].map(rgb), A = pierres(101 + k * 37), D = dalles(203 + k * 41);
+    const pf = FACE[b].map(rgb), pd = DESSUS[b].map(rgb), A = new Uint8Array(TX * TX), D = dalles(203 + k * 41);
     const E = new Uint8Array(TX * TX); E.set(etage(307 + k * 43)); E.set(etage(409 + k * 47), TX * 32);   // deux étages
+    // tuile 0 : le nuancier du biome (six teintes de pan sur les 32 premières rangées, six de dessus dessous), lu par fPal
+    for (let y = 0; y < TX; y++) for (let x = 0; x < TX; x++) A[y * TX + x] = Math.min(5, Math.floor(x / 10));
     for (let y = 0; y < TX; y++) for (let x = 0; x < TX; x++) {
-      for (const [ox, src, pal] of [[0, A, pf], [TX, D, pd], [TX * 2, E, pf]]) {
+      for (const [ox, src, pal] of [[0, A, y < 32 ? pf : pd], [TX, D, pd], [TX * 2, E, pf]]) {
         const o = ((k * TX + y) * TX * 3 + ox + x) * 4, cc = pal[src[y * TX + x]];
         im.data[o] = cc[0]; im.data[o + 1] = cc[1]; im.data[o + 2] = cc[2]; im.data[o + 3] = 255;
       }
@@ -227,6 +238,8 @@ vec3 fFal(float tuile, float b, vec2 q) {
   q = mod(floor(q), ${TX}.0);
   return texture2D(uFal, vec2((q.x + tuile * ${TX}.0 + 0.5) / ${TX * 3}.0, (q.y + b * ${TX}.0 + 0.5) / ${(TX * A.n).toFixed(1)})).rgb;
 }
+// une teinte du nuancier d'un biome : pans (0 sombre … 5 clair) ou dessus
+vec3 fPal(float b, float i, bool dessus) { return fFal(0.0, b, vec2(clamp(floor(i + 0.5), 0.0, 5.0) * 10.0 + 5.0, dessus ? 40.0 : 8.0)); }
 ${glslCouleurs(LEVRES)}
 vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
   ${LEVRES.map((p, i) => p ? `if (k < ${i}.5) return lev${i}[j];` : '').join(' ')} return lev1[j]; }`)
@@ -311,7 +324,7 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
           if (t2.a > 0.5) { diffuseColor.rgb = diffuse * t2.rgb; lu = true; }
         }
       }
-      if (!lu) diffuseColor.rgb = diffuse * fFal(1.0, bio, vec2(vP.x * ${PX}.0, vP.z * ${PX}.0));
+      if (!lu) diffuseColor.rgb = diffuse * fFal(1.0, bio, floor(vec2(vP.x, vP.z) * ${PX / 2}.0));
       float ao = clamp((best < 1e8 ? best : 0.5) * 0.5 / 0.35, 0.0, 1.0);
       diffuseColor.rgb *= ao > 0.66 + (bay - 0.5) * 0.2 ? 0.76 : ao > 0.33 + (bay - 0.5) * 0.2 ? 0.88 : 1.0;
       diffuseColor.a = 1.0;
@@ -332,8 +345,39 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       // s'éclaircit à mesure que la pente tourne vers le ciel
       bool rond = top - bas < 1.5 * LVv;
       float ur = rond ? asin(clamp(t, 0.0, 1.0)) / 1.5707963 : t;
-      float ve = clamp(floor((1.0 - ur) * 32.0), 0.0, 31.0);
-      vec3 c = fFal(2.0, bio, vec2(ep.x + k * 23.0, ve + mod(k, 2.0) * 32.0));
+      // la roche de HGSS, dessinée au texel près (un texel = 2 pixels d'écran) : des lobes de roche de 5 à 8 texels, à la
+      // tête arrondie et claire, éclairés à gauche ; entre eux, des fentes sombres en triangle qui naissent sous la tête et
+      // s'élargissent vers le bas ; le pied sombre. Tout est tiré de la colonne et de l'étage : organique, sans raccord.
+      float He = rond ? 12.0 : clamp(rangs / 2.0, 5.0, 48.0);       // hauteur de l'étage, en texels
+      float tx = floor(ep.x / 2.0) + k * 37.0, r = floor((1.0 - ur) * He);
+      float i0 = floor(tx / 7.5), lid = i0, dmin = 1e9;
+      for (int d = -1; d <= 1; d++) {
+        float ii = i0 + float(d), cc = ii * 7.5 + (fHash(vec2(ii, 11.0)) - 0.5) * 3.0, dd = abs(tx + 0.5 - cc);
+        if (dd < dmin) { dmin = dd; lid = ii; }
+      }
+      float cC = lid * 7.5 + (fHash(vec2(lid, 11.0)) - 0.5) * 3.0;
+      float cL = (lid - 1.0) * 7.5 + (fHash(vec2(lid - 1.0, 11.0)) - 0.5) * 3.0, cR = (lid + 1.0) * 7.5 + (fHash(vec2(lid + 1.0, 11.0)) - 0.5) * 3.0;
+      float bL = (cL + cC) * 0.5, bR = (cC + cR) * 0.5, X = tx + 0.5;
+      float u = clamp((X - bL) / max(bR - bL, 1.0), 0.0, 1.0), db = min(X - bL, bR - X);
+      float bid = X - bL < bR - X ? lid - 1.0 : lid;                 // la fente la plus proche (à gauche ou à droite)
+      float apex = He * (0.18 + 0.32 * fHash(vec2(bid, 5.0)));
+      float cw = pow(max(0.0, (r - apex) / max(He - apex, 1.0)), 0.8) * (1.6 + 1.6 * fHash(vec2(bid, 8.0))) + (fHash(vec2(tx, r)) - 0.5) * 0.8;
+      float tete = (1.2 + 1.8 * fHash(vec2(lid, 3.0))) * (1.0 - sqrt(max(0.0, 1.0 - (2.0 * u - 1.0) * (2.0 * u - 1.0))));
+      float ic;
+      bool dessusLobe = false;
+      if (r < tete) { dessusLobe = true; ic = 4.0; }                 // au-dessus de la tête : le replat
+      else if (db < cw) ic = r > He - 3.0 ? 0.0 : 1.0;              // la fente
+      else {
+        ic = u < 0.32 ? 4.0 : u > 0.7 ? 2.0 : 3.0;                   // le lobe : gauche éclairé, droite dans l'ombre
+        if (u > 0.5 && r > He * 0.55) ic = min(ic, 2.0);             // le bas du lobe, côté droit, dans l'ombre
+        if (r < tete + 2.0) ic = u > 0.78 ? 3.0 : 5.0;               // la tête claire et arrondie
+        else if (r < tete + 3.0 && u < 0.6) ic = 4.0;
+        if (db < cw + 1.0 && u > 0.5) ic = min(ic, 2.0);             // le bord ombré de la fente
+        if (r > He - 2.5) ic = min(ic, 1.0);                         // le pied
+        float g = fHash(vec2(tx * 1.7, r * 2.3));
+        if (g < 0.06) ic -= 1.0; else if (g > 0.95 && ic < 4.0) ic += 1.0;
+      }
+      vec3 c = dessusLobe ? fFal(1.0, bio, floor(vec2(vP.x, vP.z) * ${PX / 2}.0)) : fPal(bio, ic, false);
       float lh = 1.0 + floor(fHash(vec2(floor(col / 3.0), 3.0)) * 2.0) + floor(fHash(vec2(floor(col / 7.0), 5.0)) * 2.0);
       if (duHaut < lh && levre > 0.5) {
         // la lèvre : herbe, neige, sable qui débordent en haut du pan
@@ -342,10 +386,7 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       }
       if (rond) {
         // les côtes s'estompent en montant, et le haut de la pente se fond dans le dessus (la pierre roule jusqu'au replat)
-        float m = clamp((ur - 0.62) / 0.38 + (bay - 0.5) * 0.25, 0.0, 1.0);
-        vec3 dessus = f == ${F_ROC} ? fFal(1.0, bio, vec2(vP.x * ${PX}.0, vP.z * ${PX}.0)) : c;
-        c = mix(c, dessus, floor(m * 3.0) / 3.0 * 0.85);
-        c *= ur + (bay - 0.5) * 0.12 < 0.2 ? 0.72 : ur < 0.42 ? 0.84 : ur < 0.66 ? 0.94 : ur < 0.86 ? 1.02 : 1.08;
+        c *= ur + (bay - 0.5) * 0.12 < 0.2 ? 0.8 : ur < 0.45 ? 0.9 : ur < 0.75 ? 0.97 : 1.03;
       }
       // pied : sombre au contact du sol
       if (duPied < 1.0) c *= 0.72; else if (duPied < 3.0 && bay < 0.5) c *= 0.86;
@@ -364,13 +405,13 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       if (vBord.z > 0.0) e = min(e, (1.0 - vBord.z) - fc.y);
       if (vBord.w > 0.0) e = min(e, fc.x - vBord.w);
       e += (fHash(vec2(floor(ep.x / 3.0), floor(ep.y / 3.0))) - 0.5) * 0.05;
-      vec3 c = fFal(1.0, bio, vec2(vP.x * ${PX}.0, vP.z * ${PX}.0));
+      vec3 c = fFal(1.0, bio, floor(vec2(vP.x, vP.z) * ${PX / 2}.0));
       float k = e < 0.08 ? 1.1 : e < 0.3 ? 1.0 : e < 0.55 && bay < 0.6 ? 0.9 : 0.8;
       if (pd < 0.14) k *= 0.72; else if (pd < 0.3 && bay < 0.55) k *= 0.86;
       diffuseColor.rgb = diffuse * c * k;
     } else if (f == ${F_ROC}) {
       // dessus d'un gradin de roche : la roche plate et claire de HGSS, un peu plus sombre en bas des gradins
-      vec3 c = fFal(1.0, bio, vec2(vP.x * ${PX}.0, vP.z * ${PX}.0)) * lis;
+      vec3 c = fFal(1.0, bio, floor(vec2(vP.x, vP.z) * ${PX / 2}.0)) * lis;
       if (pd < 0.14) c *= 0.72; else if (pd < 0.3 && bay < 0.55) c *= 0.86;
       diffuseColor.rgb = diffuse * c * (raide ? q : 1.0);
     } else if (f == ${F_MARCHE}) {
