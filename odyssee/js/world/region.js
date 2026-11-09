@@ -30,7 +30,7 @@ import { LARGEUR, HAUTEUR, BLOC, VILLES, TERR, TORII, LUNAIRE, CHAINE, porte, ar
 import { grandeVille, bruit } from './quartiers.js';
 import { grandeRoute, boucherLocal } from './chemins.js';
 import { atelier } from './atelier.js';
-import { lieux, faconnerImpasses } from './lieux.js';
+import { lieux, faconnerImpasses, panneauxDesLieux } from './lieux.js';
 import { ecrans } from './ecrans.js';
 import { rythme } from './rythme.js';
 import { grotteDuCol } from './grottes.js';
@@ -1250,6 +1250,8 @@ export function buildWorld() {
   // des écrans de verdure entre les zones : d'une ville, d'une route ou d'un lieu, on ne voit jamais une autre zone qu'on
   // ne peut pas rejoindre de près (ecrans.js)
   { const t0 = performance.now(); W.ecrans = ecrans(W); W.ecrans.ms = Math.round(performance.now() - t0); }
+  // un panneau au départ du sentier de chaque lieu habité (hameau, ferme, verger)
+  W.panneauxLieux = panneauxDesLieux(W);
   // le rythme des routes (rythme.js) : raccourcis à sens unique et rebords à sauter, objets cachés, panneaux aux deux bouts
   { const t0 = performance.now(); W.rythme = rythme(W, routes); W.rythme.ms = Math.round(performance.now() - t0); }
   // petites barrières de bois le long des chemins des routes (jamais là où elles couperaient un passage)

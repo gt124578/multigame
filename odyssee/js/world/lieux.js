@@ -44,6 +44,7 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
   }
   const occ = new Set([...W.npcs.map((n) => n.x + ',' + n.y), ...W.items.map((i) => i.x + ',' + i.y)]);
   let nLieux = 0, nFond = 0;
+  const carrefours = [];   // les départs des sentiers des lieux habités : un panneau, posé après coup (le tirage ne bouge pas)
   for (let rr = 0; rr < R; rr++) for (let c = 0; c < C; c++) {
     if (!libre[rr * C + c]) continue;
     const bx = c * B, by = rr * B, cx = bx + 12, cy = by + 12;
@@ -64,6 +65,7 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
     if (depart && bd < 26) { if (lieu(id, c, rr, depart)) { nLieux++; libre[rr * C + c] = 2; continue; } }
     nFond++;
   }
+  W.carrefours = carrefours;   // leurs panneaux sont posés après les écrans de verdure (panneauxDesLieux)
   fondDePaysage();
   plages();
   return { lieux: nLieux, fond: nFond };
@@ -161,6 +163,7 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
     // le sentier s'élargit un peu (bords d'herbe)
     for (const [x, y] of s4) for (const [a, b] of N4) if (FORET(W.get(x + a, y + b)) && bruit(x + a, y + b, 2, 31) > 0.5 && (dedans(x + a, y + b) || Math.floor((x + a) / B) !== c || Math.floor((y + b) / B) !== rr)) W.set(x + a, y + b, T.GRASS);
     W.zone(bx, by, bx + B - 1, by + B - 1, { name: NOMS[kind] ? NOMS[kind][(c * 7 + rr * 3) % NOMS[kind].length] : z.name, music: z.music, enc: z.enc, theme: z.theme, route: z.route, prio: 0, ombre: z.ombre });
+    if (kind === 'hameau' || kind === 'ferme' || kind === 'verger') carrefours.push({ D, s4, nom: NOMS[kind]?.[(c * 7 + rr * 3) % NOMS[kind].length] || 'Verger', kind });
     let no = 0, np = 0;
     const rang = rangRoute(z.route), LOTS = lotsLieu(rang);
     const objet = (x, y, item = pick(LOTS)) => { const p = proche(x, y); if (p) { W.item(p[0], p[1], adapter(item, rang), 1, `${id}:o${no++}`); occ.add(p.join(',')); } };
@@ -274,6 +277,42 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
           : ['hameau', 'ferme', 'lac', 'colline', 'verger', 'ruines', 'prairie', 'marais', 'cabane', 'campement', 'source', 'hameau', 'lac', 'ferme'];
     return pick(L);
   }
+}
+
+/** les panneaux au départ des sentiers des lieux habités (après les écrans de verdure, qui ne doivent pas en tenir compte) */
+export function panneauxDesLieux(W) {
+  // au départ du sentier d'un lieu habité (hameau, ferme, verger) : un panneau au bord de la route, comme aux carrefours
+  // de HeartGold ; les lieux secrets (lac, ruines, source…) n'en ont pas, on les découvre
+  const occ = new Set([...W.npcs.map((n) => n.x + ',' + n.y), ...W.items.map((i) => i.x + ',' + i.y), ...W.objects.keys()]);
+  let n = 0;
+  for (const { D, s4, nom, kind } of W.carrefours || []) {
+    const s0 = new Set(s4.slice(0, 6).map(([x, y]) => x + ',' + y));
+    // le panneau ne coupe rien : autour de lui (15 × 15 cases), le sol praticable reste d'un seul tenant
+    const morceaux = (x0, y0) => {
+      const vu = new Set(); let n = 0;
+      for (let j = -7; j <= 7; j++) for (let i = -7; i <= 7; i++) {
+        const x = x0 + i, y = y0 + j, k = x + ',' + y; if (vu.has(k) || !walkable(W.get(x, y))) continue;
+        n++; vu.add(k); const q = [[x, y]];
+        while (q.length) { const [a, b] = q.pop(); for (const [dx, dy] of N4) { const u = a + dx, v = b + dy, kk = u + ',' + v; if (vu.has(kk) || Math.abs(u - x0) > 7 || Math.abs(v - y0) > 7 || !walkable(W.get(u, v)) || !W.canStep(a, b, u, v)) continue; vu.add(kk); q.push([u, v]); } }
+      }
+      return n;
+    };
+    const relie = (x, y) => { const avant = morceaux(x, y), t0 = W.get(x, y); W.set(x, y, T.SIGN); const apres = morceaux(x, y); W.set(x, y, t0); return apres <= avant; };
+    const cands = [];
+    for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) {
+      const x = D.x + i, y = D.y + j, t = W.get(x, y); if (!(t === T.GRASS || t === T.FLOWER) || s0.has(x + ',' + y) || occ.has(x + ',' + y) || W.warpAt(x, y)) continue;
+      // à côté du sentier (pas dessus)
+      if (!N4.some(([a, b]) => s0.has((x + a) + ',' + (y + b)) || (x + a === D.x && y + b === D.y))) continue;
+      const libres = N4.filter(([a, b]) => walkable(W.get(x + a, y + b))).length; if (libres < 2 || libres > 3) continue;
+      cands.push([Math.abs(i) + Math.abs(j), x, y]);
+    }
+    cands.sort((a, b) => a[0] - b[0] || a[2] - b[2] || a[1] - b[1]);
+    const best = cands.map(([, x, y]) => [x, y]).find(([x, y]) => relie(x, y));
+    if (!best) continue;
+    W.sign(best[0], best[1], `${nom.toUpperCase()}\n${kind === 'ferme' ? 'Produits de la ferme, par ici.' : kind === 'verger' ? 'Baies offertes aux voyageurs.' : 'Hameau. Voyageurs bienvenus.'}`);
+    occ.add(best.join(',')); n++;
+  }
+  return n;
 }
 
 /**
