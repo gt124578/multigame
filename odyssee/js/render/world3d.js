@@ -447,6 +447,15 @@ function flat(G, x0, z0, x1, z1, y, cell, shade = 1) {
   // la texture regarde vers le haut : haut de la tuile = nord (z0)
   G.quad([x0, y, z1], [x1, y, z1], [x1, y, z0], [x0, y, z0], cell[0], cell[1], cell[2], cell[3], shade);
 }
+/** case à plat dont le dessin est tourné de r quarts de tour (et retourné si m) */
+function flatTourne(G, x, z, y, cell, r, m) {
+  const [u0, v0, u1, v1] = cell;
+  let uv = [[u0, v1], [u1, v1], [u1, v0], [u0, v0]];   // coins sud-ouest, sud-est, nord-est, nord-ouest
+  if (m) uv = [uv[1], uv[0], uv[3], uv[2]];
+  for (let k = 0; k < r; k++) uv = [uv[1], uv[2], uv[3], uv[0]];
+  const P = [[x, y, z + 1], [x + 1, y, z + 1], [x + 1, y, z], [x, y, z]];
+  G.quadv(P, uv, [1, 1, 1, 1]);
+}
 /** boîte : faces sud / est / ouest / dessus */
 function box(G, x0, z0, x1, z1, h, front, top, side = front, o = {}) {
   if (o.south !== false) G.quad([x0, 0, z1], [x1, 0, z1], [x1, h, z1], [x0, h, z1], front[0], front[1], front[2], front[3], 1);
@@ -993,7 +1002,8 @@ export class WorldView {
         const ha = ns ? !pt(x - 1, y) : !pt(x, y - 1), ba = ns ? !pt(x + 1, y) : !pt(x, y + 1), tex = A[`pont_rouge_${ns ? 'ns' : 'ew'}_${(ha ? 1 : 0) | (ba ? 2 : 0)}`];
         if (tex && (ha || ba)) flat(O0, x - (ns ? 0 : 0.02), y - (ns ? 0.02 : 0), x + 1 + (ns ? 0 : 0.02), y + 1 + (ns ? 0.02 : 0), 0.0051, tex);
       }
-      if (this.decoAt.get(x + ',' + y)?.k === 'koi') flat(NO, x, y, x + 1, y + 1, 0.0055, this.N.cells.koi);
+      // carpes koï : chaque case du bassin tourne et retourne le dessin (les carpes ne nagent plus toutes en rang, au pas)
+      if (this.decoAt.get(x + ',' + y)?.k === 'koi') { const c = this.N.cells.koi, q = Math.floor(hash(x * 5 + 1, y * 9 + 4) * 8); flatTourne(NO, x + (hash(x * 3 + 7, y) - 0.5) * 0.6, y + (hash(x, y * 3 + 5) - 0.5) * 0.6, 0.0055, c, q & 3, q >> 2); }
       // décor en volume
       if (t === T.TREE || t === T.PINE) {
         // forêts rangées comme sur DS : un arbre par bloc de 2 × 2 cases, les rangées se chevauchent un peu ;
