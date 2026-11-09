@@ -265,10 +265,10 @@ function routeRythme(W, R, res, occ, ids, ctx) {
   for (let y = box[1]; y <= box[3]; y++) for (let x = box[0]; x <= box[2]; x++) {
     // une case à fouiller : rocher ou arbre, touchée par une case atteinte (et dont on revient)
     const t = W.get(x, y);
-    if (!(t === T.ROCK || FORET(t)) || occ.has(x + ',' + y)) continue;
+    if (!(t === T.ROCK || FORET(t))) continue;
     let vers = null;
     for (const [dx, dy] of N4) { const a = x + dx, b = y + dy; if (a < box[0] || b < box[1] || a > box[2] || b > box[3]) continue; const i = E.G.at(a, b); if (E.av[i] && E.ar[i] && W.get(a, b) !== T.PATH && aMoi(a, b)) { vers = [a, b]; break; } }
-    if (!vers) continue;
+    if (!vers || occ.has(x + ',' + y)) continue;
     const d = dist(vers[0], vers[1]); if (d < 4) continue;
     // une impasse : la case d'où l'on fouille n'a qu'une autre case praticable autour d'elle
     const ouverts = N4.filter(([dx, dy]) => walkable(W.get(vers[0] + dx, vers[1] + dy))).length;
@@ -296,10 +296,12 @@ function routeRythme(W, R, res, occ, ids, ctx) {
     let ilot = null; const grandesEaux = new Set();
     for (let y = box[1] + 3; y <= box[3] - 3 && !ilot; y++) for (let x = box[0] + 3; x <= box[2] - 3; x++) {
       if (W.get(x, y) !== T.WATER || W.zoneAt(x, y)?.route !== R.id || W.zoneAt(x, y)?.town) continue;
-      let ok = true; for (let j = -2; j <= 3 && ok; j++) for (let i = -2; i <= 3; i++) if (W.get(x + i, y + j) !== T.WATER || occ.has((x + i) + ',' + (y + j))) { ok = false; break; }
+      if (grandesEaux.has(x + ',' + y)) continue;
+      let ok = true; for (let j = -2; j <= 3 && ok; j++) for (let i = -2; i <= 3; i++) if (W.get(x + i, y + j) !== T.WATER) { ok = false; break; }
+      for (let j = -2; j <= 3 && ok; j++) for (let i = -2; i <= 3; i++) if (occ.has((x + i) + ',' + (y + j))) { ok = false; break; }
       // un étang ou un lac de la route, pas la mer : la nappe d'eau tient en moins de 1 500 cases
-      if (ok && grandesEaux.has(x + ',' + y)) ok = false;
-      if (ok) { const vu = new Set([x + ',' + y]), q = [[x, y]]; while (q.length && vu.size < 1500) { const [a, b] = q.pop(); for (const [dx, dy] of N4) { const k = (a + dx) + ',' + (b + dy); if (!vu.has(k) && (W.get(a + dx, b + dy) === T.WATER || W.get(a + dx, b + dy) === T.WHIRL)) { vu.add(k); q.push([a + dx, b + dy]); } } } if (vu.size >= 1500) { ok = false; for (const k of vu) grandesEaux.add(k); }
+      // (la nappe est suivie dans le rectangle de la route ; si elle en sort, c'est la mer ou un grand lac de fond)
+      if (ok) { const vu = new Set([x + ',' + y]), q = [[x, y]]; let bord = false; while (q.length) { const [a, b] = q.pop(); for (const [dx, dy] of N4) { const u = a + dx, v = b + dy, k = u + ',' + v; if (vu.has(k) || !(W.get(u, v) === T.WATER || W.get(u, v) === T.WHIRL)) continue; if (u <= box[0] || v <= box[1] || u >= box[2] || v >= box[3]) { bord = true; continue; } vu.add(k); q.push([u, v]); } } if (bord || vu.size >= 1500) { ok = false; for (const k of vu) grandesEaux.add(k); }
         // on y met l'eau depuis une rive qu'on atteint (et d'où l'on revient) à pied
         else { let rive = false; for (const k of vu) { const [a, b] = k.split(',').map(Number); for (const [dx, dy] of N4) { const u = a + dx, v = b + dy; if (u < box[0] || v < box[1] || u > box[2] || v > box[3]) continue; const i = E.G.at(u, v); if (E.av[i] && E.ar[i] && walkable(W.get(u, v))) { rive = true; break; } } if (rive) break; } if (!rive) { ok = false; for (const k of vu) grandesEaux.add(k); } } }
       if (ok) { ilot = [x, y]; break; }
