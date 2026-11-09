@@ -1261,7 +1261,7 @@ export function buildWorld() {
   // un panneau au départ du sentier de chaque lieu habité (hameau, ferme, verger)
   W.panneauxLieux = panneauxDesLieux(W);
   // le rythme des routes (rythme.js) : raccourcis à sens unique et rebords à sauter, objets cachés, panneaux aux deux bouts
-  { const t0 = performance.now(); W.rythme = rythme(W, routes); W.rythme.ms = Math.round(performance.now() - t0); }
+  { const t0 = performance.now(); W.rythme = rythme(W, routes, { trainerNpc }); W.rythme.ms = Math.round(performance.now() - t0); }
   // petites barrières de bois le long des chemins des routes (jamais là où elles couperaient un passage)
   fenceRoutes(W, legends);
   // les ponts au propre : droits, d'une ou deux cases de large, jamais deux côte à côte (ponts.js)

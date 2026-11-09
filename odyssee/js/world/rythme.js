@@ -13,6 +13,7 @@ import { T, walkable } from './tiles.js';
 import { along, caseLibre } from './mapgen.js';
 import { bruit } from './quartiers.js';
 import { lotsPour, rangRoute, adapter } from './bareme.js';
+import { PRENOMS } from './voix.js';
 
 const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const FORET = (t) => t === T.TREE || t === T.PINE;
@@ -62,21 +63,21 @@ function graphe(W, box, occ) {
  * Pose rebords, raccourcis, objets cachés et panneaux sur les grandes routes. routes : la liste de buildWorld (pts.res :
  * le résultat de grandeRoute). Renvoie le bilan { raccourcis, rebords, caches, panneaux }.
  */
-export function rythme(W, routes) {
-  const bilan = { raccourcis: [], rebords: 0, lignes: [], caches: [], panneaux: 0 };
+export function rythme(W, routes, ctx = {}) {
+  const bilan = { raccourcis: [], rebords: 0, lignes: [], caches: [], panneaux: 0, dresseurs: 0 };
   const occ = new Set([...W.npcs.map((q) => q.x + ',' + q.y), ...W.items.map((q) => q.x + ',' + q.y), ...W.signs.keys(), ...W.warps.keys(), ...W.objects.keys()]);
   for (const d of W.deco) if (d.x != null) occ.add(d.x + ',' + d.y);
   const ids = new Set();
   for (const R of routes) {
     const res = R.pts?.res; if (!res?.cells) continue;
-    const fait = routeRythme(W, R, res, occ, ids);
-    bilan.raccourcis.push(...fait.raccourcis); bilan.rebords += fait.rebords; bilan.lignes.push(...fait.lignes); bilan.caches.push(...fait.caches); bilan.panneaux += fait.panneaux;
+    const fait = routeRythme(W, R, res, occ, ids, ctx);
+    bilan.raccourcis.push(...fait.raccourcis); bilan.rebords += fait.rebords; bilan.lignes.push(...fait.lignes); bilan.caches.push(...fait.caches); bilan.panneaux += fait.panneaux; bilan.dresseurs += fait.dresseurs;
   }
   return bilan;
 }
 
-function routeRythme(W, R, res, occ, ids) {
-  const out = { raccourcis: [], rebords: 0, lignes: [], caches: [], panneaux: 0 };
+function routeRythme(W, R, res, occ, ids, ctx) {
+  const out = { raccourcis: [], rebords: 0, lignes: [], caches: [], panneaux: 0, dresseurs: 0 };
   const pts = res.pts, cells = res.cells;
   // le rectangle de travail : le territoire de la route et une marge
   let box = res.rect;
@@ -207,6 +208,54 @@ function routeRythme(W, R, res, occ, ids) {
     if (l.L.some(([a, b]) => W.get(a, b - 1) === T.LEDGE || W.get(a, b + 1) === T.LEDGE)) continue;
     const ok = essai(() => { const avant = []; for (const [a, b] of l.L) { avant.push([a, b, W.get(a, b)]); W.set(a, b, T.LEDGE); } return avant; });
     if (ok) { poses.push(l); out.rebords++; out.lignes.push([R.id, l.L[0][0], l.L[0][1], l.L.length * l.side]); }
+  }
+
+  /* 2 bis. des dresseurs aux passages étroits, comme sur les routes de HeartGold : là où la prairie se resserre autour du
+        sentier, un dresseur se tient sur le côté et son regard barre le passage (identifiants `<route>:eN`) ; la
+        densité vise un dresseur pour 16 cases de sentier (22 sur les routes du début), cinq de plus au plus */
+  if (ctx.trainerNpc && !['r1', 'r9', 'r9b'].includes(R.id)) {
+    const rang = rangRoute(R.id), pas = rang <= 1 ? 22 : 16;
+    const deja = W.npcs.filter((n) => n.trainer && aMoi(n.x, n.y));
+    const ajout = Math.max(0, Math.min(5, Math.round(total / pas) - deja.length));
+    const enc = W.zoneAt(depart[0], depart[1])?.enc || [];
+    if (ajout && enc.length) {
+      const niv = [Math.min(...enc.map((e) => e[1])), Math.max(...enc.map((e) => e[2]))];
+      const sDeN = deja.map((n) => sDe(...plusProche(sentier, n.x, n.y)));
+      // largeur du praticable de part et d'autre du sentier (perpendiculaire au tracé)
+      const passages = [];
+      for (let i = 0; i < sentier.length; i += 3) {
+        const [x, y, s] = sentier[i]; if (s < 0.08 || s > 0.92) continue;
+        const [dx, dy] = dirs[Math.round(s * NS)] || [0, 1], nx = Math.round(-dy), ny = Math.round(dx);
+        if (!nx && !ny) continue;
+        const cote = (sg) => { let k = 1; while (k < 14 && walkable(W.get(x + nx * sg * k, y + ny * sg * k)) && W.height(x + nx * sg * k, y + ny * sg * k) === W.height(x, y)) k++; return k - 1; };
+        const a = cote(1), b = cote(-1), larg = a + b + 1;
+        if (larg < 5 || larg > 12) continue;
+        passages.push({ x, y, s, nx, ny, a, b, larg, note: larg + 3 * bruit(x, y, 4, 4411) });
+      }
+      passages.sort((p, q) => p.note - q.note || p.y - q.y || p.x - q.x);
+      const CLASSES = ['Gamin', 'Fillette', 'Randonneuse', 'Montagnard', 'Topdresseur', 'Topdresseuse', 'Insectomane', 'Karatéka'];
+      const pris = [...sDeN]; let k = 0;
+      for (const p of passages) {
+        if (k >= ajout) break;
+        if (pris.some((q) => Math.abs(q - p.s) < 0.7 / (deja.length + ajout + 1))) continue;
+        // sur le côté le plus large, à deux cases du sentier, le regard tourné vers l'autre bord
+        const sg = p.a >= p.b ? 1 : -1, d = Math.min(3, sg > 0 ? p.a : p.b);
+        if (d < 2) continue;
+        const x = p.x + p.nx * sg * d, y = p.y + p.ny * sg * d, t = W.get(x, y);
+        if (!(t === T.GRASS || t === T.FLOWER || t === T.TALL || t === T.SAND) || !aMoi(x, y) || occ.has(x + ',' + y)) continue;
+        // personne, aucune porte ni aucun panneau à cinq cases ; la case ne bouche rien (ses huit voisines sont du sol)
+        let gene = false; for (let j = -5; j <= 5 && !gene; j++) for (let i = -5; i <= 5; i++) { const q = W.get(x + i, y + j); if (q === T.SIGN || q === T.DOOR || (Math.abs(i) <= 1 && Math.abs(j) <= 1 && (i || j) && !walkable(q)) || occ.has((x + i) + ',' + (y + j))) { gene = true; break; } }
+        if (gene) continue;
+        const vx = -p.nx * sg, vy = -p.ny * sg, dir = Math.abs(vx) > Math.abs(vy) ? (vx > 0 ? 'right' : 'left') : (vy > 0 ? 'down' : 'up');
+        const h = (q) => bruit(x * 3 + q, y * 5 - q, 1.37, 4412 + q);
+        const n = 1 + Math.floor(h(1) * 3), team = [];
+        for (let i = 0; i < n; i++) { const e = enc[Math.floor(h(2 + i) * enc.length) % enc.length]; team.push([e[0], Math.max(2, Math.min(100, niv[1] - 1 + Math.floor(h(9 + i) * 3) - (n - 1)))]); }
+        const id = `${R.id}:e${k}`;
+        // le regard traverse le sentier jusqu'à l'autre bord de la prairie
+        ctx.trainerNpc(W, x, y, dir, CLASSES[Math.floor(h(20) * CLASSES.length) % CLASSES.length], PRENOMS[Math.floor(h(21) * PRENOMS.length) % PRENOMS.length], team, { id, sight: Math.min(6, d + (sg > 0 ? p.b : p.a) + 1) });
+        occ.add(x + ',' + y); pris.push(p.s); k++; out.dresseurs++;
+      }
+    }
   }
 
   /* 3. objets cachés : au bout des impasses (devant l'arbre qui la ferme), dans un rocher, loin du sentier ; rien ne
