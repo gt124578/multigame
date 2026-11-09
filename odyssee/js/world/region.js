@@ -33,6 +33,7 @@ import { atelier } from './atelier.js';
 import { lieux } from './lieux.js';
 import { ecrans } from './ecrans.js';
 import { rythme } from './rythme.js';
+import { grotteDuCol } from './grottes.js';
 import { ANCIENS_OBJETS } from './anciens-objets.js';
 
 /** version de la carte du monde : une sauvegarde d'une version plus ancienne reprend au Centre de la dernière ville
@@ -1171,6 +1172,8 @@ export function buildWorld() {
 
   /* ======================== LA CHAÎNE CÉLESTE ======================== */
   chaine(W, towns);
+  // la Grotte du Col : sous le coin sud-ouest de la Chaîne, du Bois Murmure à la route 10 (un lac souterrain : Surf)
+  W.col = grotteDuCol({ W, maps, routes, ENC, trainerNpc });
   /* ======================== ARÈNES ======================== */
   const gymTrainers = [
     [['Insectomane', 'Lucas', [[1017, 9], [10, 10]]], ['Insectomane', 'Basile', [[1018, 10, null, [33, 81, 106]], [1020, 10]]]],
