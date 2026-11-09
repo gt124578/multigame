@@ -11,6 +11,7 @@ import { archeGrotte, jourGrotte } from './grottes.js';
 import { sorteCase, K as SORTE } from './solgen.js';
 import { WeatherSystem } from './weather3d.js';
 import { Ombres } from './ombres.js';
+import { teinteHeure, nuitHeure, VITRE_NUIT, Lumieres } from './lumieres.js';
 import { choisirModele, geometriesModele, couleurBase, EMPRISES } from './bati-jeu.js';
 import { variantesArbres, variante, miroir, teinte } from './arbres.js';
 import { dessinHerbe, imageHerbe, NIMAGES, MARGE as HERBE_M, HAUTEUR as HERBE_H } from './herbes.js';
@@ -495,6 +496,8 @@ export class WorldView {
     this.tinted = Object.values(this.mat);
     this.glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'); const g = x.createRadialGradient(16, 16, 1, 16, 16, 16); g.addColorStop(0, 'rgba(255,240,180,0.9)'); g.addColorStop(0.4, 'rgba(255,210,120,0.35)'); g.addColorStop(1, 'rgba(255,200,100,0)'); x.fillStyle = g; x.fillRect(0, 0, 32, 32); return tex(c); })();
     this.matGlow = new THREE.MeshBasicMaterial({ map: this.glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    this.geoHalo = new THREE.PlaneGeometry(1.6, 1.6);   // halo d'un lampadaire (une géométrie pour tous)
+    this.lum = new Lumieres();                           // flaques de lumière de nuit (lumieres.js)
     this.tint = new THREE.Color(1, 1, 1); this.night = 0;
     // ombre des sous-bois (zones avec `ombre`, comme le Bois Murmure) : 1 en plein jour, plus bas sous les frondaisons
     this.ombre = 1; this.ombreCible = 1; this.tintBase = [1, 1, 1];
@@ -1055,18 +1058,28 @@ export class WorldView {
       if (rv?.paroi) { const me = new THREE.Mesh(rv.paroi, matParoi()); me.renderOrder = -1; me.frustumCulled = false; grp.add(me); }
       if (rv?.facettes) { const me = new THREE.Mesh(rv.facettes, matFacettes()); me.frustumCulled = false; grp.add(me); }
     }
+    // lampadaires la nuit : halo autour de la lanterne et flaque de lumière au sol (retirés avec le bloc : defaireBloc)
+    const lum = grp.userData.lum = [];
     for (const [gx, gz, gy] of glows) {
-      const me = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), this.matGlow); me.position.set(gx, gy + this.hAt(gx, gz), gz + 0.05); me.rotation.x = -0.3; me.userData.lampGlow = true; this.glows.add(me);
+      const hs = this.hAt(gx, gz);
+      const me = new THREE.Mesh(this.geoHalo, this.matGlow); me.position.set(gx, gy + hs, gz + 0.05); me.rotation.x = -0.3; me.userData.lampGlow = true;
+      const fl = this.lum.lampe(gx, hs, gz);
+      this.glows.add(me, fl); lum.push(me, fl);
     }
     this.root.add(grp);
     this.sol.demande(ci, cj, grp);
     return grp;
   }
 
+  /** défait un bloc de carte : ses géométries, et ses lumières de nuit (partagées : seulement retirées) */
+  defaireBloc(g) {
+    this.root.remove(g); g.traverse((o) => o.geometry?.dispose());
+    for (const me of g.userData.lum || []) this.glows?.remove(me);
+  }
   /** une case a changé (arbre coupé, rocher brisé) : le morceau de carte qui la contient est reconstruit */
   rebuildAt(x, y) {
     const k = Math.floor(x / CH) + ',' + Math.floor(y / CH), g = this.chunks.get(k);
-    if (g) { this.root.remove(g); g.traverse((o) => o.geometry?.dispose()); this.chunks.delete(k); }
+    if (g) { this.defaireBloc(g); this.chunks.delete(k); }
     this.sol.invalider(x, y);
     this.lastChunk = null;
   }
@@ -1101,7 +1114,7 @@ export class WorldView {
     for (const [kk, g] of this.chunks) {
       const [i, j] = kk.split(',').map(Number), d = Math.max(Math.abs(i - ci), Math.abs(j - cj));
       g.visible = d <= R;
-      if (d > R + 4) { this.root.remove(g); g.traverse((o) => o.geometry?.dispose()); this.chunks.delete(kk); }
+      if (d > R + 4) { this.defaireBloc(g); this.chunks.delete(kk); }
     }
   }
 
@@ -1145,7 +1158,7 @@ export class WorldView {
   /** construit les bâtiments en attente d'un morceau (i, j) */
   /** éditeur de carte : retire le rendu d'un bâtiment (déplacé ou effacé) */
   retirerBat(b) {
-    for (const g of this.buildingMeshes.filter((q) => q.userData.b === b)) { this.root.remove(g); if (g.userData.win) this.nightGroup.remove(g.userData.win); }
+    for (const g of this.buildingMeshes.filter((q) => q.userData.b === b)) { this.root.remove(g); if (g.userData.win) this.nightGroup.remove(g.userData.win); for (const me of g.userData.lum || []) this.glows.remove(me); }
     this.buildingMeshes = this.buildingMeshes.filter((q) => q.userData.b !== b);
     for (const L of this.batAttente?.values() || []) { const i = L.indexOf(b); if (i >= 0) L.splice(i, 1); }
   }
@@ -1181,7 +1194,7 @@ export class WorldView {
     if (!/[?&]bati=0/.test(globalThis.location?.search || '')) {
       const z = this.map.zoneAt?.(b.x, b.y);
       const mod = choisirModele(b, { theme: z?.theme, ville: z?.town, typeArene: b.typeArene });
-      if (mod) { const gm = this.batimentModele(b, mod); gm.position.y = hb; gm.userData.hb = hb; this.root.add(gm); this.buildingMeshes.push(gm); return; }
+      if (mod) { const gm = this.batimentModele(b, mod); gm.position.y = hb; gm.userData.hb = hb; this.root.add(gm); this.buildingMeshes.push(gm); this.lumierePorte(gm, b, hb); return; }
     }
     const ks = kitStyle(b, this.map); b.kitStyle = ks;
     const fkey = `${ks}:${b.w}:${b.h}:${b.door}`;
@@ -1237,6 +1250,12 @@ export class WorldView {
     g.position.y = hb;
     this.root.add(g); this.buildingMeshes.push(g);
     this.fenetresBat(g);
+    this.lumierePorte(g, b, hb);
+  }
+  /** la nuit, la lumière de l'entrée se pose sur le seuil (bâtiments habités du dehors) */
+  lumierePorte(g, b, hb) {
+    if (!this.map.outdoor || !(b.door >= 0) || b.doorX == null || !['house', 'house2', 'bighouse', 'center', 'mart', 'gym', 'lab', 'league'].includes(b.kind)) return;
+    const fl = this.lum.porte(b.doorX, hb, b.doorY); this.glows.add(fl); g.userData.lum = [fl];
   }
   /** pose un bâtiment en fausse 3D : géométries fusionnées du modèle, matériaux sans lumière (éclairage cuit),
    *  profondeur de façade, teinte de l'heure */
@@ -1464,11 +1483,9 @@ export class WorldView {
 
   /* ---------------- heure du jour ---------------- */
   setTimeOfDay(h) {
-    // matin doré, journée neutre, soirée orangée, nuit bleutée
-    const keys = [[0, [0.38, 0.44, 0.72]], [4.5, [0.42, 0.46, 0.72]], [6.5, [1.0, 0.86, 0.78]], [9.5, [1, 1, 1]], [17, [1, 1, 1]], [18.5, [1.0, 0.8, 0.66]], [20, [0.55, 0.52, 0.78]], [21.5, [0.38, 0.44, 0.72]], [24, [0.38, 0.44, 0.72]]];
-    let c = keys[0][1];
-    for (let i = 1; i < keys.length; i++) if (h <= keys[i][0]) { const [a, ca] = keys[i - 1], [b, cb] = keys[i]; const u = (h - a) / (b - a); c = ca.map((v, k) => v + (cb[k] - v) * u); break; }
-    this.night = h >= 20 || h < 5.5 ? 1 : h >= 18.5 ? (h - 18.5) / 1.5 : h < 6.5 ? 1 - (h - 5.5) : 0;
+    // aube rosée, matin doré, journée neutre, soir orangé, nuit bleue (lumieres.js : teintes vues à l'écran)
+    const c = teinteHeure(h);
+    this.night = nuitHeure(h);
     this.tintBase = c;
     this.applyTint(c);
   }
@@ -1478,7 +1495,7 @@ export class WorldView {
     // sous les frondaisons : plus sombre, un peu plus vert
     if (!indoorOrCave && this.ombre < 0.999) { const o = this.ombre; k = [k[0] * o * 0.94, k[1] * Math.min(1, o * 1.06), k[2] * o * 0.92]; }
     this.tint.setRGB(k[0], k[1], k[2]);
-    for (const m of this.tinted) { const base = m.userData.base; if (m.userData.vitre && !indoorOrCave && this.night > 0.5) m.color.setRGB(1.25, 1.0, 0.62); else if (base) m.color.copy(base).multiply(this.tint); else m.color.copy(this.tint); }
+    for (const m of this.tinted) { const base = m.userData.base; if (m.userData.vitre && !indoorOrCave && this.night > 0.5) m.color.setRGB(...VITRE_NUIT); else if (base) m.color.copy(base).multiply(this.tint); else m.color.copy(this.tint); }
     if (this.nightGroup) this.nightGroup.visible = !indoorOrCave && this.night > 0.5;
     if (this.glows) this.glows.visible = !indoorOrCave && this.night > 0.5;
   }
