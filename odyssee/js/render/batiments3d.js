@@ -893,7 +893,9 @@ export function atelier(D) {
   function bucher(G, x, z, n = 3, L = 1.0) {
     for (let r = 0; r < n; r++) for (let i = 0; i < n + 1 - r; i++) { const b = cyl(0.1, 0.1, L, M({ map: TX.bois('#8a5a34') }), 7); b.rotation.x = Math.PI / 2; G.add(at(b, x + (i - (n - r) / 2) * 0.21, 0.1 + r * 0.18, z)); }
   }
-  const cheminee = (G, x, y, z, col = '#a07a62', h = 1.0) => { G.add(at(boite(0.5, h, 0.5, M({ map: TX.pierre(col) })), x, y + h / 2, z)); G.add(at(boite(0.62, 0.1, 0.62, COL('#5a5552')), x, y + h + 0.05, z)); };
+  const cheminee = (G, x, y, z, col = '#a07a62', h = 1.0) => { G.add(at(boite(0.5, h, 0.5, M({ map: TX.pierre(col) })), x, y + h / 2, z)); G.add(at(boite(0.62, 0.1, 0.62, COL('#5a5552')), x, y + h + 0.05, z)); G.add(fumee(x, y + h + 0.1, z)); };
+  /** repère (sans dessin) du haut d'une cheminée : la fumée en part (render/ambiance.js, relevé par bati-jeu.js) */
+  const fumee = (x, y, z) => { const o = new THREE.Object3D(); o.position.set(x, y, z); o.userData.fumee = true; return o; };
 
   /* -------------------------------------------------------------- maisons de village ------------------------------- */
   /** maison haute à colombages (4 × 4, quatre niveaux) : rez-de-chaussée de pierre à échoppe, trois étages en
@@ -1063,6 +1065,7 @@ export function atelier(D) {
       ailes.add(A);
     }
     ailes.traverse((o) => { if (o.isMesh) o.castShadow = true; }); G.add(ailes);
+    ailes.userData.tourne = { vitesse: 0.12 };   // les ailes tournent au vent (bati-jeu.js, world3d.js)
     for (const [x, z] of [[cx + 1.2, cz + 1.5], [cx + 1.55, cz + 1.3], [cx + 1.35, cz + 1.75]]) G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), COL('#e8dcc0')), x, 0.18, z));
     return G;
   };
@@ -1077,6 +1080,7 @@ export function atelier(D) {
     for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; G.add(at(boite(0.04, 0.45, 0.04, COL('#2a2a30')), cx + Math.cos(a) * 1.0, yg + 0.42, cz + Math.sin(a) * 1.0)); }
     const an = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.03, 4, 24), COL('#2a2a30')); an.rotation.x = Math.PI / 2; G.add(at(an, cx, yg + 0.64, cz));
     G.add(at(cyl(0.55, 0.55, 0.9, LUM('#fff4b0', '#c09020'), 12), cx, yg + 0.65, cz));
+    { const f = new THREE.Object3D(); f.position.set(cx, yg + 0.65, cz); f.userData.fanal = true; G.add(f); }   // repère : le faisceau de nuit en part (world3d.js)
     for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; G.add(at(boite(0.05, 0.9, 0.05, COL('#2a2a30')), cx + Math.cos(a) * 0.56, yg + 0.65, cz + Math.sin(a) * 0.56)); }
     const dome = new THREE.Mesh(new THREE.SphereGeometry(0.62, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), COL(bande)); dome.castShadow = true; G.add(at(dome, cx, yg + 1.1, cz));
     G.add(at(cyl(0.03, 0.06, 0.5, COL('#2a2a30'), 6), cx, yg + 1.9, cz));
@@ -2892,7 +2896,7 @@ export function atelier(D) {
   };
 
   // maisons des villes (une architecture par ville) : modèle « maisonVille », réglé par styles-villes.js
-  maisonsVilles({ B, TX, tex, hash, mix, S, D, boite, at, M, COL, LUM, cyl, fenetre2, fenArc, porte, portesVitrees, toit4, toitChinois, cheminee, balustrade, bucher, socle });
+  maisonsVilles({ B, TX, tex, hash, mix, S, D, boite, at, M, COL, LUM, cyl, fenetre2, fenArc, porte, portesVitrees, toit4, toitChinois, cheminee, fumee, balustrade, bucher, socle });
 
   return { B, boite, at, M, COL, TX };
 }

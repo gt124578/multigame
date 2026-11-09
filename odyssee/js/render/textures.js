@@ -5,6 +5,7 @@ import { SOL16_JEUX } from '../data/sol16.js';
 import { REGLES, kitCell } from '../data/regles.js';
 import { texturesRelief, tourbillon, quart, remous, koi } from './relief-tex.js';
 import { texturesSerre, spritesSerre } from './serre-tex.js';
+import { texturesInterieurs } from './interieurs.js';
 
 export const CELL = 16, PITCH = 18;
 
@@ -268,8 +269,29 @@ export function buildAtlas() {
   }
   putImg('dec_tp', decal16((P) => { P.rect(2, 2, 12, 12, '#4a3a7a'); P.rect(3, 3, 10, 10, '#8a6ae0'); P.rect(5, 5, 6, 6, '#c8b8ff'); P.rect(7, 7, 2, 2, '#ffffff'); P.p(3, 3, '#4a3a7a'); P.p(12, 3, '#4a3a7a'); P.p(3, 12, '#4a3a7a'); P.p(12, 12, '#4a3a7a'); }));
   const chevron = (P, col, dark) => { for (let k = 0; k < 2; k++) for (let i = 0; i < 5; i++) { P.p(3 + i, 9 - i + k * 4, col); P.p(12 - i, 9 - i + k * 4, col); P.p(3 + i, 10 - i + k * 4, dark); P.p(12 - i, 10 - i + k * 4, dark); } };
-  for (const [kind, col, dark] of [['fleche', '#f6d040', '#a07a10'], ['vent', '#e8f6ff', '#8ab8d8'], ['courant', '#ffffff', '#5aa0e0']]) {
-    const up = decal16((P) => chevron(P, col, dark));
+  // flèches des arènes à énigmes, dessinées à 32 px (la densité des sols) : deux chevrons épais, cernés d'un trait
+  // sombre, avec un reflet clair, lisibles sur n'importe quel sol (damier de l'Arène de Port-Azur compris)
+  const chevron32 = (col, dark, clair) => {
+    const c = canvas(C2, C2), x = c.getContext('2d'), img = x.createImageData(C2, C2), d = img.data;
+    const rgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+    const [F, D, L] = [rgb(col), rgb(dark), rgb(clair)];
+    const seg = (px, py, ax, ay, bx, by) => { const vx = bx - ax, vy = by - ay, t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy))); return Math.hypot(px - ax - t * vx, py - ay - t * vy); };
+    for (let j = 0; j < C2; j++) for (let i = 0; i < C2; i++) {
+      const px = i + 0.5, py = j + 0.5;
+      let dist = 99, haut = false;
+      for (const oy of [4, 14]) {   // deux chevrons : pointe en (16, oy), bras jusqu'à (6 / 26, oy + 9)
+        const dg = seg(px, py, 6, oy + 9, 16, oy), dd = seg(px, py, 26, oy + 9, 16, oy), dm = Math.min(dg, dd);
+        if (dm < dist) { dist = dm; haut = py < oy + 9 - (px < 16 ? (16 - px) : (px - 16)) * 0.9 - 0.6; }
+      }
+      if (dist > 3.3) continue;
+      const o = (j * C2 + i) * 4, c = dist > 2.1 ? D : haut && dist > 0.9 ? L : F;
+      d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255;
+    }
+    x.putImageData(img, 0, 0);
+    return c;
+  };
+  for (const [kind, col, dark, clair] of [['fleche', '#f6d040', '#6a4a08', '#fff4b0'], ['vent', '#e8f6ff', '#3a6a9a', '#ffffff'], ['courant', '#ffffff', '#1a3e7a', '#d8ecff']]) {
+    const up = chevron32(col, dark, clair);
     putImg(`dec_${kind}_up`, up);
     for (const [d, rot] of [['right', 1], ['down', 2], ['left', 3]]) { const c = canvas(C2, C2), x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.translate(C2 / 2, C2 / 2); x.rotate(rot * Math.PI / 2); x.drawImage(up, -C2 / 2, -C2 / 2); putImg(`dec_${kind}_${d}`, c); }
   }
@@ -297,6 +319,8 @@ export function buildAtlas() {
   put('wall_cendre', (P) => { P.fill('#3e3028'); for (let x = 0; x < 16; x += 4) P.rect(x, 0, 1, 16, '#271c16'); P.rect(0, 0, 16, 3, '#211814'); P.speck(10, '#2c211b', 0, 3, 16, 9); P.speck(5, '#5e5048'); P.speck(3, '#7a3a20', 0, 6, 16, 6); P.rect(0, 13, 16, 3, '#2a1f19'); P.rect(0, 13, 16, 1, '#54443a'); });
   putSol('floor_cendre', FLOOR32.cendre, (P) => floorCell(P, 'gymDragon'));
   putSol('floor_pierre', 'floor_stone', (P) => floorCell(P, 'gymRock'));
+  // intérieurs des maisons assortis à leur ville (murs à la densité de l'écran, fenêtres de jour et de nuit, sols)
+  texturesInterieurs(putImg, img);
   return { canvas: atlas, cells, size: SIZE };
 }
 /** verts du sol adoucis : l'herbe à 16 px est très saturée (vert fluo) ; on la ramène vers le vert tendre des jeux DS.

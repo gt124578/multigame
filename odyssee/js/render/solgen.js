@@ -760,15 +760,15 @@ function fondJardin(Z, img, mask, voisin, kind) {
   }
 }
 /** automne : l'herbe tourne à l'olive et au doré, des feuilles mortes s'y posent en petits tas (et un peu sur les chemins) */
-function feuilles(Z, img, mask) {
+function feuilles(Z, img, mask, part = null) {
   const s = Z.s + 501, amas = Z.field(22, s + 1, 2), Wd = Z.W;
-  // herbe roussie : chaque vert de l'herbe prend son équivalent olive
-  for (let i = 0; i < Z.N; i++) if (mask[i] && IS_GALL[img[i]]) img[i] = AG[G.indexOf(img[i])];
+  // herbe roussie : chaque vert de l'herbe prend son équivalent olive (au bord de la zone, par plaques : part < 1)
+  for (let i = 0; i < Z.N; i++) if (mask[i] && IS_GALL[img[i]] && (!part || part[i] > 0.5 + (hash2(Z.X(i), Z.Y(i), s + 9) - 0.5) * 0.1)) img[i] = AG[G.indexOf(img[i])];
   // feuilles : une par bloc de 3 × 3 pixels au plus, plus serrées dans les tas
   for (let by = 0; by < Z.H; by += 3) for (let bx = 0; bx < Wd; bx += 3) {
     const i0 = by * Wd + bx; if (!mask[i0]) continue;
     const X = Z.X(i0), Y = Z.Y(i0), u = hash2(X, Y, s + 2), a = amas[i0];
-    if (u > 0.1 + 0.55 * a * a) continue;
+    if (u > (0.1 + 0.55 * a * a) * (part ? part[i0] * part[i0] : 1)) continue;
     const c = hash2(X, Y, s + 3), col = c < 0.24 ? FA[1] : c < 0.5 ? FA[2] : c < 0.7 ? FA[3] : c < 0.8 ? FA[4] : c < 0.92 ? FA[5] : FA[0];
     const ox = bx + Math.floor(hash2(X, Y, s + 4) * 2), oy = by + Math.floor(hash2(X, Y, s + 5) * 2), vert = hash2(X, Y, s + 6) < 0.5;
     // petite feuille en losange (3 × 2 ou 2 × 3), ombre d'un pixel sous elle
@@ -846,7 +846,8 @@ function eau(Z, img, E, frame) {
       else if (dw[i] <= fd + 1.2 && hash2(X, Y, s + 45) < 0.35) img[i] = W[5];
     } else {                                                                    // berge
       if (sd[i] <= 4) img[i] = sd[i] <= 1.5 + (lap > 0.3 ? 1 : 0) ? sp[0] : sd[i] <= 3 ? sp[1] : sp[2];
-      else img[i] = rocky ? rocky[0] : G[1];                                    // lisière
+      else if (rocky) img[i] = rocky[0];                                         // lisière : roche,
+      else if (IS_GALL[img[i]]) img[i] = G[1];                                   // … ou herbe plus sombre (jamais un trait vert sur une plage)
     }
   }
   for (let cy = 0; cy < Z.ch; cy++) for (let cx = 0; cx < Z.cw; cx++) {
@@ -1257,12 +1258,21 @@ export function rendreBloc({ kinds, zw, zh, zx0, zy0, bw, bh, seed = 7, cave = n
     }
     if (anyOf(path)) chemin(Z, img, path, mont ? or(water, hard, mont) : or(water, hard));
     // automne : feuilles mortes sur l'herbe et les chemins de la zone
+    // le bord de la zone se fond sur une case et demie de part et d'autre : l'herbe roussit par plaques qui ondulent, les
+    // feuilles se raréfient et quelques-unes s'envolent sur l'herbe verte voisine (plus de ligne droite entre deux sols)
     if (has(K.FA)) {
-      const fa = Z.region((q) => q === K.FA || q === K.P, seed + 130, { wobble: 1.2, round: 0.5, band: c >> 1, freq: 0.3 });
+      const fa = Z.region((q) => q === K.FA || q === K.P || q === K.G || q === K.GF, seed + 130, { wobble: 1.2, round: 0.5, band: c >> 1, freq: 0.3 });
       const zoneFA = Z.region((q) => q === K.FA, seed + 131, { wobble: 1.4, round: 0.6, band: c, freq: 0.25 });
-      const dz = edt(zoneFA, Z.W, Z.H, 0), m = new Uint8Array(Z.N);   // distance à la zone d'automne (0 dedans)
-      for (let i = 0; i < Z.N; i++) m[i] = fa[i] && !hard[i] && dz[i] < 24 ? 1 : 0;
-      feuilles(Z, img, m);
+      const dOut = edt(zoneFA, Z.W, Z.H, 0), dIn = edt(zoneFA, Z.W, Z.H, 1);   // distance à la zone (dehors), à son bord (dedans)
+      const bruit = Z.field(20, seed + 132, 2), B = c * 0.75;
+      const m = new Uint8Array(Z.N), part = new Float32Array(Z.N);
+      for (let i = 0; i < Z.N; i++) {
+        if (!fa[i] || hard[i]) continue;
+        const v = 0.5 + 0.5 * ((dIn[i] - dOut[i]) / B + (bruit[i] - 0.5) * 1.1);
+        if (v <= 0) continue;
+        m[i] = 1; part[i] = Math.min(1, v);
+      }
+      feuilles(Z, img, m, part);
     }
     if (anyOf(pave)) paves(Z, img, pave, andNot(andNot(grass, path), water), path);
     if (anyOf(asph)) { bitume(Z, img, asph); escaliers(Z, img); }

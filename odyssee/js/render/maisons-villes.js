@@ -28,8 +28,11 @@
 //                       pots, banc, bucher, lanterneFer, gargouille, dome, bougainvillee, dragon, velo, tonneaux, enseigne
 import * as THREE from 'three';
 
+/** essai : toits moins présents (?toits=bas dans l'adresse) */
+const TOITS_BAS = /[?&]toits=bas\b/.test(globalThis.location?.search || '');
+
 export function maisonsVilles(K) {
-  const { B, TX, tex, hash, mix, S, D, boite, at, M, COL, LUM, cyl, fenetre2, fenArc, porte, portesVitrees, toit4, toitChinois, cheminee, balustrade, bucher, socle } = K;
+  const { B, TX, tex, hash, mix, S, D, boite, at, M, COL, LUM, cyl, fenetre2, fenArc, porte, portesVitrees, toit4, toitChinois, cheminee, fumee, balustrade, bucher, socle } = K;
 
   /* ------------------------------------------------------------------ textures ------------------------------------ */
   /** granit : gros blocs irréguliers, grain moucheté, joints clairs (granit gris ou rose des côtes bretonnes) */
@@ -242,7 +245,7 @@ export function maisonsVilles(K) {
         const x = libreX('g'), b = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.06, 6, 14), COL('#e8463a')); G.add(at(b, x, y0 + 1.0, zf + 0.06));
         for (let i = 0; i < 4; i++) { const s = boite(0.06, 0.07, 0.07, COL('#f4f2ea')); G.add(at(s, x + Math.cos(i * Math.PI / 2 + 0.78) * 0.17, y0 + 1.0 + Math.sin(i * Math.PI / 2 + 0.78) * 0.17, zf + 0.1)); }
       } else if (k === 'casiers') {   // casiers à homards empilés
-        const x = cote === 'g' ? bx0 - 0.25 : bx1 + 0.25;
+        const x = cote === 'g' ? bx0 - 0.05 : bx1 + 0.05;
         for (const [dx, dy] of [[0, 0], [0.42, 0], [0.2, 0.32]]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.4, 8, 1, false, 0, Math.PI), M({ map: TX.treillis('#7a5a3a'), side: THREE.DoubleSide })); c.rotation.z = Math.PI / 2; c.castShadow = true; G.add(at(c, x - (cote === 'g' ? 0.2 : -0.2) + (cote === 'g' ? -dx : dx) * 0.5, 0.02 + dy, zf - 0.4 + dx)); }
       } else if (k === 'rames') {
         const x = libreX('d') + 0.35; for (const dx of [0, 0.14]) { const r = boite(0.06, 1.3, 0.08, M({ map: TX.bois('#c8a070') })); r.rotation.z = -0.12; G.add(at(r, x + dx, 0.7, zf + 0.12)); }
@@ -256,10 +259,10 @@ export function maisonsVilles(K) {
         G.add(at(cyl(0.03, 0.05, 0.3, COL('#5a3a20'), 5), x, 0.3, zf + 0.35));
         for (const [dx, dy, r] of [[-0.12, 0.42, 0.15], [0.12, 0.5, 0.13], [0, 0.6, 0.1]]) G.add(at(new THREE.Mesh(new THREE.SphereGeometry(r, 7, 5), vert(1)), x + dx, dy, zf + 0.35));
       } else if (k === 'bambou') {
-        const x = cote === 'g' ? bx0 - 0.15 : bx1 + 0.15;
+        const x = cote === 'g' ? bx0 - 0.3 : bx1 + 0.3;
         for (let i = 0; i < 5; i++) { const h = 1.6 + hash(i, 3, 97) * 0.8; G.add(at(cyl(0.035, 0.035, h, COL(i % 2 ? '#6aa04a' : '#5a8a3a'), 5), x + (i - 2) * 0.09 * (cote === 'g' ? -1 : 1), h / 2, zf - 0.3 + (i % 3) * 0.2)); G.add(at(boite(0.3, 0.12, 0.05, vert(i)), x + (i - 2) * 0.09, h, zf - 0.3 + (i % 3) * 0.2)); }
       } else if (k === 'cactus') {
-        const x = cote === 'g' ? bx0 - 0.2 : bx1 + 0.2, C = COL('#5a8a4a');
+        const x = cote === 'g' ? bx0 - 0.3 : bx1 + 0.3, C = COL('#5a8a4a');
         G.add(at(cyl(0.12, 0.13, 1.0, C, 8), x, 0.5, zf + 0.2));
         for (const s of [-1, 1]) { G.add(at(cyl(0.07, 0.07, 0.25, C, 6), x + s * 0.17, 0.55 + s * 0.1, zf + 0.2)); G.add(at(cyl(0.07, 0.07, 0.3, C, 6), x + s * 0.24, 0.72 + s * 0.1, zf + 0.2)); }
       } else if (k === 'jarres') {
@@ -306,7 +309,7 @@ export function maisonsVilles(K) {
         for (const [x, c] of [[px - 0.62, '#f05a6a'], [px + 0.62, '#f8d850']]) { G.add(at(cyl(0.14, 0.1, 0.22, COL('#b8603a'), 8), x, 0.11, zf + 0.25)); G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.17, 7, 5), vert(1)), x, 0.32, zf + 0.25)); for (let i = 0; i < 3; i++) G.add(at(boite(0.07, 0.07, 0.07, COL(c)), x - 0.08 + i * 0.08, 0.42, zf + 0.33)); }
       } else if (k === 'banc') {
         const x = libreX('g'); G.add(at(boite(0.9, 0.07, 0.28, M({ map: TX.bois('#a8744a') })), x, 0.42, zf + 0.25)); for (const s of [-1, 1]) G.add(at(boite(0.06, 0.4, 0.24, COL('#5a3a22')), x + s * 0.38, 0.2, zf + 0.25));
-      } else if (k === 'bucher') bucher(G, cote === 'g' ? bx0 - 0.3 : bx1 + 0.3, zf - 0.6, 3, 1.0);
+      } else if (k === 'bucher') bucher(G, cote === 'g' ? bx0 - 0.42 : bx1 + 0.42, zf - 0.6, 3, 1.0);
       else if (k === 'tonneaux') { const x = libreX('d'); for (const dx of [0, 0.45]) G.add(at(cyl(0.2, 0.2, 0.5, M({ map: TX.bois('#8a5a34') }), 10), x + dx - 0.2, 0.25, zf + 0.3)); }
       else if (k === 'lanterneFer') {   // applique de fer forgé, lueur violette
         for (const x of [px - 0.6, px + 0.6]) { G.add(at(boite(0.04, 0.04, 0.22, COL('#1a1820')), x, y0 + 1.25, zf + 0.1)); G.add(at(boite(0.14, 0.22, 0.14, LUM(ctx.lueur || '#b090ff', ctx.lueur || '#6040c0')), x, y0 + 1.12, zf + 0.2)); G.add(at(new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.12, 4), COL('#1a1820')), x, y0 + 1.28, zf + 0.2)); }
@@ -334,11 +337,26 @@ export function maisonsVilles(K) {
     const w = o.w || 4, d = o.d || 3, px0 = o.px ?? w / 2;
     const P = o.pilotis || 0, et = o.et || 1, he = o.he || 1.5, so = o.socle ?? 0.3;
     const toit = { f: '2p', m: 'tuiles', c: '#b85a3a', hr: 1.3, deb: 0.3, faite: null, ...(o.toit || {}) };
+    // essai ?toits=bas : toits moins présents vus de dessus (pente un peu plus douce, corps de logis moins profond que
+    // l'emprise ; le toit couvre toujours à l'écran le fond de l'emprise, voir plus bas)
+    if (TOITS_BAS && !o.pilotis && toit.f !== 'plat') toit.hr *= 0.8;
     const F = o.fen || {}, ann = o.annexe || null;
     // corps de logis : x bx0 → bx1, z z0 → zf (façade) ; l'annexe prend un côté
     let bx0 = 0, bx1 = w;
     if (ann) { if (ann.cote === 'g') bx0 = ann.w; else bx1 = w - ann.w; }
-    const recul = o.recul || 0, zf = d - recul, prof = Math.min(o.prof || d, zf), z0 = zf - prof;
+    // décor posé contre un pignon (bûcher, casiers, bambous, cactus) : le corps de logis lui laisse la place, pour qu'il
+    // reste dans l'emprise de la maison (sinon on marche au travers, sur la case voisine)
+    const cote0 = o.cote || (px0 > w / 2 ? 'g' : 'd'), PIGNON = { bucher: 0.85, casiers: 0.72, bambou: 0.66, cactus: 0.62 };
+    const place = Math.max(0, ...(o.orn || []).map((k) => PIGNON[k] || 0));
+    if (place && w - place >= 2.5) { if (cote0 === 'g' && !(ann && ann.cote === 'g')) bx0 = place; else if (cote0 === 'd' && !(ann && ann.cote !== 'g')) bx1 = w - place; }
+    const recul = o.recul || 0, zf = d - recul;
+    let prof = Math.min(o.prof || d, zf);
+    if (TOITS_BAS && !o.pilotis && toit.f !== 'plat' && d >= 3) {
+      // le faîte doit encore se projeter à l'écran au-delà du fond de l'emprise : d - prof / 2 ≤ hauteur du faîte
+      const Hf = (P + (o.socle ?? 0.3)) + (o.et || 1) * (o.he || 1.5) + toit.hr;
+      prof = Math.min(prof, Math.max(2, d - 0.9, 2 * (zf - Hf) + 0.4));
+    }
+    const z0 = zf - prof;
     const px = Math.min(bx1 - 0.5, Math.max(bx0 + 0.5, px0));
     const y0 = P + so, Hm = y0 + et * he + (et === 1 ? 0.15 : 0), bw = bx1 - bx0, cx = (bx0 + bx1) / 2, zc = (z0 + zf) / 2;
     const mR = matMur(o.mur), mH = o.haut ? matMur(o.haut) : mR;
@@ -428,6 +446,7 @@ export function maisonsVilles(K) {
         G.add(at(boite(0.6, 0.9, 0.55, M({ map: TX.granit(ch) })), x, yr + 0.2, toit.f === '2p' ? zc : zc - 0.3));
         G.add(at(boite(0.68, 0.08, 0.62, COL('#5a5552')), x, yr + 0.68, toit.f === '2p' ? zc : zc - 0.3));
         for (const dx of [-0.14, 0.14]) G.add(at(cyl(0.06, 0.07, 0.18, COL('#b86a4a'), 6), x + dx, yr + 0.8, toit.f === '2p' ? zc : zc - 0.3));
+        if (fumee) G.add(fumee(x, yr + 0.9, toit.f === '2p' ? zc : zc - 0.3));
       } else cheminee(G, bx0 + cxh * bw, faiteY - 0.75, z0 + prof * 0.35, ch, 1.0);
     }
     // avancées
@@ -481,7 +500,7 @@ export function maisonsVilles(K) {
       else if (ann.porte === 'fenetre') fen(G, (ax0 + ax1) / 2, P + so + 0.7, zf, 0.5, 0.45, { ...F, fleurs: null, volets: null });
       else { G.add(at(boite(aw - 0.5, ha - 0.3, 0.03, M({ map: TX.planches(ann.pc || '#6a4a2a') })), (ax0 + ax1) / 2, P + (ha - 0.3) / 2, zf + 0.01)); for (const s of [-1, 1]) { const x = boite(0.05, Math.hypot(aw - 0.5, ha - 0.3), 0.03, COL('#4a3020')); x.rotation.z = s * Math.atan2(aw - 0.5, ha - 0.3); G.add(at(x, (ax0 + ax1) / 2, P + (ha - 0.3) / 2, zf + 0.03)); } }
     }
-    orner(G, o, o.orn || [], { bx0, bx1, zf, Hm, y0, px, et, he, toitY, faite: faiteY, zc, xr0, xr1, cote: o.cote || (px > cx ? 'g' : 'd'), ...(o.ctx || {}) });
+    orner(G, o, o.orn || [], { bx0, bx1, zf, Hm, y0, px, et, he, toitY, faite: faiteY, zc, xr0, xr1, cote: cote0, ...(o.ctx || {}) });
     return G;
   };
 }

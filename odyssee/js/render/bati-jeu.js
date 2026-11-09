@@ -75,42 +75,62 @@ export function geometriesModele(nom, o) {
   const { B } = atelierJeu();
   const G = B[nom](o);
   G.updateMatrixWorld(true);
-  const lots = new Map();
-  const n3 = new THREE.Matrix3(), nv = new THREE.Vector3(), pv = new THREE.Vector3();
-  G.traverse((m) => {
-    if (!m.isMesh) return;
-    let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
-    if (!g.attributes.normal) g.computeVertexNormals();
-    const mats = Array.isArray(m.material) ? m.material : [m.material];
-    const groups = Array.isArray(m.material) && g.groups.length ? g.groups : [{ start: 0, count: g.attributes.position.count, materialIndex: 0 }];
-    n3.getNormalMatrix(m.matrixWorld);
-    const P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv;
-    for (const gr of groups) {
-      const mat = mats[gr.materialIndex] || mats[0]; if (!mat || mat.visible === false) continue;
-      const k = cleMat(mat);
-      if (!lots.has(k)) lots.set(k, { mat0: mat, pos: [], uv: [], col: [] });
-      const L = lots.get(k);
-      const emis = mat.emissive && (mat.emissive.r + mat.emissive.g + mat.emissive.b) > 0.05;
-      for (let i = gr.start; i < gr.start + gr.count; i++) {
-        pv.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
-        L.pos.push(pv.x, pv.y * YS, pv.z);
-        nv.fromBufferAttribute(N, i).applyMatrix3(n3).normalize();
-        const s = emis ? 1.15 : eclairage(nv);
-        L.col.push(s, s, s);
-        if (U) L.uv.push(U.getX(i), U.getY(i)); else L.uv.push(0, 0);
+  const n3 = new THREE.Matrix3(), nv = new THREE.Vector3(), pv = new THREE.Vector3(), mm = new THREE.Matrix4();
+  const fumees = [], fanaux = [];   // repères posés par batiments3d.js : hauts des cheminées (fumée), lanterne d'un phare
+  // parties qui tournent (ailes d'un moulin : userData.tourne) : fusionnées à part, dans leur propre repère
+  const tournes = []; G.traverse((m) => { if (m.userData.tourne && m !== G) tournes.push(m); });
+  const sous = new Set(); for (const T of tournes) T.traverse((m) => sous.add(m));
+  /** fusionne les maillages de racine (sauf exclus) par matériau, positions ramenées par inv (null : le monde) ;
+   *  ys : étirement vertical (les parties qui tournent sont étirées par leur groupe, après la rotation) */
+  const fusionner = (racine, inv, ys, exclus) => {
+    const lots = new Map();
+    racine.traverse((m) => {
+      if (exclus?.has(m)) return;
+      if (m.userData.fumee || m.userData.fanal) { if (!inv) { pv.set(0, 0, 0).applyMatrix4(m.matrixWorld); (m.userData.fumee ? fumees : fanaux).push([pv.x, pv.y * YS, pv.z]); } return; }
+      if (!m.isMesh) return;
+      let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      if (!g.attributes.normal) g.computeVertexNormals();
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      const groups = Array.isArray(m.material) && g.groups.length ? g.groups : [{ start: 0, count: g.attributes.position.count, materialIndex: 0 }];
+      n3.getNormalMatrix(m.matrixWorld);
+      mm.copy(m.matrixWorld); if (inv) mm.premultiply(inv);
+      const P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv;
+      for (const gr of groups) {
+        const mat = mats[gr.materialIndex] || mats[0]; if (!mat || mat.visible === false) continue;
+        const k = cleMat(mat);
+        if (!lots.has(k)) lots.set(k, { mat0: mat, pos: [], uv: [], col: [] });
+        const L = lots.get(k);
+        const emis = mat.emissive && (mat.emissive.r + mat.emissive.g + mat.emissive.b) > 0.05;
+        for (let i = gr.start; i < gr.start + gr.count; i++) {
+          pv.fromBufferAttribute(P, i).applyMatrix4(mm);
+          L.pos.push(pv.x, pv.y * ys, pv.z);
+          nv.fromBufferAttribute(N, i).applyMatrix3(n3).normalize();
+          const s = emis ? 1.15 : eclairage(nv);
+          L.col.push(s, s, s);
+          if (U) L.uv.push(U.getX(i), U.getY(i)); else L.uv.push(0, 0);
+        }
       }
+      g.dispose();
+    });
+    const res = [];
+    for (const [cle, L] of lots) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(L.pos, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(L.uv, 2));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(L.col, 3));
+      g.computeBoundingSphere();
+      res.push({ geo: g, cle, mat0: L.mat0 });
     }
-    g.dispose();
+    return res;
+  };
+  const out = fusionner(G, null, YS, sous);
+  // chaque partie qui tourne : ses géométries dans son repère (pivot), sa position et sa vitesse (tours par seconde)
+  out.tournants = tournes.map((T) => {
+    const pivot = new THREE.Vector3().setFromMatrixPosition(T.matrixWorld), inv = T.matrixWorld.clone().invert();
+    const q = new THREE.Quaternion(); T.matrixWorld.decompose(new THREE.Vector3(), q, new THREE.Vector3());
+    return { parts: fusionner(T, inv, 1, null), pivot: [pivot.x, pivot.y, pivot.z], quat: q, vitesse: T.userData.tourne.vitesse || 0.2 };
   });
-  const out = [];
-  for (const [cle, L] of lots) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(L.pos, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(L.uv, 2));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(L.col, 3));
-    g.computeBoundingSphere();
-    out.push({ geo: g, cle, mat0: L.mat0 });
-  }
+  out.fumees = fumees; out.fanaux = fanaux;
   CACHE.set(key, out);
   return out;
 }

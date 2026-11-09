@@ -366,6 +366,13 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       e += (fHash(vec2(floor(ep.x / 3.0), floor(ep.y / 3.0))) - 0.5) * 0.05;
       vec3 c = fFal(1.0, bio, vec2(vP.x * ${PX}.0, vP.z * ${PX}.0));
       float k = e < 0.08 ? 1.1 : e < 0.3 ? 1.0 : e < 0.55 && bay < 0.6 ? 0.9 : 0.8;
+      // et plus loin du bord, le replat continue de foncer, case après case, jusqu'au cœur du massif (jamais noir) :
+      // profondeur de chaque case (alpha de uCases), lissée entre les centres des cases, en paliers tramés
+      vec2 pc = vP.xz - 0.5; ivec2 c0 = ivec2(floor(pc)); vec2 tc = fract(pc);
+      #define PROF(c) (texelFetch(uCases, (c) - ivec2(uOrig) + ivec2(1), 0).a * 255.0 / 16.0)
+      float D = mix(mix(PROF(c0), PROF(c0 + ivec2(1, 0)), tc.x), mix(PROF(c0 + ivec2(0, 1)), PROF(c0 + ivec2(1, 1)), tc.x), tc.y);
+      float pl = floor(clamp((D - 1.2) / 2.6, 0.0, 1.0) * 3.0 + bay * 0.999);   // (lumière linéaire : 0,46 = 70 % à l'écran)
+      k *= pl < 0.5 ? 1.0 : pl < 1.5 ? 0.78 : pl < 2.5 ? 0.6 : 0.46;
       if (pd < 0.14) k *= 0.72; else if (pd < 0.3 && bay < 0.55) k *= 0.86;
       diffuseColor.rgb = diffuse * c * k;
     } else if (f == ${F_ROC}) {
@@ -386,6 +393,9 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
         float t = clamp((top - vP.y) / (top - bas), 0.0, 1.0) + (bay - 0.5) * 0.16;
         s = t < 0.1 ? 1.12 : t < 0.3 ? 0.97 : t < 0.52 ? 0.86 : t < 0.75 ? 0.76 : 0.66;
         s *= lum > 0.6 ? 1.04 : lum < 0.2 ? 0.94 : 1.0;
+        // paliers écrits comme on les voit : le rendu mélange en lumière linéaire (0,66 n'y fonçait que de 17 % à
+        // l'écran, le talus se lisait à peine)
+        s = pow(s, 2.2);
       }
       if (pd < 0.12) s *= 0.7; else if (pd < 0.3 && (1.0 - pd / 0.3) > bay) s *= 0.84;
       diffuseColor.rgb *= s;
@@ -413,6 +423,24 @@ export class ReliefHGSS {
     this.bords = new Map();   // par case : bords et coins (calculés à la demande)
     this.blocs = new Map();
     this.isHGSS = true;
+  }
+  /** grotte : distance (en cases, voisinage de 8) d'une case de roche à la case la plus proche qui n'en est pas (0 hors de
+   *  la roche, 1 au bord du massif) ; calculée une fois pour la carte et sa marge, par un parcours en largeur */
+  profRoc(x, y) {
+    const E = 10, W = this.m.w + 2 * E, H = this.m.h + 2 * E;
+    if (!this._prof) {
+      const d = this._prof = new Uint8Array(W * H).fill(255), file = [];
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (this.sorte[this.cell(i - E, j - E)] !== ROC) { d[j * W + i] = 0; file.push(j * W + i); }
+      for (let q = 0; q < file.length; q++) {
+        const k = file[q], i = k % W, j = (k - i) / W, v = d[k] + 1;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+          const a = i + di, b = j + dj; if (a < 0 || b < 0 || a >= W || b >= H) continue;
+          const kk = b * W + a; if (d[kk] > v) { d[kk] = v; file.push(kk); }
+        }
+      }
+    }
+    const i = x + E, j = y + E;
+    return i < 0 || j < 0 || i >= W || j >= H ? 15 : Math.min(15, this._prof[j * W + i]);
   }
   idx(x, y) { const X = Math.max(0, Math.min(this.LW - 1, x + this.M)), Y = Math.max(0, Math.min(this.LH - 1, y + this.M)); return Y * this.LW + X; }
   porteGrotte(x, y) {
@@ -827,7 +855,8 @@ export class ReliefHGSS {
     for (let j = 0; j < chh; j++) for (let i = 0; i < cw; i++) {
       const Bq = this.bordsDe(x0 + i - 1, z0 + j - 1), o = (j * cw + i) * 4;
       cd[o] = Bq.s === ROC ? 1 : Bq.s === VIDE ? 3 : Bq.s === MARCHE ? 4 : Bq.s === SOL ? 0 : 2; cd[o + 1] = Bq.bio;
-      cd[o + 2] = Math.max(0, Math.min(255, Math.round(Bq.L / LV * 4) + 64)); cd[o + 3] = 255;
+      cd[o + 2] = Math.max(0, Math.min(255, Math.round(Bq.L / LV * 4) + 64));
+      cd[o + 3] = this.grotte ? Math.min(255, this.profRoc(x0 + i - 1, z0 + j - 1) * 16) : 255;   // grotte : profondeur dans le massif
     }
     const ct = new THREE.DataTexture(cd, cw, chh, THREE.RGBAFormat);
     ct.magFilter = THREE.NearestFilter; ct.minFilter = THREE.NearestFilter; ct.generateMipmaps = false; ct.needsUpdate = true;
