@@ -28,6 +28,9 @@
 //                       pots, banc, bucher, lanterneFer, gargouille, dome, bougainvillee, dragon, velo, tonneaux, enseigne
 import * as THREE from 'three';
 
+/** essai : toits moins présents (?toits=bas dans l'adresse) */
+const TOITS_BAS = /[?&]toits=bas\b/.test(globalThis.location?.search || '');
+
 export function maisonsVilles(K) {
   const { B, TX, tex, hash, mix, S, D, boite, at, M, COL, LUM, cyl, fenetre2, fenArc, porte, portesVitrees, toit4, toitChinois, cheminee, fumee, balustrade, bucher, socle } = K;
 
@@ -334,6 +337,9 @@ export function maisonsVilles(K) {
     const w = o.w || 4, d = o.d || 3, px0 = o.px ?? w / 2;
     const P = o.pilotis || 0, et = o.et || 1, he = o.he || 1.5, so = o.socle ?? 0.3;
     const toit = { f: '2p', m: 'tuiles', c: '#b85a3a', hr: 1.3, deb: 0.3, faite: null, ...(o.toit || {}) };
+    // essai ?toits=bas : toits moins présents vus de dessus (pente un peu plus douce, corps de logis moins profond que
+    // l'emprise ; le toit couvre toujours à l'écran le fond de l'emprise, voir plus bas)
+    if (TOITS_BAS && !o.pilotis && toit.f !== 'plat') toit.hr *= 0.8;
     const F = o.fen || {}, ann = o.annexe || null;
     // corps de logis : x bx0 → bx1, z z0 → zf (façade) ; l'annexe prend un côté
     let bx0 = 0, bx1 = w;
@@ -343,7 +349,14 @@ export function maisonsVilles(K) {
     const cote0 = o.cote || (px0 > w / 2 ? 'g' : 'd'), PIGNON = { bucher: 0.85, casiers: 0.72, bambou: 0.66, cactus: 0.62 };
     const place = Math.max(0, ...(o.orn || []).map((k) => PIGNON[k] || 0));
     if (place && w - place >= 2.5) { if (cote0 === 'g' && !(ann && ann.cote === 'g')) bx0 = place; else if (cote0 === 'd' && !(ann && ann.cote !== 'g')) bx1 = w - place; }
-    const recul = o.recul || 0, zf = d - recul, prof = Math.min(o.prof || d, zf), z0 = zf - prof;
+    const recul = o.recul || 0, zf = d - recul;
+    let prof = Math.min(o.prof || d, zf);
+    if (TOITS_BAS && !o.pilotis && toit.f !== 'plat' && d >= 3) {
+      // le faîte doit encore se projeter à l'écran au-delà du fond de l'emprise : d - prof / 2 ≤ hauteur du faîte
+      const Hf = (P + (o.socle ?? 0.3)) + (o.et || 1) * (o.he || 1.5) + toit.hr;
+      prof = Math.min(prof, Math.max(2, d - 0.9, 2 * (zf - Hf) + 0.4));
+    }
+    const z0 = zf - prof;
     const px = Math.min(bx1 - 0.5, Math.max(bx0 + 0.5, px0));
     const y0 = P + so, Hm = y0 + et * he + (et === 1 ? 0.15 : 0), bw = bx1 - bx0, cx = (bx0 + bx1) / 2, zc = (z0 + zf) / 2;
     const mR = matMur(o.mur), mH = o.haut ? matMur(o.haut) : mR;
