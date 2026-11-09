@@ -17,10 +17,10 @@ d'avant sont tous là, au même contenu ; les ajouts ont les leurs (`col:…`, `
 | Raccourcis à sens unique | 0 | 6 (rebord dans une lisière) | 1 ou 2 par route en pente (route 45, 36, 33…) |
 | Raccourcis à capacité (Coupe, Éclate-Roc, Surf) | 7 routes | 7 routes + la Grotte du Col (Surf) | partout : on rouvre l'ancien |
 | Récompenses à venir chercher avec une capacité | 0 | 7 clairières derrière un arbuste (Coupe), 3 îlots d'étang (Surf) | îlots, recoins à Coupe, rochers |
-| Objets cachés | 0 (le jeu ne savait pas) | 76 (35 sur les routes, 37 en ville, 1 dans les canyons, 3 en grotte) | plus d'une centaine (Cherch'Objet) |
+| Objets cachés | 0 (le jeu ne savait pas) | 77 (35 sur les routes, 37 en ville, 1 dans les canyons, 4 en grotte) | plus d'une centaine (Cherch'Objet) |
 | Panneaux sur les routes et les sentiers | 43 | 81 (bouts de route, sentiers des lieux habités) + 4 aux entrées de grottes et des canyons | à chaque entrée de route, aux carrefours |
-| Dresseurs des grandes routes | 257 | 293 (+36 aux passages étroits), +3 dans les canyons, +9 en grotte | un pour 8 à 10 cases sur une route chargée |
-| Grottes et donjons (cartes) | 9 | 14 (Grotte du Col et Grotte des Sables sur 2 niveaux, Grotte des Mesas) | une quinzaine de grottes pour deux régions |
+| Dresseurs des grandes routes | 257 | 293 (+36 aux passages étroits), +3 dans les canyons, +11 en grotte | un pour 8 à 10 cases sur une route chargée |
+| Grottes et donjons (cartes) | 9 | 16 (Grotte du Col, Grotte des Sables et Grotte des Crêtes sur 2 niveaux, Grotte des Mesas) | une quinzaine de grottes pour deux régions |
 | Grottes qui traversent la Chaîne Céleste | 1 (Victoire) | 2 | — |
 | Volcan à Cendrelune | non | oui (cratère et lave) | — |
 | Sol praticable jamais atteint (nature sauvage) | 15 770 cases | 11 809 (les canyons des Hauts d'Ocre ouverts) | — |
@@ -106,6 +106,7 @@ d'avant sont tous là, au même contenu ; les ajouts ont les leurs (`col:…`, `
 | **Grotte du Col (nouvelle, 2 niveaux)** | 60 × 38 + 44 × 30 | 1 645 | 5 | 7 + 1 caché | lac (Surf), noir, Force |
 | **Grotte des Mesas (nouvelle)** | 46 × 32 | 806 | 2 | 3 + 1 caché | — (cul-de-sac des canyons) |
 | **Grotte des Sables (nouvelle, 2 niveaux)** | 48 × 32 + 40 × 28 | ~1 500 | 2 | 4 + 1 caché | noir, Force (route 16) |
+| **Grotte des Crêtes (nouvelle, 2 niveaux)** | 48 × 32 + 40 × 28 | ~1 500 | 2 | 4 + 1 caché | noir, Force (route 3, dès 1 badge) |
 
 - 9 cartes de grotte avant cette nuit pour une région de la taille de plusieurs HGSS ; une quinzaine dans HGSS
   (Caverne Union, Puits Ramoloss, Mont Creuset, Route de Glace, Antre Noir, Tourbitoile, Antre du Dragon, Chutes
@@ -201,13 +202,16 @@ Chaque changement est dans le générateur, posé en une passe, vérifié par l'
 11. **Récompenses à venir chercher plus tard** (`world/rythme.js`). Sur les routes du début (rangs 0 à 3), une petite
    clairière fermée par un arbuste à couper, un objet au milieu (7, `<route>:i1`) ; au milieu d'un étang de route
    qu'on rejoint à pied, un îlot de sable et son objet, qu'on atteint en surfant (3, `<route>:i0`). Comme les îlots du
-   lac de Colère ou les recoins de la route 32 : on revient avec Coupe ou Surf. Le barème (`bareme.js`) garde ces objets
-   au niveau de la route.
-
-12. **Grotte des Sables** (`world/grottes.js`, `grotteDansFalaise`). Sur la route 16 (le désert), une bouche dans la
-   falaise d'une mesa : galeries hautes (deux dresseurs, deux objets), échelle vers une galerie profonde dans le noir,
-   salle fermée par un rocher à pousser (Force) avec une Pierre Feu et un Max Élixir, un objet caché. La fonction est
-   générique : une route, un nom, des dresseurs, des objets, et la grotte trouve seule sa falaise.
+   lac de Colère ou les recoins de la route 32 : on revient avec Coupe ou Surf. Le barème (`bareme.js`) garde ces
+   objets au niveau de la route.
+12. **Grottes des Sables et des Crêtes** (`world/grottes.js`, `grotteDansFalaise`). Sur la route 16 (le désert), une
+   bouche dans la falaise d'une mesa : galeries hautes (deux dresseurs, deux objets), échelle vers une galerie
+   profonde dans le noir, salle fermée par un rocher à pousser (Force) avec une Pierre Feu et un Max Élixir, un objet
+   caché. La fonction est générique : une route, un nom, des dresseurs, des objets, et la grotte trouve seule sa
+   falaise — ou, faute de falaise, perce un sentier tout droit jusqu'à la roche comme pour le Col. Ainsi la
+   **Grotte des Crêtes**, au nord de la route 3 sous les contreforts de la Chaîne Céleste : une grotte du début
+   (rang 1, Pokémon de la Grotte Lunaire), même plan à deux niveaux. Le barème ramène ses objets au niveau du début
+   (la Pierre Lune prévue derrière le rocher devient une Super Ball : trois pierres au plus avant le quatrième badge).
 
 Coût à la construction du monde : rythme ~0,7 s (jusqu'à 1,9 s sur la machine chargée de cette nuit), contreforts
 ~0,3 s, le reste négligeable.
@@ -225,7 +229,7 @@ Dans l'ordre :
 2. **Boucles.** Deux sorties par ville quand c'est possible, des routes qui se rejoignent, d'autres raccourcis à
    capacité qui rouvrent une ancienne zone (grotte derrière une cascade, rochers fissurés vers un belvédère, Force
    sur un éboulement de route).
-3. **Grottes.** Une par grande montagne (Mont Givré, Canyon d'Ocre de la route 17, Mont Lunaire côté nord),
+3. **Grottes.** Une par grande montagne (Mont Givré, Canyon d'Ocre de la route 17, Hauts d'Ocre côté sud),
    plusieurs niveaux, rebords intérieurs, Force dans des trous, cascades ; un générateur de grotte à étages (le
    schéma de `grottes.js` est réutilisable : deux niveaux, une échelle, un lac, une salle derrière un rocher) ;
    `caveMap` fait des grottes très ouvertes, sans goulet où poser un rocher fissuré (la Grotte des Mesas n'en a pas).
@@ -253,6 +257,6 @@ Dans `/tmp/nuit/level/` :
   `apres/col2-force.png`, `apres/volcan-cratere.png`, `apres/volcan-depuis-ville.png`, `apres/contreforts-r10.png`,
   `apres/contreforts-bois.png`, `apres/contreforts-r3.png`, `apres/panneau-ferme.png`, `apres/ocre-entree.png`,
   `apres/ocre-vallees.png`, `apres/mesas-entree.png`, `apres/mesas-grotte.png`, `apres/dresseur-passage-r2.png`,
-  `apres/coupe-clairiere-r2.png`, `apres/ilot-r5.png`, `apres/sables-entree.png` ;
+  `apres/coupe-clairiere-r2.png`, `apres/ilot-r5.png`, `apres/sables-entree.png`, `apres/cretes-entree.png` ;
 - après, vue de dessus (schéma 1 pixel = 1 case, avant au-dessus ou à gauche) : `lz3-final.png`, `lz2-final.png`
   (clairières), `chaine-cmp.png` (Chaîne Céleste et contreforts), `carte-avant-apres.png` (toute la carte).
