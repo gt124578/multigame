@@ -5,11 +5,12 @@
 //     l'autre sens : pour revenir, il faut refaire le chemin) ;
 //   - rebords en travers des prairies, le long du sentier : on les saute en descendant, on les contourne en montant ;
 //   - objets cachés : rien ne se voit, on les trouve en fouillant le bout d'une impasse, un rocher ou une souche
-//     (identifiants fixes `<route>:cN`, ramassés comme les objets posés : drapeau `I:<id>`).
+//     (identifiants fixes `<route>:cN`, ramassés comme les objets posés : drapeau `I:<id>`) ;
+//   - panneaux aux deux bouts de chaque route qui n'en a pas.
 // Chaque rebord est vérifié : tout ce qu'on atteignait et d'où l'on revenait reste atteignable et l'on en revient (pas
 // de piège), et un raccourci n'ouvre rien qu'on n'atteignait déjà à pied (il ne fait que gagner du temps).
 import { T, walkable } from './tiles.js';
-import { along } from './mapgen.js';
+import { along, caseLibre } from './mapgen.js';
 import { bruit } from './quartiers.js';
 import { lotsPour, rangRoute, adapter } from './bareme.js';
 
@@ -58,7 +59,7 @@ function graphe(W, box, occ) {
 }
 
 /**
- * Pose rebords, raccourcis et objets cachés sur les grandes routes. routes : la liste de buildWorld (pts.res :
+ * Pose rebords, raccourcis, objets cachés et panneaux sur les grandes routes. routes : la liste de buildWorld (pts.res :
  * le résultat de grandeRoute). Renvoie le bilan { raccourcis, rebords, caches, panneaux }.
  */
 export function rythme(W, routes) {
@@ -238,6 +239,19 @@ function routeRythme(W, R, res, occ, ids) {
     occ.add(c.x + ',' + c.y); choisis.push(c); out.caches.push({ id, x: c.x, y: c.y, item });
   }
 
+  /* 4. panneaux aux deux bouts : le nom de la route et où elle mène */
+  const nomBout = (t) => { const p = along(pts, t), q = along(pts, t < 0.5 ? 0 : 1); for (const [a, b] of [[q.x, q.y], [q.x - q.dx * 4, q.y - q.dy * 4], [q.x + q.dx * 4, q.y + q.dy * 4]]) { const z = W.zoneAt(Math.round(a), Math.round(b)); if (z && z.name && z.name !== R.name && !z.sea) return z.name; } void p; return null; };
+  for (const [t, autre] of [[0.03, 1], [0.97, 0]]) {
+    const p = along(pts, t);
+    let deja = false; for (const k of W.signs.keys()) { const [a, b] = k.split(',').map(Number); if (Math.hypot(a - p.x, b - p.y) < 14) { deja = true; break; } }
+    if (deja) continue;
+    const vers = nomBout(autre), ici = nomBout(1 - autre);
+    if (!vers) continue;
+    const [a, b] = caseLibre(W, p.x + 0.5 + p.nx * 2.4, p.y + 0.5 + p.ny * 2.4);
+    if (!aMoi(a, b) || W.get(a, b) === T.PATH || occ.has(a + ',' + b)) continue;
+    W.sign(a, b, `${R.name.toUpperCase()}\n→ ${vers}${ici && ici !== vers ? `\n← ${ici}` : ''}`);
+    occ.add(a + ',' + b); out.panneaux++;
+  }
   return out;
 }
 
