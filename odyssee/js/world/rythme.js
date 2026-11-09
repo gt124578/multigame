@@ -3,12 +3,15 @@
 //   - raccourcis à sens unique : là où deux morceaux d'une même route se frôlent derrière une lisière, une trouée dans
 //     les arbres et un rebord à sauter ramènent d'un morceau à l'autre (on saute vers le bas ou sur le côté, jamais dans
 //     l'autre sens : pour revenir, il faut refaire le chemin) ;
-//   - rebords en travers des prairies, le long du sentier : on les saute en descendant, on les contourne en montant.
+//   - rebords en travers des prairies, le long du sentier : on les saute en descendant, on les contourne en montant ;
+//   - objets cachés : rien ne se voit, on les trouve en fouillant le bout d'une impasse, un rocher ou une souche
+//     (identifiants fixes `<route>:cN`, ramassés comme les objets posés : drapeau `I:<id>`).
 // Chaque rebord est vérifié : tout ce qu'on atteignait et d'où l'on revenait reste atteignable et l'on en revient (pas
 // de piège), et un raccourci n'ouvre rien qu'on n'atteignait déjà à pied (il ne fait que gagner du temps).
 import { T, walkable } from './tiles.js';
 import { along } from './mapgen.js';
 import { bruit } from './quartiers.js';
+import { lotsPour, rangRoute, adapter } from './bareme.js';
 
 const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const FORET = (t) => t === T.TREE || t === T.PINE;
@@ -55,7 +58,7 @@ function graphe(W, box, occ) {
 }
 
 /**
- * Pose rebords et raccourcis sur les grandes routes. routes : la liste de buildWorld (pts.res :
+ * Pose rebords, raccourcis et objets cachés sur les grandes routes. routes : la liste de buildWorld (pts.res :
  * le résultat de grandeRoute). Renvoie le bilan { raccourcis, rebords, caches, panneaux }.
  */
 export function rythme(W, routes) {
@@ -205,6 +208,56 @@ function routeRythme(W, R, res, occ, ids) {
     if (ok) { poses.push(l); out.rebords++; out.lignes.push([R.id, l.L[0][0], l.L[0][1], l.L.length * l.side]); }
   }
 
+  /* 3. objets cachés : au bout des impasses (devant l'arbre qui la ferme), dans un rocher, loin du sentier ; rien ne
+        les montre, il faut fouiller */
+  const nc = Math.max(1, Math.round(total / 170)), dist = distanceAuSentier(W, box, sentier);
+  const caches = [];
+  for (let y = box[1]; y <= box[3]; y++) for (let x = box[0]; x <= box[2]; x++) {
+    // une case à fouiller : rocher ou arbre, touchée par une case atteinte (et dont on revient)
+    const t = W.get(x, y);
+    if (!(t === T.ROCK || FORET(t)) || occ.has(x + ',' + y)) continue;
+    let vers = null;
+    for (const [dx, dy] of N4) { const a = x + dx, b = y + dy; if (a < box[0] || b < box[1] || a > box[2] || b > box[3]) continue; const i = E.G.at(a, b); if (E.av[i] && E.ar[i] && W.get(a, b) !== T.PATH && aMoi(a, b)) { vers = [a, b]; break; } }
+    if (!vers) continue;
+    const d = dist(vers[0], vers[1]); if (d < 4) continue;
+    // une impasse : la case d'où l'on fouille n'a qu'une autre case praticable autour d'elle
+    const ouverts = N4.filter(([dx, dy]) => walkable(W.get(vers[0] + dx, vers[1] + dy))).length;
+    const note = (t === T.ROCK ? 6 : 0) + (ouverts <= 1 ? 10 : ouverts === 2 ? 3 : 0) + Math.min(12, d) + 3 * bruit(x, y, 4, 313);
+    if (t !== T.ROCK && ouverts > 2) continue;
+    caches.push({ x, y, note });
+  }
+  caches.sort((a, b) => b.note - a.note || a.y - b.y || a.x - b.x);
+  const rang = rangRoute(R.id), LOTS = lotsPour(rang), choisis = [];
+  for (const c of caches) {
+    if (choisis.length >= nc) break;
+    c.s = sDe(...plusProche(sentier, c.x, c.y));
+    if (choisis.some((q) => Math.abs(q.s - c.s) < 0.6 / nc || Math.hypot(q.x - c.x, q.y - c.y) < 20)) continue;
+    let n = 0, id; do id = `${R.id}:c${n++}`; while (ids.has(id)); ids.add(id);
+    const item = adapter(LOTS[Math.floor(bruit(c.x, c.y, 1.7, 41) * LOTS.length) % LOTS.length], rang);
+    cacher(W, c.x, c.y, id, item);
+    occ.add(c.x + ',' + c.y); choisis.push(c); out.caches.push({ id, x: c.x, y: c.y, item });
+  }
+
   return out;
 }
 
+/** un objet caché dans la case (x, y) : on le trouve en fouillant (touche A face à la case) ; le drapeau `I:<id>` est
+ *  celui des objets posés (un objet trouvé le reste) */
+export function cacher(W, x, y, id, item, qty = 1) {
+  W.object(x, y, { cache: true, id, item, qty, use: async (A) => {
+    if (A.f['I:' + id]) return;
+    A.f['I:' + id] = true;
+    await A.say('Tiens ? Il y a quelque chose de caché ici...');
+    await A.give(item, qty);
+  } });
+}
+
+function plusProche(sentier, x, y) { let b = sentier[0], bd = 1e9; for (const p of sentier) { const d = Math.abs(p[0] - x) + Math.abs(p[1] - y); if (d < bd) { bd = d; b = p; } } return [b[0], b[1]]; }
+/** distance (pas) au sentier dans le rectangle */
+function distanceAuSentier(W, box, sentier) {
+  const [x0, y0, x1, y1] = box, w = x1 - x0 + 1, h = y1 - y0 + 1, d = new Float32Array(w * h).fill(1e9);
+  for (const [x, y] of sentier) d[(y - y0) * w + (x - x0)] = 0;
+  for (let j = 1; j < h; j++) for (let i = 1; i < w - 1; i++) { const p = j * w + i; d[p] = Math.min(d[p], d[p - 1] + 1, d[p - w] + 1, d[p - w - 1] + 1.41, d[p - w + 1] + 1.41); }
+  for (let j = h - 2; j >= 0; j--) for (let i = w - 2; i >= 1; i--) { const p = j * w + i; d[p] = Math.min(d[p], d[p + 1] + 1, d[p + w] + 1, d[p + w + 1] + 1.41, d[p + w - 1] + 1.41); }
+  return (x, y) => (x < x0 || y < y0 || x > x1 || y > y1 ? 1e9 : d[(y - y0) * w + (x - x0)]);
+}
