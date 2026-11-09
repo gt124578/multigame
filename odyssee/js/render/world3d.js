@@ -47,8 +47,26 @@ export const SPRITE_UNIFORMS = { uRes: { value: new THREE.Vector2(400, 240) }, u
  * ou un personnage dont les pieds sont derrière la façade passe derrière toute la maison, toit compris ; devant la
  * façade, il passe devant. C'est le tri par rangée des jeux DS, sans que les toits ne coupent les arbres voisins.
  */
+/** fondu tramé d'un bâtiment (quand on passe derrière) : au lieu de le rendre transparent (on voyait alors à travers
+ *  lui ses faces cachées, ses étages, l'intérieur de ses tours), une part de ses pixels s'efface selon une trame
+ *  ordonnée de 4 × 4, pixel du jeu par pixel du jeu, comme sur les consoles portables. uTrame : part gardée (1 : plein) */
+const TRAME_GLSL = `
+      if ( uTrame < 0.999 ) {
+        ivec2 tp = ivec2( mod( floor( gl_FragCoord.xy ), 4.0 ) );
+        int tb[16] = int[16]( 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 );
+        if ( ( float( tb[ tp.y * 4 + tp.x ] ) + 0.5 ) / 16.0 > uTrame ) discard;
+      }`;
+function trame(mat, sh) {
+  mat.userData.uTrame ||= { value: 1 };
+  sh.uniforms.uTrame = mat.userData.uTrame;
+  sh.fragmentShader = sh.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform float uTrame;')
+    .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>' + TRAME_GLSL);
+}
 function frontDepth(mat, zFront) {
+  mat.userData.uTrame = { value: 1 };
   mat.onBeforeCompile = (sh) => {
+    trame(mat, sh);
     sh.uniforms.uZFront = { value: zFront };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uZFront;')
@@ -74,7 +92,9 @@ function profondeurGrille(mat, b) {
     let k = j; while (k + 1 < d && !libre.has(i + ',' + (k + 1))) k++;
     zf[j * w + i] = b.y + k + 1 + 0.02;
   }
+  mat.userData.uTrame = { value: 1 };
   mat.onBeforeCompile = (sh) => {
+    trame(mat, sh);
     sh.uniforms.uZF = { value: zf }; sh.uniforms.uGrille = { value: new THREE.Vector4(b.x, b.y, w, d) };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vMondeG;')
@@ -1598,7 +1618,11 @@ export class WorldView {
       const mats = [];
       g.traverse((m) => { if (m.material && m.material !== this.mat.shadow) mats.push(m.material); });
       if (g.userData.win) mats.push(g.userData.win.material);
-      for (const m of mats) { const o0 = m.userData.op0 ?? 1; m.transparent = n < 1 || o0 < 1; m.opacity = n * o0; m.depthWrite = n >= 1 && o0 >= 1; m.needsUpdate = true; }
+      for (const m of mats) {
+        // trame : le bâtiment reste opaque (pas de faces cachées qui transparaissent), une part de ses pixels s'efface
+        if (m.userData.uTrame) { m.userData.uTrame.value = n; continue; }
+        const o0 = m.userData.op0 ?? 1; m.transparent = n < 1 || o0 < 1; m.opacity = n * o0; m.depthWrite = n >= 1 && o0 >= 1; m.needsUpdate = true;
+      }
     }
   }
 
