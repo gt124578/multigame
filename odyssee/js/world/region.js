@@ -35,6 +35,7 @@ import { ecrans } from './ecrans.js';
 import { rythme } from './rythme.js';
 import { grotteDuCol } from './grottes.js';
 import { volcan } from './volcan.js';
+import { contreforts, plateauNaturel } from './contreforts.js';
 import { ANCIENS_OBJETS } from './anciens-objets.js';
 
 /** version de la carte du monde : une sauvegarde d'une version plus ancienne reprend au Centre de la dernière ville
@@ -1173,6 +1174,8 @@ export function buildWorld() {
 
   /* ======================== LA CHAÎNE CÉLESTE ======================== */
   chaine(W, towns);
+  // le Plateau Céleste sans cadre : la falaise mord ses bords d'herbe libres (contreforts.js)
+  W.plateau = plateauNaturel(W, towns.J);
   /* ======================== ARÈNES ======================== */
   const gymTrainers = [
     [['Insectomane', 'Lucas', [[1017, 9], [10, 10]]], ['Insectomane', 'Basile', [[1018, 10, null, [33, 81, 106]], [1020, 10]]]],
@@ -1244,6 +1247,8 @@ export function buildWorld() {
   // la Grotte du Col : sous le coin sud-ouest de la Chaîne, du Bois Murmure à la route 10 (un lac souterrain : Surf ;
   // posée après les lieux, qui gardent ainsi leur tirage et leurs identifiants)
   W.col = grotteDuCol({ W, maps, routes, ENC, trainerNpc });
+  // la Chaîne Céleste déborde de son plan : des avancées de roche dans la forêt de fond (contreforts.js)
+  { const t0 = performance.now(); W.contreforts = contreforts(W); W.contreforts.ms = Math.round(performance.now() - t0); }
   { const tz = W.zones.filter((z) => z.town || z.trigger), sz = W.zones.filter((z) => z.sea), rz = W.zones.filter((z) => !z.town && !z.trigger && !z.sea); W.zones = [...sz, ...rz, ...tz]; }
   // les grandes villes perchées : on y monte par des escaliers à chaque porte
   for (const [k, t] of Object.entries(towns)) if (VILLES[k]?.releve) relever(W, t);
