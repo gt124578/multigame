@@ -882,11 +882,11 @@ export class Game {
     if (this.busy || !this.state || this.player.move) return;
     if (k === 'a') await this.interact();
     else if (k === 'b' || k === 'menu') await this.startMenu();
-    else if (k === 'map') { this.busy = true; await mapScreen(this); this.busy = false; }
+    else if (k === 'map') { this.busy = true; try { await mapScreen(this); } finally { this.busy = false; } }
     else if (k === 'velo') { this.busy = true; try { await this.toggleVelo(); } finally { this.busy = false; } }
-    else if (k === 'quests') { this.busy = true; await questsScreen(this); this.busy = false; }
-    else if (k === 'trophies') { this.busy = true; await trophiesScreen(this); this.busy = false; }
-    else if (k === 'friends') { this.busy = true; await friendsScreen(this); this.busy = false; }
+    else if (k === 'quests') { this.busy = true; try { await questsScreen(this); } finally { this.busy = false; } }
+    else if (k === 'trophies') { this.busy = true; try { await trophiesScreen(this); } finally { this.busy = false; } }
+    else if (k === 'friends') { this.busy = true; try { await friendsScreen(this); } finally { this.busy = false; } }
     else if (k === 'hud') this.hud?.toggle();
   }
   async interact() {
@@ -1286,6 +1286,10 @@ export class Game {
 
   /* ================= menu principal ================= */
   async startMenu() {
+    // un écran qui échoue ne laisse jamais le joueur figé (busy resterait vrai)
+    try { await this.menuPrincipal(); } finally { this.busy = false; }
+  }
+  async menuPrincipal() {
     this.busy = true;
     const st = this.state;
     const opts = [];

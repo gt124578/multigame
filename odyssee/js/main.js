@@ -30,8 +30,19 @@ function fatal(e) {
   loading.style.display = 'flex'; loading.innerHTML = `<div>Oups, le jeu a rencontré un problème.<br><small>${esc(e && e.message ? e.message : e)}</small></div>`;
   if (H && H.logCrash) H.logCrash('CRASH_JS_ERROR', 'Odyssée : ' + (e && e.message ? e.message : e), { stack: e && e.stack });
 }
-addEventListener('error', (e) => fatal(e.error || e.message));
-addEventListener('unhandledrejection', (e) => fatal(e.reason));
+// une fois le jeu affiché, une erreur isolée (un script de PNJ, une image, une promesse oubliée) ne cache plus l'écran :
+// elle est notée (console, journal du Hub) et la partie continue ; l'écran d'erreur reste pour le démarrage, ou si
+// chaque image échoue pendant 3 s (la partie ne peut plus avancer)
+let enJeu = false;
+const signales = new Set();
+function incident(e) {
+  if (!enJeu) { fatal(e); return; }
+  console.error('[odyssée] incident', e);
+  const msg = e && e.message ? e.message : String(e);
+  if (H && H.logCrash && !signales.has(msg) && signales.size < 20) { signales.add(msg); H.logCrash('CRASH_JS_ERROR', 'Odyssée (en jeu) : ' + msg, { stack: e && e.stack }); }
+}
+addEventListener('error', (e) => incident(e.error || e.message));
+addEventListener('unhandledrejection', (e) => incident(e.reason));
 
 // éléments de décor dessinés repris dans le jeu (les autres restent dessinés par le code : herbes, fleurs…)
 const NATURE = ['tree', 'tree2', 'pine', 'snowpine', 'deadtree', 'palm', 'bush', 'rock', 'stalag', 'sign', 'fence', 'lamp', 'mailbox', 'pot', 'itemball', 'bang', 'statue'];
@@ -110,15 +121,16 @@ async function boot() {
   addEventListener('keydown', unlock); addEventListener('pointerdown', unlock);
   ui.helpButton();
 
-  let mode = 'title', last = performance.now();
+  let mode = 'title', last = performance.now(), enPanne = 0;
   const loop = (now) => {
+    requestAnimationFrame(loop);   // d'abord : une erreur dans l'image ne doit pas arrêter le jeu
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (mode === 'game') game.tick(dt);
-    requestAnimationFrame(loop);
+    if (mode !== 'game') return;
+    try { game.tick(dt); enPanne = 0; } catch (e) { if (!enPanne) incident(e); if (++enPanne === 180) fatal(e); }
   };
   view.setMap(world.maps.monde); view.setTimeOfDay(new Date().getHours() + new Date().getMinutes() / 60);
   loading.style.display = 'none';
-  etape('pret');
+  etape('pret'); enJeu = true;
   requestAnimationFrame(loop);
   ui.fade(false, 500);
   if (H && H.embedded) H.signalReady();
