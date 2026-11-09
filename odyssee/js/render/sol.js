@@ -21,7 +21,9 @@ const CH = 16;                 // taille d'un bloc de carte (comme world3d.js)
 const Y = 0.0044;              // hauteur du nouveau sol (au-dessus des décalques à 0,004, sous les plateaux de roche à 0,0049)
 const PAS = 0.15;              // secondes par image de l'eau
 const PREFETCH = 3;            // blocs calculés d'avance autour du joueur (world3d.js en construit 2 : on garde une avance)
-const BUDGET = 96 * 1024 * 1024;   // octets d'images gardés en cache (un bloc fixe : 256 Ko, un bloc d'eau : 2 Mo)
+// octets d'images gardés en cache (un bloc fixe : 256 Ko, un bloc d'eau : 2 Mo) ; moitié moins sur un appareil qui annonce
+// 4 Go de mémoire ou moins (navigator.deviceMemory : Chrome et Android ; inconnu ailleurs, on garde 96 Mo)
+const BUDGET = (typeof navigator !== 'undefined' && navigator.deviceMemory && navigator.deviceMemory <= 4 ? 48 : 96) * 1024 * 1024;
 
 function actif() {
   try {
