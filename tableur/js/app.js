@@ -1116,6 +1116,7 @@ function commencerEdition(initial, origine = 'cellule') {
     positionnerSelection();
     return;
   }
+  editeur.readOnly = false; editeur.tabIndex = 0; editeur.classList.remove('apercu');
   if (origine === 'cellule') {
     const rect = rectPlage(r, c, r, c);
     poser(editeur, { ...rect, width: Math.max(rect.width, 120) });
@@ -1157,7 +1158,7 @@ function annulerDansSaisie(sens) {
   edition.iHisto = i;
   const x = h[i], t = cibleSaisie();
   t.value = x.v; t.setSelectionRange(x.s, x.e);
-  if (t === editeur) { barre.value = x.v; ajusterEditeur(); } else editeur.value = x.v;
+  if (t === editeur) { barre.value = x.v; ajusterEditeur(); } else { editeur.value = x.v; if (!editeur.hidden) ajusterEditeur(); }
   edition.refEnCours = null;
   positionnerSelection();
 }
@@ -1321,6 +1322,25 @@ function remplirSelection() {
   for (let i = sel.r1; i <= sel.r2; i++) for (let j = sel.c1; j <= sel.c2; j++) classeur.saisir(fi(), i, j, texte.startsWith('=') ? decalerFormule(texte, i - r, j - c) : texte);
   sauvegarderLocal(); conteneur.focus(); rendre();
 }
+/**
+ * Ctrl+Maj+Entrée (formule matricielle d'Excel) : la formule va dans la première cellule de la plage choisie
+ * et son résultat remplit la plage (les autres cellules sont vidées pour le recevoir), au lieu d'être recopiée
+ * dans chaque cellule, ce qui donnerait #SPILL! partout.
+ */
+function validerMatricielle() {
+  if (!edition) return;
+  const texte = edition.origine === 'barre' ? barre.value : editeur.value;
+  const n = selectionNormalisee();
+  if (!texte.startsWith('=') || (n.r1 === n.r2 && n.c1 === n.c2)) return validerEdition({ dr: 1 });
+  fermerSuggestions(); edition = null; editeur.hidden = true; editeurRiche.hidden = true;
+  memoriser(plageVerrouillee(n) ? null : 'cellules');
+  for (let i = n.r1; i <= n.r2; i++) for (let j = n.c1; j <= n.c2; j++) if (i !== n.r1 || j !== n.c1) { const x = feuille().get(i, j); if (x && (x.f != null || (x.v != null && x.v !== ''))) classeur.saisir(fi(), i, j, ''); }
+  classeur.saisir(fi(), n.r1, n.c1, texte);
+  curseur = { r: n.r1, c: n.c1 };
+  const v = classeur.valeur(fi(), n.r1, n.c1);
+  toast(v instanceof ErreurFormule ? 'Formule matricielle en ' + adresse(n.r1, n.c1) + ' : ' + v.code : 'Formule matricielle : son résultat remplit la plage à partir de ' + adresse(n.r1, n.c1));
+  sauvegarderLocal(); conteneur.focus(); rendre();
+}
 function annulerEdition() {
   if (!edition) return;
   fermerSuggestions();
@@ -1340,7 +1360,7 @@ function insererReference(r1, c1, r2, c2) {
   cible.value = avant + ref + txt.slice(fin);
   edition.refEnCours = { debut, fin: debut + ref.length };
   cible.setSelectionRange(debut + ref.length, debut + ref.length);
-  if (cible === editeur) { barre.value = cible.value; ajusterEditeur(); } else editeur.value = cible.value;
+  if (cible === editeur) { barre.value = cible.value; ajusterEditeur(); } else { editeur.value = cible.value; if (!editeur.hidden) ajusterEditeur(); }
   noterEdition('ref');
   positionnerSelection();
   return true;
@@ -2793,6 +2813,8 @@ function rendreAide() {
 <li><b>Analyse</b> (menu ⋯) : <b>Valeur cible</b> ; <b>Solveur</b> (maximiser, minimiser ou atteindre une valeur en changeant des cellules, avec contraintes ≤ ≥ = entier binaire ; exact pour les modèles linéaires) ; <b>Table de données</b> à une ou deux entrées, recalculée quand le modèle change.</li>
 <li><b>Finance et comptabilité</b> : formats <b>Comptabilité</b>, milliers (k€), millions (M€) et négatifs entre parenthèses dans la liste des formats ; <b>Plan</b> (⋯ › Plan, ou clic droit › Données › Grouper) : boutons + / − à côté des en-têtes et niveaux 1, 2, 3 dans le coin ; <b>Sous-totaux…</b> (clic droit › Données) : un total à chaque changement de valeur d'une colonne, avec le plan prêt à replier ; <b>Gestionnaire de scénarios</b> et <b>Utilitaire d'analyse</b> (⋯ › Analyse : statistiques descriptives, histogramme, régression, corrélation, moyenne mobile, tests t et F, ANOVA…) ; <b>Fenêtre espion</b> et <b>Calcul itératif</b> (⋯ › Formules) pour les modèles qui se citent eux-mêmes ; graphique <b>Cascade</b> ; <b>champs calculés</b> dans les tableaux croisés. Modèles (Nouveau ▾ › Finance et actuariat) : emprunt, rentabilité d'un projet, compte de résultat, table de mortalité, Chain Ladder.</li>
 <li><b>Enregistrer ▾</b> : Enregistrer sous, Télécharger une copie et <b>Enregistrement automatique</b> (à cocher ; avec Chrome ou Edge sur ordinateur, le fichier est réécrit quelques secondes après chaque modification, ↻ devant « Enregistrer »). Fermer la page avec des modifications non enregistrées (<b>*</b> après le nom) demande confirmation.</li>
+<li><b>Formule matricielle</b> (<code>Ctrl+Maj+Entrée</code> sur une plage choisie) : la formule va dans la première cellule et son résultat remplit la plage, comme les formules matricielles d'Excel (ex. <code>=PRODUITMAT(PRODUITMAT(C15:L24;C3:L12);C15:L24)</code> sur 10 × 10). <code>Ctrl+Entrée</code>, lui, recopie la formule dans chaque cellule : un résultat de plusieurs cellules y donne #SPILL!. La raison d'un #SPILL! ou d'un #CYCLE! s'affiche en bas et en survolant la cellule.</li>
+<li><b>Barre de formule</b> : ce qui s'y écrit apparaît en direct dans la cellule.</li>
 <li><b>Références en couleur</b> : pendant la saisie d'une formule, chaque référence (<code>B2</code>, <code>C2:D5</code>…) est écrite de la couleur du cadre qui l'entoure sur la grille ; la même référence garde la même couleur.</li>
 <li><b>Fonctions VBA dans les cellules</b> : comme « Insérer une fonction » d'Excel, le bouton <b>ƒx</b> les liste en tête (avec leurs arguments) et un clic écrit <code>=Nom(</code> dans la cellule choisie, ou dans la formule en cours ; dans le projet VBA, double-clic sur une fonction (ƒ) fait de même. En tapant <code>=Ex…</code>, elles se proposent avec les fonctions d'Excel, et la bulle montre leurs arguments. Pendant la saisie, <code>Ctrl+Z</code> / <code>Ctrl+Y</code> défont et refont la saisie elle-même (y compris les références cliquées).</li>
 <li><b>LET et LAMBDA</b> : <code>=LET(x;A1*2;x+1)</code>, <code>=MAP(A1:A9;LAMBDA(v;v*2))</code>, <code>=REDUCE(0;A1:A9;LAMBDA(s;v;s+v))</code> ; un nom défini <code>=LAMBDA(x;x*1,2)</code> devient une fonction (<code>=TTC(A1)</code>).</li>
@@ -2838,7 +2860,7 @@ conteneur.addEventListener('mousedown', (e) => {
   const rect = conteneur.getBoundingClientRect();
   const x = e.clientX - rect.left, y = e.clientY - rect.top;
   if (e.target.classList.contains('redim-col') || e.target.classList.contains('redim-lig')) { demarrerRedimension(e); return; }
-  if (e.target === poignee) { e.preventDefault(); glisse = { mode: 'poignee', depart: selectionNormalisee() }; return; }
+  if (e.target === poignee) { e.preventDefault(); glisse = { mode: 'poignee', depart: selectionNormalisee(), x0: e.clientX, y0: e.clientY }; return; }
   if (x < LARGEUR_ENTETE && y < HAUTEUR_DEFAUT) { if (edition) validerEdition(); selection = { r1: 0, c1: 0, r2: Math.max(feuille().zone.r2, 0), c2: Math.max(feuille().zone.c2, 0) }; rendre(); return; }
   if (x < LARGEUR_ENTETE) { // en-tête de ligne
     const { r } = celluleDepuisPoint(LARGEUR_ENTETE + 1, y);
@@ -2884,10 +2906,18 @@ document.addEventListener('mousemove', (e) => {
   else if (glisse.mode === 'champ') { ecrireChamp(glisse.champ, glisse.depart, glisse.champ.dataset.plage ? cel : glisse.depart); }
   else if (glisse.mode === 'poignee') {
     const d = glisse.depart;
-    const dr = cel.r < d.r1 ? d.r1 - cel.r : cel.r > d.r2 ? cel.r - d.r2 : 0, dc = cel.c < d.c1 ? d.c1 - cel.c : cel.c > d.c2 ? cel.c - d.c2 : 0;
+    let dr = cel.r < d.r1 ? d.r1 - cel.r : cel.r > d.r2 ? cel.r - d.r2 : 0, dc = cel.c < d.c1 ? d.c1 - cel.c : cel.c > d.c2 ? cel.c - d.c2 : 0;
+    // La poignée est au coin de quatre cellules : un sens ne compte qu'à partir de 12 px de déplacement dans ce sens
+    // (sinon un double-clic ou un geste un peu tremblé recopiait en diagonale)
+    if (glisse.x0 !== undefined && e && e.clientX !== undefined) {
+      const seuil = toucher ? 22 : 12; // au doigt, le geste tremble davantage
+      if (Math.abs(e.clientX - glisse.x0) < seuil) dc = 0;
+      if (Math.abs(e.clientY - glisse.y0) < seuil) dr = 0;
+    }
+    const cr = dr ? cel.r : d.r2, cc = dc ? cel.c : d.c2;
     // Vers le bas, le côté ou en diagonale (les deux à la fois)
     glisse.cible = dr || dc ? { r: dr ? cel.r : null, c: dc ? cel.c : null } : null;
-    selection = { r1: Math.min(d.r1, cel.r), c1: Math.min(d.c1, cel.c), r2: Math.max(d.r2, cel.r), c2: Math.max(d.c2, cel.c) };
+    selection = { r1: Math.min(d.r1, cr), c1: Math.min(d.c1, cc), r2: Math.max(d.r2, cr), c2: Math.max(d.c2, cc) };
     rendre();
   } else if (glisse.mode === 'deplacer') {
     const d = glisse.depart, dr = Math.max(-d.r1, cel.r - glisse.cel0.r), dc = Math.max(-d.c1, cel.c - glisse.cel0.c);
@@ -3397,8 +3427,19 @@ editeur.addEventListener('input', (e) => {
   if (prop) { editeur.value = prop; editeur.setSelectionRange(t.length, prop.length); barre.value = prop; }
 });
 editeur.addEventListener('keydown', (e) => toucheEdition(e, 'cellule'));
-barre.addEventListener('focus', () => { if (barre.classList.contains('fantome')) { barre.value = ''; barre.classList.remove('fantome'); } if (!edition) { edition = { r: curseur.r, c: curseur.c, origine: 'barre' }; noterEdition('debut'); positionnerSelection(); } });
-barre.addEventListener('input', (e) => { if (edition) { noterEdition(e.inputType && e.inputType.startsWith('insert') && !/Paste|Drop/.test(e.inputType) ? 'frappe' : 'code'); editeur.value = barre.value; edition.refEnCours = null; positionnerSelection(); } });
+barre.addEventListener('focus', () => { if (barre.classList.contains('fantome')) { barre.value = ''; barre.classList.remove('fantome'); } if (!edition) { if (feuilleProtegee() && verrouillee(curseur.r, curseur.c)) { barre.blur(); return signalerProtection(); } edition = { r: curseur.r, c: curseur.c, origine: 'barre' }; montrerApercuCellule(); noterEdition('debut'); positionnerSelection(); } });
+/** Saisie dans la barre de formule : la cellule montre le texte en direct, comme dans Excel (aperçu, la frappe reste dans la barre). */
+function montrerApercuCellule() {
+  if (!edition || edition.origine !== 'barre' || !editeur.hidden || edition.riche) return;
+  const rect = rectPlage(edition.r, edition.c, edition.r, edition.c);
+  if (rect.width <= 0 || rect.height <= 0) return; // cellule hors de l'écran
+  poser(editeur, { ...rect, width: Math.max(rect.width, 120) });
+  editeur.value = barre.value;
+  editeur.readOnly = true; editeur.tabIndex = -1; editeur.classList.add('apercu');
+  editeur.hidden = false;
+  ajusterEditeur();
+}
+barre.addEventListener('input', (e) => { if (edition) { noterEdition(e.inputType && e.inputType.startsWith('insert') && !/Paste|Drop/.test(e.inputType) ? 'frappe' : 'code'); editeur.value = barre.value; if (!editeur.hidden) ajusterEditeur(); edition.refEnCours = null; positionnerSelection(); } });
 barre.addEventListener('keydown', (e) => toucheEdition(e, 'barre'));
 barre.addEventListener('blur', () => { if (edition && edition.origine === 'barre' && !glisse) setTimeout(() => { if (edition && edition.origine === 'barre' && document.activeElement !== barre) validerEdition(); }, 150); });
 editeur.addEventListener('blur', () => { if (edition && edition.origine === 'cellule' && !glisse) setTimeout(() => { if (edition && edition.origine === 'cellule' && document.activeElement !== editeur && document.activeElement !== barre) validerEdition(); }, 150); });
@@ -3436,7 +3477,7 @@ function insererFonctionDansCellule(nom) {
   else if (d > 1 && !/[=(;,+\-*/^&<>:\s]$/.test(v.slice(0, d))) ajout = '+' + ajout;
   t.value = v.slice(0, d) + ajout + v.slice(f);
   t.setSelectionRange(d + ajout.length, d + ajout.length);
-  if (t === editeur) { barre.value = t.value; ajusterEditeur(); } else editeur.value = t.value;
+  if (t === editeur) { barre.value = t.value; ajusterEditeur(); } else { editeur.value = t.value; if (!editeur.hidden) ajusterEditeur(); }
   noterEdition();
   edition.refEnCours = null;
   t.focus(); positionnerSelection(); majSuggestions();
@@ -3521,7 +3562,7 @@ function accepterSuggestion(i = sugg && sugg.i) {
   cible.value = txt.slice(0, sugg.debut) + ajout + txt.slice(sugg.fin);
   const pos = sugg.debut + ajout.length;
   cible.setSelectionRange(pos, pos);
-  if (cible === editeur) { barre.value = editeur.value; ajusterEditeur(); } else editeur.value = barre.value;
+  if (cible === editeur) { barre.value = editeur.value; ajusterEditeur(); } else { editeur.value = barre.value; if (!editeur.hidden) ajusterEditeur(); }
   edition.refEnCours = null;
   sugg = null;
   noterEdition();
@@ -3562,7 +3603,8 @@ function toucheEdition(e, origine) {
   // Ctrl+Z / Ctrl+Y dans la saisie : défait ou refait la saisie elle-même (pas le classeur), étape par étape
   if ((e.ctrlKey || e.metaKey) && !e.altKey && (kk === 'z' || kk === 'y')) { e.preventDefault(); annulerDansSaisie(kk === 'y' || e.shiftKey ? 1 : -1); return; }
   if (e.key === 'F3' && e.shiftKey) { e.preventDefault(); ouvrirPanneau('fonctions'); return; }
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.altKey) { e.preventDefault(); remplirSelection(); }
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey) { e.preventDefault(); validerMatricielle(); }
+  else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.altKey) { e.preventDefault(); remplirSelection(); }
   else if (e.key === 'Enter' && !e.altKey) { e.preventDefault(); validerEdition({ dr: e.shiftKey ? -1 : 1 }); }
   else if (e.key === 'Enter' && e.altKey) { e.preventDefault(); const t = e.target; const p = t.selectionStart; t.value = t.value.slice(0, p) + '\n' + t.value.slice(p); t.setSelectionRange(p + 1, p + 1); if (origine === 'cellule') ajusterEditeur(); }
   else if (e.key === 'Tab') { e.preventDefault(); validerEdition({ dc: e.shiftKey ? -1 : 1 }); }
@@ -3578,7 +3620,7 @@ function toucheEdition(e, origine) {
     t.value = txt.slice(0, deb) + nouveau + txt.slice(deb + ref.ref.length);
     t.setSelectionRange(deb + nouveau.length, deb + nouveau.length);
     noterEdition();
-    if (origine === 'cellule') barre.value = t.value; else editeur.value = t.value;
+    if (origine === 'cellule') barre.value = t.value; else { editeur.value = t.value; if (!editeur.hidden) ajusterEditeur(); }
     positionnerSelection();
   }
 }
@@ -3849,6 +3891,7 @@ conteneur.addEventListener('touchstart', (e) => {
   else if (mode === 'selection') e.preventDefault(); // pas de défilement : le doigt étend la sélection
 }, { passive: false });
 
+let dernierAppuiPoignee = 0;
 function toucheBouge(e) {
   if (!toucher) return;
   const t = e.touches[0];
@@ -3872,6 +3915,11 @@ function toucheFin(e) {
   e.preventDefault(); // pas d'évènements souris en double
   if (g.actif) {
     souris('mouseup', document, t.clientX, t.clientY);
+    // Double appui sur la poignée (le double-clic d'Excel) : recopie vers le bas jusqu'au bout des données voisines
+    if (g.cible === poignee && !g.bouge) {
+      if (Date.now() - dernierAppuiPoignee < 400) { dernierAppuiPoignee = 0; recopieDoubleClic(); return; }
+      dernierAppuiPoignee = Date.now();
+    }
     // Second appui sur une forme déjà choisie : on écrit dedans
     const fe = !g.bouge && g.cible.closest && g.cible.closest('.forme-feuille');
     if (fe && fe.dataset.image === imageActive && formeActive()) editerTexteForme(formeActive());

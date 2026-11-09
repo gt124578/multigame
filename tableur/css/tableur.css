@@ -611,3 +611,20 @@ textarea.colore::selection { color: transparent; background: rgba(37, 99, 235, .
 .coupe-gauche { border-left-color: transparent !important; }
 /* Enregistrement automatique activé */
 #btn-enregistrer.auto::before { content: "↻ "; color: var(--accent); font-weight: 600; }
+
+/* Tablette (iPad…) : la place ne manque pas, la barre d'outils passe à la ligne au lieu de défiler hors de l'écran
+   (le bouton Graphique, le menu ⋯ et les autres restaient cachés à droite sans qu'on le devine) */
+@media (pointer: coarse) and (min-width: 700px) and (min-height: 600px) {
+  #barre-outils { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; }
+  #barre-outils .groupe { flex-wrap: wrap; max-width: 100%; row-gap: 6px; }
+  #barre-outils select { max-width: 220px; }
+}
+/* Téléphone : la barre défile ; un fondu à droite montre qu'il y a la suite */
+@media (pointer: coarse) and (max-width: 699px), (pointer: coarse) and (max-height: 599px) {
+  #barre-outils { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+}
+/* Références colorées : Safari et Chrome sur iPad dessinent le texte d'une zone de saisie avec -webkit-text-fill-color */
+textarea.colore { -webkit-text-fill-color: transparent; }
+textarea.colore::selection { -webkit-text-fill-color: transparent; }
+/* Aperçu dans la cellule de ce qui s'écrit dans la barre de formule */
+#editeur.apercu { pointer-events: none; }

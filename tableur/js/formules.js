@@ -31,6 +31,8 @@ export const ERR = {
 };
 
 const err = (code, d) => new ErreurFormule(code, d);
+const x0 = (cel) => !!(cel && cel.f != null);
+const a1 = (t) => { const m = /^([A-Z]+)(\d+)$/.exec(t); let c = 0; for (const ch of m[1]) c = c * 26 + ch.charCodeAt(0) - 64; return [+m[2] - 1, c - 1]; };
 export const estErreur = (v) => v instanceof ErreurFormule;
 
 // ---------------------------------------------------------------------------
@@ -2109,7 +2111,7 @@ export class Evaluateur {
     if (this.enCours.has(cle)) {
       const it = this.classeur.iteration;
       if (it && it.actif) { this.cycleVu = true; const p = (this.precedents && this.precedents.get(cle)) ?? (this.dernierCycle && this.dernierCycle.get(cle)); return typeof p === 'number' ? p : typeof cel.cache === 'number' ? cel.cache : 0; }
-      return err(ERR.CYCLE);
+      return err(ERR.CYCLE, 'référence circulaire : la formule de ' + adresse(r, c) + ' dépend de son propre résultat (elle cite, directement ou non, une plage qui la contient)');
     }
     this.enCours.add(cle);
     const sauve = this.courant;
@@ -2123,14 +2125,14 @@ export class Evaluateur {
       else if (Array.isArray(v) && (v.length > 1 || (v[0] && v[0].length > 1))) m = v;
       if (m && m.length && m[0].length) {
         const h = m.length, w = Math.max(...m.map((l) => l.length));
-        let bloque = false;
+        let bloque = false, gene = null;
         for (let i = 0; i < h && !bloque; i++) for (let j = 0; j < w; j++) {
           if (!i && !j) continue;
           const x = this.classeur.cellule(f, r + i, c + j);
-          if (x && !(x.f == null && (x.v === null || x.v === undefined || x.v === '' || x.couverte))) { bloque = true; break; }
+          if (x && !(x.f == null && (x.v === null || x.v === undefined || x.v === '' || x.couverte))) { bloque = true; gene = adresse(r + i, c + j); break; }
         }
         this.debords.set(cle, { h, w, m, bloque });
-        if (bloque && cel.cache === undefined) v = err(ERR.DEBORD);
+        if (bloque && cel.cache === undefined) v = err(ERR.DEBORD, 'le résultat (' + h + ' × ' + w + ') doit remplir ' + adresse(r, c) + ':' + adresse(r + h - 1, c + w - 1) + ', mais ' + gene + ' n\'est pas vide' + (x0(this.classeur.cellule(f, ...a1(gene))) ? ' (elle contient aussi une formule : effacez-la, ou validez la formule avec Ctrl+Maj+Entrée sur la plage choisie)' : ''));
         else if (bloque) v = v instanceof Plage ? v.scalaire() : m[0][0]; // ancienne formule d'un fichier Excel : intersection implicite
         else v = m[0][0];
       } else {

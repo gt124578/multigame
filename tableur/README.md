@@ -76,6 +76,10 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
   cocher : avec Chrome ou Edge sur ordinateur, le fichier lié est réécrit quelques secondes après chaque modification) ;
   `*` après le nom (onglet du classeur et onglet du navigateur) tant que les modifications ne sont pas enregistrées, et le
   navigateur demande confirmation avant de fermer la page dans ce cas.
+- **Formules matricielles** : `Ctrl+Maj+Entrée` sur une plage met la formule dans sa première cellule et le résultat
+  remplit la plage ; la raison d'un `#SPILL!` (cellule qui bloque) ou d'un `#CYCLE!` s'affiche. La barre de formule écrit
+  en direct dans la cellule. Sur tablette, la barre d'outils passe à la ligne (tout reste visible) ; double appui sur la
+  poignée de recopie = double-clic d'Excel.
 - **Presse-papiers** : copier-coller avec Excel, LibreOffice et les pages web dans les deux sens (texte tabulé, cellules
   sur plusieurs lignes entre guillemets), sans demande d'autorisation au clavier.
 - **Saisie des formules** : proposition des fonctions (françaises et anglaises) et des noms définis pendant la frappe,

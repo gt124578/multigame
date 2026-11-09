@@ -1299,6 +1299,19 @@ test('vba : tableau typé rempli par une fonction (Dim t() As Double : t = f(pla
   egal([v.code, /Deuxieme, ligne \d+ de Package/.test(v.message)], ['#VALUE!', true]);
 });
 
+test('matrices : PRODUITMAT imbriqués et TRANSPOSE (variance d\'un portefeuille), #SPILL! et #CYCLE! expliqués', () => {
+  const c = Classeur.nouveau();
+  [[0.04, 0.01], [0.01, 0.09]].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v).replace('.', ','))));
+  c.saisir(0, 0, 3, '0,6'); c.saisir(0, 1, 3, '0,4');
+  c.saisir(0, 3, 0, '=PRODUITMAT(TRANSPOSE(D1:D2);PRODUITMAT(A1:B2;D1:D2))');
+  egal(Math.round(c.valeur(0, 3, 0) * 1e6) / 1e6, 0.0336);
+  c.saisir(0, 5, 0, '=PRODUITMAT(A1:B2;A1:B2)'); c.saisir(0, 5, 1, '=PRODUITMAT(A1:B2;A1:B2)');
+  const v = c.valeur(0, 5, 0);
+  egal([v.code, /A6:B7, mais B6 n'est pas vide/.test(v.detail)], ['#SPILL!', true]);
+  c.saisir(0, 9, 0, '=SOMME(A9:A11)');
+  egal([c.valeur(0, 9, 0).code, /A10 dépend de son propre résultat/.test(c.valeur(0, 9, 0).detail)], ['#CYCLE!', true]);
+});
+
 test('vba : renommer une macro, une fonction ou un module met à jour ce qui les cite', () => {
   const c = Classeur.nouveau();
   c.ajouterModule('Calculs'); c.ajouterModule('Boutons');
