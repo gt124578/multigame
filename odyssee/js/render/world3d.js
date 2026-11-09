@@ -503,7 +503,7 @@ export class WorldView {
 
   /* ---------------- construction d'une carte ---------------- */
   setMap(map) {
-    if (this.root) { this.scene.remove(this.root); this.root.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material.userData.own) { o.material.map?.dispose(); o.material.dispose(); } }); }
+    if (this.root) this.defaireCarte();
     for (const a of this.actors.values()) a.dispose?.();
     this.actors.clear();
     map = vueCarte(map);   // hors des bords : la région continue (rendu seulement)
@@ -1032,8 +1032,10 @@ export class WorldView {
       if (rv?.paroi) { const me = new THREE.Mesh(rv.paroi, matParoi()); me.renderOrder = -1; me.frustumCulled = false; grp.add(me); }
       if (rv?.facettes) { const me = new THREE.Mesh(rv.facettes, matFacettes()); me.frustumCulled = false; grp.add(me); }
     }
+    grp.userData.halos = [];
     for (const [gx, gz, gy] of glows) {
       const me = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), this.matGlow); me.position.set(gx, gy + this.hAt(gx, gz), gz + 0.05); me.rotation.x = -0.3; me.userData.lampGlow = true; this.glows.add(me);
+      grp.userData.halos.push(me);
     }
     this.root.add(grp);
     this.sol.demande(ci, cj, grp);
@@ -1043,7 +1045,7 @@ export class WorldView {
   /** une case a changé (arbre coupé, rocher brisé) : le morceau de carte qui la contient est reconstruit */
   rebuildAt(x, y) {
     const k = Math.floor(x / CH) + ',' + Math.floor(y / CH), g = this.chunks.get(k);
-    if (g) { this.root.remove(g); g.traverse((o) => o.geometry?.dispose()); this.chunks.delete(k); }
+    if (g) { this.root.remove(g); g.traverse((o) => o.geometry?.dispose()); this.retirerHalos(g); this.chunks.delete(k); }
     this.sol.invalider(x, y);
     this.lastChunk = null;
   }
@@ -1078,8 +1080,52 @@ export class WorldView {
     for (const [kk, g] of this.chunks) {
       const [i, j] = kk.split(',').map(Number), d = Math.max(Math.abs(i - ci), Math.abs(j - cj));
       g.visible = d <= R;
-      if (d > R + 4) { this.root.remove(g); g.traverse((o) => o.geometry?.dispose()); this.chunks.delete(kk); }
+      if (d > R + 4) { this.defaireBloc(kk, g); this.chunks.delete(kk); }
     }
+  }
+
+  /* ---------------- libération de la mémoire (géométries, textures, matériaux) ----------------
+   * three.js ne rend jamais au GPU ce qui n'a pas été libéré par dispose() : un objet simplement oublié y reste jusqu'à
+   * la fermeture de la page. Chaque bloc défait, chaque carte quittée rend donc tout ce qui lui appartenait. */
+  /** un bloc lointain : son sol, ses halos de lampadaires, et les bâtiments qu'il porte (reposés au retour) */
+  defaireBloc(k, g) {
+    this.root.remove(g); this.sol.liberer(g); this.sol.groups.delete(this.sol.cle(...k.split(',').map(Number)));
+    g.traverse((o) => o.geometry?.dispose()); this.retirerHalos(g);
+    const L = this.batPoses?.get(k); if (!L) return;
+    this.batPoses.delete(k);
+    const partis = this.buildingMeshes.filter((q) => q.userData.bloc === k), mats = new Set();
+    for (const q of partis) { this.root.remove(q); if (q.userData.win) { this.nightGroup.remove(q.userData.win); mats.add(q.userData.win.material); q.userData.win.geometry.dispose(); } this.libererGroupe(q, mats); }
+    this.buildingMeshes = this.buildingMeshes.filter((q) => q.userData.bloc !== k);
+    for (const m of mats) m.dispose();
+    this.tinted = this.tinted.filter((m) => !mats.has(m));
+    this.batAttente.set(k, L);
+  }
+  /** géométries propres et matériaux d'un groupe (les géométries des modèles 3D sont partagées : gardées) */
+  libererGroupe(g, mats) {
+    g.traverse((o) => {
+      if (o.geometry && !o.userData.partage) o.geometry.dispose();
+      const m = o.material; if (!m || m === this.mat.shadow || Object.values(this.mat).includes(m) || m === this.matGlow) return;
+      if (m.userData.ownTint || m.userData.own) mats.add(m);
+    });
+  }
+  retirerHalos(g) { for (const me of g.userData.halos || []) { this.glows.remove(me); me.geometry.dispose(); } g.userData.halos = null; }
+  /** la carte qu'on quitte : tout ce qui a été construit pour elle */
+  defaireCarte() {
+    this.scene.remove(this.root);
+    for (const g of this.sol.groups.values()) this.sol.liberer(g);
+    const mats = new Set();
+    this.root.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      const m = o.material; if (!m) return;
+      if (m.userData.own || m.userData.ownTint) { if (m.userData.own) m.map?.dispose(); mats.add(m); }
+    });
+    for (const m of mats) m.dispose();
+    // textures des façades et fenêtres de nuit de cette carte (caches refaits à chaque carte)
+    for (const t of this._texBat?.values() || []) t.dispose();
+    for (const m of this._fenetres?.values() || []) { m.map?.dispose(); m.dispose(); }
+    this._texBat = null; this._fenetres = null; this.batPoses = null;
+    // matériaux teintés par l'heure : seuls restent ceux du rendu (pas ceux des bâtiments ni des blocs défaits)
+    this.tinted = this.tinted.filter((m) => !mats.has(m) && !m.userData.ownTint && !m.userData.sol);
   }
 
   /** sorties des grottes vues de dedans : le couloir creusé dans la paroi s'éclaire du jour qui entre du dehors */
@@ -1124,9 +1170,15 @@ export class WorldView {
   retirerBat(b) {
     for (const g of this.buildingMeshes.filter((q) => q.userData.b === b)) { this.root.remove(g); if (g.userData.win) this.nightGroup.remove(g.userData.win); }
     this.buildingMeshes = this.buildingMeshes.filter((q) => q.userData.b !== b);
-    for (const L of this.batAttente?.values() || []) { const i = L.indexOf(b); if (i >= 0) L.splice(i, 1); }
+    for (const L of [...(this.batAttente?.values() || []), ...(this.batPoses?.values() || [])]) { const i = L.indexOf(b); if (i >= 0) L.splice(i, 1); }
   }
-  poserBatimentsBloc(i, j) { const k = i + ',' + j, L = this.batAttente?.get(k); if (!L) return; this.batAttente.delete(k); for (const b of L) this.poserBat(b); }
+  poserBatimentsBloc(i, j) {
+    const k = i + ',' + j, L = this.batAttente?.get(k); if (!L) return; this.batAttente.delete(k);
+    const n0 = this.buildingMeshes.length;
+    for (const b of L) this.poserBat(b);
+    for (let n = n0; n < this.buildingMeshes.length; n++) this.buildingMeshes[n].userData.bloc = k;
+    (this.batPoses ||= new Map()).set(k, L);
+  }
   poserBat(b) {
     const cache = this._texBat;
     const T3 = (key, mk) => { if (!cache.has(key)) cache.set(key, tex(mk())); return cache.get(key); };
@@ -1144,7 +1196,7 @@ export class WorldView {
       const geo = new THREE.PlaneGeometry(holeW, holeD); geo.rotateX(-Math.PI / 2);
       const mat = new THREE.MeshBasicMaterial({ map: T3('arche_' + bio, () => archeGrotte(bio, false, this.paletteRoche(bio))), transparent: true, alphaTest: 0.5 });
       mat.map.flipY = true; mat.map.needsUpdate = true;   // ligne 0 de l'image = nord (le haut de l'arche)
-      this.tinted.push(mat); mat.color.copy(this.tint);
+      this.tinted.push(mat); mat.color.copy(this.tint); mat.userData.ownTint = true;
       const hole = new THREE.Mesh(geo, mat); hole.position.set(b.doorX + 0.5, 0.0056, b.doorY + 1 - holeD / 2); hole.renderOrder = 1;
       if (this.r3d) {
         // relief en 3D : la bouche est plaquée sur la paroi au-dessus de la porte (la géométrie suit le sol)
@@ -1233,7 +1285,7 @@ export class WorldView {
       if (mod.nom === 'maisonVille' && !mat.userData.vitre) { const f = 0.94 + hash(b.x * 3 + 1, b.y * 5 + 2) * 0.1, c = (hash(b.x * 7 + 5, b.y * 11 + 3) - 0.5) * 0.06; mat.userData.base.multiply(new THREE.Color(f * (1 + c), f, f * (1 - c))); }
       mat.color.copy(mat.userData.base).multiply(this.tint);
       this.tinted.push(mat);
-      g.add(new THREE.Mesh(p.geo, mat));
+      const me = new THREE.Mesh(p.geo, mat); me.userData.partage = true; g.add(me);
     }
     const sh = new Geo(); const S = this.S.rects.shadow;
     flat(sh, 0 - 0.1, b.d - 0.2, b.w + 0.1, b.d + 0.45, 0.012, [S.u0, S.v0 + (S.v1 - S.v0) * 0.4, S.u1, S.v1]);
