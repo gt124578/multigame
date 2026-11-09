@@ -7,6 +7,8 @@
 //     avec Force garde une petite salle et son trésor.
 // Les deux bouches sont des percées : un sentier part du chemin de la route, traverse la forêt tout droit et bute sur
 // la roche de la Chaîne ; l'entrée est creusée dans la falaise. Identifiants fixes : `col:…`.
+// Et grotteDansFalaise() : une grotte générique à deux niveaux creusée dans une falaise au bord d'une route (la Grotte
+// des Sables, route 16).
 import { T, walkable } from './tiles.js';
 import { caveMap } from './interiors.js';
 import { massif } from './relief.js';
@@ -183,4 +185,62 @@ export function grotteDuCol({ W, maps, routes, ENC, trainerNpc }) {
   maps.col2 = m2;
   for (const q of [m, m2]) q.outside = { map: 'monde', x: Bw.doorX, y: Bw.doorY + 1 };
   return { ouest: [Bw.doorX, Bw.doorY], sud: [Bs.doorX, Bs.doorY], echelle: [lx, ly] };
+}
+
+/**
+ * Une grotte creusée dans la falaise d'une mesa, au bord du sentier d'une route (la Grotte des Sables, route 16) : des
+ * galeries hautes avec deux dresseurs et deux objets, une échelle vers une galerie profonde plongée dans le noir (Flash)
+ * où un rocher à pousser (Force) garde une salle et son trésor, plus un objet caché. Cul-de-sac : on ressort par où
+ * l'on est entré. o : { route, id, nom, graine, dresseurs: [[classe, nom, [[espèce, niveau]…]]…], objets: [haut, haut,
+ * salle, salle], cache }.
+ */
+export function grotteDansFalaise({ W, maps, ENC, trainerNpc }, o) {
+  const R = maps && (o.routes || []).find((r) => r.id === o.route)?.pts?.res; if (!R) return null;
+  // la bouche : une case du sentier (ou de sa bande) sous une falaise franche de deux niveaux au moins, au milieu de la route
+  let best = null, bd = 1e9;
+  for (const k of R.cells) {
+    const [x, y] = k.split(',').map(Number), t = W.get(x, y);
+    if (![T.GRASS, T.PATH, T.SAND].includes(t) || W.zoneAt(x, y)?.route !== o.route) continue;
+    const h = W.height(x, y); let ok = true;
+    for (let j = 1; j <= 3 && ok; j++) for (let i = -2; i <= 2; i++) if (W.get(x + i, y - j) !== T.CAVEWALL || W.height(x + i, y - j) < h + 2) { ok = false; break; }
+    if (!ok || ![-1, 1].every((i) => [T.GRASS, T.PATH, T.SAND, T.FLOWER].includes(W.get(x + i, y)) && W.height(x + i, y) === h)) continue;
+    if (!walkable(W.get(x, y + 1)) || W.npcs.some((n) => Math.abs(n.x - x) + Math.abs(n.y - y) < 4) || W.items.some((q) => Math.abs(q.x - x) + Math.abs(q.y - y) < 3) || W.signs.has((x + 2) + ',' + (y + 1))) continue;
+    const d = Math.abs(x - (R.pts[Math.floor(R.pts.length / 2)][0])) + Math.abs(y - (R.pts[Math.floor(R.pts.length / 2)][1]));
+    if (d < bd) { bd = d; best = [x, y, h]; }
+  }
+  if (!best) return null;
+  const [bx, by, bh] = best;
+  const B = W.building('cave', bx - 2, by - 3);
+  for (let y = B.y; y < B.y + B.d; y++) for (let x = B.x; x < B.x + B.w; x++) W.setHeight(x, y, bh);
+  if ([T.GRASS, T.FLOWER, T.SAND].includes(W.get(bx + 2, by + 1))) W.sign(bx + 2, by + 1, `${o.nom.toUpperCase()}\nGaleries creusées dans la mesa.`);
+  const id = o.id, enc = (ENC[o.route] || ENC.grotte || []).map(([sp, a, b, p]) => [sp, a, b, p]);
+  // galeries hautes
+  const m = caveMap(id, 48, 32, o.graine, [{ x: 24, y: 27 }], { name: o.nom, via: [{ x: 8, y: 20 }, { x: 10, y: 6 }, { x: 24, y: 12 }, { x: 40, y: 6 }, { x: 38, y: 22 }] });
+  m.encounter = enc; m.biome = 'terre';
+  m.set(24, 28, T.CAVEDOOR); m.set(24, 27, T.CAVE); m.set(24, 29, T.CAVEWALL);
+  m.warp(24, 28, { map: 'monde', x: B.doorX, y: B.doorY + 1, dir: 'down' });
+  W.warp(B.doorX, B.doorY, { map: id, x: 24, y: 27, dir: 'up' });
+  m.deco.push({ k: 'exitlight', x: 24, y: 28 });
+  const d1 = distances(m, 24, 27), loin = (d, f) => { const L = []; for (let y = 3; y < m.h - 3; y++) for (let x = 3; x < m.w - 3; x++) if (m.get(x, y) === T.CAVE && d[y * m.w + x] > 5 && N4.filter(([a, b]) => m.get(x + a, y + b) === T.CAVE).length >= 3 && !m.npcs.some((n) => n.x === x && n.y === y) && !m.items.some((q) => q.x === x && q.y === y)) L.push([x, y, d[y * m.w + x]]); L.sort((a, b) => a[2] - b[2] || a[1] - b[1] || a[0] - b[0]); return L[Math.min(L.length - 1, Math.floor(f * (L.length - 1)))]; };
+  const [lx, ly] = loin(d1, 1);
+  (o.dresseurs || []).slice(0, 2).forEach(([cls, nom, team], k) => { const p = loin(d1, 0.35 + k * 0.35); if (p) trainerNpc(m, p[0], p[1], ['left', 'down'][k], cls, nom, team, { id: `${id}:d${k}`, sight: 3 }); });
+  (o.objets || []).slice(0, 2).forEach((it, k) => { const p = loin(d1, 0.2 + k * 0.5); if (p) m.item(p[0], p[1], it, 1, `${id}:o${k}`); });
+  // galerie profonde, dans le noir
+  const m2 = caveMap(id + '2', 40, 28, o.graine + 1, [{ x: 5, y: 23 }], { name: o.nom + ' — galerie profonde', dark: true, via: [{ x: 14, y: 8 }, { x: 26, y: 18 }, { x: 24, y: 6 }] });
+  m2.encounter = enc; m2.biome = 'terre';
+  echelle(m, lx, ly, { map: id + '2', x: 5, y: 22, dir: 'down' });
+  { const [ax, ay] = N4.map(([a, b]) => [lx + a, ly + b]).find(([a, b]) => m.get(a, b) === T.CAVE) || [lx, ly + 1]; echelle(m2, 5, 23, { map: id, x: ax, y: ay, dir: 'down' }, true); }
+  // la salle du trésor, au nord-est, derrière un boyau et son rocher (Force)
+  const sx0 = 30, sy0 = 2, sx1 = 36, sy1 = 6, bxc = 33;
+  for (let y = sy0 - 1; y <= sy1 + 1; y++) for (let x = sx0 - 1; x <= sx1 + 1; x++) { m2.set(x, y, T.CAVEWALL); m2.deco = m2.deco.filter((d) => !(d.x === x && d.y === y)); }
+  for (let y = sy0; y <= sy1; y++) for (let x = sx0; x <= sx1; x++) m2.set(x, y, T.CAVE);
+  const dd = distances(m2, 5, 22);
+  let yy = sy1 + 1; while (yy < m2.h - 2 && !(m2.get(bxc, yy) === T.CAVE && dd[yy * m2.w + bxc] >= 0)) { m2.set(bxc, yy, T.CAVE); m2.deco = m2.deco.filter((d) => !(d.x === bxc && d.y === yy)); yy++; }
+  m2.set(bxc, sy1 + 1, T.CAVE); m2.set(bxc, sy1 + 2, T.BOULDER);
+  for (const x of [bxc - 1, bxc + 1]) for (let y = sy1 + 1; y <= sy1 + 2; y++) if (m2.get(x, y) === T.CAVE) m2.set(x, y, T.CAVEWALL);
+  (o.objets || []).slice(2, 4).forEach((it, k) => m2.item(k ? sx0 : sx1, sy0, it, 1, `${id}:o${k + 2}`));
+  { const dz = distances(m2, 5, 22), q = []; for (let y = 3; y < m2.h - 3; y++) for (let x = 3; x < m2.w - 3; x++) if (m2.get(x, y) === T.CAVE && dz[y * m2.w + x] > 10 && N4.filter(([a, b]) => m2.get(x + a, y + b) === T.CAVE).length === 1) q.push([x, y]);
+    if (q.length && o.cache) { const [x, y] = q[Math.floor(q.length / 2)]; const r = N4.map(([a, b]) => [x + a, y + b]).find(([a, b]) => m2.get(a, b) === T.CAVEWALL); if (r) cacher(m2, r[0], r[1], `${id}:c0`, o.cache); } }
+  for (const q of [m, m2]) { q.outside = { map: 'monde', x: B.doorX, y: B.doorY + 1 }; maps[q.id] = q; }
+  return { bouche: [B.doorX, B.doorY], echelle: [lx, ly] };
 }
