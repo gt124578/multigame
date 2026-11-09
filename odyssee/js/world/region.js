@@ -1251,7 +1251,7 @@ export function buildWorld() {
   // la Chaîne Céleste déborde de son plan : des avancées de roche dans la forêt de fond (contreforts.js)
   { const t0 = performance.now(); W.contreforts = contreforts(W); W.contreforts.ms = Math.round(performance.now() - t0); }
   // les canyons des Hauts d'Ocre : une gorge depuis la route 14 ouvre les vallées de sable entre les mesas (ocre.js)
-  W.ocre = canyonsDOcre({ W, ENC, trainerNpc });
+  W.ocre = canyonsDOcre({ W, maps, ENC, trainerNpc });
   { const tz = W.zones.filter((z) => z.town || z.trigger), sz = W.zones.filter((z) => z.sea), rz = W.zones.filter((z) => !z.town && !z.trigger && !z.sea); W.zones = [...sz, ...rz, ...tz]; }
   // les grandes villes perchées : on y monte par des escaliers à chaque porte
   for (const [k, t] of Object.entries(towns)) if (VILLES[k]?.releve) relever(W, t);

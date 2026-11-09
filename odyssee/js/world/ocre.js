@@ -7,11 +7,12 @@
 import { T, walkable } from './tiles.js';
 import { bruit } from './quartiers.js';
 import { cacher } from './rythme.js';
+import { caveMap } from './interiors.js';
 
 const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const FORET = (t) => t === T.TREE || t === T.PINE;
 
-export function canyonsDOcre({ W, ENC, trainerNpc, route = 'r14' }) {
+export function canyonsDOcre({ W, maps, ENC, trainerNpc, route = 'r14' }) {
   const Z = W.zones.find((z) => z.name === 'Hauts d\'Ocre'); if (!Z) return null;
   const dansZ = (x, y) => W.zoneAt(x, y) === Z;
   // 1. le plus grand réseau de vallées qu'on n'atteint de nulle part : sol praticable d'un seul tenant, dans le
@@ -74,5 +75,65 @@ export function canyonsDOcre({ W, ENC, trainerNpc, route = 'r14' }) {
   // l'objet caché : dans la roche au bout d'une impasse des vallées
   const impasses = tri.filter(([k]) => { const [x, y] = k.split(',').map(Number); return N4.filter(([a, b]) => walkable(W.get(x + a, y + b))).length === 1; });
   if (impasses.length) { const [x, y] = impasses[Math.floor(impasses.length * 0.8)][0].split(',').map(Number); const r = N4.map(([a, b]) => [x + a, y + b]).find(([a, b]) => W.get(a, b) === T.CAVEWALL); if (r) cacher(W, r[0], r[1], 'ocre:c0', 'ultra-ball'); }
-  return { vallees: best.length, gorge: gorge.length, entree: [ex, ey] };
+  const grotte = maps ? grotteDesMesas({ W, maps, ENC, trainerNpc, val, dist }) : null;
+  return { vallees: best.length, gorge: gorge.length, entree: [ex, ey], grotte };
+}
+
+/**
+ * La Grotte des Mesas : au fond des vallées, une bouche s'ouvre dans la falaise d'une mesa. Un seul niveau ; un
+ * rocher fissuré (Éclate-Roc) ferme les passages étroits du fond quand il y en a ; deux montagnards, des objets et un
+ * objet caché ; on en ressort par où l'on est entré (cul-de-sac). Identifiants `mesas:…`.
+ */
+function grotteDesMesas({ W, maps, ENC, trainerNpc, val, dist }) {
+  // la bouche : une case de sable des vallées, loin de l'entrée, sous une falaise de mesa (deux niveaux au moins) ;
+  // la case devant la porte et ses voisines restent du sable
+  let bouche = null, bd = -1;
+  for (const [k, d] of dist) {
+    const [x, y] = k.split(',').map(Number);
+    if (W.get(x, y) !== T.SAND || W.get(x - 1, y) !== T.SAND || W.get(x + 1, y) !== T.SAND || !walkable(W.get(x, y + 1))) continue;
+    let ok = true; for (let j = 1; j <= 3 && ok; j++) for (let i = -2; i <= 2; i++) if (W.get(x + i, y - j) !== T.CAVEWALL || W.height(x + i, y - j) < 2) { ok = false; break; }
+    if (!ok || W.npcs.some((n) => Math.abs(n.x - x) + Math.abs(n.y - y) < 4) || W.items.some((o) => Math.abs(o.x - x) + Math.abs(o.y - y) < 3)) continue;
+    if (d > bd) { bd = d; bouche = [x, y]; }
+  }
+  if (!bouche) return null;
+  const [bx, by] = bouche;
+  const B = W.building('cave', bx - 2, by - 3);
+  for (let y = B.y; y < B.y + B.d; y++) for (let x = B.x; x < B.x + B.w; x++) W.setHeight(x, y, 0);
+  const m = caveMap('mesas', 46, 32, 7373, [{ x: 23, y: 27 }], { name: 'Grotte des Mesas', via: [{ x: 10, y: 20 }, { x: 8, y: 6 }, { x: 23, y: 12 }, { x: 38, y: 5 }, { x: 37, y: 22 }] });
+  const g = ENC.grotte || [];
+  m.encounter = g.map(([sp, a, b, p]) => [sp, a + 42, b + 42, p]); m.biome = 'terre';
+  m.set(23, 28, T.CAVEDOOR); m.set(23, 27, T.CAVE); m.set(23, 29, T.CAVEWALL);
+  m.warp(23, 28, { map: 'monde', x: B.doorX, y: B.doorY + 1, dir: 'down' });
+  W.warp(B.doorX, B.doorY, { map: 'mesas', x: 23, y: 27, dir: 'up' });
+  m.deco.push({ k: 'exitlight', x: 23, y: 28 });
+  m.outside = { map: 'monde', x: B.doorX, y: B.doorY + 1 };
+  // des rochers fissurés sur les passages étroits loin de l'entrée (Éclate-Roc) : ce qu'ils ferment est plus riche
+  const d0 = new Int32Array(m.w * m.h).fill(-1), q = [[23, 27]]; d0[27 * m.w + 23] = 0;
+  for (let h = 0; h < q.length; h++) { const [x, y] = q[h]; for (const [dx, dy] of N4) { const a = x + dx, b = y + dy; if (!m.in(a, b) || d0[b * m.w + a] >= 0 || m.get(a, b) !== T.CAVE) continue; d0[b * m.w + a] = d0[y * m.w + x] + 1; q.push([a, b]); } }
+  const etroits = [];
+  for (let y = 3; y < m.h - 3; y++) for (let x = 3; x < m.w - 3; x++) {
+    if (m.get(x, y) !== T.CAVE || d0[y * m.w + x] < 14) continue;
+    const ns = m.get(x, y - 1) === T.CAVEWALL && m.get(x, y + 1) === T.CAVEWALL && m.get(x - 1, y) === T.CAVE && m.get(x + 1, y) === T.CAVE;
+    const ew = m.get(x - 1, y) === T.CAVEWALL && m.get(x + 1, y) === T.CAVEWALL && m.get(x, y - 1) === T.CAVE && m.get(x, y + 1) === T.CAVE;
+    if (ns || ew) etroits.push([x, y, d0[y * m.w + x]]);
+  }
+  etroits.sort((a, b) => b[2] - a[2] || a[1] - b[1] || a[0] - b[0]);
+  const poses = []; for (const [x, y] of etroits) { if (poses.length >= 3) break; if (poses.some(([a, b]) => Math.abs(a - x) + Math.abs(b - y) < 8)) continue; m.set(x, y, T.SMASH); poses.push([x, y]); }
+  // ce qu'on atteint sans briser de rocher, et le reste
+  const d1 = new Int32Array(m.w * m.h).fill(-1), q1 = [[23, 27]]; d1[27 * m.w + 23] = 0;
+  for (let h = 0; h < q1.length; h++) { const [x, y] = q1[h]; for (const [dx, dy] of N4) { const a = x + dx, b = y + dy; if (!m.in(a, b) || d1[b * m.w + a] >= 0 || m.get(a, b) !== T.CAVE) continue; d1[b * m.w + a] = d1[y * m.w + x] + 1; q1.push([a, b]); } }
+  const sols = (derriere) => { const L = []; for (let y = 3; y < m.h - 3; y++) for (let x = 3; x < m.w - 3; x++) { if (m.get(x, y) !== T.CAVE || (d1[y * m.w + x] >= 0) === derriere || d0[y * m.w + x] < 6) continue; if (N4.filter(([a, b]) => m.get(x + a, y + b) === T.CAVE).length >= 2) L.push([x, y, d0[y * m.w + x]]); } return L.sort((a, b) => b[2] - a[2] || a[1] - b[1] || a[0] - b[0]); };
+  const avant = sols(false), apres = sols(true);
+  const prend = (L, f) => { const p = L[Math.floor(f * (L.length - 1))]; if (!p) return null; L.splice(L.indexOf(p), 1); return p; };
+  const lv = Math.max(...m.encounter.map((e) => e[2]));
+  const t1 = prend(avant, 0.4); if (t1) trainerNpc(m, t1[0], t1[1], 'left', 'Montagnard', 'Barnabé', [[g[0]?.[0] ?? 74, lv], [g[2]?.[0] ?? 95, lv + 1]], { id: 'mesas:d0', sight: 3, intro: 'Les mesas sont creuses, tu savais ? Le vent y siffle comme dans une flûte.' });
+  const t2 = prend(apres.length ? apres : avant, 0.2); if (t2) trainerNpc(m, t2[0], t2[1], 'down', 'Montagnard', 'Isidore', [[g[1]?.[0] ?? 74, lv], [g[3]?.[0] ?? 75, lv], [g[4]?.[0] ?? 95, lv + 1]], { id: 'mesas:d1', sight: 3 });
+  const o = [[avant, 0.1, 'full-heal'], [apres.length ? apres : avant, 0.05, 'sun-stone'], [apres.length ? apres : avant, 0.6, 'max-potion']];
+  o.forEach(([L, f, it], k) => { const p = prend(L, f); if (p) m.item(p[0], p[1], it, 1, 'mesas:o' + k); });
+  // l'objet caché : la roche au bout d'une impasse
+  const imp = []; for (let y = 3; y < m.h - 3; y++) for (let x = 3; x < m.w - 3; x++) if (m.get(x, y) === T.CAVE && d0[y * m.w + x] > 10 && N4.filter(([a, b]) => m.get(x + a, y + b) === T.CAVE).length === 1 && !m.items.some((it) => it.x === x && it.y === y) && !m.npcs.some((n) => n.x === x && n.y === y)) imp.push([x, y]);
+  if (imp.length) { const [x, y] = imp[Math.floor(imp.length / 2)], r = N4.map(([a, b]) => [x + a, y + b]).find(([a, b]) => m.get(a, b) === T.CAVEWALL); if (r) cacher(m, r[0], r[1], 'mesas:c0', 'ultra-ball'); }
+  maps.mesas = m;
+  W.sign(bx + 2, by + 1, 'GROTTE DES MESAS\nDes galeries creusées par le vent.') ;
+  return { bouche: [B.doorX, B.doorY], rochers: poses.length };
 }
