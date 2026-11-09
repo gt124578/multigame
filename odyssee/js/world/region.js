@@ -34,6 +34,7 @@ import { lieux } from './lieux.js';
 import { ecrans } from './ecrans.js';
 import { rythme } from './rythme.js';
 import { grotteDuCol } from './grottes.js';
+import { volcan } from './volcan.js';
 import { ANCIENS_OBJETS } from './anciens-objets.js';
 
 /** version de la carte du monde : une sauvegarde d'une version plus ancienne reprend au Centre de la dernière ville
@@ -1174,6 +1175,8 @@ export function buildWorld() {
   chaine(W, towns);
   // la Grotte du Col : sous le coin sud-ouest de la Chaîne, du Bois Murmure à la route 10 (un lac souterrain : Surf)
   W.col = grotteDuCol({ W, maps, routes, ENC, trainerNpc });
+  // le volcan de Cendrelune, au sud de la ville (volcan.js)
+  { const v = towns.H.ville; if (v) W.volcan = volcan(W, { cx: v.x + v.w / 2, cy: v.y + v.h + 22, rx: 40, ry: 24, haut: 11, ville: v }); }
   /* ======================== ARÈNES ======================== */
   const gymTrainers = [
     [['Insectomane', 'Lucas', [[1017, 9], [10, 10]]], ['Insectomane', 'Basile', [[1018, 10, null, [33, 81, 106]], [1020, 10]]]],
