@@ -380,6 +380,8 @@ function fenetresInterieur(m, decoAt) {
 }
 /** teinte du ciel selon la météo (multiplie la teinte de l'heure, en lumière linéaire) */
 const METEO_TEINTE = { rain: [0.48, 0.53, 0.68], hail: [0.62, 0.66, 0.8], sandstorm: [0.95, 0.72, 0.46], ash: [0.72, 0.68, 0.64] };
+/** décor qui éclaire la nuit : [hauteur du halo (part de la hauteur du sprite), taille de la lumière, feu qui vacille] */
+const LUMIERES_DECO = { lamp: [0.82, 1, false], lampe_mine: [0.8, 0.9, false], lanterne: [0.55, 0.7, false], brasero: [0.45, 1.25, true] };
 const VOISINS_AUTOMNE = [[-4, 0], [4, 0], [0, -4], [0, 4], [-2, -2], [2, -2], [-2, 2], [2, 2], [-2, 0], [2, 0], [0, -2], [0, 2]];
 /** accumulateur de géométrie (quads indexés) */
 class Geo {
@@ -1076,7 +1078,7 @@ export class WorldView {
           // meubles de deux cases (le second est bloqué par l'intérieur) : centrés entre les deux ; les autres sur leur case
           billboard(P, x + (d.w ? d.w / 2 : WIDE_DECO.has(d.k) ? 1 : 0.5), y + (d.dz ?? 0.6), SW(r), SH(r), r, 0, arbre ? miroir(x, y) : false, arbre ? teinte(x, y) : 1);
           if (arbre || OMBRE_DECO.has(d.k)) this.ombreSol(Sh, x - 0.1, y + 0.3, x + 1.1, y + 0.82);
-          if (d.k === 'lamp') glows.push([x + 0.5, y + 0.62, SH(r) * 0.82]);
+          if (LUMIERES_DECO[d.k]) glows.push([x + 0.5, y + 0.62, SH(r) * LUMIERES_DECO[d.k][0], d.k]);
           if (['statue', 'gymstatue', 'plant', 'lamp', 'mailbox', 'sign', 'pot', 'caverock', 'stalag', 'fridge', 'clock', 'books', 'pc', 'labmachine', 'vase', 'trash', 'machine_sous'].includes(d.k) || d.k.startsWith('borne_')) this.ombreSol(Sh, x + 0.1, y + 0.4, x + 0.9, y + 0.85);
         }
       }
@@ -1115,10 +1117,13 @@ export class WorldView {
     }
     // lampadaires la nuit : halo autour de la lanterne et flaque de lumière au sol (retirés avec le bloc : defaireBloc)
     const lum = grp.userData.lum = [];
-    for (const [gx, gz, gy] of glows) {
-      const hs = this.hAt(gx, gz);
+    for (const [gx, gz, gy, k] of glows) {
+      const hs = this.hAt(gx, gz), [, taille, feu] = LUMIERES_DECO[k];
       const me = new THREE.Mesh(this.geoHalo, this.matGlow); me.position.set(gx, gy + hs, gz + 0.05); me.rotation.x = -0.3; me.userData.lampGlow = true;
-      const fl = this.lum.lampe(gx, hs, gz);
+      me.scale.setScalar(taille);
+      const fl = this.lum.lampe(gx, hs, gz); fl.scale.setScalar(taille);
+      // les feux (braseros) vacillent : leur halo et leur flaque battent doucement (update)
+      if (feu) { me.userData.feu = fl.userData.feu = hash(gx * 3, gz * 7) * 6.28; me.userData.t0 = fl.userData.t0 = taille; }
       this.glows.add(me, fl); lum.push(me, fl);
     }
     this.root.add(grp);
@@ -1309,7 +1314,14 @@ export class WorldView {
   }
   /** la fumée part du haut des cheminées du modèle (dehors seulement) */
   cheminees(g, b, hb) {
-    if (!this.map.outdoor || !g.userData.fumees?.length) return;
+    if (!this.map.outdoor) return;
+    // phare : la nuit, un faisceau tourne au-dessus de la mer, un halo autour de la lanterne
+    for (const [x, y, z] of g.userData.fanaux || []) {
+      const X = b.x + x * g.scale.x, Y = hb + y, Z = b.y + z * g.scale.z;
+      const f = this.lum.phare(X, Y, Z), h = new THREE.Mesh(this.geoHalo, this.matGlow); h.position.set(X, Y, Z + 0.05); h.rotation.x = -0.3; h.scale.setScalar(1.8);
+      this.glows.add(f, h); (g.userData.lum ||= []).push(f, h);
+    }
+    if (!g.userData.fumees?.length) return;
     const L = g.userData.chem = [];
     for (const [x, y, z] of g.userData.fumees) L.push(this.ambiance.ajouterCheminee(b.x + x * g.scale.x, hb + y, b.y + z * g.scale.z));
   }
@@ -1345,7 +1357,7 @@ export class WorldView {
     const ombre = new THREE.Mesh(sh.build(), this.mat.shadow); ombre.scale.set(1 / sx, 1, 1 / sz); g.add(ombre);
     g.userData.b = b; g.userData.modele = mod.nom;
     g.userData.ecran = empriseEcran(parts, mod, sx, sz);
-    g.userData.fumees = parts.fumees;
+    g.userData.fumees = parts.fumees; g.userData.fanaux = parts.fanaux;
     return g;
   }
   buildWindowsGroup() { /* les fenêtres de nuit sont posées avec chaque bâtiment (fenetresBat) */ }
@@ -1608,6 +1620,11 @@ export class WorldView {
       this.focus.set(Math.round((fx + 0.5) * TILE_PX) / TILE_PX, fh, s + fh / tan);
     }
     this.fadeBuildings(fx, fy, dt);
+    if (this.glows?.visible) {
+      const t = performance.now() / 1000;
+      for (const me of this.glows.children) if (me.userData.phare) me.rotation.y = -t * 0.9;
+      for (const me of this.glows.children) if (me.userData.feu !== undefined) { const f = me.userData.feu; me.scale.setScalar(me.userData.t0 * (1 + 0.06 * Math.sin(t * 9 + f) + 0.04 * Math.sin(t * 23 + f * 2))); }
+    }
     const d = this.r3d && this.r3dOrtho ? 400 : this.dist;
     if (this.r3d && this.r3dOrtho) {
       // relief en 3D : projection orthographique (32 px par case, comme la perspective au centre de l'écran) ; un pas

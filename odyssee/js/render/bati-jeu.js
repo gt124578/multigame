@@ -77,9 +77,9 @@ export function geometriesModele(nom, o) {
   G.updateMatrixWorld(true);
   const lots = new Map();
   const n3 = new THREE.Matrix3(), nv = new THREE.Vector3(), pv = new THREE.Vector3();
-  const fumees = [];   // hauts des cheminées (repères posés par batiments3d.js) : la fumée en part
+  const fumees = [], fanaux = [];   // repères posés par batiments3d.js : hauts des cheminées (fumée), lanterne d'un phare
   G.traverse((m) => {
-    if (m.userData.fumee) { pv.set(0, 0, 0).applyMatrix4(m.matrixWorld); fumees.push([pv.x, pv.y * YS, pv.z]); return; }
+    if (m.userData.fumee || m.userData.fanal) { pv.set(0, 0, 0).applyMatrix4(m.matrixWorld); (m.userData.fumee ? fumees : fanaux).push([pv.x, pv.y * YS, pv.z]); return; }
     if (!m.isMesh) return;
     let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
     if (!g.attributes.normal) g.computeVertexNormals();
@@ -113,7 +113,7 @@ export function geometriesModele(nom, o) {
     g.computeBoundingSphere();
     out.push({ geo: g, cle, mat0: L.mat0 });
   }
-  out.fumees = fumees;
+  out.fumees = fumees; out.fanaux = fanaux;
   CACHE.set(key, out);
   return out;
 }

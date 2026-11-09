@@ -1079,6 +1079,7 @@ export function atelier(D) {
     for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; G.add(at(boite(0.04, 0.45, 0.04, COL('#2a2a30')), cx + Math.cos(a) * 1.0, yg + 0.42, cz + Math.sin(a) * 1.0)); }
     const an = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.03, 4, 24), COL('#2a2a30')); an.rotation.x = Math.PI / 2; G.add(at(an, cx, yg + 0.64, cz));
     G.add(at(cyl(0.55, 0.55, 0.9, LUM('#fff4b0', '#c09020'), 12), cx, yg + 0.65, cz));
+    { const f = new THREE.Object3D(); f.position.set(cx, yg + 0.65, cz); f.userData.fanal = true; G.add(f); }   // repère : le faisceau de nuit en part (world3d.js)
     for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; G.add(at(boite(0.05, 0.9, 0.05, COL('#2a2a30')), cx + Math.cos(a) * 0.56, yg + 0.65, cz + Math.sin(a) * 0.56)); }
     const dome = new THREE.Mesh(new THREE.SphereGeometry(0.62, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), COL(bande)); dome.castShadow = true; G.add(at(dome, cx, yg + 1.1, cz));
     G.add(at(cyl(0.03, 0.06, 0.5, COL('#2a2a30'), 6), cx, yg + 1.9, cz));

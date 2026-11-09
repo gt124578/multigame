@@ -69,6 +69,30 @@ export class Lumieres {
     // s'y tient : pas de test de profondeur (deux cases libres devant chaque porte, rien ne s'y dresse)
     this.matPorte = mat(flaque(70, 36, 0.34)); this.matPorte.depthTest = false; this.geoPorte = new THREE.PlaneGeometry(2.2, 1.1); this.geoPorte.rotateX(-Math.PI / 2);
   }
+  /** faisceau tournant d'un phare la nuit (deux pinceaux opposés) et le halo de sa lanterne, en (x, y, z) */
+  phare(x, y, z) {
+    if (!this.matFaisceau) {
+      // pinceau : clair à la lanterne, qui s'évase et s'éteint au loin ; bords tramés (pixel art)
+      const W = 96, H = 24, c = document.createElement('canvas'); c.width = W; c.height = H;
+      const g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
+      const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        const u = i / W, larg = 0.12 + 0.88 * u, v = Math.abs((j + 0.5) / H - 0.5) * 2 / larg;
+        if (v >= 1) continue;
+        const k = (1 - u) ** 1.4 * (1 - v * v) * 0.55, t = (BAYER[(j & 3) * 4 + (i & 3)] + 0.5) / 16;
+        const n = Math.floor(k * 6 + t) / 6;
+        if (n <= 0) continue;
+        const o = (j * W + i) * 4; d[o] = 255; d[o + 1] = 236; d[o + 2] = 170; d[o + 3] = Math.round(n * 255);
+      }
+      g.putImageData(img, 0, 0);
+      const t = new THREE.Texture(c); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true;
+      this.matFaisceau = new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+      const geo = this.geoFaisceau = new THREE.PlaneGeometry(9, 2.2); geo.translate(4.5, 0, 0); geo.rotateX(-Math.PI / 2);
+    }
+    const G = new THREE.Group(); G.position.set(x, y, z); G.userData.phare = true;
+    for (const a of [0, Math.PI]) { const m = new THREE.Mesh(this.geoFaisceau, this.matFaisceau); m.rotation.y = a; m.renderOrder = 6; G.add(m); }
+    return G;
+  }
   /** flaque sous un lampadaire dont le pied est en (x, z), au sol de hauteur y */
   lampe(x, y, z) { const m = new THREE.Mesh(this.geoLampe, this.matLampe); m.position.set(x, y + 0.02, z - 0.15); m.renderOrder = 2; return m; }
   /** lumière qui sort d'une porte (case de la porte en (x, z)), sur le seuil */
