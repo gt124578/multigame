@@ -524,7 +524,7 @@ export class WorldView {
     this.buildBuildings();
     this.buildSorties();
     this.buildWindowsGroup();
-    this.lastChunk = null;
+    this.lastChunk = null; this.aBatir = null;
   }
 
   groundCell(x, y) {
@@ -1066,21 +1066,39 @@ export class WorldView {
   }
   ensureChunks(px, py) {
     const ci = Math.floor(px / CH), cj = Math.floor(py / CH), k = ci + ',' + cj;
-    if (k === this.lastChunk) return; this.lastChunk = k;
-    const R = this.rayon || 2;   // blocs autour du point de vue (l'éditeur de carte voit plus loin)
-    for (let j = cj - R; j <= cj + R; j++) for (let i = ci - R; i <= ci + R; i++) {
-      // au-delà des bords, deux blocs de décor (forêt, mer, montagnes, roche) pour qu'on ne voie jamais le vide
-      const ex = this.map.ext ? 2 : 0;
-      if (i < -ex || j < -ex || (i - ex) * CH >= this.map.w || (j - ex) * CH >= this.map.h) continue;
-      const kk = i + ',' + j; if (!this.chunks.has(kk)) this.chunks.set(kk, this.buildChunk(i, j));
-      this.poserBatimentsBloc(i, j);
+    if (k !== this.lastChunk) {
+      this.lastChunk = k;
+      const R = this.rayon || 2;   // blocs autour du point de vue (l'éditeur de carte voit plus loin)
+      // à l'écran : le bloc du joueur et ses voisins (R - 1) ; au-delà, des blocs d'avance, construits sur les images
+      // suivantes (aBatir) : franchir un bloc demandait d'un coup une rangée de cinq blocs et leurs bâtiments (à-coup)
+      const P = Math.max(1, R - 1), x0 = (ci - P) * CH, x1 = (ci + P + 1) * CH, y0 = (cj - P) * CH, y1 = (cj + P + 1) * CH;
+      const file = [];
+      for (let j = cj - R; j <= cj + R; j++) for (let i = ci - R; i <= ci + R; i++) {
+        // au-delà des bords, deux blocs de décor (forêt, mer, montagnes, roche) pour qu'on ne voie jamais le vide
+        const ex = this.map.ext ? 2 : 0;
+        if (i < -ex || j < -ex || (i - ex) * CH >= this.map.w || (j - ex) * CH >= this.map.h) continue;
+        const kk = i + ',' + j, d = Math.max(Math.abs(i - ci), Math.abs(j - cj));
+        if (d <= P) { if (!this.chunks.has(kk)) this.chunks.set(kk, this.buildChunk(i, j)); this.poserBatimentsBloc(i, j); continue; }
+        // un grand bâtiment d'un bloc d'avance qui déborde jusqu'à l'écran est posé tout de suite
+        if (this.batAttente?.get(kk)?.some((b) => b.x < x1 && b.x + b.w > x0 && b.y < y1 && b.y + b.d + (b.h || 2) > y0)) this.poserBatimentsBloc(i, j);
+        if (!this.chunks.has(kk) || this.batAttente?.has(kk)) file.push([d, i, j]);
+      }
+      this.aBatir = file.sort((a, b) => a[0] - b[0]);
+      // les morceaux éloignés sont masqués ; ceux qui sont loin derrière nous sont défaits (la grande carte en compte des
+      // milliers : la mémoire ne grossit pas à mesure qu'on voyage)
+      for (const [kk, g] of this.chunks) {
+        const [i, j] = kk.split(',').map(Number), d = Math.max(Math.abs(i - ci), Math.abs(j - cj));
+        g.visible = d <= R;
+        if (d > R + 4) { this.defaireBloc(kk, g); this.chunks.delete(kk); }
+      }
     }
-    // les morceaux éloignés sont masqués ; ceux qui sont loin derrière nous sont défaits (la grande carte en compte des
-    // milliers : la mémoire ne grossit pas à mesure qu'on voyage)
-    for (const [kk, g] of this.chunks) {
-      const [i, j] = kk.split(',').map(Number), d = Math.max(Math.abs(i - ci), Math.abs(j - cj));
-      g.visible = d <= R;
-      if (d > R + 4) { this.defaireBloc(kk, g); this.chunks.delete(kk); }
+    // blocs d'avance : au plus 6 ms par image (au moins un bloc), les plus proches d'abord
+    const t0 = performance.now();
+    while (this.aBatir?.length) {
+      const [, i, j] = this.aBatir.shift(), kk = i + ',' + j;
+      if (!this.chunks.has(kk)) this.chunks.set(kk, this.buildChunk(i, j));
+      this.poserBatimentsBloc(i, j);
+      if (performance.now() - t0 >= 6) break;
     }
   }
 
