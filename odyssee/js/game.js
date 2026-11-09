@@ -1253,9 +1253,6 @@ export class Game {
     this.strengthOn = this.mapObj.id; this.sound.cry(ASSETS.cry(mon.sp)); this.sound.sfx('ledge');
     await this.ui.say(`${monName(mon)} utilise Force !\nIl peut désormais pousser les rochers.`);
   }
-<<<<<<< ours
-  async trySurf(x, y) {
-=======
   async tryWaterInteraction(fx, fy) {
     const st = this.state;
     const hasRod = !!(st.bag['canne'] > 0);
@@ -1342,11 +1339,10 @@ export class Game {
   }
 
   async trySurf(x, y, skipConfirm = false) {
->>>>>>> theirs
     const st = this.state;
     if (!this.canField('surf')) { await this.ui.say(this.hasField('surf') ? ['L\'eau est d\'un bleu profond...', 'Il faut le Badge Mirage pour surfer.'] : 'L\'eau est d\'un bleu profond...'); return; }
     if (!st.party.some((m) => m.hp > 0)) return;
-    if (!(await this.ui.yesNo('L\'eau est d\'un bleu profond...\nUtiliser le Harnais Flottant ?'))) return;
+    if (!skipConfirm && !(await this.ui.yesNo('L\'eau est d\'un bleu profond...\nUtiliser le Harnais Flottant ?'))) return;
     await this.ui.say(`${st.name} déploie le Harnais Flottant et s'élance sur l'eau !`, { auto: 600 });
     const p = this.player;
     this.sound.sfx('ledge');
