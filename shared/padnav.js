@@ -49,6 +49,7 @@
   /** un menu est-il à l'écran (et non la partie elle-même) ? */
   function menuActive() {
     if (document.pointerLockElement) return false;
+    if (document.documentElement.hasAttribute('data-manette')) return false;   // le jeu lit la manette lui-même (Odyssée)
     if (!inFrame) {
       // Hub : hors partie, ou par-dessus la partie (chargement, menu Arcadia)
       const playing = document.querySelector('#play.on');

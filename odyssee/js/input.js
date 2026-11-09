@@ -15,23 +15,29 @@ export class Input {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
       const k = MAP[e.code]; if (!k) return;
       e.preventDefault();
-      // l'aide des touches s'ouvre partout, par-dessus le reste
-      if (k === 'help') { if (!e.repeat) this.onHelp?.(); return; }
-      if (this.helpOpen) { if (k === 'b' || k === 'a') this.onHelp?.(); return; }
-      if (!this.held.has(k)) {
-        this.held.set(k, performance.now());
-        if (['up', 'down', 'left', 'right'].includes(k)) {
-          this.dirOrder = this.dirOrder.filter((d) => d !== k);
-          this.dirOrder.push(k);
-          // On n'enregistre un tap de déplacement que si le joueur est libre sur la carte
-          if (this.free) this.tap = k;
-        }
-      }
-      this.emit(k, e.repeat);
+      this.appui(k, e.repeat);
     });
-    addEventListener('keyup', (e) => { const k = MAP[e.code]; if (!k) return; this.held.delete(k); this.dirOrder = this.dirOrder.filter((d) => d !== k); });
+    addEventListener('keyup', (e) => { const k = MAP[e.code]; if (!k) return; this.relache(k); });
     addEventListener('blur', () => { this.clearDirs(); });
   }
+  /** une touche du jeu enfoncée (clavier, manette ou boutons tactiles : manette.js, tactile.js) */
+  appui(k, repeat = false) {
+    // l'aide des touches s'ouvre partout, par-dessus le reste
+    if (k === 'help') { if (!repeat) this.onHelp?.(); return; }
+    if (this.helpOpen) { if (k === 'b' || k === 'a') this.onHelp?.(); return; }
+    if (!this.held.has(k)) {
+      this.held.set(k, performance.now());
+      if (['up', 'down', 'left', 'right'].includes(k)) {
+        this.dirOrder = this.dirOrder.filter((d) => d !== k);
+        this.dirOrder.push(k);
+        // On n'enregistre un tap de déplacement que si le joueur est libre sur la carte
+        if (this.free) this.tap = k;
+      }
+    }
+    this.emit(k, repeat);
+  }
+  /** la touche est relâchée */
+  relache(k) { this.held.delete(k); this.dirOrder = this.dirOrder.filter((d) => d !== k); }
   /** nettoie les directions mémorisées (en sortant d'un combat ou d'un menu pour éviter un pas involontaire) */
   clearDirs() {
     this.tap = null;

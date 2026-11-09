@@ -5,6 +5,8 @@ import { WorldView } from './render/world3d.js';
 import { setArt } from './render/textures.js';
 import { buildWorld } from './world/region.js';
 import { Input } from './input.js';
+import { brancherManette } from './manette.js';
+import { brancherTactile } from './tactile.js';
 import { Sound } from './audio.js';
 import { UI, el, esc, wait } from './ui/ui.js';
 import { optionsScreen, loadCodeScreen } from './ui/screens.js';
@@ -93,6 +95,7 @@ async function boot() {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(1); renderer.outputColorSpace = THREE.SRGBColorSpace;
   const input = new Input(), sound = new Sound(), ui = new UI(uiRoot, input, sound);
+  brancherManette(input); brancherTactile(input);   // manette et commandes tactiles : les mêmes touches que le clavier
   // la construction de la carte occupe le processeur plusieurs secondes d'un seul tenant : les images se téléchargent
   // pendant ce temps (loadArt les retrouve ensuite dans le cache du navigateur), et l'écran de chargement est affiché avant
   const prechauffe = await loadArt(true);
