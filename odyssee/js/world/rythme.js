@@ -71,7 +71,7 @@ export function rythme(W, routes, ctx = {}) {
   for (const R of routes) {
     const res = R.pts?.res; if (!res?.cells) continue;
     const fait = routeRythme(W, R, res, occ, ids, ctx);
-    bilan.raccourcis.push(...fait.raccourcis); bilan.rebords += fait.rebords; bilan.lignes.push(...fait.lignes); bilan.caches.push(...fait.caches); bilan.panneaux += fait.panneaux; bilan.dresseurs += fait.dresseurs;
+    bilan.raccourcis.push(...fait.raccourcis); bilan.rebords += fait.rebords; bilan.lignes.push(...fait.lignes); bilan.caches.push(...fait.caches); bilan.panneaux += fait.panneaux; bilan.dresseurs += fait.dresseurs; bilan.ilots = (bilan.ilots || 0) + (fait.ilots || 0); bilan.coupes = (bilan.coupes || 0) + (fait.coupes || 0);
   }
   return bilan;
 }
@@ -286,6 +286,55 @@ function routeRythme(W, R, res, occ, ids, ctx) {
     const item = adapter(LOTS[Math.floor(bruit(c.x, c.y, 1.7, 41) * LOTS.length) % LOTS.length], rang);
     cacher(W, c.x, c.y, id, item);
     occ.add(c.x + ',' + c.y); choisis.push(c); out.caches.push({ id, x: c.x, y: c.y, item });
+  }
+
+  /* 3 bis. des récompenses qu'on vient chercher plus tard, comme dans HeartGold : un îlot au milieu d'un étang de la
+        route (Surf), une petite clairière derrière un arbuste à couper (Coupe) sur les routes du début */
+  {
+    const rangR = rangRoute(R.id), lotsTard = (r) => lotsPour(Math.max(rangR, r));
+    // l'îlot (2 × 2) : au milieu d'un carré de 6 × 6 cases d'eau de la route
+    let ilot = null; const grandesEaux = new Set();
+    for (let y = box[1] + 3; y <= box[3] - 3 && !ilot; y++) for (let x = box[0] + 3; x <= box[2] - 3; x++) {
+      if (W.get(x, y) !== T.WATER || W.zoneAt(x, y)?.route !== R.id || W.zoneAt(x, y)?.town) continue;
+      let ok = true; for (let j = -2; j <= 3 && ok; j++) for (let i = -2; i <= 3; i++) if (W.get(x + i, y + j) !== T.WATER || occ.has((x + i) + ',' + (y + j))) { ok = false; break; }
+      // un étang ou un lac de la route, pas la mer : la nappe d'eau tient en moins de 1 500 cases
+      if (ok && grandesEaux.has(x + ',' + y)) ok = false;
+      if (ok) { const vu = new Set([x + ',' + y]), q = [[x, y]]; while (q.length && vu.size < 1500) { const [a, b] = q.pop(); for (const [dx, dy] of N4) { const k = (a + dx) + ',' + (b + dy); if (!vu.has(k) && (W.get(a + dx, b + dy) === T.WATER || W.get(a + dx, b + dy) === T.WHIRL)) { vu.add(k); q.push([a + dx, b + dy]); } } } if (vu.size >= 1500) { ok = false; for (const k of vu) grandesEaux.add(k); }
+        // on y met l'eau depuis une rive qu'on atteint (et d'où l'on revient) à pied
+        else { let rive = false; for (const k of vu) { const [a, b] = k.split(',').map(Number); for (const [dx, dy] of N4) { const u = a + dx, v = b + dy; if (u < box[0] || v < box[1] || u > box[2] || v > box[3]) continue; const i = E.G.at(u, v); if (E.av[i] && E.ar[i] && walkable(W.get(u, v))) { rive = true; break; } } if (rive) break; } if (!rive) { ok = false; for (const k of vu) grandesEaux.add(k); } } }
+      if (ok) { ilot = [x, y]; break; }
+    }
+    if (ilot) {
+      const [x, y] = ilot; for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { W.set(x + a, y + b, T.SAND); W.setHeight(x + a, y + b, W.height(x - 2, y)); }
+      W.item(x + 1, y, adapter(lotsTard(5)[Math.floor(bruit(x, y, 1.7, 51) * 10) % 10], Math.max(rangR, 5)), 1, `${R.id}:i0`); occ.add((x + 1) + ',' + y);
+      out.ilots = (out.ilots || 0) + 1;
+    }
+    // la clairière derrière un arbuste : depuis la prairie, un passage d'une case dans la lisière, l'arbuste, puis 3 × 3
+    if (rangR <= 3) {
+      let fait = false;
+      for (let si = 0; si < sentier.length && !fait; si += 7) {
+        const [px0, py0] = sentier[si];
+        for (const [dx, dy] of N4) {
+          if (fait) break;
+          // le bord de la prairie dans cette direction
+          let k = 1; while (k < 22 && walkable(W.get(px0 + dx * k, py0 + dy * k)) && aMoi(px0 + dx * k, py0 + dy * k)) k++;
+          if (k < 4 || k >= 22) continue;
+          const bx0 = px0 + dx * (k - 1), by0 = py0 + dy * (k - 1), h = W.height(bx0, by0);
+          if (!HERBE(W.get(bx0, by0)) || occ.has(bx0 + ',' + by0)) continue;
+          // l'arbuste (k), une case d'herbe (k + 1), puis la clairière centrée en k + 3 : tout en forêt, rien autour
+          const cx = px0 + dx * (k + 3), cy = py0 + dy * (k + 3);
+          let ok = true;
+          for (let j = -2; j <= 2 && ok; j++) for (let i = -2; i <= 2; i++) { const t = W.get(cx + i, cy + j); if (!FORET(t) || W.height(cx + i, cy + j) !== h) { ok = false; break; } }
+          for (let j = -3; j <= 3 && ok; j++) for (let i = -3; i <= 3; i++) { const u = cx + i, v = cy + j; if (walkable(W.get(u, v)) || W.get(u, v) === T.WATER) { ok = false; break; } }
+          for (const kk of [k, k + 1]) { const u = px0 + dx * kk, v = py0 + dy * kk; if (!FORET(W.get(u, v)) || W.height(u, v) !== h || walkable(W.get(u - dy, v - dx)) || walkable(W.get(u + dy, v + dx))) ok = false; }
+          if (!ok) continue;
+          W.set(px0 + dx * k, py0 + dy * k, T.CUT); W.set(px0 + dx * (k + 1), py0 + dy * (k + 1), T.GRASS);
+          for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) W.set(cx + i, cy + j, i || j ? T.GRASS : T.FLOWER);
+          W.item(cx, cy, adapter(lotsTard(4)[Math.floor(bruit(cx, cy, 1.7, 53) * 10) % 10], 4), 1, `${R.id}:i1`); occ.add(cx + ',' + cy);
+          fait = true; out.coupes = (out.coupes || 0) + 1;
+        }
+      }
+    }
   }
 
   /* 4. panneaux aux deux bouts : le nom de la route et où elle mène */
