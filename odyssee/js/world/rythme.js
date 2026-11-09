@@ -14,6 +14,7 @@ import { along, caseLibre } from './mapgen.js';
 import { bruit } from './quartiers.js';
 import { lotsPour, rangRoute, adapter } from './bareme.js';
 import { PRENOMS } from './voix.js';
+import { formatFindItem } from '../core/items.js';
 import { rangAutour, JAMAIS } from './acces.js';
 
 const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -362,9 +363,9 @@ function routeRythme(W, R, res, occ, ids, ctx) {
 export function cacher(W, x, y, id, item, qty = 1, meuble = null) {
   W.object(x, y, { cache: true, id, item, qty, use: async (A) => {
     if (A.f['I:' + id]) { if (meuble && A.game.furniture) await A.game.furniture(meuble, x, y); return; }
-    A.f['I:' + id] = true;
-    await A.say('Tiens ? Il y a quelque chose de caché ici...');
-    await A.give(item, qty);
+    // l'objet passe dans le sac avant le message (rien ne se perd si l'on quitte pendant la bulle)
+    A.f['I:' + id] = true; await A.give(item, qty, true);
+    await A.say(['Tiens ? Il y a quelque chose de caché ici...', formatFindItem(A.name, item, qty)]);
   } });
 }
 
