@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { T } from '../world/tiles.js';
 
 const N = 320;                       // points au plus à l'écran
-const F = { BOUFFEE: 0, PAPILLON_O: 1, PAPILLON_F: 2, LUCIOLE: 3, FEUILLE_A: 4, FEUILLE_B: 5 };
+const F = { BOUFFEE: 0, PAPILLON_O: 1, PAPILLON_F: 2, LUCIOLE: 3, FEUILLE_A: 4, FEUILLE_B: 5, TRACE_V: 6, TRACE_H: 7 };
 const EL = 55 * Math.PI / 180, TAN = Math.tan(EL);
 
 const VERT = /* glsl */`
@@ -54,6 +54,11 @@ const FRAG = /* glsl */`
       else if ( m < 1.5 ) a *= 0.95;
       else if ( m < 2.5 ) { a *= 0.5; col *= vec3( 0.75, 1.0, 0.6 ); }
       else { if ( mod( q.x + q.y, 2.0 ) > 0.5 ) discard; a *= 0.3; col *= vec3( 0.6, 0.95, 0.5 ); }
+    } else if ( f == 6 || f == 7 ) {
+      // empreinte de pas : petit ovale de 2 × 3 (marche nord-sud) ou 3 × 2 (est-ouest), le talon plus marqué
+      vec2 r = f == 6 ? q : q.yx;
+      if ( r.x > 1.5 || r.y > 2.5 || ( r.y == 1.0 && r.x == 1.0 ) ) discard;
+      if ( r.y > 1.5 ) a *= 1.25;
     } else {
       // feuille qui tombe : trois pixels en biais, dans un sens puis dans l'autre ; un pixel plus sombre
       bool on = f == 4 ? ( q.y == q.x || ( q.y == 1.0 && q.x == 0.0 ) ) : ( q.y == 2.0 - q.x );
@@ -65,6 +70,7 @@ const FRAG = /* glsl */`
     #include <colorspace_fragment>
   }`;
 
+const TRACE = { sable: [0.6, 0.44, 0.26], neige: [0.52, 0.6, 0.78], cendre: [0.2, 0.18, 0.18] };
 const COUL_PAP = [[0.98, 0.98, 0.94], [0.99, 0.88, 0.32], [0.98, 0.6, 0.22], [0.66, 0.82, 1.0], [0.98, 0.74, 0.86]];
 const COUL_FEUILLE = [[0.86, 0.28, 0.14], [0.94, 0.52, 0.16], [0.95, 0.74, 0.22], [0.72, 0.2, 0.16]];
 const COUL_PETALE = [[1.0, 0.8, 0.86], [0.98, 0.7, 0.8]];
@@ -147,11 +153,30 @@ export class Ambiance {
         }
       }
     }
+    // ---- empreintes dans le sable, la neige et la cendre : une tous les demi-pas, à gauche puis à droite
+    if (dehors) {
+      const d = this.pas ? Math.hypot(fx - this.pas[0], fy - this.pas[1]) : 9;
+      if (d > 2) this.pas = [fx, fy, 0];
+      else if (d >= 0.5) {
+        const x = Math.round(fx), y = Math.round(fy), t = m.get(x, y), th = m.zoneAt?.(x, y)?.theme;
+        const sol = t === T.SAND ? (th === 'snow' ? 'neige' : 'sable') : t === T.SNOW ? 'neige' : t === T.ASH ? 'cendre'
+          : t === T.GRASS || t === T.PATH ? (th === 'snow' ? 'neige' : th === 'desert' ? 'sable' : th === 'volcanic' ? 'cendre' : null) : null;
+        if (sol) {
+          const dx = fx - this.pas[0], dy = fy - this.pas[1], vert = Math.abs(dy) >= Math.abs(dx), cote = (this.pas[2] ^= 1) ? 1 : -1;
+          const ox = vert ? cote * 0.09 : 0, oz = vert ? 0 : cote * 0.07;
+          const h = v.hAt(fx + 0.5, fy + 0.6);
+          // avancée vers la caméra le long de son rayon (même place à l'écran) : le sol ne la cache pas
+          this.ajout({ k: 'trace', x: fx + 0.5 + ox, y: h + 0.5 * Math.sin(EL), z: fy + 0.6 + oz + 0.5 * Math.cos(EL), vie: 6, c: TRACE[sol], f: vert ? F.TRACE_V : F.TRACE_H });
+        }
+        this.pas[0] = fx; this.pas[1] = fy;
+      }
+    }
     // ---- mouvement
     const P = this.parts;
     for (let i = P.length - 1; i >= 0; i--) {
       const p = P[i]; p.t += dt;
       if (p.t >= p.vie || Math.abs(p.x - cx) > 16 || Math.abs(p.z - cz) > 14) { P.splice(i, 1); continue; }
+      if (p.k === 'trace') continue;   // immobile, elle s'efface
       if (p.k === 'fumee') {
         // monte (0,7 case par seconde à l'écran), dérive au vent, ondule
         p.y += dt * 0.6 * TAN * (1 - p.t / p.vie * 0.5);
@@ -179,6 +204,7 @@ export class Ambiance {
       else if (p.k === 'papillon') { taille = 5; f = Math.floor(p.t * 9 + p.ph) % 2 ? F.PAPILLON_O : F.PAPILLON_F; a = Math.min(1, p.t * 2, (p.vie - p.t) * 2); }
       else if (p.k === 'luciole') { taille = 7; f = F.LUCIOLE; c = [0.9, 1.0, 0.4]; a = Math.min(1, Math.max(0, Math.sin(p.ph + p.t * 2.4) * 1.6)) * Math.min(1, p.vie - p.t, p.t); }
       else if (p.k === 'feuille') { taille = 3; f = p.pose ? F.FEUILLE_A : Math.floor(p.t * 3 + p.ph) % 2 ? F.FEUILLE_A : F.FEUILLE_B; a = p.pose ? Math.max(0, 1 - (p.t - p.pose) / 2.5) : Math.min(1, p.t * 2); }
+      else if (p.k === 'trace') { taille = 3; f = p.f; a = 0.72 * Math.min(1, (p.vie - p.t) / 2.5); }
       if (a <= 0.01) return;
       this.pos[n * 3] = p.x; this.pos[n * 3 + 1] = p.y; this.pos[n * 3 + 2] = p.z;
       this.taille[n] = taille; this.forme[n] = f;
