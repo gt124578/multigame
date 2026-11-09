@@ -12,6 +12,7 @@ import { sorteCase, K as SORTE } from './solgen.js';
 import { WeatherSystem } from './weather3d.js';
 import { Ombres } from './ombres.js';
 import { Ambiance } from './ambiance.js';
+import { densifier } from './densite.js';
 import { styleInterieur } from './interieurs.js';
 import { teinteHeure, nuitHeure, VITRE_NUIT, Lumieres } from './lumieres.js';
 import { choisirModele, geometriesModele, couleurBase, EMPRISES } from './bati-jeu.js';
@@ -519,7 +520,8 @@ export class WorldView {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(FOV, 1, 1, 400);
     const A = buildAtlas(), N = buildAnimAtlas(), S = buildSprites();
-    if (art.sprites) { const dens = art.dens || (art.dens = {}); variantesArbres(art.sprites, dens); applySpriteImages(S, art.sprites, dens); }
+    // une seule densité de pixels : le décor du tileset (densité 1) est repassé à densité 2 avant les variantes des arbres
+    if (art.sprites) { const dens = art.dens || (art.dens = {}); densifier(art.sprites, dens); variantesArbres(art.sprites, dens); applySpriteImages(S, art.sprites, dens); }
     this.A = A; this.N = N; this.S = S;
     // ?arbres=0 : un seul dessin par essence, sans teinte (comparaison)
     this.arbresUnis = /[?&]arbres=0/.test(globalThis.location?.search || '');
