@@ -583,7 +583,7 @@ export class WorldView {
     this.ombre = this.ombreCible = 1;
     this.map = map; this.root = new THREE.Group(); this.scene.add(this.root);
     this.chunks = new Map(); this.glows = new THREE.Group(); this.root.add(this.glows);
-    this.ambiance.vider(this.root);
+    this.ambiance.vider(this.root); this.tournants = new Set();
     this.sol.setMap(map);
     this.r3d = this.r3dOn && (map.outdoor || (this.r3dHGSS && map.floor === 'cave')) && this.sol.couvre(map) ? (this.r3dHGSS ? new ReliefHGSS(map, { biome: caveBiome(map) }) : new Relief3D(map)) : null;
     if (this.r3d && !this.r3dHGSS && !this.tinted.includes(matParoi())) this.tinted.push(matParoi(), matFacettes());
@@ -1361,7 +1361,7 @@ export class WorldView {
     const sx = mod.libre ? 1 : b.w / ew, sz = mod.libre ? 1 : b.d / ed;
     const g = new THREE.Group(); g.position.set(b.x, 0, b.y); g.scale.set(sx, 1, sz);
     const zf = b.y + b.d + 0.02;
-    for (const p of parts) {
+    const poser = (p, parent) => {
       const m0 = p.mat0;
       const mat0 = new THREE.MeshBasicMaterial({ map: m0.map || null, vertexColors: true, transparent: !!m0.transparent, opacity: m0.opacity ?? 1, side: m0.side, alphaTest: m0.alphaTest || 0 });
       const mat = b.libres?.length && b.w * b.d <= GRILLE_MAX ? profondeurGrille(mat0, b) : frontDepth(mat0, zf);
@@ -1373,7 +1373,16 @@ export class WorldView {
       if (mod.nom === 'maisonVille' && !mat.userData.vitre) { const f = 0.94 + hash(b.x * 3 + 1, b.y * 5 + 2) * 0.1, c = (hash(b.x * 7 + 5, b.y * 11 + 3) - 0.5) * 0.06; mat.userData.base.multiply(new THREE.Color(f * (1 + c), f, f * (1 - c))); }
       mat.color.copy(mat.userData.base).multiply(this.tint);
       this.tinted.push(mat);
-      g.add(new THREE.Mesh(p.geo, mat));
+      parent.add(new THREE.Mesh(p.geo, mat));
+    };
+    for (const p of parts) poser(p, g);
+    // parties qui tournent (ailes des moulins) : pivot, étirement vertical après la rotation, rotation animée (update)
+    for (const T of parts.tournants || []) {
+      const R = new THREE.Group(); R.position.set(T.pivot[0], T.pivot[1] * Math.tan(EL), T.pivot[2]);
+      const S = new THREE.Group(); S.scale.set(1, Math.tan(EL), 1); R.add(S);
+      const W = new THREE.Group(); W.quaternion.copy(T.quat); W.userData.tourne = { q0: T.quat, v: T.vitesse, ph: hash(b.x, b.y) * 6.28 }; S.add(W);
+      for (const p of T.parts) poser(p, W);
+      g.add(R); (this.tournants ||= new Set()).add(W);
     }
     const sh = new Geo();
     this.ombreSol(sh, 0 - 0.1, b.d - 0.3, b.w + 0.1, b.d + 0.3, 0.012, 'bande');
@@ -1647,6 +1656,13 @@ export class WorldView {
       this.focus.set(Math.round((fx + 0.5) * TILE_PX) / TILE_PX, fh, s + fh / tan);
     }
     this.fadeBuildings(fx, fy, dt);
+    if (this.tournants?.size) {
+      const t = performance.now() / 1000, qz = new THREE.Quaternion(), Z = new THREE.Vector3(0, 0, 1);
+      for (const W of this.tournants) {
+        if (!W.parent?.parent?.parent?.parent) { this.tournants.delete(W); continue; }   // bâtiment retiré
+        const u = W.userData.tourne; W.quaternion.copy(u.q0).multiply(qz.setFromAxisAngle(Z, -(t * u.v * Math.PI * 2 + u.ph)));
+      }
+    }
     if (this.glows?.visible) {
       const t = performance.now() / 1000;
       for (const me of this.glows.children) if (me.userData.phare) me.rotation.y = -t * 0.9;

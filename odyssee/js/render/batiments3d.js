@@ -1065,6 +1065,7 @@ export function atelier(D) {
       ailes.add(A);
     }
     ailes.traverse((o) => { if (o.isMesh) o.castShadow = true; }); G.add(ailes);
+    ailes.userData.tourne = { vitesse: 0.12 };   // les ailes tournent au vent (bati-jeu.js, world3d.js)
     for (const [x, z] of [[cx + 1.2, cz + 1.5], [cx + 1.55, cz + 1.3], [cx + 1.35, cz + 1.75]]) G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), COL('#e8dcc0')), x, 0.18, z));
     return G;
   };
