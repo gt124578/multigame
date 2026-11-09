@@ -893,7 +893,9 @@ export function atelier(D) {
   function bucher(G, x, z, n = 3, L = 1.0) {
     for (let r = 0; r < n; r++) for (let i = 0; i < n + 1 - r; i++) { const b = cyl(0.1, 0.1, L, M({ map: TX.bois('#8a5a34') }), 7); b.rotation.x = Math.PI / 2; G.add(at(b, x + (i - (n - r) / 2) * 0.21, 0.1 + r * 0.18, z)); }
   }
-  const cheminee = (G, x, y, z, col = '#a07a62', h = 1.0) => { G.add(at(boite(0.5, h, 0.5, M({ map: TX.pierre(col) })), x, y + h / 2, z)); G.add(at(boite(0.62, 0.1, 0.62, COL('#5a5552')), x, y + h + 0.05, z)); };
+  const cheminee = (G, x, y, z, col = '#a07a62', h = 1.0) => { G.add(at(boite(0.5, h, 0.5, M({ map: TX.pierre(col) })), x, y + h / 2, z)); G.add(at(boite(0.62, 0.1, 0.62, COL('#5a5552')), x, y + h + 0.05, z)); G.add(fumee(x, y + h + 0.1, z)); };
+  /** repère (sans dessin) du haut d'une cheminée : la fumée en part (render/ambiance.js, relevé par bati-jeu.js) */
+  const fumee = (x, y, z) => { const o = new THREE.Object3D(); o.position.set(x, y, z); o.userData.fumee = true; return o; };
 
   /* -------------------------------------------------------------- maisons de village ------------------------------- */
   /** maison haute à colombages (4 × 4, quatre niveaux) : rez-de-chaussée de pierre à échoppe, trois étages en
@@ -2892,7 +2894,7 @@ export function atelier(D) {
   };
 
   // maisons des villes (une architecture par ville) : modèle « maisonVille », réglé par styles-villes.js
-  maisonsVilles({ B, TX, tex, hash, mix, S, D, boite, at, M, COL, LUM, cyl, fenetre2, fenArc, porte, portesVitrees, toit4, toitChinois, cheminee, balustrade, bucher, socle });
+  maisonsVilles({ B, TX, tex, hash, mix, S, D, boite, at, M, COL, LUM, cyl, fenetre2, fenArc, porte, portesVitrees, toit4, toitChinois, cheminee, fumee, balustrade, bucher, socle });
 
   return { B, boite, at, M, COL, TX };
 }

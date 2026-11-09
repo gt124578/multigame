@@ -65,10 +65,12 @@ export class Lumieres {
     const mat = (t) => new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     // lampadaire : 3 × 1,7 cases ; porte : 2,2 × 1,1 cases (32 pixels par case)
     this.matLampe = mat(flaque(96, 54, 0.42)); this.geoLampe = new THREE.PlaneGeometry(3, 1.7); this.geoLampe.rotateX(-Math.PI / 2);
-    this.matPorte = mat(flaque(70, 36, 0.34)); this.geoPorte = new THREE.PlaneGeometry(2.2, 1.1); this.geoPorte.rotateX(-Math.PI / 2);
+    // la lumière d'une porte se pose aussi sur les marches du perron (qui ont la profondeur de la façade) et sur qui
+    // s'y tient : pas de test de profondeur (deux cases libres devant chaque porte, rien ne s'y dresse)
+    this.matPorte = mat(flaque(70, 36, 0.34)); this.matPorte.depthTest = false; this.geoPorte = new THREE.PlaneGeometry(2.2, 1.1); this.geoPorte.rotateX(-Math.PI / 2);
   }
   /** flaque sous un lampadaire dont le pied est en (x, z), au sol de hauteur y */
   lampe(x, y, z) { const m = new THREE.Mesh(this.geoLampe, this.matLampe); m.position.set(x, y + 0.02, z - 0.15); m.renderOrder = 2; return m; }
   /** lumière qui sort d'une porte (case de la porte en (x, z)), sur le seuil */
-  porte(x, y, z) { const m = new THREE.Mesh(this.geoPorte, this.matPorte); m.position.set(x + 0.5, y + 0.02, z + 1.05); m.renderOrder = 2; return m; }
+  porte(x, y, z) { const m = new THREE.Mesh(this.geoPorte, this.matPorte); m.position.set(x + 0.5, y + 0.02, z + 1.2); m.renderOrder = 2; return m; }
 }

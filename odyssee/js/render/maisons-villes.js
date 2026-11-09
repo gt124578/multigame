@@ -29,7 +29,7 @@
 import * as THREE from 'three';
 
 export function maisonsVilles(K) {
-  const { B, TX, tex, hash, mix, S, D, boite, at, M, COL, LUM, cyl, fenetre2, fenArc, porte, portesVitrees, toit4, toitChinois, cheminee, balustrade, bucher, socle } = K;
+  const { B, TX, tex, hash, mix, S, D, boite, at, M, COL, LUM, cyl, fenetre2, fenArc, porte, portesVitrees, toit4, toitChinois, cheminee, fumee, balustrade, bucher, socle } = K;
 
   /* ------------------------------------------------------------------ textures ------------------------------------ */
   /** granit : gros blocs irréguliers, grain moucheté, joints clairs (granit gris ou rose des côtes bretonnes) */
@@ -428,6 +428,7 @@ export function maisonsVilles(K) {
         G.add(at(boite(0.6, 0.9, 0.55, M({ map: TX.granit(ch) })), x, yr + 0.2, toit.f === '2p' ? zc : zc - 0.3));
         G.add(at(boite(0.68, 0.08, 0.62, COL('#5a5552')), x, yr + 0.68, toit.f === '2p' ? zc : zc - 0.3));
         for (const dx of [-0.14, 0.14]) G.add(at(cyl(0.06, 0.07, 0.18, COL('#b86a4a'), 6), x + dx, yr + 0.8, toit.f === '2p' ? zc : zc - 0.3));
+        if (fumee) G.add(fumee(x, yr + 0.9, toit.f === '2p' ? zc : zc - 0.3));
       } else cheminee(G, bx0 + cxh * bw, faiteY - 0.75, z0 + prof * 0.35, ch, 1.0);
     }
     // avancées

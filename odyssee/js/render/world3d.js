@@ -11,6 +11,7 @@ import { archeGrotte, jourGrotte } from './grottes.js';
 import { sorteCase, K as SORTE } from './solgen.js';
 import { WeatherSystem } from './weather3d.js';
 import { Ombres } from './ombres.js';
+import { Ambiance } from './ambiance.js';
 import { teinteHeure, nuitHeure, VITRE_NUIT, Lumieres } from './lumieres.js';
 import { choisirModele, geometriesModele, couleurBase, EMPRISES } from './bati-jeu.js';
 import { variantesArbres, variante, miroir, teinte } from './arbres.js';
@@ -499,6 +500,7 @@ export class WorldView {
     this.matGlow = new THREE.MeshBasicMaterial({ map: this.glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     this.geoHalo = new THREE.PlaneGeometry(1.6, 1.6);   // halo d'un lampadaire (une géométrie pour tous)
     this.lum = new Lumieres();                           // flaques de lumière de nuit (lumieres.js)
+    this.ambiance = new Ambiance(this, SPRITE_UNIFORMS); // fumées, papillons, lucioles, feuilles qui tombent (ambiance.js)
     this.tint = new THREE.Color(1, 1, 1); this.night = 0;
     // ombre des sous-bois (zones avec `ombre`, comme le Bois Murmure) : 1 en plein jour, plus bas sous les frondaisons
     this.ombre = 1; this.ombreCible = 1; this.tintBase = [1, 1, 1];
@@ -535,6 +537,7 @@ export class WorldView {
     this.ombre = this.ombreCible = 1;
     this.map = map; this.root = new THREE.Group(); this.scene.add(this.root);
     this.chunks = new Map(); this.glows = new THREE.Group(); this.root.add(this.glows);
+    this.ambiance.vider(this.root);
     this.sol.setMap(map);
     this.r3d = this.r3dOn && (map.outdoor || (this.r3dHGSS && map.floor === 'cave')) && this.sol.couvre(map) ? (this.r3dHGSS ? new ReliefHGSS(map, { biome: caveBiome(map) }) : new Relief3D(map)) : null;
     if (this.r3d && !this.r3dHGSS && !this.tinted.includes(matParoi())) this.tinted.push(matParoi(), matFacettes());
@@ -1172,7 +1175,7 @@ export class WorldView {
   /** construit les bâtiments en attente d'un morceau (i, j) */
   /** éditeur de carte : retire le rendu d'un bâtiment (déplacé ou effacé) */
   retirerBat(b) {
-    for (const g of this.buildingMeshes.filter((q) => q.userData.b === b)) { this.root.remove(g); if (g.userData.win) this.nightGroup.remove(g.userData.win); for (const me of g.userData.lum || []) this.glows.remove(me); }
+    for (const g of this.buildingMeshes.filter((q) => q.userData.b === b)) { this.root.remove(g); if (g.userData.win) this.nightGroup.remove(g.userData.win); for (const me of g.userData.lum || []) this.glows.remove(me); this.ambiance.retirerCheminees(g.userData.chem); }
     this.buildingMeshes = this.buildingMeshes.filter((q) => q.userData.b !== b);
     for (const L of this.batAttente?.values() || []) { const i = L.indexOf(b); if (i >= 0) L.splice(i, 1); }
   }
@@ -1208,7 +1211,7 @@ export class WorldView {
     if (!/[?&]bati=0/.test(globalThis.location?.search || '')) {
       const z = this.map.zoneAt?.(b.x, b.y);
       const mod = choisirModele(b, { theme: z?.theme, ville: z?.town, typeArene: b.typeArene });
-      if (mod) { const gm = this.batimentModele(b, mod); gm.position.y = hb; gm.userData.hb = hb; this.root.add(gm); this.buildingMeshes.push(gm); this.lumierePorte(gm, b, hb); return; }
+      if (mod) { const gm = this.batimentModele(b, mod); gm.position.y = hb; gm.userData.hb = hb; this.root.add(gm); this.buildingMeshes.push(gm); this.lumierePorte(gm, b, hb); this.cheminees(gm, b, hb); return; }
     }
     const ks = kitStyle(b, this.map); b.kitStyle = ks;
     const fkey = `${ks}:${b.w}:${b.h}:${b.door}`;
@@ -1266,6 +1269,12 @@ export class WorldView {
     this.fenetresBat(g);
     this.lumierePorte(g, b, hb);
   }
+  /** la fumée part du haut des cheminées du modèle (dehors seulement) */
+  cheminees(g, b, hb) {
+    if (!this.map.outdoor || !g.userData.fumees?.length) return;
+    const L = g.userData.chem = [];
+    for (const [x, y, z] of g.userData.fumees) L.push(this.ambiance.ajouterCheminee(b.x + x * g.scale.x, hb + y, b.y + z * g.scale.z));
+  }
   /** la nuit, la lumière de l'entrée se pose sur le seuil (bâtiments habités du dehors) */
   lumierePorte(g, b, hb) {
     if (!this.map.outdoor || !(b.door >= 0) || b.doorX == null || !['house', 'house2', 'bighouse', 'center', 'mart', 'gym', 'lab', 'league'].includes(b.kind)) return;
@@ -1298,6 +1307,7 @@ export class WorldView {
     const ombre = new THREE.Mesh(sh.build(), this.mat.shadow); ombre.scale.set(1 / sx, 1, 1 / sz); g.add(ombre);
     g.userData.b = b; g.userData.modele = mod.nom;
     g.userData.ecran = empriseEcran(parts, mod, sx, sz);
+    g.userData.fumees = parts.fumees;
     return g;
   }
   buildWindowsGroup() { /* les fenêtres de nuit sont posées avec chaque bâtiment (fenetresBat) */ }
@@ -1573,6 +1583,7 @@ export class WorldView {
     if (this.shake > 0) { this.camera.position.x += (Math.random() - 0.5) * this.shake; this.camera.position.y += (Math.random() - 0.5) * this.shake; this.shake *= 0.85; if (this.shake < 0.01) this.shake = 0; }
     this.camera.lookAt(this.focus.x, this.focus.y, this.focus.z);
     this.weather?.update(dt, this.focus.x, this.focus.z);
+    this.ambiance.maj(dt, fx, fy);
   }
   setWeather(w) { this.weather?.setWeather(w); }
   render() { this.renderer.render(this.scene, this.camera); }
