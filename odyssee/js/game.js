@@ -2,6 +2,7 @@
 // Surf, Éclate-Roc, Vol), menus, histoire (les quinze arènes et l'archipel des trois frères), sauvegarde
 import { T, walkable, isGrassEnc, DIRS, OPP } from './world/tiles.js';
 import { reprendre } from './core/reprise.js';
+import { encAt } from './world/rencontres.js';
 import { MEGAS_OF, MEGA_RING, LEGEND, STONE_FORM, revertMegas } from './core/mega.js';
 import { MEGA_FORMS } from './core/mega.js';
 import { createMon, monName, healFull, levelEvolution, itemEvolution, evolve, setUidBase, levelCap, ensureNature, apteCT } from './core/mon.js';
@@ -671,7 +672,7 @@ export class Game {
     if (z?.trigger && await this.trigger(z.trigger)) return;
     if (await this.checkTrainers()) return;
     // rencontres sauvages : hautes herbes, grottes, et la mer de l'archipel quand on surfe
-    const enc = this.noEnc ? null : m.outdoor ? z?.enc : m.encounter;   // noEnc : version test, rencontres coupées
+    const enc = this.noEnc ? null : encAt(m, p.x, p.y);   // le tronçon de la zone où l'on marche ; noEnc : version test, rencontres coupées
     if (p.surf && t === T.WATER && !this.noEnc) { const sea = m.zoneAt(p.x, p.y), enc = sea?.surfEnc || sea?.enc || m.surfEnc; if (enc && Math.random() < 0.05) await this.wildBattle(enc); return; }
     if (enc && (isGrassEnc(t) || (!m.outdoor && t === T.CAVE))) {
       const rate = isGrassEnc(t) ? (t === T.DARKTALL ? 0.12 : 0.1) : 0.065;
@@ -1252,7 +1253,96 @@ export class Game {
     this.strengthOn = this.mapObj.id; this.sound.cry(ASSETS.cry(mon.sp)); this.sound.sfx('ledge');
     await this.ui.say(`${monName(mon)} utilise Force !\nIl peut désormais pousser les rochers.`);
   }
+<<<<<<< ours
   async trySurf(x, y) {
+=======
+  async tryWaterInteraction(fx, fy) {
+    const st = this.state;
+    const hasRod = !!(st.bag['canne'] > 0);
+    const canSurf = this.canField('surf') && st.party.some((m) => m.hp > 0);
+
+    if (hasRod && canSurf) {
+      const choice = await this.ui.list({
+        title: "L'eau est calme et profonde...",
+        items: [
+          { label: '🎣 Pêcher à la Canne' },
+          { label: '🏄 Surfer sur l\'eau' },
+          { label: 'Ne rien faire' }
+        ],
+        cancel: 2
+      });
+      if (choice === 0) await this.pecher(fx, fy);
+      else if (choice === 1) await this.trySurf(fx, fy, true);
+      return;
+    }
+    if (hasRod) {
+      if (await this.ui.yesNo("L'eau est calme et profonde...\nLancer la ligne avec la Canne à Pêche ?")) {
+        await this.pecher(fx, fy);
+      }
+      return;
+    }
+    await this.trySurf(fx, fy);
+  }
+
+  async pecher(fx, fy) {
+    const st = this.state;
+    if (!st.party.some((m) => m.hp > 0)) {
+      await this.ui.say('Toutes tes créatures sont K.O. ! Mieux vaut se reposer.');
+      return;
+    }
+    this.sound.sfx('splash');
+    this.animateSurfSplash(fx, fy);
+    await this.ui.say(`${st.name} lance sa ligne...`, { auto: 650 });
+    await wait(350);
+    await this.ui.say('...', { auto: 450 });
+    await wait(350);
+    await this.ui.say('... ...', { auto: 450 });
+
+    const m = this.mapObj;
+    const z = m.outdoor ? m.zoneAt(fx, fy) : null;
+    let pool = z?.surfEnc || m.surfEnc;
+
+    if (!pool || !pool.length) {
+      const waterSpecies = (encAt(m, fx, fy) || []).filter(([sp]) => {
+        const types = SPECIES[sp]?.t || [];
+        return types.includes('water');
+      });
+      if (waterSpecies.length) pool = waterSpecies;
+    }
+
+    if (!pool || !pool.length) {
+      const avgLvl = (z?.enc && z.enc.length)
+        ? Math.round(z.enc.reduce((a, x) => a + (x[1] + x[2]) / 2, 0) / z.enc.length)
+        : Math.max(5, this.badgeCount() * 6 + 6);
+      const minL = Math.max(3, avgLvl - 2);
+      const maxL = avgLvl + 2;
+      pool = [
+        [129, minL, maxL, 35],  // Magicarpe
+        [1029, minL, maxL, 25], // Bulotin (créature originale Odyssée)
+        [118, minL, maxL, 20],  // Poissirène
+        [1031, minL, maxL, 15], // Croâbulle
+        [60, minL, maxL, 10],   // Ptitard
+        [98, minL, maxL, 10],   // Krabby
+      ];
+    }
+
+    const bite = Math.random() < 0.85;
+    if (!bite) {
+      this.sound.sfx('bump');
+      await this.ui.say('Pas même une touche... Les créatures aquatiques ne mordent pas pour l\'instant.');
+      return;
+    }
+
+    this.player.bang = true;
+    this.sound.sfx('fanfare');
+    await this.ui.say('Oh ! Ça mord ! Une prise vigoureuse au bout de la ligne !');
+    this.player.bang = false;
+
+    await this.wildBattle(pool, { fishing: true });
+  }
+
+  async trySurf(x, y, skipConfirm = false) {
+>>>>>>> theirs
     const st = this.state;
     if (!this.canField('surf')) { await this.ui.say(this.hasField('surf') ? ['L\'eau est d\'un bleu profond...', 'Il faut le Badge Mirage pour surfer.'] : 'L\'eau est d\'un bleu profond...'); return; }
     if (!st.party.some((m) => m.hp > 0)) return;

@@ -13,7 +13,7 @@ import { NEW_STARTERS } from '../data/creatures.js';
 import { R } from '../data/remplacants.js';
 import { buildQuests } from './quetes.js';
 import { addStory } from './story.js';
-import { enrichirTout, equipeDeType } from './rencontres.js';
+import { enrichirTout, equipeDeType, poserTroncons, restaurerTables } from './rencontres.js';
 import { addHabitants } from './habitants.js';
 import { applyRetouches } from './retouches.js';
 import { redresserPonts } from './ponts.js';
@@ -412,6 +412,7 @@ function gymGuard(W, def, badges, text) {
    Construction de la région
    ====================================================================== */
 export function buildWorld() {
+  restaurerTables();   // les tables de rencontres d'avant les tronçons (une construction précédente les a réunies)
   tCount = 0;
   // la grande région : 1200 × 1392 cases (plan.js) ; le continent au nord, l'archipel au sud-est, les îles du bateau à l'est,
   // les Terres du Sud sous le détroit
@@ -1288,6 +1289,8 @@ export function buildWorld() {
   applyRetouches(maps);
   // cartes disparues (lieux désormais posés sur la carte du monde) : une ancienne partie qui y était reprend ici
   const moved = { torii: { map: 'monde', x: 222 + TORII.dx, y: 193 + TORII.dy, dir: 'up' } };
+  // rencontres par tronçons (world/rencontres.js)
+  poserTroncons({ maps, routes });
   if (W.anciensObjets.length) throw new Error('anciens objets jamais posés : ' + W.anciensObjets.map((q) => q.join(' ')).join(', '));
   return { maps, towns, routes, legends, docks, quests, moved, start: { map: 'aube:maison', x: 4, y: 6, dir: 'up' }, carte: CARTE_VERSION };
 }

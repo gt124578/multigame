@@ -115,6 +115,12 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   Rencontres : chaque zone reçoit aussi tous les Pokémon des lieux équivalents des jeux officiels (Rouge à X / Y), générés
   par `node tools/odyssee-rencontres.mjs <csv PokeAPI>` dans `odyssee/js/data/rencontres.js` (avec les points d'effort EV) ;
   le mélange avec les tables faites main se fait dans `odyssee/js/world/rencontres.js` (aussi : équipes à thème des arènes).
+  Tronçons : chaque route, grotte ou île est coupée en tronçons de 15 Pokémon (~60 cases de chemin ; les 5 plus fréquents d'un tronçon
+  restent au suivant en plus rares, 1 ou 2 de l'avant-dernier reviennent, 2 places de rares, le reste jamais vu depuis Bourg-Aube),
+  écrits par `node tools/odyssee-troncons.mjs` dans `odyssee/js/data/troncons.js` (liste ordonnée des lieux `LIEUX` dans l'outil) ;
+  `encAt(carte, x, y)` (`world/rencontres.js`) choisit le tronçon (route : point du tracé le plus proche ; grotte : distance à l'entrée ;
+  zone sans route : bande de la zone) ; la table de la zone devient la réunion de ses tronçons (Pokédex, carte).
+  Test : `node tools/test-odyssee-troncons.mjs` (à relancer, avec l'outil, quand on touche aux routes, aux grottes ou aux rencontres).
   Natures, EV et IV : `odyssee/js/core/mon.js` ; dégâts prévus en % : `Battle.damagePreview` (ne touche pas au générateur
   aléatoire, pour les combats en réseau). Partenaires de départ (3 par capsule) : `STARTER_CHOICES` de `world/region.js`.
   Pokémon qui suit le dresseur : `followTick` / `drawFollower` de `game.js`, sprites `odyssee/img/suiveurs.png`
