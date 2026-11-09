@@ -1655,8 +1655,8 @@ export class WorldView {
     x.clearRect(0, y, c.width, CHH); x.drawImage(row, 0, y); this.packRow(CHAR_ROWS['pair' + slot]);
     const e = { i: slot, key: 'pair' + slot, t: performance.now() }; P.set(code, e); return e.key;
   }
-  /** le modèle de base d'un genre (pour composer une tenue) */
-  baseDe(genre) { const r = CHAR_ROWS['base_' + genre]; return r == null ? null : { src: this.charsCanvas, sx: 0, sy: r * CHH }; }
+  /** le dresseur par défaut d'un genre (recoloré aux couleurs de la tenue) */
+  baseDe(genre) { const r = CHAR_ROWS[genre === 'f' ? 'player_f' : 'player_m']; return r == null ? null : { src: this.charsCanvas, sx: 0, sy: r * CHH }; }
   removeActor(id) { const a = this.actors.get(id); if (a) { a.dispose(); this.actors.delete(id); } }
   /** position à l'écran (pixels de la page) d'un point de la carte, à h pixels au-dessus du sol (noms des autres joueurs) */
   screenPos(x, y, h = 34) {

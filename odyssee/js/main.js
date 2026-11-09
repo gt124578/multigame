@@ -501,7 +501,7 @@ async function intro(game, ui, sound) {
   ui.say('Mais parle-moi un peu de toi... Qui es-tu ?', { speaker: 'Prof. Saule', keep: true, noWaitLast: true });
   let gender = await chooseGenderCard(ui, input, sound, s);
 
-  // l'apparence : casquette ou bonnet, haut, bas, chaussures, sac, couleurs (si le modèle de base est dessiné)
+  // la tenue : le dresseur par défaut, aux couleurs choisies (casquette ou serre-tête, haut, bas, chaussures, sacoche)
   let tenue = null;
   if (game.view.baseDe?.(gender)) {
     chap.textContent = 'TA TENUE DE DRESSEUR';

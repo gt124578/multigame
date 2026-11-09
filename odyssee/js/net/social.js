@@ -10,7 +10,7 @@ import { isGrassEnc } from '../world/tiles.js';
 import { partyScreen, cardScreen, trainerCard, TYPE_FR } from '../ui/screens.js';
 import { BADGES } from '../world/region.js';
 import { el, esc, wait } from '../ui/ui.js';
-import { tenueCode, tenueDecode, composer } from '../render/tenue.js';
+import { tenueCode, tenueDecode, tenueValide, tenueOrigine, composer } from '../render/tenue.js';
 
 const WALK = 0.20, RUN = 0.068;
 const trainerSprite = (gender) => (gender === 'f' ? 'serena' : 'calem');
@@ -28,7 +28,7 @@ export function installSocial(game) {
       map: game.mapObj.id, x: p.move ? p.move.tx : p.x, y: p.move ? p.move.ty : p.y, dir: p.dir,
       run: !!(game.autoRun || game.input.isDown('run')), busy: !!(game.busy || !game.input.free || game.bv.alive || game.session),
       pvp: game.pvpBattleInfo || null,
-      name: st.name, gender: st.gender, tn: st.tenue ? tenueCode(st.tenue) : undefined,
+      name: st.name, gender: st.gender, tn: st.tenue && !tenueOrigine(tenueValide(st.tenue, st.gender)) ? tenueCode(tenueValide(st.tenue, st.gender)) : undefined,
     };
   };
   link.onRequest = (from, m) => onRequest(game, from, m);
@@ -59,7 +59,7 @@ export function installSocial(game) {
       if (o.map !== mapId) continue;
       const id = 'peer:' + o.id; seen.add(id);
       const a = v.actor(id, {});
-      // sa tenue, composée sur le modèle de base (sinon le dresseur ou la dresseuse par défaut)
+      // les couleurs de sa tenue, posées sur le dresseur ou la dresseuse par défaut
       let spr = o.gender === 'f' ? 'green' : 'red';
       const T = o.tn && tenueDecode(o.tn), b = T && v.baseDe?.(T.genre);
       if (b) spr = v.pairSprite(o.tn, () => composer(b.src, b.sx, b.sy, T)) || (T.genre === 'f' ? 'green' : 'red');

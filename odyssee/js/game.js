@@ -32,7 +32,7 @@ import { casinoScreen, bourseScreen, entretienPierre } from './ui/metropole.js';
 import { arcadeScreen } from './ui/arcade.js';
 import { apparenceScreen } from './ui/apparence.js';
 import { preparerDomaine, frigo, architecte, recolter, allerDomaine, resident, arrivees } from './ui/domaine.js';
-import { composer } from './render/tenue.js';
+import { composer, tenueValide, tenueOrigine } from './render/tenue.js';
 import { buildRivalParty, getRivalItems } from './world/rival.js';
 
 /** météos qui comptent en combat (brume et cendres ne sont que du décor, comme dans les jeux 5G) */
@@ -1480,9 +1480,10 @@ export class Game {
   }
 
   playerSprite() { return this.state.tenue && this._tenueOk ? 'joueur' : this.state.gender === 'f' ? 'player_f' : 'player_m'; }
-  /** compose la tenue du joueur dans la planche des personnages */
+  /** recolore le dresseur par défaut aux couleurs de sa tenue, dans la planche des personnages */
   appliquerTenue() {
-    const T = this.state?.tenue, b = T && this.view.baseDe?.(T.genre);
+    if (this.state?.tenue) this.state.tenue = tenueValide(this.state.tenue, this.state.gender);
+    const T = this.state?.tenue, b = T && !tenueOrigine(T) && this.view.baseDe?.(T.genre);
     this._tenueOk = false;
     if (!b) return;
     this.view.setJoueur(composer(b.src, b.sx, b.sy, T)); this._tenueOk = true;
@@ -1492,8 +1493,8 @@ export class Game {
     const ui = this.ui, sp = o.armoire ? {} : { speaker: 'Styliste' };
     if (!this.view.baseDe?.('m')) { await ui.say(o.armoire ? 'Ton armoire. Elle est bien rangée.' : ['Bienvenue à la boutique de mode !', 'Nos nouvelles collections arrivent très bientôt.'], sp); return; }
     if (o.armoire) await ui.say('Ton armoire ! Tu veux changer de tenue ?', sp);
-    else await ui.say(['Bienvenue à la boutique de mode !', 'Casquette, bonnet, t-shirt, veste, short, sandales… et toutes les couleurs que tu veux. C\'est offert pour les dresseurs !'], sp);
-    const T = await apparenceScreen(ui, { tenue: this.state.tenue || { genre: this.state.gender || 'm' }, base: (g) => this.view.baseDe(g) });
+    else await ui.say(['Bienvenue à la boutique de mode !', 'Casquette, haut, bas, chaussures, sacoche : choisis leurs couleurs. C\'est offert pour les dresseurs !'], sp);
+    const T = await apparenceScreen(ui, { tenue: tenueValide(this.state.tenue, this.state.gender), base: (g) => this.view.baseDe(g) });
     if (!T) { if (!o.armoire) await ui.say('Reviens quand tu veux changer de style !', sp); return; }
     this.state.tenue = T; this.state.gender = T.genre; this.appliquerTenue(); this.sound.sfx('levelup');
     await ui.say(o.armoire ? 'Te voilà prêt' + (T.genre === 'f' ? 'e' : '') + ' pour l\'aventure !' : 'Superbe ! Ce style te va à merveille.', sp);
