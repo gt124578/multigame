@@ -1256,6 +1256,10 @@ export function buildWorld() {
   W.sables = grotteDansFalaise({ W, maps, ENC, trainerNpc }, { routes, route: 'r16', id: 'sables', nom: 'Grotte des Sables', graine: 8181,
     dresseurs: [['Montagnard', 'Ulysse', [[28, 61], [105, 62]]], ['Randonneuse', 'Nora', [[51, 61], [232, 61], [330, 62]]]],
     objets: ['max-potion', 'max-repel', 'fire-stone', 'max-elixir'], cache: 'ultra-ball' });
+  // la Grotte des Crêtes : une percée depuis la route 3 dans la roche de la Chaîne Céleste, au nord (grottes.js)
+  W.cretes = grotteDansFalaise({ W, maps, ENC, trainerNpc }, { routes, route: 'r3', id: 'cretes', nom: 'Grotte des Crêtes', graine: 9191, percee: [0, -1], enc: ENC.grotte,
+    panneau: 'Sous les crêtes de la Chaîne Céleste.', dresseurs: [['Montagnard', 'Léon', [[74, 10], [41, 11]]], ['Gamin', 'Timéo', [[1024, 10], [1026, 11]]]],
+    objets: ['great-ball', 'escape-rope', 'moon-stone', 'super-potion'], cache: 'repel' });
   { const tz = W.zones.filter((z) => z.town || z.trigger), sz = W.zones.filter((z) => z.sea), rz = W.zones.filter((z) => !z.town && !z.trigger && !z.sea); W.zones = [...sz, ...rz, ...tz]; }
   // les grandes villes perchées : on y monte par des escaliers à chaque porte
   for (const [k, t] of Object.entries(towns)) if (VILLES[k]?.releve) relever(W, t);

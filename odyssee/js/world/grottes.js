@@ -198,7 +198,7 @@ export function grotteDansFalaise({ W, maps, ENC, trainerNpc }, o) {
   const R = maps && (o.routes || []).find((r) => r.id === o.route)?.pts?.res; if (!R) return null;
   // la bouche : une case du sentier (ou de sa bande) sous une falaise franche de deux niveaux au moins, au milieu de la route
   let best = null, bd = 1e9;
-  for (const k of R.cells) {
+  if (!o.percee) for (const k of R.cells) {
     const [x, y] = k.split(',').map(Number), t = W.get(x, y);
     if (![T.GRASS, T.PATH, T.SAND].includes(t) || W.zoneAt(x, y)?.route !== o.route) continue;
     const h = W.height(x, y); let ok = true;
@@ -208,12 +208,19 @@ export function grotteDansFalaise({ W, maps, ENC, trainerNpc }, o) {
     const d = Math.abs(x - (R.pts[Math.floor(R.pts.length / 2)][0])) + Math.abs(y - (R.pts[Math.floor(R.pts.length / 2)][1]));
     if (d < bd) { bd = d; best = [x, y, h]; }
   }
-  if (!best) return null;
-  const [bx, by, bh] = best;
-  const B = W.building('cave', bx - 2, by - 3);
-  for (let y = B.y; y < B.y + B.d; y++) for (let x = B.x; x < B.x + B.w; x++) W.setHeight(x, y, bh);
-  if ([T.GRASS, T.FLOWER, T.SAND].includes(W.get(bx + 2, by + 1))) W.sign(bx + 2, by + 1, `${o.nom.toUpperCase()}\nGaleries creusées dans la mesa.`);
-  const id = o.id, enc = (ENC[o.route] || ENC.grotte || []).map(([sp, a, b, p]) => [sp, a, b, p]);
+  let B;
+  if (best) {
+    const [bx, by, bh] = best;
+    B = W.building('cave', bx - 2, by - 3);
+    for (let y = B.y; y < B.y + B.d; y++) for (let x = B.x; x < B.x + B.w; x++) W.setHeight(x, y, bh);
+  } else if (o.percee) {
+    // pas de falaise au bord du sentier : une percée tout droit à travers la forêt jusqu'à la roche (comme le Col)
+    const [dx, dy] = o.percee, P = percee(W, R.cells, dx, dy, { zone: (x, y) => W.zoneAt(x, y)?.route === o.route, min: 5, max: 60 });
+    if (!P) return null;
+    B = bouche(W, P, dx, dy);
+  } else return null;
+  if ([T.GRASS, T.FLOWER, T.SAND].includes(W.get(B.doorX + 2, B.doorY + 2))) W.sign(B.doorX + 2, B.doorY + 2, `${o.nom.toUpperCase()}\n${o.panneau || 'Galeries creusées dans la roche.'}`);
+  const id = o.id, enc = (o.enc || ENC[o.route] || ENC.grotte || []).map(([sp, a, b, p]) => [sp, a, b, p]);
   // galeries hautes
   const m = caveMap(id, 48, 32, o.graine, [{ x: 24, y: 27 }], { name: o.nom, via: [{ x: 8, y: 20 }, { x: 10, y: 6 }, { x: 24, y: 12 }, { x: 40, y: 6 }, { x: 38, y: 22 }] });
   m.encounter = enc; m.biome = 'terre';
