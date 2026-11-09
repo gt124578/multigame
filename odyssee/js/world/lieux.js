@@ -148,13 +148,52 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
     // la clairière : une forme naturelle au milieu du bloc
     const kind = choisir(z);
     const rx = kind === 'lac' || kind === 'hameau' || kind === 'ferme' ? 8.5 : 7, ry = kind === 'lac' || kind === 'hameau' || kind === 'ferme' ? 7.5 : 6;
+    // (pas un disque : une forme qui s'allonge vers le sentier, se creuse d'anses et pousse des lobes entre les arbres ;
+    //  bruit lu dans des coordonnées déformées, à graine fixe par bloc — le tirage des lieux ne change pas)
+    const g0 = c * 7 + rr, forme = formeClairiere(X, Y, rx, ry, D.x - X, D.y - Y, g0);
     const clair = [];
     for (let y = by + 3; y < by + B - 3; y++) for (let x = bx + 3; x < bx + B - 3; x++) {
-      const q = ((x - X) / rx) ** 2 + ((y - Y) / ry) ** 2 + (bruit(x, y, 4, c * 7 + rr) - 0.5) * 0.45;
-      if (q <= 1 && FORET(W.get(x, y))) clair.push([x, y]);
+      if (forme(x, y) <= 1 && FORET(W.get(x, y))) clair.push([x, y]);
     }
     if (clair.length < 60) return false;
     for (const [x, y] of clair) W.set(x, y, T.GRASS);
+    // le sentier s'évase en arrivant : un vallon herbeux qui s'élargit vers la clairière, pas un bâton planté dans une
+    // boule (près de la route, il reste un sentier sous les arbres) ; deux lobes poussent sur les côtés de la clairière
+    { const n4 = s4.length, a_lui = new Set([...clair, ...s4].map(([a, b]) => a + ',' + b));
+      // une case ne s'ouvre que si elle ne touche rien d'autre que le lieu (jamais un passage vers une autre route ou un
+      // autre lieu) ; près de la route, le sentier garde sa largeur
+      const ouvre = (a, b, i) => {
+        if (!FORET(W.get(a, b)) || W.height(a, b) !== 0 || a < bx + 2 || b < by + 2 || a >= bx + B - 2 || b >= by + B - 2) return;
+        for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) { const u = a + k, v = b + j, t = W.get(u, v); if ((walkable(t) || t === T.WATER || t === T.BUILD) && !a_lui.has(u + ',' + v) && !(i < 3 && Math.abs(u - D.x) + Math.abs(v - D.y) < 3)) return; }
+        if (W.zoneAt(a, b)?.town) return;
+        W.set(a, b, T.GRASS); clair.push([a, b]); a_lui.add(a + ',' + b);
+      };
+      s4.forEach(([x, y], i) => {
+        const t = i / Math.max(1, n4 - 1), larg = 0.9 + 2.4 * t ** 1.3 * (0.6 + 0.8 * bruit(x, y, 5, g0 + 107));
+        const R = Math.ceil(larg);
+        for (let j = -R; j <= R; j++) for (let k = -R; k <= R; k++) if (k * k + j * j <= larg * larg) ouvre(x + k, y + j, i);
+      });
+      for (const lobe of [0, 1]) {
+        const ang = 6.2832 * bruit(c * 3 + lobe * 11, rr * 5, 1.3, g0 + 113), dist = 6 + 2.5 * bruit(c, rr + lobe * 7, 1.1, g0 + 115);
+        const lx = X + cos(ang) * dist, ly = Y + sin(ang) * dist * 0.85, lr = 2.4 + 1.6 * bruit(c + lobe, rr, 1.7, g0 + 117);
+        for (let j = -5; j <= 5; j++) for (let k = -5; k <= 5; k++) {
+          const a = Math.round(lx) + k, b = Math.round(ly) + j;
+          if (Math.hypot(a - lx, b - ly) + (bruit(a, b, 2.5, g0 + 119) - 0.5) * 1.6 <= lr && dedans(a, b)) ouvre(a, b, 99);
+        }
+        // le lobe tient à la clairière : une bande d'herbe de lui au centre
+        for (let k = 0; k <= 12; k++) { const a = Math.round(X + (lx - X) * k / 12), b = Math.round(Y + (ly - Y) * k / 12);
+          for (const [u, v] of [[a, b], [a + 1, b], [a, b + 1]]) if (dedans(u, v)) ouvre(u, v, 99);
+        }
+      } }
+    // quelques bouquets d'arbres laissés debout au bord de la clairière, comme une lisière qui s'effiloche
+    if (kind !== 'hameau' && kind !== 'ferme') for (const [x, y] of clair) {
+      const f = forme(x, y); if (f < 0.72 || f > 1) continue;
+      if (bruit(x, y, 3, g0 + 109) > 0.68 && !s4.some(([a, b]) => Math.abs(a - x) + Math.abs(b - y) < 3)) W.set(x, y, bruit(x, y, 7, g0 + 111) > 0.5 ? T.TREE : T.PINE);
+    }
+    // ce que les bouquets ou les lobes auraient isolé redevient forêt (rien d'aménagé hors d'atteinte)
+    { const vu = new Set([X + ',' + Y]), q = [[X, Y]], tous = new Set([...clair, ...s4].map(([a, b]) => a + ',' + b));
+      while (q.length) { const [a, b] = q.pop(); for (const [dx, dy] of N4) { const k = (a + dx) + ',' + (b + dy); if (!vu.has(k) && tous.has(k) && W.get(a + dx, b + dy) === T.GRASS) { vu.add(k); q.push([a + dx, b + dy]); } } }
+      for (const [a, b] of clair) if (W.get(a, b) === T.GRASS && !vu.has(a + ',' + b)) W.set(a, b, T.TREE); }
     const sent = new Set(s4.map(([x, y]) => x + ',' + y));
     for (const [x, y] of s4) if (FORET(W.get(x, y)) || W.get(x, y) === T.GRASS) { W.set(x, y, T.PATH); }
     // le sentier s'élargit un peu (bords d'herbe)
@@ -300,4 +339,21 @@ function verifier(W, D, bx, by, id, s4) {
     }
     if (best) { bloq.delete(o.x + ',' + o.y); [o.x, o.y] = best; bloq.add(best.join(',')); }
   }
+}
+
+/** la forme d'une clairière (≤ 1 : dedans) : pas un disque, une tache qui s'étire vers le sentier d'arrivée (direction
+ *  ux, uy), se creuse d'anses et pousse des lobes ; bruit lu dans des coordonnées déformées, à graine fixe (g0) */
+export function formeClairiere(X, Y, rx, ry, ux, uy, g0) {
+  const ul = Math.hypot(ux, uy) || 1, ax = ux / ul, ay = uy / ul;
+  const dxw = (x, y) => 3.2 * (bruit(x, y, 9, g0 + 101) - 0.5) + 1.4 * (bruit(x, y, 4, g0 + 103) - 0.5);
+  const dyw = (x, y) => 3.2 * (bruit(x, y, 9, g0 + 102) - 0.5) + 1.4 * (bruit(x, y, 4, g0 + 104) - 0.5);
+  const rl0 = Math.abs(ax) > Math.abs(ay) ? rx : ry, rt = Math.abs(ax) > Math.abs(ay) ? ry : rx;
+  return (x, y) => {
+    const u = x + dxw(x, y) - X, v = y + dyw(x, y) - Y;
+    // l'axe du sentier : la clairière s'étire vers lui (du côté d'où l'on arrive surtout)
+    const le = u * ax + v * ay, tr = -u * ay + v * ax, rl = rl0 * (le > 0 ? 1.35 : 1.0);
+    const libre = (le / rl) ** 2 + (tr / rt) ** 2 + (bruit(x, y, 6, g0 + 105) - 0.5) * 0.9 + (bruit(x, y, 3, g0) - 0.5) * 0.3;
+    // un cœur toujours dégagé (de quoi poser la maison, les ruines, l'étang du lieu)
+    return Math.min(libre, ((x - X) / (rx * 0.72)) ** 2 + ((y - Y) / (ry * 0.72)) ** 2);
+  };
 }
