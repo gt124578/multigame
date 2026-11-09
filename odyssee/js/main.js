@@ -70,7 +70,7 @@ async function loadArt() {
 }
 
 async function boot() {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, stencil: true, powerPreference: 'high-performance' });   // stencil : ombres au sol sans double couche (render/ombres.js)
   renderer.setPixelRatio(1); renderer.outputColorSpace = THREE.SRGBColorSpace;
   const input = new Input(), sound = new Sound(), ui = new UI(uiRoot, input, sound);
   const world = buildWorld();

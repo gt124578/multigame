@@ -10,6 +10,7 @@ import { Sol } from './sol.js';
 import { archeGrotte, jourGrotte } from './grottes.js';
 import { sorteCase, K as SORTE } from './solgen.js';
 import { WeatherSystem } from './weather3d.js';
+import { Ombres } from './ombres.js';
 import { choisirModele, geometriesModele, couleurBase, EMPRISES } from './bati-jeu.js';
 import { variantesArbres, variante, miroir, teinte } from './arbres.js';
 import { dessinHerbe, imageHerbe, NIMAGES, MARGE as HERBE_M, HAUTEUR as HERBE_H } from './herbes.js';
@@ -464,7 +465,8 @@ export class WorldView {
       actorSprite: screenSprite(new THREE.MeshBasicMaterial({ map: this.texS, alphaTest: 0.5, side: THREE.DoubleSide })),
       // sprite couché au sol (sillage du surf)
       flatSprite: new THREE.MeshBasicMaterial({ map: this.texS, alphaTest: 0.5, side: THREE.DoubleSide }),
-      shadow: mk(this.texS, { transparent: true, depthWrite: false }),
+      // ombres au sol : dessinées à la densité de l'écran, une seule couche là où elles se croisent (ombres.js)
+      shadow: (this.ombres = new Ombres()).materiau(),
       walls: mk(this.texA),
       // pièces de transition des sols (terrain du bas transparent)
       overlay: mk(this.texA, { alphaTest: 0.5 }),
@@ -859,6 +861,8 @@ export class WorldView {
   }
   tierAt(x, y) { const m = this.map; if (x < 0 || y < 0 || x >= m.w || y >= m.h) return 3; return this.tiers[y * m.w + x] || 0; }
 
+  /** ombre au sol (ellipse) sous un objet, du rectangle (x0, z0)–(x1, z1) : dessinée à sa taille exacte à l'écran */
+  ombreSol(G, x0, z0, x1, z1, y = 0.015, forme = 'ellipse') { flat(G, x0, z0, x1, z1, y, this.ombres.uv((x1 - x0) * TILE_PX, (z1 - z0) * TILE_PX, forme)); }
   buildChunk(ci, cj) {
     const m = this.map, A = this.A.cells, S = this.S.rects;
     const G = new Geo(), N = new Geo(), P = new Geo(), Wl = new Geo(), Sh = new Geo(), O0 = new Geo(), NO = new Geo(), PB = new Geo();
@@ -908,19 +912,19 @@ export class WorldView {
           if (!this.arbresUnis) key = variante(S, key, x, y);
           const r = S[key], cx = x + 0.5 + (v - 0.5) * 0.2, cz = y + 0.7;
           billboard(P, cx, cz, SW(r), SH(r), r, 0, this.arbresUnis ? vb > 0.5 : miroir(x, y), this.arbresUnis ? 1 : teinte(x, y, key.startsWith('snowpine') || key.startsWith('deadtree')));
-          flat(Sh, cx - 0.75, cz - 0.3, cx + 0.75, cz + 0.3, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
+          this.ombreSol(Sh, cx - 0.75, cz - 0.3, cx + 0.75, cz + 0.3);
         }
       } else if (t === T.FENCE) {
         // barrière : de face (rangée horizontale) ou vue dans l'axe (colonne nord-sud, le long d'un chemin vertical)
         const vert = S.fence_v && m.get(x - 1, y) !== T.FENCE && m.get(x + 1, y) !== T.FENCE && (m.get(x, y - 1) === T.FENCE || m.get(x, y + 1) === T.FENCE || m.get(x - 1, y) === T.PATH || m.get(x + 1, y) === T.PATH);
         const r = vert ? (m.get(x, y - 1) === T.FENCE ? S.fence_v : S.fence_v0 || S.fence_v) : S.fence; billboard(P, x + 0.5, y + (vert ? 0.75 : 0.6), SW(r), SH(r), r);
       }
-      else if (t === T.ROCK) { const r = S.rock; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
+      else if (t === T.ROCK) { const r = S.rock; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r); this.ombreSol(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85); }
       else if (t === T.BUSH) { const r = S[this.arbresUnis ? 'bush' : variante(S, 'bush', x, y)]; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r, 0, !this.arbresUnis && miroir(x, y), this.arbresUnis ? 1 : teinte(x, y)); }
-      else if (t === T.CUT) { const r = S.cuttree; billboard(P, x + 0.5, y + 0.62, SW(r), SH(r), r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
-      else if (t === T.BOULDER && m.bloc && S[m.bloc]) { const r = S[m.bloc]; billboard(P, x + 0.5, y + 0.66, SW(r) * 1.1, SH(r) * 1.1, r); flat(Sh, x + 0.14, y + 0.5, x + 0.86, y + 0.86, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
-      else if (t === T.BOULDER) { const r = (m.bloc && S[m.bloc]) || (m.outdoor ? S.rock : S.caverock || S.rock); billboard(P, x + 0.5, y + 0.62, SW(r) * 1.15, SH(r) * 1.15, r); flat(Sh, x + 0.02, y + 0.35, x + 0.98, y + 0.9, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
-      else if (t === T.SMASH) { const r = S.crackrock; billboard(P, x + 0.5, y + 0.62, SW(r), SH(r), r); flat(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]); }
+      else if (t === T.CUT) { const r = S.cuttree; billboard(P, x + 0.5, y + 0.62, SW(r), SH(r), r); this.ombreSol(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85); }
+      else if (t === T.BOULDER && m.bloc && S[m.bloc]) { const r = S[m.bloc]; billboard(P, x + 0.5, y + 0.66, SW(r) * 1.1, SH(r) * 1.1, r); this.ombreSol(Sh, x + 0.14, y + 0.5, x + 0.86, y + 0.86); }
+      else if (t === T.BOULDER) { const r = (m.bloc && S[m.bloc]) || (m.outdoor ? S.rock : S.caverock || S.rock); billboard(P, x + 0.5, y + 0.62, SW(r) * 1.15, SH(r) * 1.15, r); this.ombreSol(Sh, x + 0.02, y + 0.35, x + 0.98, y + 0.9); }
+      else if (t === T.SMASH) { const r = S.crackrock; billboard(P, x + 0.5, y + 0.62, SW(r), SH(r), r); this.ombreSol(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85); }
       else if (t === T.WALL) {
         // mur du fond en volume ; murs latéraux et bas réduits à une bordure sombre, comme sur DS
         if (y <= 1) { const south = m.get(x, y + 1) !== T.WALL; box(Wl, x, y, x + 1, y + 1, wallH, A[m.wallStyle] || A.wall_in, A.walltop, A.walltop, { south, east: false, west: false }); }
@@ -994,9 +998,9 @@ export class WorldView {
           const arbre = !this.arbresUnis && S[d.k + '~1'], k = arbre ? variante(S, d.k, x, y) : d.k, r = S[k];
           // meubles de deux cases (le second est bloqué par l'intérieur) : centrés entre les deux ; les autres sur leur case
           billboard(P, x + (d.w ? d.w / 2 : WIDE_DECO.has(d.k) ? 1 : 0.5), y + (d.dz ?? 0.6), SW(r), SH(r), r, 0, arbre ? miroir(x, y) : false, arbre ? teinte(x, y) : 1);
-          if (arbre || OMBRE_DECO.has(d.k)) flat(Sh, x - 0.1, y + 0.3, x + 1.1, y + 0.82, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
+          if (arbre || OMBRE_DECO.has(d.k)) this.ombreSol(Sh, x - 0.1, y + 0.3, x + 1.1, y + 0.82);
           if (d.k === 'lamp') glows.push([x + 0.5, y + 0.62, SH(r) * 0.82]);
-          if (['statue', 'gymstatue', 'plant', 'lamp', 'mailbox', 'sign', 'pot', 'caverock', 'stalag', 'fridge', 'clock', 'books', 'pc', 'labmachine', 'vase', 'trash', 'machine_sous'].includes(d.k) || d.k.startsWith('borne_')) flat(Sh, x + 0.1, y + 0.4, x + 0.9, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
+          if (['statue', 'gymstatue', 'plant', 'lamp', 'mailbox', 'sign', 'pot', 'caverock', 'stalag', 'fridge', 'clock', 'books', 'pc', 'labmachine', 'vase', 'trash', 'machine_sous'].includes(d.k) || d.k.startsWith('borne_')) this.ombreSol(Sh, x + 0.1, y + 0.4, x + 0.9, y + 0.85);
         }
       }
     }
@@ -1205,8 +1209,8 @@ export class WorldView {
     // liseré sous le toit
     const eave = new THREE.Mesh(new THREE.BoxGeometry(b.w + 2 * o, 0.1, 0.1), eaveMat); eave.position.set((x0 + x1) / 2, eY - 0.05, z1 + o); g.add(eave);
     // ombre portée au sol devant le bâtiment
-    const sh = new Geo(); const S = this.S.rects.shadow;
-    flat(sh, x0 - 0.1, z1 - 0.2, x1 + 0.1, z1 + 0.45, 0.012, [S.u0, S.v0 + (S.v1 - S.v0) * 0.4, S.u1, S.v1]);
+    const sh = new Geo();
+    this.ombreSol(sh, x0 - 0.1, z1 - 0.3, x1 + 0.1, z1 + 0.3, 0.012, 'bande');
     g.add(new THREE.Mesh(sh.build(), this.mat.shadow));
     g.userData.b = b; g.userData.front = mFront; g.userData.fkey = fkey;
     g.position.y = hb;
@@ -1235,8 +1239,8 @@ export class WorldView {
       this.tinted.push(mat);
       g.add(new THREE.Mesh(p.geo, mat));
     }
-    const sh = new Geo(); const S = this.S.rects.shadow;
-    flat(sh, 0 - 0.1, b.d - 0.2, b.w + 0.1, b.d + 0.45, 0.012, [S.u0, S.v0 + (S.v1 - S.v0) * 0.4, S.u1, S.v1]);
+    const sh = new Geo();
+    this.ombreSol(sh, 0 - 0.1, b.d - 0.3, b.w + 0.1, b.d + 0.3, 0.012, 'bande');
     const ombre = new THREE.Mesh(sh.build(), this.mat.shadow); ombre.scale.set(1 / sx, 1, 1 / sz); g.add(ombre);
     g.userData.b = b; g.userData.modele = mod.nom;
     return g;
@@ -1272,9 +1276,9 @@ export class WorldView {
       const ay = o.kind === 'bang' ? -34 * HPX : 0;
       geo.setAttribute('anchor', new THREE.Float32BufferAttribute([0, ay, 0, 0, ay, 0, 0, ay, 0, 0, ay, 0], 3));
       const mesh = new THREE.Mesh(geo, o.kind === 'flat' ? this.mat.flatSprite : o.kind === 'item' || o.kind === 'bang' ? this.mat.actorSprite : this.mat.chars);
-      const S = this.S.rects.shadow;
+      const S = this.ombres.uv(0.85 * TILE_PX, 0.42 * TILE_PX);
       const sg = new THREE.PlaneGeometry(0.85, 0.42); sg.rotateX(-Math.PI / 2);
-      const uv = sg.attributes.uv; for (let i = 0; i < 4; i++) uv.setXY(i, i % 2 ? S.u1 : S.u0, i < 2 ? S.v0 : S.v1);
+      const uv = sg.attributes.uv; for (let i = 0; i < 4; i++) uv.setXY(i, i % 2 ? S[2] : S[0], i < 2 ? S[1] : S[3]);
       const shadow = new THREE.Mesh(sg, this.mat.shadow); shadow.renderOrder = 1;
       a = { mesh, shadow, kind: o.kind || 'char', dispose: () => { geo.dispose(); sg.dispose(); this.root?.remove(mesh); this.root?.remove(shadow); } };
       this.root.add(mesh); if (o.kind !== 'bang') this.root.add(shadow);
@@ -1384,8 +1388,8 @@ export class WorldView {
     geo.setAttribute('anchor', new THREE.Float32BufferAttribute(new Array(12).fill(0), 3));
     const mat = screenSprite(new THREE.MeshBasicMaterial({ map: t, alphaTest: 0.5, side: THREE.DoubleSide })); this.tinted.push(mat); mat.color.copy(this.tint);
     const mesh = new THREE.Mesh(geo, mat);
-    const S = this.S.rects.shadow, sg = new THREE.PlaneGeometry(1.6, 0.7); sg.rotateX(-Math.PI / 2);
-    const uv = sg.attributes.uv; for (let i = 0; i < 4; i++) uv.setXY(i, i % 2 ? S.u1 : S.u0, i < 2 ? S.v0 : S.v1);
+    const S = this.ombres.uv(1.6 * TILE_PX, 0.7 * TILE_PX), sg = new THREE.PlaneGeometry(1.6, 0.7); sg.rotateX(-Math.PI / 2);
+    const uv = sg.attributes.uv; for (let i = 0; i < 4; i++) uv.setXY(i, i % 2 ? S[2] : S[0], i < 2 ? S[1] : S[3]);
     const shadow = new THREE.Mesh(sg, this.mat.shadow); shadow.renderOrder = 1;
     a = { mesh, shadow, kind: 'image', dispose: () => { geo.dispose(); sg.dispose(); t.dispose(); mat.dispose(); this.tinted = this.tinted.filter((m) => m !== mat); this.root?.remove(mesh); this.root?.remove(shadow); } };
     this.root.add(mesh); this.root.add(shadow); this.actors.set(id, a);
