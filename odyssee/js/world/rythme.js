@@ -264,7 +264,11 @@ function routeRythme(W, R, res, occ, ids, ctx) {
         les montre, il faut fouiller */
   const nc = Math.max(1, Math.round(total / 170)), dist = distanceAuSentier(W, box, sentier);
   const caches = [];
+  // (on ne regarde que les cases voisines du sol atteint, dans l'ordre des lignes : même résultat, bien plus vite)
+  const aVoir = new Uint8Array(E.G.n);
+  for (let i = 0; i < E.G.n; i++) if (E.av[i] && E.ar[i]) { if (i % E.G.w) aVoir[i - 1] = 1; if ((i + 1) % E.G.w) aVoir[i + 1] = 1; if (i >= E.G.w) aVoir[i - E.G.w] = 1; if (i + E.G.w < E.G.n) aVoir[i + E.G.w] = 1; }
   for (let y = box[1]; y <= box[3]; y++) for (let x = box[0]; x <= box[2]; x++) {
+    if (!aVoir[E.G.at(x, y)]) continue;
     // une case à fouiller : rocher ou arbre, touchée par une case atteinte (et dont on revient)
     const t = W.get(x, y);
     if (!(t === T.ROCK || FORET(t))) continue;
