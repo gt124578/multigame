@@ -263,7 +263,16 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   marche jusqu'à des portes, entrées et sorties, combat, menus, sauvegarde et reprise, coût d'une image (tick, appels de dessin,
   triangles), mémoire (géométries et textures de three.js, tas) et fuites sur dix allers-retours, vide à l'écran, joueur bloqué,
   erreurs de la console ; il compare aussi la carte construite dans Chrome à celle de Node. `node tools/odyssee-empreinte.mjs [--deux]`
-  : empreinte de chaque carte (deux constructions de suite doivent être identiques).
+  : empreinte de chaque carte (deux constructions de suite doivent être identiques). `node tools/test-odyssee-coherence.mjs` : aucun
+  bâtiment traversable, aucune porte qui dépose dans un mur, chaque intérieur ramène devant sa porte, deux constructions
+  identiques, rien dans `world/` qui dépende du moteur JavaScript (à lancer quand on touche à la carte).
+  Reprise d'une partie (`odyssee/js/core/reprise.js`, appelée par `game.start`) : carte disparue, case devenue un mur ou poche
+  refermée → case sûre la plus proche ou dernier Centre de soins ; `node tools/test-odyssee-reprise.mjs`.
+  Manette (`odyssee/js/manette.js`) et commandes tactiles (`odyssee/js/tactile.js`) passent par les touches de `input.js`
+  (`appui` / `relache`) ; une page qui lit elle-même la manette pose `data-manette` sur `<html>` et le menu-manette commun
+  (`shared/padnav.js`) se tait. `node tools/test-odyssee-commandes.mjs` (manette simulée, écran tactile, son en arrière-plan).
+  Mémoire du rendu : tout ce qui est construit pour une carte ou un bloc est libéré (`defaireCarte`, `defaireBloc` de
+  `world3d.js`) ; un objet three.js ajouté au rendu doit être rendu de la même façon (dispose), sinon il reste sur le GPU.
   Prototype de sol en vrai relief, seulement avec `?relief3d` dans l'adresse (`odyssee/js/render/relief3d.js`) : hauteurs
   fines (4 × 4 sommets par case) tirées des niveaux du jeu, sol généré posé dessus, parois striées plaquées comme vues de la
   caméra, projection orthographique calée sur les pixels ; réglages `r3k` (hauteur d'un niveau), `r3t` (seuil des parois),
