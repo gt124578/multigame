@@ -9,7 +9,7 @@ import * as THREE from 'three';
 // orthographique du relief : la météo était presque invisible.)
 const TAN_EL = Math.tan(55 * Math.PI / 180);
 /** points utilisés par chaque météo (la géométrie en garde assez pour la pluie) */
-const N_METEO = { rain: 720, hail: 320, sandstorm: 720, ash: 260 };
+const N_METEO = { rain: 720, hail: 420, sandstorm: 720, ash: 260 };
 const VERT = /* glsl */`
   attribute float aVie;
   uniform vec2 uRes; uniform float uEch; uniform float uTaille;
@@ -37,9 +37,10 @@ const FRAG = /* glsl */`
       if ( q.x != x || q.y < 1.0 ) discard;
       if ( q.y < 3.0 ) a *= 0.55;
     } else if ( uForme == 1 ) {
-      // grêlon : disque de 3 pixels, ombré en bas
-      vec2 d = q - 1.0; if ( dot( d, d ) > 1.5 ) discard;
-      if ( q.y > 1.5 ) col *= 0.78;
+      // flocon (la « grêle » du dehors, dans les zones de neige) : croix de 3 × 3, cœur blanc, bras bleutés ; un sur
+      // trois n'est qu'un point (vVie en garde la variante)
+      vec2 d = abs( q - 1.0 ); if ( d.x + d.y > 1.5 ) discard;
+      if ( d.x + d.y > 0.5 ) { if ( fract( vVie * 7.0 ) < 0.34 ) discard; col *= vec3( 0.8, 0.86, 0.98 ); a *= 0.8; }
     } else if ( uForme == 2 ) {
       // sable : traînée horizontale de 4 pixels, plus pâle à la queue
       if ( q.y != 3.0 || q.x < 1.0 ) discard;
@@ -149,9 +150,11 @@ export class WeatherSystem {
       this.velocities[idx + 1] = -0.45 - Math.random() * 0.12;
       this.velocities[idx + 2] = 0.04 + Math.random() * 0.03;
     } else if (this.current === 'hail') {
-      this.velocities[idx] = (Math.random() - 0.5) * 0.08;
-      this.velocities[idx + 1] = -0.12 - Math.random() * 0.06;
-      this.velocities[idx + 2] = (Math.random() - 0.5) * 0.08;
+      // neige : les flocons descendent doucement en se balançant (voir update)
+      this.velocities[idx] = 0.01 + (Math.random() - 0.5) * 0.02;
+      this.velocities[idx + 1] = -0.045 - Math.random() * 0.035;
+      this.velocities[idx + 2] = (Math.random() - 0.5) * 0.01;
+      if (this.vie) this.vie[i] = 0.5 + Math.random() * 0.5;   // variante du flocon (lue par le shader)
     } else if (this.current === 'sandstorm') {
       // le sable file à l'horizontale, bas au-dessus du sol ; il entre par le bord ouest de l'écran
       this.velocities[idx] = 0.26 + Math.random() * 0.14;
@@ -198,6 +201,7 @@ export class WeatherSystem {
       pos[idx + 2] += vel[idx + 2] * speedMultiplier;
       // les cendres ondulent en tombant
       if (this.current === 'ash') pos[idx] += Math.sin(this.time * 1.7 + i) * 0.012 * speedMultiplier;
+      if (this.current === 'hail') pos[idx] += Math.sin(this.time * 1.3 + i * 0.7) * 0.018 * speedMultiplier;
 
       // éclaboussure : la goutte arrivée au sol y reste un instant en couronne, puis repart d'en haut
       if (this.vie[i] < 0) {

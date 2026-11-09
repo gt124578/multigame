@@ -399,7 +399,7 @@ function fenetresInterieur(m, decoAt) {
   return out;
 }
 /** teinte du ciel selon la météo (multiplie la teinte de l'heure, en lumière linéaire) */
-const METEO_TEINTE = { rain: [0.48, 0.53, 0.68], hail: [0.62, 0.66, 0.8], sandstorm: [0.95, 0.72, 0.46], ash: [0.72, 0.68, 0.64] };
+const METEO_TEINTE = { rain: [0.48, 0.53, 0.68], hail: [0.74, 0.78, 0.9], sun: [1.1, 1.03, 0.88], sandstorm: [0.95, 0.72, 0.46], ash: [0.72, 0.68, 0.64] };
 /** décor qui éclaire la nuit : [hauteur du halo (part de la hauteur du sprite), taille de la lumière, feu qui vacille] */
 const LUMIERES_DECO = { lamp: [0.82, 1, false], lampe_mine: [0.8, 0.9, false], lanterne: [0.55, 0.7, false], brasero: [0.45, 1.25, true] };
 const VOISINS_AUTOMNE = [[-4, 0], [4, 0], [0, -4], [0, 4], [-2, -2], [2, -2], [-2, 2], [2, 2], [-2, 0], [2, 0], [0, -2], [0, 2]];
