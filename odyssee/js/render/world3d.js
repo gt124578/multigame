@@ -12,6 +12,7 @@ import { sorteCase, K as SORTE } from './solgen.js';
 import { WeatherSystem } from './weather3d.js';
 import { Ombres } from './ombres.js';
 import { Ambiance } from './ambiance.js';
+import { styleInterieur } from './interieurs.js';
 import { teinteHeure, nuitHeure, VITRE_NUIT, Lumieres } from './lumieres.js';
 import { choisirModele, geometriesModele, couleurBase, EMPRISES } from './bati-jeu.js';
 import { variantesArbres, variante, miroir, teinte } from './arbres.js';
@@ -359,6 +360,24 @@ function empriseEcran(parts, mod, sx, sz) {
   return e;
 }
 
+/** fenêtres du mur du fond d'une maison : une pour trois à quatre cases de large, vers le tiers et les deux tiers de la
+ *  pièce, jamais derrière un meuble (case libre juste devant le mur), jamais deux côte à côte */
+function fenetresInterieur(m, decoAt) {
+  const libres = [];
+  for (let x = 1; x < m.w - 1; x++) {
+    let y = 0; while (y < 2 && m.get(x, y + 1) === T.WALL) y++;
+    if (m.get(x, y) !== T.WALL || m.get(x, y + 1) === T.WALL) continue;
+    if (!decoAt.get(x + ',' + (y + 1)) && m.get(x, y + 1) !== T.BLOCK && m.get(x - 1, y) === T.WALL && m.get(x + 1, y) === T.WALL) libres.push(x);
+  }
+  const n = Math.max(1, Math.round((m.w - 2) / 4)), out = new Set();
+  for (let i = 0; i < n; i++) {
+    const cible = 1 + (m.w - 2) * (i + 1) / (n + 1) - 0.5;
+    let best = null;
+    for (const x of libres) if (![...out].some((o) => Math.abs(o - x) < 2) && (best === null || Math.abs(x - cible) < Math.abs(best - cible))) best = x;
+    if (best !== null && Math.abs(best - cible) <= 2.5) out.add(best);
+  }
+  return out;
+}
 const VOISINS_AUTOMNE = [[-4, 0], [4, 0], [0, -4], [0, 4], [-2, -2], [2, -2], [-2, 2], [2, 2], [-2, 0], [2, 0], [0, -2], [0, 2]];
 /** accumulateur de géométrie (quads indexés) */
 class Geo {
@@ -544,6 +563,9 @@ export class WorldView {
     for (const e of this.herbes?.values() || []) e.tex?.dispose(); this.herbes = new Map();   // herbes de devant (herbes.js)
     this.decoAt = new Map(); for (const d of map.deco) this.decoAt.set(d.x + ',' + d.y, d);
     this.tiers = map.outdoor ? null : caveTiers(map); this.biome = caveBiome(map);
+    this.int = styleInterieur(map);   // maison : murs et sol assortis à sa ville (interieurs.js)
+    if (this.int && !this.A.cells[`int_${this.int}_haut`]) this.int = null;
+    this.fenetresInt = this.int ? fenetresInterieur(map, this.decoAt) : null;
     // relief du dehors : plateaux plus hauts, parois de falaise, marches (world/relief.js)
     this.relief = !this.r3d && !!map.outdoor && (map.hg?.some((h) => h !== 0) || map.t?.includes(T.CLIFF));
     this.rh = this.tiers && !this.A?.cells?.[`rp_${this.biome}_00`] ? caveHeights(map, this.tiers) : null;
@@ -620,7 +642,7 @@ export class WorldView {
       case T.SNOW: return { c: A['snow' + (v < 0.5 ? 0 : 1)] };
       case T.STAIRS: return { c: A.stairs };
       case T.MAT: return { c: A.mat };
-      case T.FLOOR: case T.WALL: return { c: A['floor_' + m.floor] || A.floor_wood };
+      case T.FLOOR: case T.WALL: return { c: (this.int && A[`int_${this.int}_sol`]) || A['floor_' + m.floor] || A.floor_wood };
       default: return { c: A[grassKey] };
     }
   }
@@ -898,6 +920,19 @@ export class WorldView {
     const f = (a + (theme === 'automne' ? 2 : 0)) / (n + 2);   // la case elle-même compte double
     return coeur * Math.min(1, f * f * 1.4);
   }
+  /** mur du fond d'une maison (style de sa ville) : dessus de la bordure, et sur sa face sud deux rangées de 32 pixels
+   *  (papier peint et corniche en haut, lambris et plinthe en bas) ; une fenêtre toutes les trois ou quatre cases là où
+   *  aucun meuble ne se dresse devant, sur le ciel du jour ou de la nuit */
+  murInterieur(G, x, y, h) {
+    const m = this.map, A = this.A.cells, k = this.int;
+    G.quad([x, h, y + 1], [x + 1, h, y + 1], [x + 1, h, y], [x, h, y], ...A[`int_${k}_bord`], 1);
+    // coins du fond (colonnes des côtés) : la bordure au sol, pas le plancher
+    if (m.get(x, y + 1) === T.WALL) { flat(G, x, y, x + 1, y + 1, 0.01, A[`int_${k}_bord`]); return; }
+    const fen = this.fenetresInt?.has(x);
+    const haut = A[`int_${k}_${fen ? (this.night > 0.5 ? 'fenN' : 'fen') : 'haut'}`], bas = A[`int_${k}_bas`];
+    G.quad([x, 0, y + 1], [x + 1, 0, y + 1], [x + 1, h / 2, y + 1], [x, h / 2, y + 1], ...bas, 1);
+    G.quad([x, h / 2, y + 1], [x + 1, h / 2, y + 1], [x + 1, h, y + 1], [x, h, y + 1], ...haut, 1);
+  }
   /** ombre au sol (ellipse) sous un objet, du rectangle (x0, z0)–(x1, z1) : dessinée à sa taille exacte à l'écran */
   ombreSol(G, x0, z0, x1, z1, y = 0.015, forme = 'ellipse') { flat(G, x0, z0, x1, z1, y, this.ombres.uv((x1 - x0) * TILE_PX, (z1 - z0) * TILE_PX, forme)); }
   buildChunk(ci, cj) {
@@ -966,10 +1001,11 @@ export class WorldView {
       else if (t === T.SMASH) { const r = S.crackrock; billboard(P, x + 0.5, y + 0.62, SW(r), SH(r), r); this.ombreSol(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85); }
       else if (t === T.WALL) {
         // mur du fond en volume ; murs latéraux et bas réduits à une bordure sombre, comme sur DS
-        if (y <= 1) { const south = m.get(x, y + 1) !== T.WALL; box(Wl, x, y, x + 1, y + 1, wallH, A[m.wallStyle] || A.wall_in, A.walltop, A.walltop, { south, east: false, west: false }); }
+        if (y <= 1 && this.int) this.murInterieur(Wl, x, y, wallH);
+        else if (y <= 1) { const south = m.get(x, y + 1) !== T.WALL; box(Wl, x, y, x + 1, y + 1, wallH, A[m.wallStyle] || A.wall_in, A.walltop, A.walltop, { south, east: false, west: false }); }
         // cloisons entre deux salles (m.cloisons : Arène de Sylvebourg) : face sud en volume, d'une case de haut
         else if (m.cloisons && y < m.h - 1 && x > 0 && x < m.w - 1 && m.get(x, y + 1) !== T.WALL) box(Wl, x, y, x + 1, y + 1, Math.tan(EL), A[m.wallStyle] || A.wall_in, A.walltop, A.walltop, { south: true, east: m.get(x + 1, y) !== T.WALL, west: m.get(x - 1, y) !== T.WALL });
-        else flat(Wl, x, y, x + 1, y + 1, 0.01, A.walltop);
+        else flat(Wl, x, y, x + 1, y + 1, 0.01, (this.int && A[`int_${this.int}_bord`]) || A.walltop);
       } else if (t === T.CAVEWALL) {
         // dehors (montagnes des entrées de grottes, bord du monde) : mêmes plateaux de roche que dans les grottes
         const bioC = m.outdoor ? (m.neige?.[y * m.w + x] ? 'glace' : zone?.roche || bioDehors(theme)) : this.biome;

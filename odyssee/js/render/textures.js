@@ -5,6 +5,7 @@ import { SOL16_JEUX } from '../data/sol16.js';
 import { REGLES, kitCell } from '../data/regles.js';
 import { texturesRelief, tourbillon, quart, remous, koi } from './relief-tex.js';
 import { texturesSerre, spritesSerre } from './serre-tex.js';
+import { texturesInterieurs } from './interieurs.js';
 
 export const CELL = 16, PITCH = 18;
 
@@ -297,6 +298,8 @@ export function buildAtlas() {
   put('wall_cendre', (P) => { P.fill('#3e3028'); for (let x = 0; x < 16; x += 4) P.rect(x, 0, 1, 16, '#271c16'); P.rect(0, 0, 16, 3, '#211814'); P.speck(10, '#2c211b', 0, 3, 16, 9); P.speck(5, '#5e5048'); P.speck(3, '#7a3a20', 0, 6, 16, 6); P.rect(0, 13, 16, 3, '#2a1f19'); P.rect(0, 13, 16, 1, '#54443a'); });
   putSol('floor_cendre', FLOOR32.cendre, (P) => floorCell(P, 'gymDragon'));
   putSol('floor_pierre', 'floor_stone', (P) => floorCell(P, 'gymRock'));
+  // intérieurs des maisons assortis à leur ville (murs à la densité de l'écran, fenêtres de jour et de nuit, sols)
+  texturesInterieurs(putImg, img);
   return { canvas: atlas, cells, size: SIZE };
 }
 /** verts du sol adoucis : l'herbe à 16 px est très saturée (vert fluo) ; on la ramène vers le vert tendre des jeux DS.
