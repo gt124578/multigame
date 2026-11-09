@@ -1601,8 +1601,9 @@ export class WorldView {
   applyTint(c) {
     const indoorOrCave = !this.map?.outdoor;
     let k = indoorOrCave ? (this.map?.floor === 'cave' ? [0.82, 0.8, 0.86] : [1, 1, 1]) : this.eclipse ? [0.3, 0.17, 0.44] : c;
-    // sous les frondaisons : plus sombre, un peu plus vert
-    if (!indoorOrCave && this.ombre < 0.999) { const o = this.ombre; k = [k[0] * o * 0.94, k[1] * Math.min(1, o * 1.06), k[2] * o * 0.92]; }
+    // sous les frondaisons : plus sombre, un peu plus vert (la valeur de la zone est passée en lumière linéaire, un peu
+    // moins que la teinte de l'heure : 0,5 donne un sous-bois à 60 % de la lumière du jour à l'écran)
+    if (!indoorOrCave && this.ombre < 0.999) { const o = Math.pow(this.ombre, 1.6); k = [k[0] * o * 0.94, k[1] * Math.min(1, o * 1.06), k[2] * o * 0.92]; }
     // ciel couvert : la pluie et la grêle assombrissent et bleuissent, le sable jaunit, la cendre grise (lumière linéaire)
     const ciel = indoorOrCave ? null : METEO_TEINTE[this.weather?.current];
     if (ciel) k = k.map((v, i) => v * ciel[i]);
