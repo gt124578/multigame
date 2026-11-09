@@ -32,7 +32,7 @@ import { grandeRoute, boucherLocal } from './chemins.js';
 import { atelier } from './atelier.js';
 import { lieux, faconnerImpasses, panneauxDesLieux } from './lieux.js';
 import { ecrans } from './ecrans.js';
-import { rythme } from './rythme.js';
+import { rythme, cachettesDesVilles } from './rythme.js';
 import { grotteDuCol } from './grottes.js';
 import { volcan } from './volcan.js';
 import { contreforts, plateauNaturel } from './contreforts.js';
@@ -1273,7 +1273,9 @@ export function buildWorld() {
     W.finitions.foret = rendreALaForet(W, RG.get('monde'), mer);
     W.finitions.decor = oterDecorIsole(W, RG.get('monde'));
     W.finitions.degages = degager(W);
-    W.finitions.bareme = appliquerBareme(maps, RG); }
+    W.finitions.bareme = appliquerBareme(maps, RG);
+    // des objets cachés en ville : un tonneau, une caisse, un pot au bord d'une rue, au barème de l'endroit (rythme.js)
+    W.cachettes = cachettesDesVilles(W, towns, RG.get('monde')); }
   // retouches faites dans l'éditeur de la version test et intégrées au jeu (world/retouches.js)
   applyRetouches(maps);
   // cartes disparues (lieux désormais posés sur la carte du monde) : une ancienne partie qui y était reprend ici

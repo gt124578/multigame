@@ -14,6 +14,7 @@ import { along, caseLibre } from './mapgen.js';
 import { bruit } from './quartiers.js';
 import { lotsPour, rangRoute, adapter } from './bareme.js';
 import { PRENOMS } from './voix.js';
+import { rangAutour, JAMAIS } from './acces.js';
 
 const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const FORET = (t) => t === T.TREE || t === T.PINE;
@@ -356,14 +357,47 @@ function routeRythme(W, R, res, occ, ids, ctx) {
 }
 
 /** un objet caché dans la case (x, y) : on le trouve en fouillant (touche A face à la case) ; le drapeau `I:<id>` est
- *  celui des objets posés (un objet trouvé le reste) */
-export function cacher(W, x, y, id, item, qty = 1) {
+ *  celui des objets posés (un objet trouvé le reste). meuble : le décor posé là (tonneau, pot…), qui retrouve sa
+ *  description une fois l'objet trouvé */
+export function cacher(W, x, y, id, item, qty = 1, meuble = null) {
   W.object(x, y, { cache: true, id, item, qty, use: async (A) => {
-    if (A.f['I:' + id]) return;
+    if (A.f['I:' + id]) { if (meuble && A.game.furniture) await A.game.furniture(meuble, x, y); return; }
     A.f['I:' + id] = true;
     await A.say('Tiens ? Il y a quelque chose de caché ici...');
     await A.give(item, qty);
   } });
+}
+
+/** des objets cachés en ville, comme les poubelles de HeartGold : dans un tonneau, des caisses, un pot ou une fontaine
+ *  au bord d'une rue (deux par ville au plus ; identifiants `<ville>:cN`). Posés après l'exploration de la carte
+ *  (finitions) : R donne le rang de chaque case (badges pour l'atteindre), d'où le barème de l'objet. */
+export function cachettesDesVilles(W, towns, R) {
+  const pris = new Set([...W.items.map((i) => i.id), ...W.npcs.map((n) => n.id), ...[...W.objects.values()].map((o) => o.id).filter(Boolean)]);
+  // (pas la caisse seule : celle de la quête du Ponyta en est une, on ne la confond pas)
+  const KINDS = new Set(['tonneau', 'caisses', 'pot', 'fontaine', 'bouee']);
+  let n = 0;
+  for (const t of Object.values(towns)) {
+    if (!t.id) continue;
+    const z = W.zones.find((q) => q.town === t.id); if (!z) continue;
+    const cands = [];
+    for (const d of W.deco) {
+      if (d.x == null || !KINDS.has(d.k) || W.get(d.x, d.y) !== T.BLOCK || W.objects.has(d.x + ',' + d.y)) continue;
+      if (d.x < z.x0 || d.y < z.y0 || d.x > z.x1 || d.y > z.y1) continue;
+      // touché depuis une rue ou une place (pas depuis une porte)
+      if (!N4.some(([a, b]) => { const q = W.get(d.x + a, d.y + b); return (q === T.PATH || q === T.PAVE || q === T.GRASS) && !W.warpAt(d.x + a, d.y + b); })) continue;
+      const rang = R ? rangAutour(W, R, d.x, d.y) : 4; if (rang === JAMAIS) continue;
+      cands.push([bruit(d.x, d.y, 1.9, 6601), d, rang]);
+    }
+    cands.sort((a, b) => b[0] - a[0] || a[1].y - b[1].y || a[1].x - b[1].x);
+    let k = 0;
+    for (const [, d, rang] of cands) {
+      if (k >= 2) break;
+      const id = `${t.id}:c${k}`; if (pris.has(id)) break;
+      const lots = lotsPour(Math.min(4, rang)), item = adapter(lots[Math.floor(bruit(d.x, d.y, 1.3, 6602) * lots.length) % lots.length], rang, false);
+      cacher(W, d.x, d.y, id, item, 1, d.k); pris.add(id); k++; n++;
+    }
+  }
+  return n;
 }
 
 function plusProche(sentier, x, y) { let b = sentier[0], bd = 1e9; for (const p of sentier) { const d = Math.abs(p[0] - x) + Math.abs(p[1] - y); if (d < bd) { bd = d; b = p; } } return [b[0], b[1]]; }
