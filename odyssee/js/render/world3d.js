@@ -1453,6 +1453,9 @@ export class WorldView {
   }
   place(a, x, y, hop = 0, inGrass = false) {
     const h = this.r3d ? this.r3d.Hmarche(x + 0.5, y + 0.55) : 0;
+    // retombée d'un saut (rebord) : un petit nuage de poussière aux pieds
+    if ((a.hop ?? 0) > 0.08 && hop < 0.02 && !inGrass && a.kind === 'char') this.ambiance.poussiere(x + 0.5, h, y + 0.6);
+    a.hop = hop;
     a.mesh.position.set(x + 0.5, hop + h, y + 0.55);
     a.shadow.position.set(x + 0.5, 0.02 + h, y + 0.6);
     a.shadow.visible = !inGrass;

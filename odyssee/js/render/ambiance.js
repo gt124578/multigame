@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { T } from '../world/tiles.js';
 
 const N = 320;                       // points au plus à l'écran
-const F = { BOUFFEE: 0, PAPILLON_O: 1, PAPILLON_F: 2, LUCIOLE: 3, FEUILLE_A: 4, FEUILLE_B: 5, TRACE_V: 6, TRACE_H: 7 };
+const F = { BOUFFEE: 0, PAPILLON_O: 1, PAPILLON_F: 2, LUCIOLE: 3, FEUILLE_A: 4, FEUILLE_B: 5, TRACE_V: 6, TRACE_H: 7, OISEAU_H: 8, OISEAU_B: 9 };
 const EL = 55 * Math.PI / 180, TAN = Math.tan(EL);
 
 const VERT = /* glsl */`
@@ -31,6 +31,9 @@ const FRAG = /* glsl */`
   varying vec4 vCoul; varying float vForme; varying float vTaille;
   const int PAP_O[20] = int[20]( 1,1,0,1,1,  1,1,2,1,1,  0,1,2,1,0,  0,0,2,0,0 );
   const int PAP_F[20] = int[20]( 0,1,0,1,0,  0,1,2,1,0,  0,0,2,0,0,  0,0,0,0,0 );
+  // oiseau vu de loin (7 × 3) : ailes levées, ailes baissées
+  const int OIS_H[21] = int[21]( 1,0,0,0,0,0,1,  0,1,0,0,0,1,0,  0,0,1,1,1,0,0 );
+  const int OIS_B[21] = int[21]( 0,0,0,0,0,0,0,  0,0,1,1,1,0,0,  1,1,0,1,0,1,1 );
   void main() {
     vec2 q = floor( gl_PointCoord * vTaille );
     vec3 col = vCoul.rgb; float a = vCoul.a;
@@ -54,6 +57,10 @@ const FRAG = /* glsl */`
       else if ( m < 1.5 ) a *= 0.95;
       else if ( m < 2.5 ) { a *= 0.5; col *= vec3( 0.75, 1.0, 0.6 ); }
       else { if ( mod( q.x + q.y, 2.0 ) > 0.5 ) discard; a *= 0.3; col *= vec3( 0.6, 0.95, 0.5 ); }
+    } else if ( f == 8 || f == 9 ) {
+      if ( q.x > 6.0 || q.y > 2.0 ) discard;
+      int i = int( q.y ) * 7 + int( q.x );
+      if ( ( f == 8 ? OIS_H[ i ] : OIS_B[ i ] ) == 0 ) discard;
     } else if ( f == 6 || f == 7 ) {
       // empreinte de pas : petit ovale de 2 × 3 (marche nord-sud) ou 3 × 2 (est-ouest), le talon plus marqué
       vec2 r = f == 6 ? q : q.yx;
@@ -153,6 +160,19 @@ export class Ambiance {
         }
       }
     }
+    // ---- de temps en temps, le jour, un vol d'oiseaux traverse le ciel (haut au-dessus du décor), et son ombre au sol
+    this.vol = (this.vol ?? 6) - dt;
+    if (dehors && !nuit && !pluie && this.vol <= 0) {
+      this.vol = 14 + Math.random() * 20;
+      const n = 3 + Math.floor(Math.random() * 4), sens = Math.random() < 0.5 ? 1 : -1, dz = (Math.random() - 0.5) * 0.5;
+      const x0 = cx - sens * 13, z0 = cz + (Math.random() - 0.5) * 8, h = 7 + Math.random() * 2;
+      for (let i = 0; i < n; i++) {
+        // en V : le premier devant, les autres de part et d'autre, un peu en arrière
+        const r = Math.ceil(i / 2), c = i % 2 ? 1 : -1;
+        const p = { k: 'oiseau', x: x0 - sens * r * 0.7, y: h + (Math.random() - 0.5) * 0.3, z: z0 + c * r * 0.45 + h / Math.tan(EL), vx: sens * 3.2, vz: dz, vie: 12, ph: Math.random() * 6 };
+        this.ajout(p);
+      }
+    }
     // ---- empreintes dans le sable, la neige et la cendre : une tous les demi-pas, à gauche puis à droite
     if (dehors) {
       const d = this.pas ? Math.hypot(fx - this.pas[0], fy - this.pas[1]) : 9;
@@ -175,7 +195,7 @@ export class Ambiance {
     const P = this.parts;
     for (let i = P.length - 1; i >= 0; i--) {
       const p = P[i]; p.t += dt;
-      if (p.t >= p.vie || Math.abs(p.x - cx) > 16 || Math.abs(p.z - cz) > 14) { P.splice(i, 1); continue; }
+      if (p.t >= p.vie || Math.abs(p.x - cx) > (p.k === 'oiseau' ? 20 : 16) || Math.abs(p.z - cz) > (p.k === 'oiseau' ? 22 : 14)) { P.splice(i, 1); continue; }
       if (p.k === 'trace') continue;   // immobile, elle s'efface
       if (p.k === 'fumee') {
         // monte (0,7 case par seconde à l'écran), dérive au vent, ondule
@@ -189,6 +209,10 @@ export class Ambiance {
       } else if (p.k === 'luciole') {
         p.cap += (Math.random() - 0.5) * dt * 2;
         p.x += Math.cos(p.cap) * dt * 0.25; p.z += Math.sin(p.cap) * dt * 0.18; p.y += Math.sin(p.ph + p.t * 1.3) * dt * 0.12;
+      } else if (p.k === 'poussiere') {
+        p.x += p.vx * dt * (1 - p.t / p.vie); p.y += dt * 0.25;
+      } else if (p.k === 'oiseau') {
+        p.x += p.vx * dt; p.z += p.vz * dt; p.y += Math.sin(p.ph + p.t * 2) * dt * 0.2;
       } else if (p.k === 'feuille') {
         if (p.y > p.sol) { p.y = Math.max(p.sol, p.y - dt * 0.45 * TAN * 0.6); p.x += Math.sin(p.ph + p.t * 2.2) * dt * 0.5 + dt * 0.08; }
         else if (!p.pose) { p.pose = p.t; p.vie = Math.min(p.vie, p.t + 2.5); }   // posée : elle s'efface au sol
@@ -204,6 +228,8 @@ export class Ambiance {
       else if (p.k === 'papillon') { taille = 5; f = Math.floor(p.t * 9 + p.ph) % 2 ? F.PAPILLON_O : F.PAPILLON_F; a = Math.min(1, p.t * 2, (p.vie - p.t) * 2); }
       else if (p.k === 'luciole') { taille = 7; f = F.LUCIOLE; c = [0.9, 1.0, 0.4]; a = Math.min(1, Math.max(0, Math.sin(p.ph + p.t * 2.4) * 1.6)) * Math.min(1, p.vie - p.t, p.t); }
       else if (p.k === 'feuille') { taille = 3; f = p.pose ? F.FEUILLE_A : Math.floor(p.t * 3 + p.ph) % 2 ? F.FEUILLE_A : F.FEUILLE_B; a = p.pose ? Math.max(0, 1 - (p.t - p.pose) / 2.5) : Math.min(1, p.t * 2); }
+      else if (p.k === 'oiseau') { taille = 7; f = Math.floor(p.t * 5 + p.ph) % 2 ? F.OISEAU_H : F.OISEAU_B; c = [0.22, 0.2, 0.24]; a = Math.min(1, p.t); }
+      else if (p.k === 'poussiere') { taille = Math.round(4 + u * 3); f = F.BOUFFEE; c = [0.94, 0.9, 0.8]; a = 0.9 * (1 - u * u); }
       else if (p.k === 'trace') { taille = 3; f = p.f; a = 0.72 * Math.min(1, (p.vie - p.t) / 2.5); }
       if (a <= 0.01) return;
       this.pos[n * 3] = p.x; this.pos[n * 3 + 1] = p.y; this.pos[n * 3 + 2] = p.z;
@@ -212,11 +238,19 @@ export class Ambiance {
       this.coul[n * 4] = c[0] ** 2.2; this.coul[n * 4 + 1] = c[1] ** 2.2; this.coul[n * 4 + 2] = c[2] ** 2.2; this.coul[n * 4 + 3] = a;
       n++;
     };
-    for (const p of P) if (p.k === 'fumee') ecrire(p);
+    // sans test de profondeur : la fumée (devant le toit dont elle sort) et les oiseaux (haut dans le ciel)
+    const ciel = (p) => p.k === 'fumee' || p.k === 'oiseau';
+    for (const p of P) if (ciel(p)) ecrire(p);
     const nf = n;
-    for (const p of P) if (p.k !== 'fumee') ecrire(p);
+    for (const p of P) if (!ciel(p)) ecrire(p);
     this.geo.setDrawRange(0, nf); this.g2.setDrawRange(nf, n - nf);
     for (const k of ['position', 'aTaille', 'aCoul', 'aForme']) { const at = this.geo.getAttribute(k); at.needsUpdate = true; at.clearUpdateRanges?.(); }
+  }
+  /** petit nuage de poussière aux pieds (atterrissage d'un saut de rebord) */
+  poussiere(x, y, z) {
+    // (avancé vers la caméra le long de son rayon, comme les empreintes : le sol ne le cache pas)
+    const ay = 0.5 * Math.sin(EL), az = 0.5 * Math.cos(EL);
+    for (const s of [-1, 1]) for (let i = 0; i < 2; i++) this.ajout({ k: 'poussiere', x: x + s * (0.15 + i * 0.12), y: y + 0.08 + i * 0.05 + ay, z: z + 0.05 + az, vx: s * (0.9 + i * 0.4), vie: 0.45 + i * 0.1 });
   }
   ajout(p) { if (this.parts.length < N) { p.t = 0; this.parts.push(p); } }
 }
