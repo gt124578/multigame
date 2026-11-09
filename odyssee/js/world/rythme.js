@@ -1,0 +1,210 @@
+// odyssee/js/world/rythme.js — le rythme des grandes routes, façon HeartGold / SoulSilver, posé une fois toutes les routes
+// taillées (après les écrans de verdure, avant les barrières) :
+//   - raccourcis à sens unique : là où deux morceaux d'une même route se frôlent derrière une lisière, une trouée dans
+//     les arbres et un rebord à sauter ramènent d'un morceau à l'autre (on saute vers le bas ou sur le côté, jamais dans
+//     l'autre sens : pour revenir, il faut refaire le chemin) ;
+//   - rebords en travers des prairies, le long du sentier : on les saute en descendant, on les contourne en montant.
+// Chaque rebord est vérifié : tout ce qu'on atteignait et d'où l'on revenait reste atteignable et l'on en revient (pas
+// de piège), et un raccourci n'ouvre rien qu'on n'atteignait déjà à pied (il ne fait que gagner du temps).
+import { T, walkable } from './tiles.js';
+import { along } from './mapgen.js';
+import { bruit } from './quartiers.js';
+
+const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+const FORET = (t) => t === T.TREE || t === T.PINE;
+const HERBE = (t) => t === T.GRASS || t === T.TALL || t === T.FLOWER || t === T.DARKTALL;
+
+/** le graphe des pas du joueur dans un rectangle (sans capacité : Coupe, Éclate-Roc, Surf et Force ferment le passage),
+ *  PNJ et objets posés comptant comme des murs ; renvoie { avant(i) : ce qu'on atteint depuis i, arriere(i) : d'où l'on
+ *  atteint i } en indices du rectangle */
+function graphe(W, box, occ) {
+  const [x0, y0, x1, y1] = box, w = x1 - x0 + 1, h = y1 - y0 + 1, n = w * h;
+  const at = (x, y) => (y - y0) * w + (x - x0);
+  // pour chaque case du rectangle : praticable et libre (1), rebord (2 : vers le bas, 3 : l'est, 4 : l'ouest), escalier (bit 8)
+  const c = new Uint8Array(n), hg = new Int8Array(n);
+  const maj = (x, y) => {
+    const i = at(x, y), t = W.get(x, y); hg[i] = W.height(x, y); c[i] = 0;
+    if (t === T.LEDGE) c[i] = 2; else if (t === T.LEDGE_E) c[i] = 3; else if (t === T.LEDGE_W) c[i] = 4;
+    else if (walkable(t) && !occ.has(x + ',' + y)) c[i] = t === T.STAIRS ? 9 : 1;
+  };
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) maj(x, y);
+  const lib = (i) => (c[i] & 7) === 1;
+  const pas = (i, j) => ((c[i] | c[j]) & 8 ? Math.abs(hg[i] - hg[j]) <= 1 : hg[i] === hg[j]);
+  const D = [[1, 0, 3], [-1, 0, 4], [0, 1, 2], [0, -1, 0]];
+  const q = new Int32Array(n);
+  const parcours = (s, sens) => {
+    const vu = new Uint8Array(n); let lo = 0, hi = 0; q[hi++] = s; vu[s] = 1;
+    while (lo < hi) {
+      const i = q[lo++], x = i % w, y = (i - x) / w;
+      for (const [dx, dy, led] of D) {
+        const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const j = ny * w + nx, cj = c[j] & 7;
+        if (sens > 0) {   // ce qu'on atteint depuis la case
+          if (cj >= 2) { const ax = nx + dx, ay = ny + dy, k = ay * w + ax; if (cj === led && ax >= 0 && ay >= 0 && ax < w && ay < h && lib(k) && !vu[k]) { vu[k] = 1; q[hi++] = k; } continue; }
+          if (cj === 1 && !vu[j] && pas(i, j)) { vu[j] = 1; q[hi++] = j; }
+        } else {          // d'où l'on atteint la case : un pas ordinaire, ou un saut par-dessus un rebord
+          if (cj === 1 && !vu[j] && pas(j, i)) { vu[j] = 1; q[hi++] = j; }
+          const opp = dx === 1 ? 4 : dx === -1 ? 3 : dy === -1 ? 2 : 0;
+          if (cj >= 2 && cj === opp) { const ax = nx + dx, ay = ny + dy, k = ay * w + ax; if (ax >= 0 && ay >= 0 && ax < w && ay < h && lib(k) && !vu[k]) { vu[k] = 1; q[hi++] = k; } }
+        }
+      }
+    }
+    return vu;
+  };
+  return { n, at, w, maj, avant: (i) => parcours(i, 1), arriere: (i) => parcours(i, -1) };
+}
+
+/**
+ * Pose rebords et raccourcis sur les grandes routes. routes : la liste de buildWorld (pts.res :
+ * le résultat de grandeRoute). Renvoie le bilan { raccourcis, rebords, caches, panneaux }.
+ */
+export function rythme(W, routes) {
+  const bilan = { raccourcis: [], rebords: 0, lignes: [], caches: [], panneaux: 0 };
+  const occ = new Set([...W.npcs.map((q) => q.x + ',' + q.y), ...W.items.map((q) => q.x + ',' + q.y), ...W.signs.keys(), ...W.warps.keys(), ...W.objects.keys()]);
+  for (const d of W.deco) if (d.x != null) occ.add(d.x + ',' + d.y);
+  const ids = new Set();
+  for (const R of routes) {
+    const res = R.pts?.res; if (!res?.cells) continue;
+    const fait = routeRythme(W, R, res, occ, ids);
+    bilan.raccourcis.push(...fait.raccourcis); bilan.rebords += fait.rebords; bilan.lignes.push(...fait.lignes); bilan.caches.push(...fait.caches); bilan.panneaux += fait.panneaux;
+  }
+  return bilan;
+}
+
+function routeRythme(W, R, res, occ, ids) {
+  const out = { raccourcis: [], rebords: 0, lignes: [], caches: [], panneaux: 0 };
+  const pts = res.pts, cells = res.cells;
+  // le rectangle de travail : le territoire de la route et une marge
+  let box = res.rect;
+  if (!box) { let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9; for (const k of cells) { const [x, y] = k.split(',').map(Number); bx0 = Math.min(bx0, x); by0 = Math.min(by0, y); bx1 = Math.max(bx1, x); by1 = Math.max(by1, y); } box = [bx0, by0, bx1, by1]; }
+  box = [Math.max(1, box[0] - 6), Math.max(1, box[1] - 6), Math.min(W.w - 2, box[2] + 6), Math.min(W.h - 2, box[3] + 6)];
+  const bw = box[2] - box[0] + 1, moi = new Int8Array(bw * (box[3] - box[1] + 1)).fill(-1);
+  // la zone de la route : on ne touche qu'à ce qui est à elle (pas aux villes, aux lieux voisins ni à la mer)
+  const aMoi = (x, y) => {
+    if (x < box[0] || y < box[1] || x > box[2] || y > box[3]) return false;
+    const i = (y - box[1]) * bw + (x - box[0]);
+    if (moi[i] < 0) { const z = W.zoneAt(x, y); moi[i] = z && z.route && !z.town && !z.sea && cells.has(x + ',' + y) ? 1 : 0; }
+    return moi[i] === 1;
+  };
+  // position le long du tracé (0..1) des cases du sentier : échantillons tous les demi-pas
+  const ech = new Map(), dirs = [], total = res.total || 1, NS = Math.max(2, Math.ceil(total * 2));
+  { // (les points du tracé parcourus une seule fois)
+    const L = [0]; for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    const tot = L[L.length - 1] || 1; let j = 1;
+    for (let i = 0; i <= NS; i++) {
+      const d = i / NS * tot; while (j < pts.length - 1 && L[j] < d) j++;
+      const u = (d - L[j - 1]) / ((L[j] - L[j - 1]) || 1), x = pts[j - 1][0] + (pts[j][0] - pts[j - 1][0]) * u, y = pts[j - 1][1] + (pts[j][1] - pts[j - 1][1]) * u;
+      const k = Math.round(x) + ',' + Math.round(y); if (!ech.has(k)) ech.set(k, i / NS);
+      dirs.push([(pts[j][0] - pts[j - 1][0]) / ((L[j] - L[j - 1]) || 1), (pts[j][1] - pts[j - 1][1]) / ((L[j] - L[j - 1]) || 1)]);
+    }
+  }
+  const sDe = (x, y) => { let best = -1, bd = 9; for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) { const s = ech.get((x + i) + ',' + (y + j)); if (s != null && i * i + j * j < bd) { bd = i * i + j * j; best = s; } } return best; };
+  const sentier = [];
+  for (let y = box[1]; y <= box[3]; y++) for (let x = box[0]; x <= box[2]; x++) if (W.get(x, y) === T.PATH && aMoi(x, y)) { const s = sDe(x, y); if (s >= 0) sentier.push([x, y, s]); }
+  if (sentier.length < 20) return out;
+  const depart = sentier[Math.floor(sentier.length / 2)];
+  // l'état des lieux avant : ce qu'on atteint depuis le sentier, et d'où l'on revient
+  const G = graphe(W, box, occ), i0 = G.at(depart[0], depart[1]);
+  const etat = () => ({ G, av: G.avant(i0), ar: G.arriere(i0) });
+  let E = etat();
+  const sur = (E2, changees) => {
+    // rien de perdu (hors des cases changées), et pas de nouveau piège (une case atteinte d'où l'on ne revient pas)
+    const ch = new Set(changees.map(([x, y]) => E.G.at(x, y)));
+    for (let i = 0; i < E.G.n; i++) {
+      if (E.av[i] && E.ar[i] && !(E2.av[i] && E2.ar[i]) && !ch.has(i)) return false;
+      if (E2.av[i] && !E2.ar[i] && !(E.av[i] && !E.ar[i])) return false;
+    }
+    return true;
+  };
+  const essai = (poser) => { const avant = poser(); for (const [x, y] of avant) G.maj(x, y); const E2 = etat(); if (sur(E2, avant)) { E = E2; return true; } for (const [x, y, t] of avant) { W.set(x, y, t); G.maj(x, y); } return false; };
+  const libreSol = (x, y, h) => !occ.has(x + ',' + y) && W.height(x, y) === h && aMoi(x, y);
+
+  /* 1. raccourcis à travers la lisière : du sentier, droit vers le sud, l'est ou l'ouest, à travers une bande d'arbres,
+        jusqu'à un morceau du sentier bien plus loin le long de la route */
+  const cands = [];
+  for (let si = 0; si < sentier.length; si += 2) {
+    const [x, y, s] = sentier[si], h = W.height(x, y);
+    for (const [dx, dy, led] of [[0, 1, T.LEDGE], [1, 0, T.LEDGE_E], [-1, 0, T.LEDGE_W]]) {
+      const px = -dy, py = dx;   // le travers du couloir (3 cases de large)
+      let k = 1, arbres = 0, phase = 0, fin = null, rebord = -1;
+      for (; k <= 40; k++) {
+        const cx = x + dx * k, cy = y + dy * k, t = W.get(cx, cy);
+        if (!aMoi(cx, cy) && !FORET(t)) break;
+        if (W.height(cx, cy) !== h) break;
+        if (phase === 0) {   // dans la bande du morceau de départ
+          if (FORET(t)) { phase = 1; }
+          else if (!HERBE(t) && t !== T.PATH) break;
+        }
+        if (phase === 1) {   // la lisière : trois cases d'arbres de front
+          let foret = true, sol = true;
+          for (let o = -1; o <= 1; o++) { const a = cx + px * o, b = cy + py * o, q = W.get(a, b); if (!FORET(q) || W.height(a, b) !== h || occ.has(a + ',' + b)) foret = false; if (!walkable(q) || !libreSol(a, b, h)) sol = false; }
+          if (foret) { arbres++; continue; }
+          if (arbres < 2 || !sol) break;
+          phase = 2; rebord = k - 1;
+        }
+        if (phase === 2) {   // la bande du morceau d'arrivée, jusqu'à son sentier
+          if (!walkable(t) || W.get(cx, cy) === T.STAIRS || occ.has(cx + ',' + cy)) break;
+          if (t === T.PATH && aMoi(cx, cy)) { const s2 = sDe(cx, cy); if (s2 >= 0) fin = [cx, cy, s2]; break; }
+        }
+      }
+      if (!fin || arbres > 9) continue;
+      const gain = Math.abs(fin[2] - s) * total - k;   // le chemin qu'on s'épargne
+      if (gain < 45) continue;
+      cands.push({ x, y, s, dx, dy, px, py, led, rebord, arbres, fin, gain, k });
+    }
+  }
+  cands.sort((a, b) => b.gain - a.gain || a.k - b.k || a.y - b.y || a.x - b.x);
+  const maxR = total > 520 ? 2 : 1, pris = [];
+  for (const c of cands) {
+    if (pris.length >= maxR) break;
+    if (pris.some((p) => Math.abs(p.s - c.s) < 0.2 || Math.abs(p.fin[2] - c.fin[2]) < 0.2)) continue;
+    // le raccourci n'ouvre rien : le point d'arrivée s'atteint déjà à pied depuis le départ
+    if (!E.av[E.G.at(c.fin[0], c.fin[1])]) continue;
+    const ok = essai(() => {
+      const avant = [];
+      for (let k = 1; k <= c.rebord; k++) for (const o of [-1, 0, 1]) {
+        const a = c.x + c.dx * k + c.px * o, b = c.y + c.dy * k + c.py * o, t = W.get(a, b);
+        if (!FORET(t)) continue;
+        avant.push([a, b, t]); W.set(a, b, k === c.rebord ? c.led : T.GRASS); cells.add(a + ',' + b);
+      }
+      return avant;
+    });
+    if (ok) { pris.push(c); out.raccourcis.push({ route: R.id, x: c.x + c.dx * c.rebord, y: c.y + c.dy * c.rebord, gain: Math.round(c.gain) }); }
+  }
+
+  /* 2. rebords en travers des prairies : là où le sentier file du nord au sud, une ligne de rebord part de son bord et
+        barre la prairie jusqu'aux arbres */
+  const nb = Math.max(1, Math.round(total / 160));
+  const lignes = [];
+  for (let i = 0; i < sentier.length; i++) {
+    const [x, y, s] = sentier[i]; if (s < 0.06 || s > 0.94) continue;
+    if (Math.abs(dirs[Math.round(s * NS)][1]) < 0.8) continue;   // le sentier va du nord au sud
+    for (const side of [1, -1]) {
+      if (W.get(x + side, y) === T.PATH) continue;   // depuis le bord du sentier
+      const h = W.height(x, y), L = [];
+      let k = 1, bout = false;
+      for (; k <= 22; k++) {
+        const cx = x + side * k, t = W.get(cx, y);
+        if (FORET(t) || t === T.ROCK || t === T.WATER || t === T.CLIFF || t === T.CAVEWALL) { bout = true; break; }
+        if (!HERBE(t) || !libreSol(cx, y, h) || !aMoi(cx, y)) break;
+        // au-dessus et au-dessous, de quoi se tenir (on saute d'une case d'herbe à une autre)
+        if (!walkable(W.get(cx, y - 1)) || !walkable(W.get(cx, y + 1)) || W.height(cx, y - 1) !== h || W.height(cx, y + 1) !== h || occ.has(cx + ',' + (y + 1))) break;
+        L.push([cx, y]);
+      }
+      if (!bout || L.length < 4) continue;
+      lignes.push({ x, y, s, side, L, note: L.length + 6 * bruit(x, y, 5, 977) });
+    }
+  }
+  lignes.sort((a, b) => b.note - a.note || a.y - b.y || a.x - b.x);
+  const poses = [];
+  for (const l of lignes) {
+    if (poses.length >= nb) break;
+    if (poses.some((p) => Math.abs(p.s - l.s) < 0.12)) continue;
+    if (l.L.some(([a, b]) => W.get(a, b - 1) === T.LEDGE || W.get(a, b + 1) === T.LEDGE)) continue;
+    const ok = essai(() => { const avant = []; for (const [a, b] of l.L) { avant.push([a, b, W.get(a, b)]); W.set(a, b, T.LEDGE); } return avant; });
+    if (ok) { poses.push(l); out.rebords++; out.lignes.push([R.id, l.L[0][0], l.L[0][1], l.L.length * l.side]); }
+  }
+
+  return out;
+}
+

@@ -32,6 +32,7 @@ import { grandeRoute, boucherLocal } from './chemins.js';
 import { atelier } from './atelier.js';
 import { lieux } from './lieux.js';
 import { ecrans } from './ecrans.js';
+import { rythme } from './rythme.js';
 import { ANCIENS_OBJETS } from './anciens-objets.js';
 
 /** version de la carte du monde : une sauvegarde d'une version plus ancienne reprend au Centre de la dernière ville
@@ -1240,6 +1241,8 @@ export function buildWorld() {
   // des écrans de verdure entre les zones : d'une ville, d'une route ou d'un lieu, on ne voit jamais une autre zone qu'on
   // ne peut pas rejoindre de près (ecrans.js)
   { const t0 = performance.now(); W.ecrans = ecrans(W); W.ecrans.ms = Math.round(performance.now() - t0); }
+  // le rythme des routes (rythme.js) : raccourcis à sens unique et rebords à sauter, objets cachés, panneaux aux deux bouts
+  { const t0 = performance.now(); W.rythme = rythme(W, routes); W.rythme.ms = Math.round(performance.now() - t0); }
   // petites barrières de bois le long des chemins des routes (jamais là où elles couperaient un passage)
   fenceRoutes(W, legends);
   // les ponts au propre : droits, d'une ou deux cases de large, jamais deux côte à côte (ponts.js)
