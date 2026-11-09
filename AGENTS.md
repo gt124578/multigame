@@ -258,6 +258,12 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   `?r3zoom=Z` élargit la vue (regarder une montagne entière). Le Pic Céleste (`picCeleste` de `region.js`) : montagne
   géante au nord du Plateau Céleste, terrasses de quatre niveaux jusqu'au niveau 60 (la carte des hauteurs du schéma
   plafonne l'affichage à 13 ; une case non retouchée garde sa hauteur).
+  Technique (audit : `docs/ODYSSEE-AUDIT-TECHNIQUE.md`) : `node tools/odyssee-parcours.mjs [--court] [--captures]` joue tout seul
+  dans Chrome (Playwright) et mesure : démarrage (étapes `window.__odyBoot` de `main.js`), sauts d'un bout à l'autre de la région,
+  marche jusqu'à des portes, entrées et sorties, combat, menus, sauvegarde et reprise, coût d'une image (tick, appels de dessin,
+  triangles), mémoire (géométries et textures de three.js, tas) et fuites sur dix allers-retours, vide à l'écran, joueur bloqué,
+  erreurs de la console ; il compare aussi la carte construite dans Chrome à celle de Node. `node tools/odyssee-empreinte.mjs [--deux]`
+  : empreinte de chaque carte (deux constructions de suite doivent être identiques).
   Prototype de sol en vrai relief, seulement avec `?relief3d` dans l'adresse (`odyssee/js/render/relief3d.js`) : hauteurs
   fines (4 × 4 sommets par case) tirées des niveaux du jeu, sol généré posé dessus, parois striées plaquées comme vues de la
   caméra, projection orthographique calée sur les pixels ; réglages `r3k` (hauteur d'un niveau), `r3t` (seuil des parois),

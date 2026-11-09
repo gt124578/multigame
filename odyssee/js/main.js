@@ -20,6 +20,9 @@ import { SOL16_FICHIERS } from './data/sol16.js';
 import { R, ORIGINALES } from './data/remplacants.js';
 
 const H = window.HubBridge;
+// étapes du démarrage, en millisecondes depuis l'ouverture de la page (lues par tools/odyssee-parcours.mjs)
+const BOOT = window.__odyBoot = { module: Math.round(performance.now()) };
+const etape = (k) => { BOOT[k] = Math.round(performance.now()); };
 const canvas = document.getElementById('gl'), uiRoot = document.getElementById('ui'), loading = document.getElementById('loading');
 
 function fatal(e) {
@@ -74,9 +77,12 @@ async function boot() {
   renderer.setPixelRatio(1); renderer.outputColorSpace = THREE.SRGBColorSpace;
   const input = new Input(), sound = new Sound(), ui = new UI(uiRoot, input, sound);
   const world = buildWorld();
+  etape('carte');
   const art = await loadArt();
+  etape('images');
   setArt({ kits: art.kits, sols: art.sols, sol32: art.sol32, hgss: art.hgss, relief: art.relief });
   const view = new WorldView(renderer, art.chars, { sprites: art.sprites, dens: art.dens, suiveurs: art.suiveurs });
+  etape('vue');
   const game = new Game({ view, ui, input, sound, world });
   // sauvegarde en ligne (compte du Hub) : chaque sauvegarde part aussi sur le serveur, regroupée
   const cloud = game.cloud = new Cloud();
@@ -112,6 +118,7 @@ async function boot() {
   };
   view.setMap(world.maps.monde); view.setTimeOfDay(new Date().getHours() + new Date().getMinutes() / 60);
   loading.style.display = 'none';
+  etape('pret');
   requestAnimationFrame(loop);
   ui.fade(false, 500);
   if (H && H.embedded) H.signalReady();
