@@ -846,7 +846,8 @@ function eau(Z, img, E, frame) {
       else if (dw[i] <= fd + 1.2 && hash2(X, Y, s + 45) < 0.35) img[i] = W[5];
     } else {                                                                    // berge
       if (sd[i] <= 4) img[i] = sd[i] <= 1.5 + (lap > 0.3 ? 1 : 0) ? sp[0] : sd[i] <= 3 ? sp[1] : sp[2];
-      else img[i] = rocky ? rocky[0] : G[1];                                    // lisière
+      else if (rocky) img[i] = rocky[0];                                         // lisière : roche,
+      else if (IS_GALL[img[i]]) img[i] = G[1];                                   // … ou herbe plus sombre (jamais un trait vert sur une plage)
     }
   }
   for (let cy = 0; cy < Z.ch; cy++) for (let cx = 0; cx < Z.cw; cx++) {
