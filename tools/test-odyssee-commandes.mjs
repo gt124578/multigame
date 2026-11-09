@@ -4,6 +4,7 @@
 // A valide ; le menu-manette commun du Hub (shared/padnav.js) se tait pendant ce temps.
 // Tactile (odyssee/js/tactile.js, écran de téléphone en paysage) : les commandes apparaissent au premier contact, la croix
 // fait marcher en suivant le doigt, le bouton Menu ouvre le menu et B le ferme ; le clavier les recache.
+// Arrière-plan : onglet caché, le son s'arrête et la partie est sauvegardée ; il reprend au retour.
 //   node tools/test-odyssee-commandes.mjs
 import http from 'node:http';
 import fs from 'node:fs';
@@ -78,6 +79,18 @@ try {
     await page.evaluate(() => { window.__pad.buttons[1].pressed = true; });   // B
     ok(await attendre(page, () => !document.querySelector('.startmenu') && window.__ody.game.input.free), 'B : le menu se ferme et la main revient au jeu');
     await page.evaluate(() => { window.__pad.buttons[1].pressed = false; });
+    // arrière-plan : le son s'arrête (contexte audio suspendu) et reprend au retour, la partie est sauvegardée
+    await page.mouse.click(640, 400);   // un geste débloque le son
+    await page.evaluate(() => { window.__ody.sound.init(); window.__ody.sound.play('route'); });
+    const fond = await page.evaluate(async () => {
+      const S = window.__ody.sound, cache = (v) => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => v }); Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (v ? 'hidden' : 'visible') }); document.dispatchEvent(new Event('visibilitychange', { bubbles: true })); };
+      localStorage.removeItem('odyssee-save-v2');
+      cache(true); await new Promise((r) => setTimeout(r, 300)); const cachee = S.ctx.state, sauve = !!localStorage.getItem('odyssee-save-v2');
+      cache(false); await new Promise((r) => setTimeout(r, 300));
+      return { cachee, revenu: S.ctx.state, sauve };
+    });
+    ok(fond.cachee === 'suspended' && fond.revenu === 'running', `onglet caché : le son s'arrête et reprend (${fond.cachee} → ${fond.revenu})`);
+    ok(fond.sauve, 'onglet caché : la partie est sauvegardée');
     ok(!errors.length, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors[0] : ''));
     await ctx.close();
   }

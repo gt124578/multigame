@@ -1056,6 +1056,12 @@ export class Sound {
     // « moderne » : instruments doux, batterie et réverbération ; « retro » : les ondes 8 bits d'origine
     this.style = 'moderne';
     try { const st = localStorage.getItem('odyssee-son'); if (st === 'retro' || st === 'moderne') this.style = st; } catch (e) {}
+    // onglet caché, application en arrière-plan : le son s'arrête et reprend au retour (le temps de l'audio s'arrête
+    // aussi, la musique repart là où elle en était)
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
+      if (!this.ctx || this.offline || !this.ctx.suspend) return;
+      if (document.hidden) this.ctx.suspend().catch(() => {}); else this.ctx.resume().catch(() => {});
+    });
   }
   setStyle(st) { this.style = st === 'retro' ? 'retro' : 'moderne'; try { localStorage.setItem('odyssee-son', this.style); } catch (e) {} const cur = this.current; this.current = null; if (cur) this.play(cur); }
   init(offline) {
@@ -1171,6 +1177,9 @@ export class Sound {
     const tick = () => {
       if (!st.alive) return;
       const now = this.ctx.currentTime;
+      // le minuteur a pris du retard (page occupée, onglet en arrière-plan) : on saute les pas manqués au lieu de les
+      // jouer tous d'un coup
+      if (!this.offline && st.t < now - 0.3) { const k = Math.ceil((now - st.t) / stepDur); st.step += k; st.t += k * stepDur; }
       while (st.t < now + (this.offline || 0.25)) {
         const s = song.loopStart != null && st.step >= song.steps ? song.loopStart + (st.step - song.loopStart) % (song.steps - song.loopStart) : st.step % song.steps;
         song.tracks.forEach((tr, i) => {
