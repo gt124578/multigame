@@ -12,7 +12,6 @@ import { bruit } from './quartiers.js';
 import { houseInterior } from './interiors.js';
 import { ROUTES, PRENOMS } from './voix.js';
 import { lotsPour, rangRoute, adapter } from './bareme.js';
-import { formeClairiere } from './lieux.js';
 
 export const BLOC = 24;
 const key = (x, y) => x + ',' + y;
@@ -118,15 +117,14 @@ export function grandeRoute(W, S, ctx) {
     const sp = sinueuse([[p.x, p.y], [(p.x + fx) / 2 + (r() - 0.5) * 5, (p.y + fy) / 2 + (r() - 0.5) * 5], [fx, fy]], 2.5);
     const br = carveRoute(W, sp, { seed: (S.graine || 1) * 31 + cotes.length, w: 5, grass: 0.5, trees: 0.02, flowers: 0.04, tall: S.tall, treeT: S.treeT, ground: S.ground, taperStart: false, taperEnd: false, bridge: true });
     for (const [k, v] of br.info) { cells.add(k); if (v.d <= 1.05) sentiersImpasses.add(k); if (base) { const [x, y] = k.split(',').map(Number); W.setHeight(x, y, base); } }
-    // la clairière du bout : une forme naturelle qui s'étire vers le sentier (formeClairiere de lieux.js), pas un disque
+    // la clairière du bout
     const kind = KINDS[(cotes.length + Math.floor(r() * KINDS.length)) % KINDS.length];
-    for (let y = Math.floor(fy - 6); y <= fy + 6; y++) for (let x = Math.floor(fx - 7); x <= fx + 7; x++) if (dansBloc(f, x, y) && x > f[0] * BLOC + 1 && y > f[1] * BLOC + 1 && x < (f[0] + 1) * BLOC - 2 && y < (f[1] + 1) * BLOC - 2) r();   // (le tirage d'avant : les objets et dresseurs de la route ne bougent pas)
-    const forme = formeClairiere(fx, fy, 6.2, 5, p.x - fx, p.y - fy, (S.graine || 1) * 17 + cotes.length * 5);
-    for (let y = Math.floor(fy - 10); y <= fy + 10; y++) for (let x = Math.floor(fx - 10); x <= fx + 10; x++) {
+    for (let y = Math.floor(fy - 6); y <= fy + 6; y++) for (let x = Math.floor(fx - 7); x <= fx + 7; x++) {
       if (!dansBloc(f, x, y) || x <= f[0] * BLOC + 1 || y <= f[1] * BLOC + 1 || x >= (f[0] + 1) * BLOC - 2 || y >= (f[1] + 1) * BLOC - 2) continue;
-      if (forme(x, y) <= 1 && (W.get(x, y) === T.TREE || W.get(x, y) === T.PINE)) { W.set(x, y, herbe); W.setHeight(x, y, base); cells.add(key(x, y)); }
+      const q = ((x - fx) / 6.5) ** 2 + ((y - fy) / 5.2) ** 2 + (r() - 0.5) * 0.3;
+      if (q <= 1 && (W.get(x, y) === T.TREE || W.get(x, y) === T.PINE)) { W.set(x, y, herbe); W.setHeight(x, y, base); cells.add(key(x, y)); }
     }
-    const X = Math.round(fx), Y = Math.round(fy), C = { b: f, x: X, y: Y, kind };
+    const X = Math.round(fx), Y = Math.round(fy), C = { b: f, x: X, y: Y, kind, fx, fy, px: p.x, py: p.y };   // (fx, fy, px, py : la forme naturelle de la clairière, posée après les lieux : lieux.js)
     cotes.push(C);
     if (kind === 'cabane') {
       const B = W.building('house', X - 2, Y - 3, { w: 5, d: 5, door: 1, modele: S.cabane || 'chalet', name: 'Cabane', roof: 'brown' });

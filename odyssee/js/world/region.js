@@ -30,7 +30,7 @@ import { LARGEUR, HAUTEUR, BLOC, VILLES, TERR, TORII, LUNAIRE, CHAINE, porte, ar
 import { grandeVille, bruit } from './quartiers.js';
 import { grandeRoute, boucherLocal } from './chemins.js';
 import { atelier } from './atelier.js';
-import { lieux } from './lieux.js';
+import { lieux, faconnerImpasses } from './lieux.js';
 import { ecrans } from './ecrans.js';
 import { rythme } from './rythme.js';
 import { grotteDuCol } from './grottes.js';
@@ -1173,10 +1173,6 @@ export function buildWorld() {
 
   /* ======================== LA CHAÎNE CÉLESTE ======================== */
   chaine(W, towns);
-  // la Grotte du Col : sous le coin sud-ouest de la Chaîne, du Bois Murmure à la route 10 (un lac souterrain : Surf)
-  W.col = grotteDuCol({ W, maps, routes, ENC, trainerNpc });
-  // le volcan de Cendrelune, au sud de la ville (volcan.js)
-  { const v = towns.H.ville; if (v) W.volcan = volcan(W, { cx: v.x + v.w / 2, cy: v.y + v.h + 22, rx: 40, ry: 24, haut: 11, ville: v }); }
   /* ======================== ARÈNES ======================== */
   const gymTrainers = [
     [['Insectomane', 'Lucas', [[1017, 9], [10, 10]]], ['Insectomane', 'Basile', [[1018, 10, null, [33, 81, 106]], [1020, 10]]]],
@@ -1241,6 +1237,13 @@ export function buildWorld() {
   addMine({ W, maps, towns, trainerNpc, ENC });
   // les grands vides entre les routes : lieux à découvrir au bout d'un sentier, ou paysages vus de loin (lieux.js)
   W.lieux = lieux(W, { maps, trainerNpc, ENC });
+  // les impasses des routes : des clairières de forme naturelle, façonnées après coup (lieux.js)
+  W.impasses = faconnerImpasses(W, routes);
+  // le volcan de Cendrelune, au sud de la ville (volcan.js ; après les lieux, qui gardent leur tirage)
+  { const v = towns.H.ville; if (v) W.volcan = volcan(W, { cx: v.x + v.w / 2, cy: v.y + v.h + 22, rx: 40, ry: 24, haut: 11, ville: v }); }
+  // la Grotte du Col : sous le coin sud-ouest de la Chaîne, du Bois Murmure à la route 10 (un lac souterrain : Surf ;
+  // posée après les lieux, qui gardent ainsi leur tirage et leurs identifiants)
+  W.col = grotteDuCol({ W, maps, routes, ENC, trainerNpc });
   { const tz = W.zones.filter((z) => z.town || z.trigger), sz = W.zones.filter((z) => z.sea), rz = W.zones.filter((z) => !z.town && !z.trigger && !z.sea); W.zones = [...sz, ...rz, ...tz]; }
   // les grandes villes perchées : on y monte par des escaliers à chaque porte
   for (const [k, t] of Object.entries(towns)) if (VILLES[k]?.releve) relever(W, t);

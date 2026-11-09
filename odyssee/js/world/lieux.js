@@ -15,6 +15,7 @@ import { ROUTES, PRENOMS } from './voix.js';
 import { lotsPour, rangRoute, adapter } from './bareme.js';
 
 const B = 24, N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+const FORET_ = (t) => t === T.TREE || t === T.PINE;
 const SPR = ['randonneuse', 'montagnard', 'vieil_homme', 'gamin', 'fillette', 'habitante', 'habitant', 'dame', 'pecheur', 'jardinier'];
 // objets à trouver : la liste du rang de la route d'où part le sentier (bareme.js), et des baies
 const lotsLieu = (rang) => [...lotsPour(rang), 'oran-berry', 'sitrus-berry'];
@@ -148,52 +149,13 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
     // la clairière : une forme naturelle au milieu du bloc
     const kind = choisir(z);
     const rx = kind === 'lac' || kind === 'hameau' || kind === 'ferme' ? 8.5 : 7, ry = kind === 'lac' || kind === 'hameau' || kind === 'ferme' ? 7.5 : 6;
-    // (pas un disque : une forme qui s'allonge vers le sentier, se creuse d'anses et pousse des lobes entre les arbres ;
-    //  bruit lu dans des coordonnées déformées, à graine fixe par bloc — le tirage des lieux ne change pas)
-    const g0 = c * 7 + rr, forme = formeClairiere(X, Y, rx, ry, D.x - X, D.y - Y, g0);
     const clair = [];
     for (let y = by + 3; y < by + B - 3; y++) for (let x = bx + 3; x < bx + B - 3; x++) {
-      if (forme(x, y) <= 1 && FORET(W.get(x, y))) clair.push([x, y]);
+      const q = ((x - X) / rx) ** 2 + ((y - Y) / ry) ** 2 + (bruit(x, y, 4, c * 7 + rr) - 0.5) * 0.45;
+      if (q <= 1 && FORET(W.get(x, y))) clair.push([x, y]);
     }
     if (clair.length < 60) return false;
     for (const [x, y] of clair) W.set(x, y, T.GRASS);
-    // le sentier s'évase en arrivant : un vallon herbeux qui s'élargit vers la clairière, pas un bâton planté dans une
-    // boule (près de la route, il reste un sentier sous les arbres) ; deux lobes poussent sur les côtés de la clairière
-    { const n4 = s4.length, a_lui = new Set([...clair, ...s4].map(([a, b]) => a + ',' + b));
-      // une case ne s'ouvre que si elle ne touche rien d'autre que le lieu (jamais un passage vers une autre route ou un
-      // autre lieu) ; près de la route, le sentier garde sa largeur
-      const ouvre = (a, b, i) => {
-        if (!FORET(W.get(a, b)) || W.height(a, b) !== 0 || a < bx + 2 || b < by + 2 || a >= bx + B - 2 || b >= by + B - 2) return;
-        for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) { const u = a + k, v = b + j, t = W.get(u, v); if ((walkable(t) || t === T.WATER || t === T.BUILD) && !a_lui.has(u + ',' + v) && !(i < 3 && Math.abs(u - D.x) + Math.abs(v - D.y) < 3)) return; }
-        if (W.zoneAt(a, b)?.town) return;
-        W.set(a, b, T.GRASS); clair.push([a, b]); a_lui.add(a + ',' + b);
-      };
-      s4.forEach(([x, y], i) => {
-        const t = i / Math.max(1, n4 - 1), larg = 0.9 + 2.4 * t ** 1.3 * (0.6 + 0.8 * bruit(x, y, 5, g0 + 107));
-        const R = Math.ceil(larg);
-        for (let j = -R; j <= R; j++) for (let k = -R; k <= R; k++) if (k * k + j * j <= larg * larg) ouvre(x + k, y + j, i);
-      });
-      for (const lobe of [0, 1]) {
-        const ang = 6.2832 * bruit(c * 3 + lobe * 11, rr * 5, 1.3, g0 + 113), dist = 6 + 2.5 * bruit(c, rr + lobe * 7, 1.1, g0 + 115);
-        const lx = X + cos(ang) * dist, ly = Y + sin(ang) * dist * 0.85, lr = 2.4 + 1.6 * bruit(c + lobe, rr, 1.7, g0 + 117);
-        for (let j = -5; j <= 5; j++) for (let k = -5; k <= 5; k++) {
-          const a = Math.round(lx) + k, b = Math.round(ly) + j;
-          if (Math.hypot(a - lx, b - ly) + (bruit(a, b, 2.5, g0 + 119) - 0.5) * 1.6 <= lr && dedans(a, b)) ouvre(a, b, 99);
-        }
-        // le lobe tient à la clairière : une bande d'herbe de lui au centre
-        for (let k = 0; k <= 12; k++) { const a = Math.round(X + (lx - X) * k / 12), b = Math.round(Y + (ly - Y) * k / 12);
-          for (const [u, v] of [[a, b], [a + 1, b], [a, b + 1]]) if (dedans(u, v)) ouvre(u, v, 99);
-        }
-      } }
-    // quelques bouquets d'arbres laissés debout au bord de la clairière, comme une lisière qui s'effiloche
-    if (kind !== 'hameau' && kind !== 'ferme') for (const [x, y] of clair) {
-      const f = forme(x, y); if (f < 0.72 || f > 1) continue;
-      if (bruit(x, y, 3, g0 + 109) > 0.68 && !s4.some(([a, b]) => Math.abs(a - x) + Math.abs(b - y) < 3)) W.set(x, y, bruit(x, y, 7, g0 + 111) > 0.5 ? T.TREE : T.PINE);
-    }
-    // ce que les bouquets ou les lobes auraient isolé redevient forêt (rien d'aménagé hors d'atteinte)
-    { const vu = new Set([X + ',' + Y]), q = [[X, Y]], tous = new Set([...clair, ...s4].map(([a, b]) => a + ',' + b));
-      while (q.length) { const [a, b] = q.pop(); for (const [dx, dy] of N4) { const k = (a + dx) + ',' + (b + dy); if (!vu.has(k) && tous.has(k) && W.get(a + dx, b + dy) === T.GRASS) { vu.add(k); q.push([a + dx, b + dy]); } } }
-      for (const [a, b] of clair) if (W.get(a, b) === T.GRASS && !vu.has(a + ',' + b)) W.set(a, b, T.TREE); }
     const sent = new Set(s4.map(([x, y]) => x + ',' + y));
     for (const [x, y] of s4) if (FORET(W.get(x, y)) || W.get(x, y) === T.GRASS) { W.set(x, y, T.PATH); }
     // le sentier s'élargit un peu (bords d'herbe)
@@ -299,6 +261,8 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
       W.set(X + 3, Y - 3, T.TREE); objet(X - 3, Y + 2); dresseur(X + 2, Y + 3, 'left');
     }
     // contrôle : tout ce qui a été posé est atteignable depuis la route (sinon on le rapproche du sentier)
+    // la clairière perd sa forme de disque, une fois tout posé (le tirage des lieux ne bouge pas : mêmes identifiants)
+    faconner(W, { bx, by, X, Y, rx, ry, D, z, kind, s4, c, rr, clair, dedans });
     verifier(W, D, bx, by, id, s4);
     return true;
   }
@@ -310,6 +274,74 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
           : ['hameau', 'ferme', 'lac', 'colline', 'verger', 'ruines', 'prairie', 'marais', 'cabane', 'campement', 'source', 'hameau', 'lac', 'ferme'];
     return pick(L);
   }
+}
+
+/**
+ * La clairière d'un lieu perd sa forme de disque, une fois son contenu posé (le tirage des lieux ne change pas, ni
+ * leurs identifiants) : la forêt s'ouvre selon formeClairiere (étirée vers le sentier, anses et lobes), le sentier
+ * s'évase en arrivant, deux lobes poussent sur les côtés, des bouquets d'arbres restent debout au bord. Une case ne
+ * s'ouvre que dans l'intérieur du bloc et si elle ne touche rien d'étranger au lieu (jamais un passage vers une route
+ * ou un autre lieu) ; ce qui reste isolé redevient forêt.
+ */
+function faconner(W, { bx, by, X, Y, rx, ry, D, z, kind, s4, c, rr, dedans, marge = 3 }) {
+  const g0 = c * 7 + rr, forme = formeClairiere(X, Y, rx, ry, D.x - X, D.y - Y, g0), ouverts = [], h0 = W.height(X, Y);
+  const sentier = new Set(s4.map(([a, b]) => a + ',' + b));
+  const interieur = (a, b) => a >= bx + marge - 1 && b >= by + marge - 1 && a < bx + B - marge + 1 && b < by + B - marge + 1;
+  const etranger = (u, v) => { if (interieur(u, v) || sentier.has(u + ',' + v)) return false; const t = W.get(u, v); return walkable(t) || t === T.WATER || t === T.BUILD; };
+  const ouvre = (a, b) => {
+    if (!FORET_(W.get(a, b)) || W.height(a, b) !== h0 || !interieur(a, b) || W.zoneAt(a, b)?.town) return;
+    for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) if (etranger(a + k, b + j)) return;
+    W.set(a, b, T.GRASS); W.setHeight(a, b, h0); ouverts.push([a, b]);
+  };
+  // la forme
+  for (let y = by + marge; y < by + B - marge; y++) for (let x = bx + marge; x < bx + B - marge; x++) if (forme(x, y) <= 1 && dedans(x, y)) ouvre(x, y);
+  // le sentier s'évase en arrivant
+  s4.forEach(([x, y], i) => {
+    const t = i / Math.max(1, s4.length - 1), larg = 0.9 + 2.4 * t ** 1.3 * (0.6 + 0.8 * bruit(x, y, 5, g0 + 107)), R = Math.ceil(larg);
+    for (let j = -R; j <= R; j++) for (let k = -R; k <= R; k++) if (k * k + j * j <= larg * larg) ouvre(x + k, y + j);
+  });
+  // deux lobes, chacun relié au centre par une bande d'herbe
+  for (const lobe of [0, 1]) {
+    const ang = 6.2832 * bruit(c * 3 + lobe * 11, rr * 5, 1.3, g0 + 113), dist = 6 + 2.5 * bruit(c, rr + lobe * 7, 1.1, g0 + 115);
+    const lx = X + cos(ang) * dist, ly = Y + sin(ang) * dist * 0.85, lr = 2.4 + 1.6 * bruit(c + lobe, rr, 1.7, g0 + 117);
+    for (let j = -5; j <= 5; j++) for (let k = -5; k <= 5; k++) { const a = Math.round(lx) + k, b = Math.round(ly) + j; if (Math.hypot(a - lx, b - ly) + (bruit(a, b, 2.5, g0 + 119) - 0.5) * 1.6 <= lr && dedans(a, b)) ouvre(a, b); }
+    for (let k = 0; k <= 12; k++) { const a = Math.round(X + (lx - X) * k / 12), b = Math.round(Y + (ly - Y) * k / 12); for (const [u, v] of [[a, b], [a + 1, b], [a, b + 1]]) if (dedans(u, v)) ouvre(u, v); }
+  }
+  // des bouquets d'arbres au bord, loin de tout ce qui a été posé
+  if (kind !== 'hameau' && kind !== 'ferme') for (let y = by + marge; y < by + B - marge; y++) for (let x = bx + marge; x < bx + B - marge; x++) {
+    if (W.get(x, y) !== T.GRASS) continue;
+    const f = forme(x, y); if (f < 0.7 || f > 1.05 || bruit(x, y, 3, g0 + 109) <= 0.66) continue;
+    let calme = true; for (let j = -2; j <= 2 && calme; j++) for (let k = -2; k <= 2; k++) { const t = W.get(x + k, y + j); if (!(t === T.GRASS || FORET_(t)) || sentier.has((x + k) + ',' + (y + j))) { calme = false; break; } }
+    if (!calme || W.npcs.some((n) => n.x === x && n.y === y) || W.items.some((q) => q.x === x && q.y === y)) continue;
+    W.set(x, y, bruit(x, y, 7, g0 + 111) > 0.5 ? T.TREE : T.PINE);
+  }
+  // ce qui reste isolé de la route (parmi les cases ouvertes) redevient forêt
+  const vu = new Set([D.x + ',' + D.y]), q = [[D.x, D.y]];
+  while (q.length) { const [a, b] = q.pop(); for (const [dx, dy] of N4) { const u = a + dx, v = b + dy, k = u + ',' + v; if (vu.has(k) || u < bx - 10 || v < by - 10 || u > bx + B + 10 || v > by + B + 10 || !walkable(W.get(u, v)) || !W.canStep(a, b, u, v)) continue; vu.add(k); q.push([u, v]); } }
+  for (const [a, b] of ouverts) if (W.get(a, b) === T.GRASS && !vu.has(a + ',' + b)) W.set(a, b, T.TREE);
+}
+
+/**
+ * Les clairières au bout des impasses des routes (chemins.js), une fois les lieux posés : même façonnage que les lieux
+ * (forme étirée vers le sentier, lobes, bouquets), dans leur bloc seulement ; posé après coup, il ne change ni le tirage
+ * des routes ni celui des lieux.
+ */
+export function faconnerImpasses(W, routes) {
+  let n = 0;
+  for (const R of routes) {
+    const res = R.pts?.res; if (!res?.cotes) continue;
+    res.cotes.forEach((C, i) => {
+      if (C.fx == null) return;
+      const [c, rr] = C.b, bx = c * B, by = rr * B;
+      const dedans = (x, y) => x > bx + 1 && y > by + 1 && x < bx + B - 2 && y < by + B - 2;
+      // le sentier de l'impasse : de la route au centre, en ligne (ce qui compte ici : la direction d'arrivée)
+      const s4 = []; for (let k = 0; k <= 16; k++) { const x = Math.round(C.px + (C.fx - C.px) * k / 16), y = Math.round(C.py + (C.fy - C.py) * k / 16); if (dedans(x, y)) s4.push([x, y]); }
+      const D = { x: Math.round(C.px), y: Math.round(C.py) };
+      faconner(W, { bx, by, X: C.x, Y: C.y, rx: 6.2, ry: 5, D, z: null, kind: C.kind === 'cabane' ? 'hameau' : C.kind, s4, c: c + 977 * (i + 1), rr, dedans, marge: 2 });
+      n++;
+    });
+  }
+  return n;
 }
 
 /** ce qui a été posé dans le lieu et qu'on n'atteint pas depuis la route est déplacé à côté du chemin le plus proche */
