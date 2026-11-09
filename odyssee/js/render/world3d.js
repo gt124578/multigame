@@ -358,6 +358,7 @@ function empriseEcran(parts, mod, sx, sz) {
   return e;
 }
 
+const VOISINS_AUTOMNE = [[-4, 0], [4, 0], [0, -4], [0, 4], [-2, -2], [2, -2], [-2, 2], [2, 2], [-2, 0], [2, 0], [0, -2], [0, 2]];
 /** accumulateur de géométrie (quads indexés) */
 class Geo {
   constructor() { this.p = []; this.uv = []; this.c = []; this.i = []; this.n = 0; this.an = []; }
@@ -883,6 +884,17 @@ export class WorldView {
   }
   tierAt(x, y) { const m = this.map; if (x < 0 || y < 0 || x >= m.w || y >= m.h) return 3; return this.tiers[y * m.w + x] || 0; }
 
+  /** part des arbres d'une case qui prennent les couleurs de l'automne : tous les feuillus et deux pins sur trois au
+   *  cœur d'une zone d'automne ; près de son bord (4 cases de part et d'autre), de moins en moins, pour que la forêt
+   *  rousse se fonde dans la forêt verte au lieu de s'arrêter net sur une ligne */
+  partAutomne(x, y, theme, t) {
+    const m = this.map, coeur = t === T.TREE ? 1 : 0.66;
+    let n = 0, a = 0;
+    for (const [dx, dy] of VOISINS_AUTOMNE) { n++; if (m.zoneAt(x + dx, y + dy)?.theme === 'automne') a++; }
+    if (!a) return 0;
+    const f = (a + (theme === 'automne' ? 2 : 0)) / (n + 2);   // la case elle-même compte double
+    return coeur * Math.min(1, f * f * 1.4);
+  }
   /** ombre au sol (ellipse) sous un objet, du rectangle (x0, z0)–(x1, z1) : dessinée à sa taille exacte à l'écran */
   ombreSol(G, x0, z0, x1, z1, y = 0.015, forme = 'ellipse') { flat(G, x0, z0, x1, z1, y, this.ombres.uv((x1 - x0) * TILE_PX, (z1 - z0) * TILE_PX, forme)); }
   buildChunk(ci, cj) {
@@ -929,7 +941,9 @@ export class WorldView {
           let key = t === T.PINE ? 'pine' : vb < 0.6 ? 'tree' : S.tree3 && vb < 0.68 ? 'tree3' : 'tree2';
           if (theme === 'volcanic') key = 'deadtree';
           else if (theme === 'snow') key = 'snowpine';
-          else if (theme === 'automne' && t === T.TREE && S.automne0) { const a = 'automne' + Math.floor(hash(x * 7 + 3, y * 3 + 9) * 6); if (S[a]) key = a; }
+          // automne : érables et feuillus roux ; deux pins sur trois prennent aussi leurs couleurs (un tiers de résineux
+          // reste vert sombre, comme dans une forêt japonaise en momiji)
+          else if (S.automne0 && (theme === 'automne' || m.outdoor) && hash(x * 13 + 5, y * 11 + 7) < this.partAutomne(x, y, theme, t)) { const a = 'automne' + Math.floor(hash(x * 7 + 3, y * 3 + 9) * 6); if (S[a]) key = a; }
           // un des dessins de l'essence (arbres.js), miroir et teinte tirés de la case
           if (!this.arbresUnis) key = variante(S, key, x, y);
           const r = S[key], cx = x + 0.5 + (v - 0.5) * 0.2, cz = y + 0.7;
