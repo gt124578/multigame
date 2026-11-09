@@ -17,7 +17,7 @@ import { enrichirTout, equipeDeType } from './rencontres.js';
 import { addHabitants } from './habitants.js';
 import { applyRetouches } from './retouches.js';
 import { redresserPonts } from './ponts.js';
-import { rangs, mers, tourbillonsDuBord, rendreALaForet, degager } from './acces.js';
+import { rangs, mers, tourbillonsDuBord, rendreALaForet, degager, oterDecorIsole } from './acces.js';
 import { appliquerBareme } from './bareme.js';
 import { buildArena } from './arenes.js';
 import { areneSylve } from './arene-sylve.js';
@@ -1252,6 +1252,7 @@ export function buildWorld() {
   { const mer = mers(W); W.finitions = { tourbillons: tourbillonsDuBord(W, mer) };
     const RG = rangs(maps, docks, { map: 'monde', x: towns.A.x + 5, y: towns.A.y + 7 }, { bloquants: false });   // un PNJ qui garde un passage ne rend pas la suite inatteignable
     W.finitions.foret = rendreALaForet(W, RG.get('monde'), mer);
+    W.finitions.decor = oterDecorIsole(W, RG.get('monde'));
     W.finitions.degages = degager(W);
     W.finitions.bareme = appliquerBareme(maps, RG); }
   // retouches faites dans l'éditeur de la version test et intégrées au jeu (world/retouches.js)
