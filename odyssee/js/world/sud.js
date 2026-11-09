@@ -3,6 +3,7 @@
 // Sept villes à arène : Métropole (Normal, la mégapole aux gratte-ciel, sa Bourse et son Casino), Port-Lisière (Vol),
 // Marais-Noir (Poison), Dunes d'Ocre (Sol), Forge-Acier (Acier), Rosebrume (Fée) et Ombreval (Ténèbres).
 // Avec les cinq arènes du nord, cela fait douze Champions sur le continent, plus les trois frères de l'archipel.
+import { enrichir } from './rencontres.js';
 import { T, walkable } from './tiles.js';
 import { room } from './interiors.js';
 import { bande, massif, plateau, boucher, sinueuse, reliefMontagne } from './relief.js';
@@ -100,7 +101,8 @@ function modeInterior(id) {
  */
 export function buildSud(ctx) {
   const { W, towns, G2, routeTrainer, routeItem, ENC } = ctx;
-  Object.assign(ENC, ENC_SUD);
+  // chaque route reçoit aussi les Pokémon d'après la Ligue des jeux officiels, rangés par puissance (data/rencontres.js)
+  for (const [k, t] of Object.entries(ENC_SUD)) ENC[k] = enrichir(t, k);
   const ville = (def, k) => grandeVille(W, ctx.maps, def, VILLES[k], { buildTown: ctx.buildTown, poserBatiment: ctx.poserBatiment });
   // Pont de l'Austral : de la route 10 jusqu'au Sud, au-dessus du détroit (il faut les huit premiers badges)
   const [px, py] = ctx.PONT;
