@@ -77,7 +77,7 @@ export function addMine({ W, maps, towns, trainerNpc, ENC }) {
   trainerNpc(m2, 28, 25, 'left', 'Montagnard', 'Hector', [[1026, 16], [74, 16], [95, 17]], { sight: 4, intro: 'Plus bas, c\'est l\'éboulement. Personne n\'y est retourné.' });
   m2.item(21, 15, 'super-potion', 2); m2.item(36, 25, 'great-ball', 3);
   echelle(m1, 35, 22, { map: 'mine2', x: 5, y: 5, dir: 'down' });
-  echelle(m2, 5, 4, { map: 'mine1', x: 35, y: 21, dir: 'down' }, true);
+  echelle(m2, 5, 4, { map: 'mine1', x: 35, y: 23, dir: 'down' }, true);   // sous l'échelle (35, 22) : au-dessus, c'est un filon
 
   /* ---------------- niveau 3 : le dernier filon (dans le noir) ---------------- */
   const m3 = niveau('mine3', 34, 24, 'Mine de Pierrefort — dernier filon', { dark: true }); m3.encounter = enc;

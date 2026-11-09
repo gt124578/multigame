@@ -184,7 +184,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   /* 2. les portes : un couloir de la lisière jusque dans la ville ; le garde à côté du couloir */
   const sorties = [], RU = new Uint8Array(w * h);   // les cases de rue (index de la ville) : on n'y bâtit rien
   const SO = new Uint8Array(w * h);   // les couloirs des portes
-  const posRue = (x, y, t = rue) => { if (!dansRect(x, y)) return; if (riv[at(x, y)] || W.get(x, y) === T.WATER) W.set(x, y, T.BRIDGE); else W.set(x, y, t); (RU[at(x, y)] = 1); M[at(x, y)] = 1; };
+  const posRue = (x, y, t = rue) => { if (!dansRect(x, y)) return; if (W.get(x, y) === T.BUILD || W.get(x, y) === T.DOOR) return;   /* une avenue longe un bâtiment de l'ancienne ville, elle ne le traverse pas */ if (riv[at(x, y)] || W.get(x, y) === T.WATER) W.set(x, y, T.BRIDGE); else W.set(x, y, t); (RU[at(x, y)] = 1); M[at(x, y)] = 1; };
   const avenues = [];   // les avenues d'accès, dans la forêt entre le territoire et la ville : [cases de la chaussée, des bas-côtés]
   for (const s of V.sorties || []) {
     const { dir } = s, cells = [], ext = [], vert = dir === 'n' || dir === 's';
