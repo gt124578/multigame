@@ -371,7 +371,22 @@ vec3 fTeinte(vec4 g, float lev, float k) { return g.a > 0.5 ? g.rgb * (k < 0.5 ?
       f = 99;   // rien d'autre à peindre ici
     }
     if (f == ${F_VIDE}) {
-      diffuseColor.rgb *= 0.0;
+      vec3 c = vec3(0.0);
+${TUILES ? `
+      // le fond d'un ravin : contre un bord est ou ouest, un peu de la paroi qui descend (vue un rien de biais), de plus
+      // en plus sombre vers le milieu ; ailleurs le noir
+      ivec2 cv = ivec2(floor(vP.xz)); vec2 fv = vP.xz - vec2(cv);
+      float dv = 9.0;
+      if (int(fCase(cv + ivec2(1, 0)).x) != ${F_VIDE}) dv = min(dv, 1.0 - fv.x);
+      if (int(fCase(cv + ivec2(-1, 0)).x) != ${F_VIDE}) dv = min(dv, fv.x);
+      const float wv = 0.28;
+      if (dv < wv) {
+        float uv = dv / wv;
+        vec4 sr = fBande(bio, 0.0, floor(vP.z * 16.0), 3.0 + floor(uv * 11.0));
+        if (sr.a > 0.75) c = sr.rgb * floor((1.0 - uv) * 4.0 + bay) / 4.0 * 0.55;
+      }
+` : ''}
+      diffuseColor.rgb = diffuse * c;
     } else if (((f == ${F_ROC} || f == 5) && (raide || vP.y < vFam.w - 0.03 * LVv || vP.y > vFam.w + 0.03 * LVv)) || (f == ${F_MARCHE} && fn.y < 0.45)
                || (${TUILES} && f == ${F_SOL} && top - bas > 0.5 * LVv && vP.y < vFam.w - 0.02 * LVv)) {
       // pan de roche : un étage de pierres par niveau (le haut de chaque pierre arrondi, comme la géométrie), étirées sur
@@ -389,9 +404,15 @@ ${TUILES ? `
       vec4 sol0 = vec4(diffuseColor.rgb / max(diffuse, vec3(1e-3)), f == ${F_SOL} || f == 5 ? diffuseColor.a : 0.0);
       vec3 c = sb.a > 0.75 ? sb.rgb : sb.a > 0.25 ? fTeinte(sol0, levre, sb.x) : sol0.rgb;
       if (sb.a > 0.25) diffuseColor.a = 1.0;
-      // ravin : sous le premier niveau, une paroi lisse qui plonge dans le noir
-      if (bas < ${(RAVIN * 0.98).toFixed(4)} && k < floor(top / LVv + 0.5) - 1.5) c = fBande(bio, 0.0, 5.0, 12.0).rgb * (0.9 + 0.1 * bay);
-      if (vP.y < 0.0) c *= clamp(1.0 + vP.y / ${(-RAVIN * 0.9).toFixed(4)}, 0.0, 1.0);
+      // ravin : sous le premier niveau, la paroi de roche continue étage par étage (rangées de pierres décalées d'un étage
+      // à l'autre), sans lèvre ; les côtés vus par la tranche aussi (pas de liseré d'herbe) ; elle fonce par paliers en
+      // descendant jusqu'au noir du fond
+      bool fosse = bas < ${(RAVIN * 0.98).toFixed(4)};
+      if (fosse && (k < floor(top / LVv + 0.5) - 1.5 || abs(fn.x) > 0.6)) {
+        vec4 sr = fBande(bio, 0.0, floor(along * 16.0) + k * 11.0, row);
+        if (sr.a > 0.75) c = sr.rgb;
+      }
+      if (vP.y < 0.0) { float dk = clamp(1.0 + vP.y / ${(-RAVIN * 0.92).toFixed(4)}, 0.0, 1.0); c *= floor(dk * 7.0 + bay) / 7.0; }
       q = lum > 0.2 ? 1.0 : lum > -0.05 ? 0.94 : 0.88;   // la texture porte ses ombres : flancs à peine plus sombres
 ` : `      float rangs = 1.0 / max(abs(dFdy(lf)), 1e-4);           // pixels d'écran par niveau, sur ce pan
       float duHaut = (top - vP.y) / LVv * rangs, duPied = (vP.y - bas) / LVv * rangs;
@@ -946,19 +967,20 @@ export class ReliefHGSS {
         F[0] = B.s === ROC ? F_ROC : B.fam === F_ROC ? 5 : B.fam; F[1] = B.bio; F[2] = B.levre; F[3] = B.L;
         NV0 = B.haut; NV1 = B.bas; PDc = cotesHauts(x, y, B.L); BD = B.cotes.map((c) => (c && c.sens < 0 && (!TUILES || c.roc || c.ledge || c.ravin) ? c.w : 0));
         const sansPied = !PDc[0] && !PDc[1] && !PDc[2] && !PDc[3];
-        // case plate (et ses voisines plates au même niveau, sans pied) : deux triangles
-        if (B.s === VIDE || plat(x, y)) {
+        // case plate (et ses voisines plates au même niveau, sans pied) : deux triangles ; le fond d'un ravin suit la
+        // grille des hauteurs comme les cases en pente (ses coins rejoignent le bas des parois voisines, sans fente)
+        if (plat(x, y)) {
           let ex = cx + 1;
-          while (B.s !== VIDE && ex < bw && sansPied) {
+          while (ex < bw && sansPied) {
             const Bq = this.bordsDe(x0 + ex, y);
             if (!plat(x0 + ex, y) || Math.abs(Bq.L - B.L) > 1e-5 || Bq.fam !== B.fam || Bq.s === ROC !== (B.s === ROC) || Bq.bio !== B.bio || Bq.levre !== B.levre || cotesHauts(x0 + ex, y, Bq.L).some(Boolean)) break;
             ex++;
           }
-          if (B.s === VIDE) F[0] = F_VIDE;
-          const i0 = cx * RN, i1 = ex * RN, j0 = cy * RN, j1 = j0 + RN, Y = B.s === VIDE ? RAVIN : B.L;
+          const i0 = cx * RN, i1 = ex * RN, j0 = cy * RN, j1 = j0 + RN, Y = B.L;
           quad(sommet(i0, j1, Y), sommet(i1, j1, Y), sommet(i1, j0, Y), sommet(i0, j0, Y));
           cx = ex; continue;
         }
+        if (B.s === VIDE) F[0] = F_VIDE;
         for (let j = 0; j <= RN; j++) for (let i = 0; i <= RN; i++) grille[j * R1 + i] = sommet(cx * RN + i, cy * RN + j, hh(cx * RN + i, cy * RN + j));
         for (let j = 0; j < RN; j++) for (let i = 0; i < RN; i++) quad(grille[(j + 1) * R1 + i], grille[(j + 1) * R1 + i + 1], grille[j * R1 + i + 1], grille[j * R1 + i]);
         cx++;
