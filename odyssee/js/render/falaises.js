@@ -26,6 +26,9 @@ import { LV, KLV } from './relief3d.js';
 const params = () => { try { return new URLSearchParams(location.search); } catch (e) { return new URLSearchParams(''); } };
 /** le relief façon HGSS est-il demandé ? (par défaut oui ; ?relief=plat ou ?relief3d pour les anciens rendus) */
 export function reliefHGSSActif() { const p = params(); return !p.has('relief3d') && p.get('relief') !== 'plat'; }
+/** parois dessinées avec les textures de HGSS (odyssee/img/hgss/relief.png) et taillées comme ses tuiles « Mountain » :
+ *  par défaut ; ?roche=proc remet les roches dessinées par le programme */
+const TUILES = params().get('roche') !== 'proc';
 
 const EL = 55 * Math.PI / 180, TAN = Math.tan(EL);
 const RN = 12;                // sommets par case (dans chaque sens)
@@ -185,9 +188,9 @@ let ATLAS = null;
 /** atlas : une rangée par biome, [pierres | dessus], 128 × 64 chacune */
 function atlas() {
   if (ATLAS) return ATLAS;
-  const n = BIOMES.length, c = document.createElement('canvas'); c.width = TX * 3; c.height = TX * n;
-  const g = c.getContext('2d'), im = g.createImageData(TX * 3, TX * n);
-  BIOMES.forEach((b, k) => {
+  const n = BIOMES.length, c = document.createElement('canvas'); c.width = TX * 3; c.height = TX * n * 2;
+  const g = c.getContext('2d'), im = g.createImageData(TX * 3, TX * n * 2);
+  [...BIOMES, ...BIOMES].forEach((b, k) => {
     const pf = FACE[b].map(rgb), pd = DESSUS[b].map(rgb), A = new Uint8Array(TX * TX), D = dalles(203 + k * 41);
     const E = new Uint8Array(TX * TX); E.set(etage(307 + k * 43)); E.set(etage(409 + k * 47), TX * 32);   // deux étages
     // tuile 0 : le nuancier du biome (six teintes de pan sur les 32 premières rangées, six de dessus dessous), lu par fPal
@@ -203,6 +206,12 @@ function atlas() {
   const tex = new THREE.Texture(c);
   tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.flipY = false;
   tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
+  // les textures de HGSS (dessus et bandes de paroi, par biome : tools/odyssee-relief-hgss.py) remplacent les tuiles 1 et 2
+  if (TUILES) {
+    const img = new Image();
+    img.onload = () => { g.clearRect(TX, 0, TX * 2, c.height); g.drawImage(img, TX, 0); tex.needsUpdate = true; };
+    img.src = new URL('../../img/hgss/relief.png', import.meta.url).href;
+  }
   ATLAS = { tex, n };
   return ATLAS;
 }
@@ -239,7 +248,14 @@ float fHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.54
 // un pixel de l'atlas des falaises : tuile 0 (pierres) ou 1 (dessus), biome b, pixel (x, y) de la tuile
 vec3 fFal(float tuile, float b, vec2 q) {
   q = mod(floor(q), ${TX}.0);
-  return texture2D(uFal, vec2((q.x + tuile * ${TX}.0 + 0.5) / ${TX * 3}.0, (q.y + b * ${TX}.0 + 0.5) / ${(TX * A.n).toFixed(1)})).rgb;
+  return texture2D(uFal, vec2((q.x + tuile * ${TX}.0 + 0.5) / ${TX * 3}.0, (q.y + (b + ${grotte ? A.n : 0}.0) * ${TX}.0 + 0.5) / ${(TX * A.n * 2).toFixed(1)})).rgb;
+}
+// un pixel d'une bande de paroi de HGSS (bande 0 : roche, 1 : lèvre d'herbe ; rangées 0-2 lèvre, 3-13 paroi, 14-16 pied) :
+// a = 1 une couleur ; a = 0,5 une teinte de lèvre (x : 0 à 2, prise selon le dessus) ; a = 0 le sol voisin se voit
+vec4 fBande(float b, float bande, float col, float row) {
+  vec3 c = fFal(2.0, b, vec2(mod(col, 32.0), bande * 17.0 + row));
+  if (c.b > 0.9 && c.g < 0.05) { if (c.r > 0.9) return vec4(0.0); return vec4(c.r < 0.05 ? 0.0 : c.r < 0.35 ? 1.0 : 2.0, 0.0, 0.0, 0.5); }
+  return vec4(c, 1.0);
 }
 float fOndeBord(float u, float seed) { return 0.5 + 0.3 * sin(u * 2.7 + seed * 1.3) + 0.2 * sin(u * 6.1 + seed * 2.9); }
 // un lobe de roche de la paroi (colonne tx en texels) : centre, bords gauche et droit
@@ -249,11 +265,24 @@ vec3 fLobe(float tx) {
   float cC = lid * 7.5 + (fHash(vec2(lid, 11.0)) - 0.5) * 3.0, cL = (lid - 1.0) * 7.5 + (fHash(vec2(lid - 1.0, 11.0)) - 0.5) * 3.0, cR = (lid + 1.0) * 7.5 + (fHash(vec2(lid + 1.0, 11.0)) - 0.5) * 3.0;
   return vec3(lid, (cL + cC) * 0.5, (cC + cR) * 0.5);
 }
+// la lèvre de la paroi qui borde ce replat, sur les 3 texels au-delà de sa crête (rangées 0 à 2 de sa bande)
+vec4 fLevreBord(vec2 fc, float b, float bande) {
+  float e = 9.0, al = 0.0, d;
+  if (vBord.x > 0.0) { d = fc.y - vBord.x; if (d < e) { e = d; al = vP.x; } }
+  if (vBord.z > 0.0) { d = (1.0 - vBord.z) - fc.y; if (d < e) { e = d; al = vP.x; } }
+  if (vBord.y > 0.0) { d = (1.0 - vBord.y) - fc.x; if (d < e) { e = d; al = vP.z; } }
+  if (vBord.w > 0.0) { d = fc.x - vBord.w; if (d < e) { e = d; al = vP.z; } }
+  if (e < -0.002 || e >= 3.0 / 16.0) return vec4(0.0);
+  return fBande(b, bande, floor(al * 16.0), 2.0 - floor(max(e, 0.0) * 16.0));
+}
 // une teinte du nuancier d'un biome : pans (0 sombre … 5 clair) ou dessus
 vec3 fPal(float b, float i, bool dessus) { return fFal(0.0, b, vec2(clamp(floor(i + 0.5), 0.0, 5.0) * 10.0 + 5.0, dessus ? 40.0 : 8.0)); }
 ${glslCouleurs(LEVRES)}
 vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
-  ${LEVRES.map((p, i) => p ? `if (k < ${i}.5) return lev${i}[j];` : '').join(' ')} return lev1[j]; }`)
+  ${LEVRES.map((p, i) => p ? `if (k < ${i}.5) return lev${i}[j];` : '').join(' ')} return lev1[j]; }
+// teinte de lèvre k (0 à 2) posée sur le sol g : les verts de la lèvre de HGSS sont des ombres de son herbe ; sans sol lu
+// (une paroi), la teinte de lèvre du dessus
+vec3 fTeinte(vec4 g, float lev, float k) { return g.a > 0.5 ? g.rgb * (k < 0.5 ? 0.66 : k < 1.5 ? 0.82 : 0.92) : fLevre(lev, k); }`)
       .replace('#include <map_fragment>', `#include <map_fragment>
   {
     float fam = vFam.x, bio = vFam.y, levre = vFam.z;
@@ -343,12 +372,28 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
     }
     if (f == ${F_VIDE}) {
       diffuseColor.rgb *= 0.0;
-    } else if (((f == ${F_ROC} || f == 5) && (raide || vP.y < vFam.w - 0.03 * LVv || vP.y > vFam.w + 0.03 * LVv)) || (f == ${F_MARCHE} && fn.y < 0.45)) {
+    } else if (((f == ${F_ROC} || f == 5) && (raide || vP.y < vFam.w - 0.03 * LVv || vP.y > vFam.w + 0.03 * LVv)) || (f == ${F_MARCHE} && fn.y < 0.45)
+               || (${TUILES} && f == ${F_SOL} && top - bas > 0.5 * LVv && vP.y < vFam.w - 0.02 * LVv)) {
       // pan de roche : un étage de pierres par niveau (le haut de chaque pierre arrondi, comme la géométrie), étirées sur
       // la hauteur de l'étage à l'écran ; décalées d'un étage à l'autre ; la lèvre en haut du pan
       // (étages comptés depuis le niveau 0 du monde : deux cases voisines dont le pied diffère gardent les mêmes rangées)
       float lf = vP.y / LVv + 1e-3, k = min(floor(lf), floor(top / LVv + 0.5) - 1.0), t = clamp(lf - k, 0.0, 1.0);
-      float rangs = 1.0 / max(abs(dFdy(lf)), 1e-4);           // pixels d'écran par niveau, sur ce pan
+${TUILES ? `
+      // les tuiles de HGSS : la bande de paroi plaquée sur le pan, 16 texels par case le long du bord (un texel = 2 pixels) ;
+      // en hauteur, dans chaque niveau, le pied (son premier dixième) puis la paroi jusqu'à la crête. Une paroi de grotte ou
+      // de roche : bande de roche ; sous un replat d'herbe, de neige, de sable : bande à lèvre (pied et lèvre teintés selon
+      // le dessus)
+      float along = abs(fn.x) > abs(fn.z) ? vP.z : vP.x;
+      float row = t < 0.1 ? 14.0 + min(2.0, floor((1.0 - t / 0.1) * 3.0)) : 3.0 + min(10.0, floor((1.0 - (t - 0.1) / 0.9) * 11.0));
+      vec4 sb = fBande(bio, levre > 0.5 ? 1.0 : 0.0, floor(along * 16.0), row);
+      vec4 sol0 = vec4(diffuseColor.rgb / max(diffuse, vec3(1e-3)), f == ${F_SOL} || f == 5 ? diffuseColor.a : 0.0);
+      vec3 c = sb.a > 0.75 ? sb.rgb : sb.a > 0.25 ? fTeinte(sol0, levre, sb.x) : sol0.rgb;
+      if (sb.a > 0.25) diffuseColor.a = 1.0;
+      // ravin : sous le premier niveau, une paroi lisse qui plonge dans le noir
+      if (bas < ${(RAVIN * 0.98).toFixed(4)} && k < floor(top / LVv + 0.5) - 1.5) c = fBande(bio, 0.0, 5.0, 12.0).rgb * (0.9 + 0.1 * bay);
+      if (vP.y < 0.0) c *= clamp(1.0 + vP.y / ${(-RAVIN * 0.9).toFixed(4)}, 0.0, 1.0);
+      q = lum > 0.2 ? 1.0 : lum > -0.05 ? 0.94 : 0.88;   // la texture porte ses ombres : flancs à peine plus sombres
+` : `      float rangs = 1.0 / max(abs(dFdy(lf)), 1e-4);           // pixels d'écran par niveau, sur ce pan
       float duHaut = (top - vP.y) / LVv * rangs, duPied = (vP.y - bas) / LVv * rangs;
       float col = floor(ep.x);
       // un étage seul (les terrasses) est une pente arrondie (quart de sinus) : la texture suit la surface (son abscisse u,
@@ -414,6 +459,7 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       c *= 0.92 + 0.08 * floor(hh * 3.0 + bay) / 3.0;
       // ravin : la roche plonge dans le noir
       if (vP.y < 0.0) c *= clamp(1.0 + vP.y / ${(-RAVIN * 0.9).toFixed(4)}, 0.0, 1.0);
+`}
       diffuseColor.rgb = diffuse * c * q;
     } else if (f == ${F_ROC} && ${grotte ? 'true' : 'false'}) {
       // dans une grotte, le dessus de la roche est un replat de pierre, clair au bord (le haut arrondi de la paroi) puis de
@@ -426,11 +472,14 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       e += (fHash(vec2(floor(ep.x / 3.0), floor(ep.y / 3.0))) - 0.5) * 0.05;
       vec3 c = fFal(1.0, bio, floor(vec2(vP.x, vP.z) * ${PX / 2}.0));
       float k = e < 0.08 ? 1.1 : e < 0.3 ? 1.0 : e < 0.55 && bay < 0.6 ? 0.9 : 0.8;
+      if (${TUILES}) k = e < 0.3 ? 1.0 : e < 0.6 + 0.15 * bay ? 0.86 : e < 1.1 + 0.2 * bay ? 0.74 : 0.64;
+      if (${TUILES}) { vec4 lv = fLevreBord(fc, bio, 0.0); if (lv.a > 0.75) { c = lv.rgb; k = 1.0; } }
       if (pd < 0.14) k *= 0.72; else if (pd < 0.3 && bay < 0.55) k *= 0.86;
       diffuseColor.rgb = diffuse * c * k;
     } else if (f == ${F_ROC}) {
       // dessus d'un gradin de roche : la roche plate et claire de HGSS, un peu plus sombre en bas des gradins
       vec3 c = fFal(1.0, bio, floor(vec2(vP.x, vP.z) * ${PX / 2}.0)) * lis;
+      if (${TUILES}) { vec4 lv = fLevreBord(fc, bio, 0.0); if (lv.a > 0.75) c = lv.rgb; }
       if (pd < 0.14) c *= 0.72; else if (pd < 0.3 && bay < 0.55) c *= 0.86;
       diffuseColor.rgb = diffuse * c * (raide ? q : 1.0);
     } else if (f == ${F_MARCHE}) {
@@ -449,6 +498,11 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
       }
       if (pd < 0.12) s *= 0.7; else if (pd < 0.3 && (1.0 - pd / 0.3) > bay) s *= 0.84;
       diffuseColor.rgb *= s;
+      if (${TUILES}) {
+        // la lèvre de la paroi qui borde ce replat (herbe, neige, sable, ou roche) déborde sur son bord
+        vec4 lv = fLevreBord(fc, bio, levre > 0.5 ? 1.0 : 0.0);
+        if (lv.a > 0.75) diffuseColor.rgb = diffuse * lv.rgb * s; else if (lv.a > 0.25) diffuseColor.rgb *= (lv.x < 0.5 ? 0.66 : lv.x < 1.5 ? 0.82 : 0.92);
+      }
     }
     // très haut (une grande montagne) : la roche pâlit et bleuit un peu dans l'air, par paliers
     float alt = vP.y / LVv - 12.0;
@@ -657,7 +711,7 @@ export class ReliefHGSS {
         // n : niveaux franchis ; pan de roche (roc) : un étage par niveau, chacun reculé d'une demi-case sur celui du dessous,
         // le haut de chaque étage arrondi ; sinon pente douce (talus d'herbe, berge, bord d'un sol où l'on marche)
         const n = Math.max(1, Math.round(dz / LV));
-        if (sn === VIDE) c = { w: 0.03, d: dz, sens: -1 };
+        if (sn === VIDE) c = TUILES ? { w: s === SOL ? 0.3 : 0.4, d: dz, sens: -1, ravin: true } : { w: 0.03, d: dz, sens: -1 };
         else if (sn === EAU) c = { w: 0.18, d: dz, sens: -1 };
         else if (pas(s) && (sn === ROC || sn === ARBRE) && !(s === SOL && sn === ARBRE && dz < 1.5 * LV)) c = null;
         else if (s === ROC) {
@@ -665,11 +719,14 @@ export class ReliefHGSS {
           // (la caméra regarde vers le nord) ; ailleurs, pan de face large (HGSS), pans de côté étroits (vus de biais)
           const wC = n === 1 ? 0.55 : 0.62;
           const wN = pas(sn) || sn === EAU ? Math.min(0.95, Math.max(wC, dz / LV * KLV - 0.45)) : wC;
-          c = { w: d === 2 ? (n === 1 ? 0.8 : 0.95) : d === 0 ? wN : wC, d: dz, sens: -1, roc: true, n };
+          c = { w: d === 2 ? (n === 1 ? (TUILES ? 0.67 : 0.8) : 0.95) : d === 0 ? wN : wC, d: dz, sens: -1, roc: true, n };
         }
+        else if (s === PAROI && TUILES) c = d === 2 ? (herbe ? { w: 0.67, d: dz, sens: -1, ledge: true, n } : { w: n === 1 ? 0.67 : 0.95, d: dz, sens: -1, roc: true, n }) : { w: 0.5, d: dz, sens: -1, roc: !herbe, ledge: herbe, n };
         else if (s === PAROI) c = d === 2 ? (herbe ? { w: 1.0, d: dz, sens: -1 } : { w: n === 1 ? 0.85 : 0.95, d: dz, sens: -1, roc: true, n }) : { w: 0.5, d: dz, sens: -1, roc: !herbe, n };
         else if (s === EAU) c = { w: 0.15, d: dz, sens: -1 };
-        else c = dz > 1.5 * LV ? { w: 0.42, d: dz, sens: -1, roc: true, n } : { w: 0.3, d: dz, sens: -1 };
+        // (un sol plus haut d'un niveau : talus d'herbe — avec les tuiles, un petit rebord de roche sous une lèvre d'herbe,
+        // comme les plateaux d'herbe de HGSS : le dénivelé se voit)
+        else c = dz > 1.5 * LV ? { w: 0.42, d: dz, sens: -1, roc: true, n } : TUILES ? { w: d === 2 ? 0.42 : 0.3, d: dz, sens: -1, ledge: true, n } : { w: 0.3, d: dz, sens: -1 };
         if (c && s !== ROC && s !== EAU && (s !== PAROI || !herbe) && (dz > 1.5 * LV || s === PAROI || sn === VIDE)) roche = true;
       } else if (Ln > L + 1e-4 && !(s === EAU) && sn !== EAU && sn !== VIDE) {
         // le voisin est plus haut : cette case porte le pan si c'est un obstacle et le voisin un sol où l'on marche
@@ -722,6 +779,7 @@ export class ReliefHGSS {
   largeur(c, u, seed) {
     // un pan de roche ondule nettement le long de son bord (la crête et le pied ne sont plus des droites) : même formule
     // que le shader (ondeBord), qui en a besoin pour poser la tête des rochers sur la crête
+    if (TUILES && (c.roc || c.ledge || c.ravin)) return c.w;   // les tuiles de HGSS : un bord droit, la lèvre dessinée fait le reste
     if (c.roc && c.sens < 0) return Math.max(0.3, Math.min(0.95, c.w * (0.65 + 0.6 * ondeBord(u, seed))));
     return Math.min(c.w >= 0.99 ? 1 : 0.95, c.w * (0.82 + 0.36 * lisse1(u, 2.3, seed)));
   }
@@ -859,7 +917,7 @@ export class ReliefHGSS {
         const x = x0 + cx, y = z0 + cy, B = this.bordsDe(x, y);
         // famille : 1 roche (dessus en dalles, pans en pierres), 5 sol généré dessus et roche sur les pans, 0 sol, 4 marches
         F[0] = B.s === ROC ? F_ROC : B.fam === F_ROC ? 5 : B.fam; F[1] = B.bio; F[2] = B.levre; F[3] = B.L;
-        NV0 = B.haut; NV1 = B.bas; PDc = cotesHauts(x, y, B.L); BD = B.cotes.map((c) => (c && c.sens < 0 ? c.w : 0));
+        NV0 = B.haut; NV1 = B.bas; PDc = cotesHauts(x, y, B.L); BD = B.cotes.map((c) => (c && c.sens < 0 && (!TUILES || c.roc || c.ledge || c.ravin) ? c.w : 0));
         const sansPied = !PDc[0] && !PDc[1] && !PDc[2] && !PDc[3];
         // case plate (et ses voisines plates au même niveau, sans pied) : deux triangles
         if (B.s === VIDE || plat(x, y)) {
@@ -916,10 +974,22 @@ function bosse(v) { v = Math.max(0, Math.min(1, v)); if (v < 0.55) return 0.62 *
 /** hauteur (fraction du dénivelé) d'un pan à la distance u (0 : son pied, 1 : son haut, rapportée à sa largeur) : pente
  *  douce, ou pan de roche en étages — un par niveau, chacun reculé d'une demi-case (ou moins si la case est trop étroite
  *  pour tous) sur celui du dessous, son haut arrondi */
+/** une tuile « Mountain » de HGSS, de son pied (0) à son haut (1) : le pied presque plat (un tiers de la largeur, un
+ *  dixième de la hauteur), puis un pan droit jusqu'au replat */
+function tuile(v) { v = Math.max(0, Math.min(1, v)); return v < 0.31 ? 0.1 * v / 0.31 : 0.1 + 0.9 * (v - 0.31) / 0.69; }
 function frac(u, c) {
   u = Math.max(0, Math.min(1, u));
+  if (TUILES && c.ledge) return tuile(u);
+  // bord d'un ravin : une tuile inclinée pour le premier niveau, puis la paroi tombe droit (au bord de la case)
+  if (TUILES && c.ravin) { const f1 = Math.min(1, LV / c.d), u0 = 0.1; return u >= u0 ? 1 - f1 + f1 * tuile((u - u0) / (1 - u0)) : (1 - f1) * u / u0; }
   if (!c.roc) return 1 - profil(1 - u);
   const n = c.n || 1;
+  if (TUILES) {
+    // des tuiles empilées : une par niveau, chacune reculée sur celle du dessous
+    if (n <= 1) return tuile(u);
+    const a = 1 / (1 + (n - 1) * 1.12), sg = 1.12 * a, k = Math.min(n - 1, Math.floor(u / sg)), loc = u - k * sg;
+    return (k + (loc >= a ? 1 : tuile(loc / a))) / n;
+  }
   // un seul niveau (les terrasses : de la place en largeur) : une pente arrondie sur toute sa largeur, comme les rochers
   // de HGSS — 63° au pied, puis elle se courbe jusqu'à l'horizontale (un quart de sinus)
   if (n <= 1) return Math.sin(u * Math.PI / 2);
