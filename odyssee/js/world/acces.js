@@ -283,3 +283,24 @@ export function degager(W) {
   }
   return deplaces;
 }
+
+/**
+ * Le décor posé (tonneaux, caisses, colonnes, barque…) qu'on ne touche d'aucune case atteinte, après les écrans de
+ * verdure qui ont pu refermer un bout de clairière : retiré (la case redevient forêt, ou eau).
+ * La nature (arbres, rochers, cactus…) reste. Renvoie le nombre de décors retirés.
+ */
+const NATUREL = /^(palm|cactus|rocher|pin|arbre|erable|cerisier|tree|pine|bush|souche|tronc)/;
+export function oterDecorIsole(W, R) {
+  const w = W.w, atteint = (x, y) => W.in(x, y) && R[y * w + x] !== JAMAIS;
+  const ota = new Set();
+  for (const d of W.deco) {
+    if (d.x == null || W.get(d.x, d.y) !== T.BLOCK || NATUREL.test(d.k) || W.objects.has(d.x + ',' + d.y)) continue;
+    if (N4.some(([dx, dy]) => atteint(d.x + dx, d.y + dy)) || atteint(d.x, d.y)) continue;
+    if (W.zones.some((z) => z.town && d.x >= z.x0 && d.x <= z.x1 && d.y >= z.y0 && d.y <= z.y1)) continue;
+    ota.add(d);
+  }
+  if (!ota.size) return 0;
+  W.deco = W.deco.filter((d) => !ota.has(d));
+  for (const d of ota) { const k = d.x + ',' + d.y, u = W.under.get(k); W.set(d.x, d.y, u === T.WATER ? T.WATER : T.TREE); W.under.delete(k); }
+  return ota.size;
+}

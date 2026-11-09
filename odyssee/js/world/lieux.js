@@ -15,6 +15,7 @@ import { ROUTES, PRENOMS } from './voix.js';
 import { lotsPour, rangRoute, adapter } from './bareme.js';
 
 const B = 24, N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+const FORET_ = (t) => t === T.TREE || t === T.PINE;
 const SPR = ['randonneuse', 'montagnard', 'vieil_homme', 'gamin', 'fillette', 'habitante', 'habitant', 'dame', 'pecheur', 'jardinier'];
 // objets à trouver : la liste du rang de la route d'où part le sentier (bareme.js), et des baies
 const lotsLieu = (rang) => [...lotsPour(rang), 'oran-berry', 'sitrus-berry'];
@@ -43,6 +44,7 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
   }
   const occ = new Set([...W.npcs.map((n) => n.x + ',' + n.y), ...W.items.map((i) => i.x + ',' + i.y)]);
   let nLieux = 0, nFond = 0;
+  const carrefours = [];   // les départs des sentiers des lieux habités : un panneau, posé après coup (le tirage ne bouge pas)
   for (let rr = 0; rr < R; rr++) for (let c = 0; c < C; c++) {
     if (!libre[rr * C + c]) continue;
     const bx = c * B, by = rr * B, cx = bx + 12, cy = by + 12;
@@ -63,6 +65,7 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
     if (depart && bd < 26) { if (lieu(id, c, rr, depart)) { nLieux++; libre[rr * C + c] = 2; continue; } }
     nFond++;
   }
+  W.carrefours = carrefours;   // leurs panneaux sont posés après les écrans de verdure (panneauxDesLieux)
   fondDePaysage();
   plages();
   return { lieux: nLieux, fond: nFond };
@@ -160,6 +163,7 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
     // le sentier s'élargit un peu (bords d'herbe)
     for (const [x, y] of s4) for (const [a, b] of N4) if (FORET(W.get(x + a, y + b)) && bruit(x + a, y + b, 2, 31) > 0.5 && (dedans(x + a, y + b) || Math.floor((x + a) / B) !== c || Math.floor((y + b) / B) !== rr)) W.set(x + a, y + b, T.GRASS);
     W.zone(bx, by, bx + B - 1, by + B - 1, { name: NOMS[kind] ? NOMS[kind][(c * 7 + rr * 3) % NOMS[kind].length] : z.name, music: z.music, enc: z.enc, theme: z.theme, route: z.route, prio: 0, ombre: z.ombre });
+    if (kind === 'hameau' || kind === 'ferme' || kind === 'verger') carrefours.push({ D, s4, nom: NOMS[kind]?.[(c * 7 + rr * 3) % NOMS[kind].length] || 'Verger', kind });
     let no = 0, np = 0;
     const rang = rangRoute(z.route), LOTS = lotsLieu(rang);
     const objet = (x, y, item = pick(LOTS)) => { const p = proche(x, y); if (p) { W.item(p[0], p[1], adapter(item, rang), 1, `${id}:o${no++}`); occ.add(p.join(',')); } };
@@ -260,6 +264,8 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
       W.set(X + 3, Y - 3, T.TREE); objet(X - 3, Y + 2); dresseur(X + 2, Y + 3, 'left');
     }
     // contrôle : tout ce qui a été posé est atteignable depuis la route (sinon on le rapproche du sentier)
+    // la clairière perd sa forme de disque, une fois tout posé (le tirage des lieux ne bouge pas : mêmes identifiants)
+    faconner(W, { bx, by, X, Y, rx, ry, D, z, kind, s4, c, rr, clair, dedans });
     verifier(W, D, bx, by, id, s4);
     return true;
   }
@@ -271,6 +277,110 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
           : ['hameau', 'ferme', 'lac', 'colline', 'verger', 'ruines', 'prairie', 'marais', 'cabane', 'campement', 'source', 'hameau', 'lac', 'ferme'];
     return pick(L);
   }
+}
+
+/** les panneaux au départ des sentiers des lieux habités (après les écrans de verdure, qui ne doivent pas en tenir compte) */
+export function panneauxDesLieux(W) {
+  // au départ du sentier d'un lieu habité (hameau, ferme, verger) : un panneau au bord de la route, comme aux carrefours
+  // de HeartGold ; les lieux secrets (lac, ruines, source…) n'en ont pas, on les découvre
+  const occ = new Set([...W.npcs.map((n) => n.x + ',' + n.y), ...W.items.map((i) => i.x + ',' + i.y), ...W.objects.keys()]);
+  let n = 0;
+  for (const { D, s4, nom, kind } of W.carrefours || []) {
+    const s0 = new Set(s4.slice(0, 6).map(([x, y]) => x + ',' + y));
+    // le panneau ne coupe rien : autour de lui (15 × 15 cases), le sol praticable reste d'un seul tenant
+    const morceaux = (x0, y0) => {
+      const vu = new Set(); let n = 0;
+      for (let j = -7; j <= 7; j++) for (let i = -7; i <= 7; i++) {
+        const x = x0 + i, y = y0 + j, k = x + ',' + y; if (vu.has(k) || !walkable(W.get(x, y))) continue;
+        n++; vu.add(k); const q = [[x, y]];
+        while (q.length) { const [a, b] = q.pop(); for (const [dx, dy] of N4) { const u = a + dx, v = b + dy, kk = u + ',' + v; if (vu.has(kk) || Math.abs(u - x0) > 7 || Math.abs(v - y0) > 7 || !walkable(W.get(u, v)) || !W.canStep(a, b, u, v)) continue; vu.add(kk); q.push([u, v]); } }
+      }
+      return n;
+    };
+    const relie = (x, y) => { const avant = morceaux(x, y), t0 = W.get(x, y); W.set(x, y, T.SIGN); const apres = morceaux(x, y); W.set(x, y, t0); return apres <= avant; };
+    const cands = [];
+    for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) {
+      const x = D.x + i, y = D.y + j, t = W.get(x, y); if (!(t === T.GRASS || t === T.FLOWER) || s0.has(x + ',' + y) || occ.has(x + ',' + y) || W.warpAt(x, y)) continue;
+      // à côté du sentier (pas dessus)
+      if (!N4.some(([a, b]) => s0.has((x + a) + ',' + (y + b)) || (x + a === D.x && y + b === D.y))) continue;
+      const libres = N4.filter(([a, b]) => walkable(W.get(x + a, y + b))).length; if (libres < 2 || libres > 3) continue;
+      cands.push([Math.abs(i) + Math.abs(j), x, y]);
+    }
+    cands.sort((a, b) => a[0] - b[0] || a[2] - b[2] || a[1] - b[1]);
+    const best = cands.map(([, x, y]) => [x, y]).find(([x, y]) => relie(x, y));
+    if (!best) continue;
+    W.sign(best[0], best[1], `${nom.toUpperCase()}\n${kind === 'ferme' ? 'Produits de la ferme, par ici.' : kind === 'verger' ? 'Baies offertes aux voyageurs.' : 'Hameau. Voyageurs bienvenus.'}`);
+    occ.add(best.join(',')); n++;
+  }
+  return n;
+}
+
+/**
+ * La clairière d'un lieu perd sa forme de disque, une fois son contenu posé (le tirage des lieux ne change pas, ni
+ * leurs identifiants) : la forêt s'ouvre selon formeClairiere (étirée vers le sentier, anses et lobes), le sentier
+ * s'évase en arrivant, deux lobes poussent sur les côtés, des bouquets d'arbres restent debout au bord. Une case ne
+ * s'ouvre que dans l'intérieur du bloc et si elle ne touche rien d'étranger au lieu (jamais un passage vers une route
+ * ou un autre lieu) ; ce qui reste isolé redevient forêt.
+ */
+function faconner(W, { bx, by, X, Y, rx, ry, D, z, kind, s4, c, rr, dedans, marge = 3 }) {
+  const g0 = c * 7 + rr, forme = formeClairiere(X, Y, rx, ry, D.x - X, D.y - Y, g0), ouverts = [], h0 = W.height(X, Y);
+  const sentier = new Set(s4.map(([a, b]) => a + ',' + b));
+  const interieur = (a, b) => a >= bx + marge - 1 && b >= by + marge - 1 && a < bx + B - marge + 1 && b < by + B - marge + 1;
+  const etranger = (u, v) => { if (interieur(u, v) || sentier.has(u + ',' + v)) return false; const t = W.get(u, v); return walkable(t) || t === T.WATER || t === T.BUILD; };
+  const ouvre = (a, b) => {
+    if (!FORET_(W.get(a, b)) || W.height(a, b) !== h0 || !interieur(a, b) || W.zoneAt(a, b)?.town) return;
+    for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) if (etranger(a + k, b + j)) return;
+    W.set(a, b, T.GRASS); W.setHeight(a, b, h0); ouverts.push([a, b]);
+  };
+  // la forme
+  for (let y = by + marge; y < by + B - marge; y++) for (let x = bx + marge; x < bx + B - marge; x++) if (forme(x, y) <= 1 && dedans(x, y)) ouvre(x, y);
+  // le sentier s'évase en arrivant
+  s4.forEach(([x, y], i) => {
+    const t = i / Math.max(1, s4.length - 1), larg = 0.9 + 2.4 * t ** 1.3 * (0.6 + 0.8 * bruit(x, y, 5, g0 + 107)), R = Math.ceil(larg);
+    for (let j = -R; j <= R; j++) for (let k = -R; k <= R; k++) if (k * k + j * j <= larg * larg) ouvre(x + k, y + j);
+  });
+  // deux lobes, chacun relié au centre par une bande d'herbe
+  for (const lobe of [0, 1]) {
+    const ang = 6.2832 * bruit(c * 3 + lobe * 11, rr * 5, 1.3, g0 + 113), dist = 6 + 2.5 * bruit(c, rr + lobe * 7, 1.1, g0 + 115);
+    const lx = X + cos(ang) * dist, ly = Y + sin(ang) * dist * 0.85, lr = 2.4 + 1.6 * bruit(c + lobe, rr, 1.7, g0 + 117);
+    for (let j = -5; j <= 5; j++) for (let k = -5; k <= 5; k++) { const a = Math.round(lx) + k, b = Math.round(ly) + j; if (Math.hypot(a - lx, b - ly) + (bruit(a, b, 2.5, g0 + 119) - 0.5) * 1.6 <= lr && dedans(a, b)) ouvre(a, b); }
+    for (let k = 0; k <= 12; k++) { const a = Math.round(X + (lx - X) * k / 12), b = Math.round(Y + (ly - Y) * k / 12); for (const [u, v] of [[a, b], [a + 1, b], [a, b + 1]]) if (dedans(u, v)) ouvre(u, v); }
+  }
+  // des bouquets d'arbres au bord, loin de tout ce qui a été posé
+  if (kind !== 'hameau' && kind !== 'ferme') for (let y = by + marge; y < by + B - marge; y++) for (let x = bx + marge; x < bx + B - marge; x++) {
+    if (W.get(x, y) !== T.GRASS) continue;
+    const f = forme(x, y); if (f < 0.7 || f > 1.05 || bruit(x, y, 3, g0 + 109) <= 0.66) continue;
+    let calme = true; for (let j = -2; j <= 2 && calme; j++) for (let k = -2; k <= 2; k++) { const t = W.get(x + k, y + j); if (!(t === T.GRASS || FORET_(t)) || sentier.has((x + k) + ',' + (y + j))) { calme = false; break; } }
+    if (!calme || W.npcs.some((n) => n.x === x && n.y === y) || W.items.some((q) => q.x === x && q.y === y)) continue;
+    W.set(x, y, bruit(x, y, 7, g0 + 111) > 0.5 ? T.TREE : T.PINE);
+  }
+  // ce qui reste isolé de la route (parmi les cases ouvertes) redevient forêt
+  const vu = new Set([D.x + ',' + D.y]), q = [[D.x, D.y]];
+  while (q.length) { const [a, b] = q.pop(); for (const [dx, dy] of N4) { const u = a + dx, v = b + dy, k = u + ',' + v; if (vu.has(k) || u < bx - 10 || v < by - 10 || u > bx + B + 10 || v > by + B + 10 || !walkable(W.get(u, v)) || !W.canStep(a, b, u, v)) continue; vu.add(k); q.push([u, v]); } }
+  for (const [a, b] of ouverts) if (W.get(a, b) === T.GRASS && !vu.has(a + ',' + b)) W.set(a, b, T.TREE);
+}
+
+/**
+ * Les clairières au bout des impasses des routes (chemins.js), une fois les lieux posés : même façonnage que les lieux
+ * (forme étirée vers le sentier, lobes, bouquets), dans leur bloc seulement ; posé après coup, il ne change ni le tirage
+ * des routes ni celui des lieux.
+ */
+export function faconnerImpasses(W, routes) {
+  let n = 0;
+  for (const R of routes) {
+    const res = R.pts?.res; if (!res?.cotes) continue;
+    res.cotes.forEach((C, i) => {
+      if (C.fx == null) return;
+      const [c, rr] = C.b, bx = c * B, by = rr * B;
+      const dedans = (x, y) => x > bx + 1 && y > by + 1 && x < bx + B - 2 && y < by + B - 2;
+      // le sentier de l'impasse : de la route au centre, en ligne (ce qui compte ici : la direction d'arrivée)
+      const s4 = []; for (let k = 0; k <= 16; k++) { const x = Math.round(C.px + (C.fx - C.px) * k / 16), y = Math.round(C.py + (C.fy - C.py) * k / 16); if (dedans(x, y)) s4.push([x, y]); }
+      const D = { x: Math.round(C.px), y: Math.round(C.py) };
+      faconner(W, { bx, by, X: C.x, Y: C.y, rx: 6.2, ry: 5, D, z: null, kind: C.kind === 'cabane' ? 'hameau' : C.kind, s4, c: c + 977 * (i + 1), rr, dedans, marge: 2 });
+      n++;
+    });
+  }
+  return n;
 }
 
 /** ce qui a été posé dans le lieu et qu'on n'atteint pas depuis la route est déplacé à côté du chemin le plus proche */
@@ -300,4 +410,21 @@ function verifier(W, D, bx, by, id, s4) {
     }
     if (best) { bloq.delete(o.x + ',' + o.y); [o.x, o.y] = best; bloq.add(best.join(',')); }
   }
+}
+
+/** la forme d'une clairière (≤ 1 : dedans) : pas un disque, une tache qui s'étire vers le sentier d'arrivée (direction
+ *  ux, uy), se creuse d'anses et pousse des lobes ; bruit lu dans des coordonnées déformées, à graine fixe (g0) */
+export function formeClairiere(X, Y, rx, ry, ux, uy, g0) {
+  const ul = Math.hypot(ux, uy) || 1, ax = ux / ul, ay = uy / ul;
+  const dxw = (x, y) => 3.2 * (bruit(x, y, 9, g0 + 101) - 0.5) + 1.4 * (bruit(x, y, 4, g0 + 103) - 0.5);
+  const dyw = (x, y) => 3.2 * (bruit(x, y, 9, g0 + 102) - 0.5) + 1.4 * (bruit(x, y, 4, g0 + 104) - 0.5);
+  const rl0 = Math.abs(ax) > Math.abs(ay) ? rx : ry, rt = Math.abs(ax) > Math.abs(ay) ? ry : rx;
+  return (x, y) => {
+    const u = x + dxw(x, y) - X, v = y + dyw(x, y) - Y;
+    // l'axe du sentier : la clairière s'étire vers lui (du côté d'où l'on arrive surtout)
+    const le = u * ax + v * ay, tr = -u * ay + v * ax, rl = rl0 * (le > 0 ? 1.35 : 1.0);
+    const libre = (le / rl) ** 2 + (tr / rt) ** 2 + (bruit(x, y, 6, g0 + 105) - 0.5) * 0.9 + (bruit(x, y, 3, g0) - 0.5) * 0.3;
+    // un cœur toujours dégagé (de quoi poser la maison, les ruines, l'étang du lieu)
+    return Math.min(libre, ((x - X) / (rx * 0.72)) ** 2 + ((y - Y) / (ry * 0.72)) ** 2);
+  };
 }

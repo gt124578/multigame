@@ -71,6 +71,9 @@ for (const it of W.items) if (!vuAutour(it.x, it.y)) poses.push(['objet', it.x, 
 for (const n of W.npcs) if (!vuAutour(n.x, n.y)) poses.push(['PNJ', n.x, n.y, n.id || n.name || n.sprite]);
 for (const [k] of W.warps) { const [x, y] = k.split(',').map(Number); if (!vuAutour(x, y)) poses.push(['porte', x, y, '→ ' + W.warps.get(k).map]); }
 for (const [k, s] of W.signs) { const [x, y] = k.split(',').map(Number); if (!vuAutour(x, y)) poses.push(['panneau', x, y, String(s).split('\n')[0]]); }
+// objets cachés (rythme.js) : on les fouille depuis une case voisine atteinte
+const caches = [...W.objects].filter(([, o]) => o.cache);
+for (const [k, o] of caches) { const [x, y] = k.split(',').map(Number); if (!vuAutour(x, y)) poses.push(['objet caché', x, y, o.item + ' ' + o.id]); }
 // décor posé : sauf la nature (arbres, palmiers, cactus, rochers) dans un fond de paysage sauvage
 const NATUREL = /^(palm|cactus|rocher|pin|arbre|erable|cerisier|tree|pine|bush|souche|tronc)/;
 for (const d of W.deco) if (d.x != null && W.get(d.x, d.y) === T.BLOCK && !vuAutour(d.x, d.y) && !NATUREL.test(d.k)) poses.push(['décor', d.x, d.y, d.k]);
@@ -86,6 +89,7 @@ aRegler.sort((a, b) => b.cases.length - a.cases.length);
 for (const c of aRegler.slice(0, 60)) console.log(`   ${String(c.cases.length).padStart(5)} cases ${JSON.stringify(c.cats)} en ${c.x0},${c.y0} → ${c.x1},${c.y1} (${zoneNom(c.x0, c.y0)}${c.ville ? ', ville' : ''})`);
 if (aRegler.length > 60) console.log(`   … et ${aRegler.length - 60} autres`);
 const posesR = poses.filter(([, x, y]) => TOUT || !enVille(x, y));
+console.log(`   objets cachés : ${caches.length} (${caches.filter(([k]) => { const [x, y] = k.split(',').map(Number); return vuAutour(x, y); }).length} qu'on peut fouiller)`);
 console.log(`   posés hors d'atteinte : ${posesR.length}`);
 for (const [k, x, y, q] of posesR.slice(0, 60)) console.log(`     ${k} ${q} en ${x},${y} (${zoneNom(x, y)})`);
 problemes += aRegler.length + posesR.length;

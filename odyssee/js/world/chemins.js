@@ -124,7 +124,7 @@ export function grandeRoute(W, S, ctx) {
       const q = ((x - fx) / 6.5) ** 2 + ((y - fy) / 5.2) ** 2 + (r() - 0.5) * 0.3;
       if (q <= 1 && (W.get(x, y) === T.TREE || W.get(x, y) === T.PINE)) { W.set(x, y, herbe); W.setHeight(x, y, base); cells.add(key(x, y)); }
     }
-    const X = Math.round(fx), Y = Math.round(fy), C = { b: f, x: X, y: Y, kind };
+    const X = Math.round(fx), Y = Math.round(fy), C = { b: f, x: X, y: Y, kind, fx, fy, px: p.x, py: p.y };   // (fx, fy, px, py : la forme naturelle de la clairière, posée après les lieux : lieux.js)
     cotes.push(C);
     if (kind === 'cabane') {
       const B = W.building('house', X - 2, Y - 3, { w: 5, d: 5, door: 1, modele: S.cabane || 'chalet', name: 'Cabane', roof: 'brown' });

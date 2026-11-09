@@ -17,7 +17,7 @@ import { enrichirTout, equipeDeType } from './rencontres.js';
 import { addHabitants } from './habitants.js';
 import { applyRetouches } from './retouches.js';
 import { redresserPonts } from './ponts.js';
-import { rangs, mers, tourbillonsDuBord, rendreALaForet, degager } from './acces.js';
+import { rangs, mers, tourbillonsDuBord, rendreALaForet, degager, oterDecorIsole } from './acces.js';
 import { appliquerBareme } from './bareme.js';
 import { buildArena } from './arenes.js';
 import { areneSylve } from './arene-sylve.js';
@@ -30,8 +30,13 @@ import { LARGEUR, HAUTEUR, BLOC, VILLES, TERR, TORII, LUNAIRE, CHAINE, porte, ar
 import { grandeVille, bruit } from './quartiers.js';
 import { grandeRoute, boucherLocal } from './chemins.js';
 import { atelier } from './atelier.js';
-import { lieux } from './lieux.js';
+import { lieux, faconnerImpasses, panneauxDesLieux } from './lieux.js';
 import { ecrans } from './ecrans.js';
+import { rythme, cachettesDesVilles } from './rythme.js';
+import { grotteDuCol, grotteDansFalaise } from './grottes.js';
+import { volcan } from './volcan.js';
+import { contreforts, plateauNaturel } from './contreforts.js';
+import { canyonsDOcre } from './ocre.js';
 import { ANCIENS_OBJETS } from './anciens-objets.js';
 
 /** version de la carte du monde : une sauvegarde d'une version plus ancienne reprend au Centre de la dernière ville
@@ -1170,6 +1175,8 @@ export function buildWorld() {
 
   /* ======================== LA CHAÎNE CÉLESTE ======================== */
   chaine(W, towns);
+  // le Plateau Céleste sans cadre : la falaise mord ses bords d'herbe libres (contreforts.js)
+  W.plateau = plateauNaturel(W, towns.J);
   /* ======================== ARÈNES ======================== */
   const gymTrainers = [
     [['Insectomane', 'Lucas', [[1017, 9], [10, 10]]], ['Insectomane', 'Basile', [[1018, 10, null, [33, 81, 106]], [1020, 10]]]],
@@ -1234,12 +1241,35 @@ export function buildWorld() {
   addMine({ W, maps, towns, trainerNpc, ENC });
   // les grands vides entre les routes : lieux à découvrir au bout d'un sentier, ou paysages vus de loin (lieux.js)
   W.lieux = lieux(W, { maps, trainerNpc, ENC });
+  // les impasses des routes : des clairières de forme naturelle, façonnées après coup (lieux.js)
+  W.impasses = faconnerImpasses(W, routes);
+  // le volcan de Cendrelune, au sud de la ville (volcan.js ; après les lieux, qui gardent leur tirage)
+  { const v = towns.H.ville; if (v) W.volcan = volcan(W, { cx: v.x + v.w / 2, cy: v.y + v.h + 22, rx: 40, ry: 24, haut: 11, ville: v }); }
+  // la Grotte du Col : sous le coin sud-ouest de la Chaîne, du Bois Murmure à la route 10 (un lac souterrain : Surf ;
+  // posée après les lieux, qui gardent ainsi leur tirage et leurs identifiants)
+  W.col = grotteDuCol({ W, maps, routes, ENC, trainerNpc });
+  // la Chaîne Céleste déborde de son plan : des avancées de roche dans la forêt de fond (contreforts.js)
+  { const t0 = performance.now(); W.contreforts = contreforts(W); W.contreforts.ms = Math.round(performance.now() - t0); }
+  // les canyons des Hauts d'Ocre : une gorge depuis la route 14 ouvre les vallées de sable entre les mesas (ocre.js)
+  W.ocre = canyonsDOcre({ W, maps, ENC, trainerNpc });
+  // la Grotte des Sables : dans la falaise d'une mesa de la route 16 (grottes.js)
+  W.sables = grotteDansFalaise({ W, maps, ENC, trainerNpc }, { routes, route: 'r16', id: 'sables', nom: 'Grotte des Sables', graine: 8181,
+    dresseurs: [['Montagnard', 'Ulysse', [[28, 61], [105, 62]]], ['Randonneuse', 'Nora', [[51, 61], [232, 61], [330, 62]]]],
+    objets: ['max-potion', 'max-repel', 'fire-stone', 'max-elixir'], cache: 'ultra-ball' });
+  // la Grotte des Crêtes : une percée depuis la route 3 dans la roche de la Chaîne Céleste, au nord (grottes.js)
+  W.cretes = grotteDansFalaise({ W, maps, ENC, trainerNpc }, { routes, route: 'r3', id: 'cretes', nom: 'Grotte des Crêtes', graine: 9191, percee: [0, -1], enc: ENC.grotte,
+    panneau: 'Sous les crêtes de la Chaîne Céleste.', dresseurs: [['Montagnard', 'Léon', [[74, 10], [41, 11]]], ['Gamin', 'Timéo', [[1024, 10], [1026, 11]]]],
+    objets: ['great-ball', 'escape-rope', 'moon-stone', 'super-potion'], cache: 'repel' });
   { const tz = W.zones.filter((z) => z.town || z.trigger), sz = W.zones.filter((z) => z.sea), rz = W.zones.filter((z) => !z.town && !z.trigger && !z.sea); W.zones = [...sz, ...rz, ...tz]; }
   // les grandes villes perchées : on y monte par des escaliers à chaque porte
   for (const [k, t] of Object.entries(towns)) if (VILLES[k]?.releve) relever(W, t);
   // des écrans de verdure entre les zones : d'une ville, d'une route ou d'un lieu, on ne voit jamais une autre zone qu'on
   // ne peut pas rejoindre de près (ecrans.js)
   { const t0 = performance.now(); W.ecrans = ecrans(W); W.ecrans.ms = Math.round(performance.now() - t0); }
+  // un panneau au départ du sentier de chaque lieu habité (hameau, ferme, verger)
+  W.panneauxLieux = panneauxDesLieux(W);
+  // le rythme des routes (rythme.js) : raccourcis à sens unique et rebords à sauter, objets cachés, panneaux aux deux bouts
+  { const t0 = performance.now(); W.rythme = rythme(W, routes, { trainerNpc }); W.rythme.ms = Math.round(performance.now() - t0); }
   // petites barrières de bois le long des chemins des routes (jamais là où elles couperaient un passage)
   fenceRoutes(W, legends);
   // les ponts au propre : droits, d'une ou deux cases de large, jamais deux côte à côte (ponts.js)
@@ -1249,8 +1279,11 @@ export function buildWorld() {
   { const mer = mers(W); W.finitions = { tourbillons: tourbillonsDuBord(W, mer) };
     const RG = rangs(maps, docks, { map: 'monde', x: towns.A.x + 5, y: towns.A.y + 7 }, { bloquants: false });   // un PNJ qui garde un passage ne rend pas la suite inatteignable
     W.finitions.foret = rendreALaForet(W, RG.get('monde'), mer);
+    W.finitions.decor = oterDecorIsole(W, RG.get('monde'));
     W.finitions.degages = degager(W);
-    W.finitions.bareme = appliquerBareme(maps, RG); }
+    W.finitions.bareme = appliquerBareme(maps, RG);
+    // des objets cachés en ville : un tonneau, une caisse, un pot au bord d'une rue, au barème de l'endroit (rythme.js)
+    W.cachettes = cachettesDesVilles(W, towns, RG.get('monde')); }
   // retouches faites dans l'éditeur de la version test et intégrées au jeu (world/retouches.js)
   applyRetouches(maps);
   // cartes disparues (lieux désormais posés sur la carte du monde) : une ancienne partie qui y était reprend ici
