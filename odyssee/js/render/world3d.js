@@ -396,6 +396,9 @@ function fenetresInterieur(m, decoAt) {
     for (const x of libres) if (![...out].some((o) => Math.abs(o - x) < 2) && (best === null || Math.abs(x - cible) < Math.abs(best - cible))) best = x;
     if (best !== null && Math.abs(best - cible) <= 2.5) out.add(best);
   }
+  // un objet accroché au mur (bouée, pioches, kakejiku… selon la ville), sur une case libre entre deux fenêtres
+  const reste = libres.filter((x) => !out.has(x) && !out.has(x - 1) && !out.has(x + 1));
+  out.orn = reste.length ? reste[Math.floor(reste.length / 2)] : null;
   return out;
 }
 /** teinte du ciel selon la météo (multiplie la teinte de l'heure, en lumière linéaire) */
@@ -952,8 +955,8 @@ export class WorldView {
     G.quad([x, h, y + 1], [x + 1, h, y + 1], [x + 1, h, y], [x, h, y], ...A[`int_${k}_bord`], 1);
     // coins du fond (colonnes des côtés) : la bordure au sol, pas le plancher
     if (m.get(x, y + 1) === T.WALL) { flat(G, x, y, x + 1, y + 1, 0.01, A[`int_${k}_bord`]); return; }
-    const fen = this.fenetresInt?.has(x);
-    const haut = A[`int_${k}_${fen ? (this.night > 0.5 ? 'fenN' : 'fen') : 'haut'}`], bas = A[`int_${k}_bas`];
+    const fen = this.fenetresInt?.has(x), orn = !fen && this.fenetresInt?.orn === x;
+    const haut = A[`int_${k}_${fen ? (this.night > 0.5 ? 'fenN' : 'fen') : orn ? 'orn' : 'haut'}`] || A[`int_${k}_haut`], bas = A[`int_${k}_bas`];
     G.quad([x, 0, y + 1], [x + 1, 0, y + 1], [x + 1, h / 2, y + 1], [x, h / 2, y + 1], ...bas, 1);
     G.quad([x, h / 2, y + 1], [x + 1, h / 2, y + 1], [x + 1, h, y + 1], [x, h, y + 1], ...haut, 1);
   }

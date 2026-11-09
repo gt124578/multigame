@@ -9,25 +9,25 @@ import { VILLE_STYLE } from './styles-villes.js';
 
 /** réglages par style de ville : mur (motif, couleurs), lambris (null : le motif descend jusqu'à la plinthe), sol */
 const S = {
-  aube: { mur: 'fleurs', c: '#efe2c6', m: ['#d8b48a', '#c48a6c'], lambris: '#b98a58', bord: '#5a3e2c', sol: ['bois', 1, 1, 1] },
-  sylve: { mur: 'planches', c: '#a8763f', lambris: null, bord: '#3e2a1c', sol: ['bois', 0.82, 0.74, 0.7] },
-  pierre: { mur: 'pierres', c: '#b5ada0', lambris: null, bord: '#46423e', sol: ['dalles'] },
-  azur: { mur: 'rayures', c: '#f2f4f2', m: ['#cadcea'], lambris: '#4f7fae', bord: '#2f4258', sol: ['bois', 1.08, 1.04, 0.96] },
-  volta: { mur: 'uni', c: '#dde2e8', lambris: '#7f8b9c', bord: '#3a4250', sol: ['carreaux', '#e8eaee', '#c4c8d0'] },
-  flora: { mur: 'fleurs', c: '#f5e8cc', m: ['#b49ad0', '#8ab06a'], lambris: '#9fbf8a', bord: '#6a5040', sol: ['tomettes', '#c27e58'] },
-  mirage: { mur: 'shoji', c: '#f2ead6', lambris: '#6a4a30', bord: '#2e2420', sol: ['tatami'] },
-  granit: { mur: 'pierres', c: '#c9b2a6', lambris: '#f0ece4', bord: '#5a4a46', sol: ['bois', 0.95, 0.9, 0.86] },
-  cendre: { mur: 'chaux', c: '#ece8e0', lambris: '#3a3634', bord: '#2a2624', sol: ['bois', 0.86, 0.66, 0.6] },
-  ecaille: { mur: 'chaux', c: '#f6f6f2', lambris: '#3a6ac8', bord: '#2a3e70', sol: ['carreaux', '#f0f0ea', '#b4c8e4'] },
-  cime: { mur: 'rondins', c: '#8a5a34', lambris: null, bord: '#3a2618', sol: ['bois', 0.78, 0.7, 0.66] },
-  plateau: { mur: 'uni', c: '#eceae4', lambris: '#5a6a8a', bord: '#2e3648', sol: ['marbre'] },
-  metro: { mur: 'damas', c: '#d8d0c0', m: ['#c4b9a4'], lambris: '#6a4a32', bord: '#3a2a20', sol: ['bois', 0.86, 0.76, 0.68] },
-  lisiere: { mur: 'chaux', c: '#f4f0e8', lambris: '#a83a32', bord: '#4a2a24', sol: ['bois', 0.94, 0.86, 0.8] },
-  marais: { mur: 'planches', c: '#8a8e74', lambris: null, bord: '#33352a', sol: ['bois', 0.74, 0.78, 0.7] },
-  dunes: { mur: 'adobe', c: '#d8a86a', lambris: '#b86a40', bord: '#6a4026', sol: ['tomettes', '#b8764e'] },
-  forge: { mur: 'briques', c: '#8a4a36', lambris: '#4a4a50', bord: '#2a2a2e', sol: ['carreaux', '#6a6a70', '#4a4a52'] },
-  rose: { mur: 'fleurs', c: '#f6e2e8', m: ['#e08aa0', '#8ab07a'], lambris: '#f2f0ec', bord: '#6a4a50', sol: ['bois', 1.06, 0.98, 0.94] },
-  ombre: { mur: 'damas', c: '#4a3e58', m: ['#5e4e70'], lambris: '#2e2638', bord: '#1c1622', sol: ['bois', 0.62, 0.56, 0.62] },
+  aube: { orn: 'cadre', mur: 'fleurs', c: '#efe2c6', m: ['#d8b48a', '#c48a6c'], lambris: '#b98a58', bord: '#5a3e2c', sol: ['bois', 1, 1, 1] },
+  sylve: { orn: 'bois', mur: 'planches', c: '#a8763f', lambris: null, bord: '#3e2a1c', sol: ['bois', 0.82, 0.74, 0.7] },
+  pierre: { orn: 'pioches', mur: 'pierres', c: '#b5ada0', lambris: null, bord: '#46423e', sol: ['dalles'] },
+  azur: { orn: 'bouee', mur: 'rayures', c: '#f2f4f2', m: ['#cadcea'], lambris: '#4f7fae', bord: '#2f4258', sol: ['bois', 1.08, 1.04, 0.96] },
+  volta: { orn: 'horloge', mur: 'uni', c: '#dde2e8', lambris: '#7f8b9c', bord: '#3a4250', sol: ['carreaux', '#e8eaee', '#c4c8d0'] },
+  flora: { orn: 'couronne', mur: 'fleurs', c: '#f5e8cc', m: ['#b49ad0', '#8ab06a'], lambris: '#9fbf8a', bord: '#6a5040', sol: ['tomettes', '#c27e58'] },
+  mirage: { orn: 'kakejiku', mur: 'shoji', c: '#f2ead6', lambris: '#6a4a30', bord: '#2e2420', sol: ['tatami'] },
+  granit: { orn: 'barre', mur: 'pierres', c: '#c9b2a6', lambris: '#f0ece4', bord: '#5a4a46', sol: ['bois', 0.95, 0.9, 0.86] },
+  cendre: { orn: 'masque', mur: 'chaux', c: '#ece8e0', lambris: '#3a3634', bord: '#2a2624', sol: ['bois', 0.86, 0.66, 0.6] },
+  ecaille: { orn: 'assiette', mur: 'chaux', c: '#f6f6f2', lambris: '#3a6ac8', bord: '#2a3e70', sol: ['carreaux', '#f0f0ea', '#b4c8e4'] },
+  cime: { orn: 'bois', mur: 'rondins', c: '#8a5a34', lambris: null, bord: '#3a2618', sol: ['bois', 0.78, 0.7, 0.66] },
+  plateau: { orn: 'blason', mur: 'uni', c: '#eceae4', lambris: '#5a6a8a', bord: '#2e3648', sol: ['marbre'] },
+  metro: { orn: 'miroir', mur: 'damas', c: '#d8d0c0', m: ['#c4b9a4'], lambris: '#6a4a32', bord: '#3a2a20', sol: ['bois', 0.86, 0.76, 0.68] },
+  lisiere: { orn: 'piments', mur: 'chaux', c: '#f4f0e8', lambris: '#a83a32', bord: '#4a2a24', sol: ['bois', 0.94, 0.86, 0.8] },
+  marais: { orn: 'filet', mur: 'planches', c: '#8a8e74', lambris: null, bord: '#33352a', sol: ['bois', 0.74, 0.78, 0.7] },
+  dunes: { orn: 'kilim', mur: 'adobe', c: '#d8a86a', lambris: '#b86a40', bord: '#6a4026', sol: ['tomettes', '#b8764e'] },
+  forge: { orn: 'outils', mur: 'briques', c: '#8a4a36', lambris: '#4a4a50', bord: '#2a2a2e', sol: ['carreaux', '#6a6a70', '#4a4a52'] },
+  rose: { orn: 'couronne', mur: 'fleurs', c: '#f6e2e8', m: ['#e08aa0', '#8ab07a'], lambris: '#f2f0ec', bord: '#6a4a50', sol: ['bois', 1.06, 0.98, 0.94] },
+  ombre: { orn: 'chandelier', mur: 'damas', c: '#4a3e58', m: ['#5e4e70'], lambris: '#2e2638', bord: '#1c1622', sol: ['bois', 0.62, 0.56, 0.62] },
 };
 export const STYLES_INT = Object.keys(S);
 
@@ -48,7 +48,7 @@ const h2 = (x, y, s) => { let h = (x * 374761393 + y * 668265263 + s * 224682251
 
 class Img {
   constructor(w = 32, h = 32) { this.c = document.createElement('canvas'); this.c.width = w; this.c.height = h; this.x = this.c.getContext('2d'); this.d = this.x.createImageData(w, h); this.w = w; this.h = h; }
-  p(x, y, c, a = 255) { if (x < 0 || y < 0 || x >= this.w || y >= this.h) return; const o = (y * this.w + x) * 4; this.d.data[o] = c[0]; this.d.data[o + 1] = c[1]; this.d.data[o + 2] = c[2]; this.d.data[o + 3] = a; }
+  p(x, y, c, a = 255) { x = Math.floor(x); y = Math.floor(y); if (x < 0 || y < 0 || x >= this.w || y >= this.h) return; const o = (y * this.w + x) * 4; this.d.data[o] = c[0]; this.d.data[o + 1] = c[1]; this.d.data[o + 2] = c[2]; this.d.data[o + 3] = a; }
   rect(x, y, w, h, c) { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) this.p(i, j, c); }
   get(x, y) { const o = (y * this.w + x) * 4; return [this.d.data[o], this.d.data[o + 1], this.d.data[o + 2]]; }
   fin() { this.x.putImageData(this.d, 0, 0); return this.c; }
@@ -144,6 +144,92 @@ function murHaut(st, fen, nuit, seed) {
   }
   return I.fin();
 }
+/** objet accroché au mur, propre à la ville (bouée chez le marin, pioches chez le carrier, kakejiku à Mirage…),
+ *  dessiné dans le haut du mur au pixel près */
+function ornement(I, k, st, seed) {
+  const P = (x, y, c) => I.p(x, y, typeof c === 'string' ? hex(c) : c);
+  const R = (x, y, w, h, c) => { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) P(i, j, c); };
+  const disque = (cx, cy, r0, r1, f) => { for (let y = Math.floor(cy - r1 - 1); y <= cy + r1 + 1; y++) for (let x = Math.floor(cx - r1 - 1); x <= cx + r1 + 1; x++) { const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy); if (d >= r0 && d < r1) P(x, y, f(x, y, d)); } };
+  switch (k) {
+    case 'bouee': {   // bouée rouge et blanche, corde
+      disque(16, 17, 3, 8, (x, y, d) => { if (d > 7.1 || d < 3.9) return '#6a2a24'; const a = Math.atan2(y + 0.5 - 17, x + 0.5 - 16); const q = Math.floor(((a + Math.PI) / (Math.PI * 2)) * 4 + 0.5) % 2; return q ? (y < 17 ? '#fafaf6' : '#d0ccc4') : (y < 17 ? '#e8503e' : '#b8342c'); });
+      for (let x = 9; x <= 23; x += 2) P(x, 17 + ((x >> 1) & 1), '#c8a060');
+      R(15, 6, 2, 4, '#8a6a40'); break;
+    }
+    case 'pioches': {   // deux pioches croisées
+      for (let i = 0; i < 16; i++) { P(9 + i, 9 + i, '#6a4a2a'); P(23 - i, 9 + i, '#7a5432'); P(10 + i, 9 + i, '#5a3a20'); }
+      R(6, 8, 7, 2, '#8a8e98'); R(5, 10, 2, 2, '#6a6e78'); R(19, 8, 7, 2, '#8a8e98'); R(25, 10, 2, 2, '#6a6e78'); break;
+    }
+    case 'kakejiku': {   // rouleau suspendu : papier, montagne à l'encre, soleil rouge
+      R(10, 5, 11, 2, '#3a2a1e'); R(11, 7, 9, 18, '#6a7a5a'); R(12, 8, 7, 16, '#f2ead6');
+      for (let x = 12; x < 19; x++) { const h = 4 - Math.abs(x - 15); for (let y = 0; y < h; y++) P(x, 20 - y, '#4a4a52'); }
+      P(16, 11, '#c83a32'); P(17, 11, '#c83a32'); P(16, 12, '#c83a32'); P(17, 12, '#c83a32');
+      R(10, 25, 11, 2, '#3a2a1e'); R(15, 3, 1, 2, '#3a2a1e'); break;
+    }
+    case 'bois': {   // bois de cerf sur un écusson
+      R(13, 15, 6, 7, '#7a4a2a'); R(14, 16, 4, 5, '#9a6a3a');
+      for (const s of [-1, 1]) { const x0 = s < 0 ? 13 : 18; for (let i = 0; i < 6; i++) P(x0 + s * i, 14 - i, '#e8dcc0'); P(x0 + s * 2, 10, '#e8dcc0'); P(x0 + s * 2, 9, '#d8ccb0'); P(x0 + s * 4, 8, '#e8dcc0'); P(x0 + s * 4, 7, '#d8ccb0'); }
+      break;
+    }
+    case 'barre': {   // barre de navire en bois
+      disque(16, 16, 4, 6, () => '#8a5a34'); disque(16, 16, 0, 2, () => '#6a4428');
+      for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; for (let r = 2; r <= 8; r++) P(Math.round(16 + Math.cos(a) * r), Math.round(16 + Math.sin(a) * r), r > 6 ? '#b88a5a' : '#7a4a2a'); }
+      break;
+    }
+    case 'horloge': {   // pendule ronde
+      disque(16, 16, 0, 6, (x, y, d) => (d > 5 ? '#3a4250' : '#f4f4f0'));
+      R(16, 12, 1, 5, '#2a2e38'); R(16, 16, 3, 1, '#2a2e38'); P(16, 11, '#c83a32'); break;
+    }
+    case 'couronne': {   // couronne de fleurs
+      disque(16, 16, 3.5, 6.5, (x, y) => (h2(x, y, seed) < 0.3 ? (st.m?.[0] || '#e05a7a') : h2(x, y, seed + 1) < 0.5 ? '#5a9a4a' : '#3a7a3a'));
+      R(15, 21, 3, 2, '#e8c040'); break;
+    }
+    case 'masque': {   // masque de bois sculpté
+      for (let y = 8; y < 24; y++) { const w = y < 12 ? 4 + (y - 8) : y < 20 ? 8 : 8 - (y - 19) * 2; R(16 - (w >> 1), y, w, 1, '#7a3a24'); }
+      R(13, 13, 2, 2, '#1a1210'); R(18, 13, 2, 2, '#1a1210'); R(15, 18, 3, 1, '#e8c060'); R(12, 10, 9, 1, '#e8c060'); break;
+    }
+    case 'assiette': {   // assiette décorative bleue et blanche
+      disque(16, 16, 0, 6.5, (x, y, d) => (d > 5.5 ? '#3a6ac8' : d > 4.5 ? '#f6f6f2' : (h2(x >> 1, y >> 1, seed) < 0.4 ? '#5a86d0' : '#f6f6f2')));
+      break;
+    }
+    case 'blason': {   // écu bleu et or
+      for (let y = 7; y < 25; y++) { const w = y < 18 ? 12 : 12 - (y - 17) * 2; R(16 - (w >> 1), y, w, 1, y < 9 ? '#e8c040' : '#3a5aa8'); }
+      R(15, 11, 2, 9, '#e8c040'); R(12, 14, 8, 2, '#e8c040'); break;
+    }
+    case 'miroir': {   // grand miroir au cadre doré
+      R(10, 6, 12, 20, '#c89a3a'); R(11, 7, 10, 18, '#a8c4d4');
+      for (let i = 0; i < 6; i++) P(13 + i, 9 + i * 2, '#d8eaf2'); R(10, 6, 12, 1, '#e8c060'); break;
+    }
+    case 'piments': {   // guirlande de piments d'Espelette
+      R(15, 5, 2, 3, '#8a6a40');
+      for (let y = 8; y < 26; y++) for (const dx of [-1, 1]) if ((y + (dx > 0 ? 1 : 0)) % 2) { P(16 + dx * 2, y, '#c8281e'); P(16 + dx * 3, y, '#a01e18'); }
+      R(15, 8, 2, 18, '#7a5a30'); break;
+    }
+    case 'filet': {   // filet de pêche tendu, flotteurs
+      for (let y = 6; y < 26; y++) for (let x = 6; x < 26; x++) if ((x + y) % 4 === 0 || (x - y + 64) % 4 === 0) P(x, y, '#9a8a64');
+      for (const [x, y] of [[9, 8], [22, 10], [14, 21], [24, 22]]) R(x, y, 2, 2, '#e8a030'); break;
+    }
+    case 'kilim': {   // tapis tissé à motifs
+      for (let y = 6; y < 26; y++) for (let x = 8; x < 24; x++) { const b = Math.floor((y - 6) / 4) % 3; let c = b === 0 ? '#b8442a' : b === 1 ? '#e8b048' : '#3a5a8a'; if (Math.abs(x - 16) + Math.abs(((y - 6) % 8) - 4) === 3) c = '#f4ead6'; P(x, y, c); }
+      for (let x = 8; x < 24; x += 2) P(x, 26, '#e8b048'); break;
+    }
+    case 'outils': {   // marteau et pince sur un panneau
+      R(8, 7, 16, 18, '#6a5a48'); R(9, 8, 14, 16, '#7a6a56');
+      R(11, 10, 2, 11, '#8a5a34'); R(9, 9, 6, 3, '#5a5e68');
+      for (let i = 0; i < 9; i++) { P(17 + (i >> 2), 10 + i, '#4a4e58'); P(21 - (i >> 2), 10 + i, '#4a4e58'); } break;
+    }
+    case 'chandelier': {   // applique à trois bougies
+      R(15, 14, 2, 9, '#2a2026'); R(11, 18, 10, 1, '#2a2026');
+      for (const x of [11, 16, 20]) { R(x, 14, 1, 4, '#e8e0d0'); P(x, 13, '#f8c040'); P(x, 12, '#fff4b0'); } break;
+    }
+    default: {   // cadre : un paysage de campagne
+      R(7, 8, 18, 14, '#7a5432'); R(8, 9, 16, 12, '#9ad0f0');
+      R(8, 15, 16, 6, '#6ab04a'); for (let x = 8; x < 24; x++) if (h2(x, 0, seed) < 0.4) P(x, 14, '#5a9a3a');
+      R(18, 11, 2, 2, '#f8e070'); R(11, 13, 4, 2, '#4a8a3a'); break;
+    }
+  }
+}
+
 /** bas du mur : cimaise, lambris (panneaux) ou motif, plinthe */
 function murBas(st, seed) {
   const I = new Img(); motif(I, st, 0, 32, seed + 1);
@@ -213,6 +299,7 @@ export function texturesInterieurs(putImg, img) {
     putImg(`int_${k}_fen`, murHaut(st, true, false, g));
     putImg(`int_${k}_fenN`, murHaut(st, true, true, g));
     putImg(`int_${k}_bas`, murBas(st, g));
+    { const c = murHaut(st, false, false, g), I = new Img(); I.x.drawImage(c, 0, 0); I.d = I.x.getImageData(0, 0, 32, 32); ornement(I, st.orn, st, g + 21); putImg(`int_${k}_orn`, I.fin()); }
     putImg(`int_${k}_bord`, bord(st, g + 5));
     const s = sol(st, img, g + 9); if (s) putImg(`int_${k}_sol`, s);
   });
