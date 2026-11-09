@@ -56,6 +56,8 @@ export function friendsScreen(game) {
       const myCode = mgr.getMyCode();
       const onlinePeers = mgr.getOnlinePeers();
       const onlineCount = mgr.getOnlineCount();
+      // les autres dresseurs : le joueur lui-même ne compte pas
+      const autres = Math.max(0, onlineCount - 1), autresVus = onlinePeers.filter((p) => !p.isSelf).length;
       const friendsList = mgr.getFriendsList();
       const requests = mgr.getRequests();
 
@@ -72,7 +74,7 @@ export function friendsScreen(game) {
           <div class="fr-hdr-right">
             <span class="fr-online-pill">
               <span class="fr-pulse-dot"></span>
-              <b>${onlineCount}</b> DRESSEUR${onlineCount > 1 ? 'S' : ''} CONNECTÉ${onlineCount > 1 ? 'S' : ''}
+              ${autres ? `<b>${autres}</b> AUTRE${autres > 1 ? 'S' : ''} DRESSEUR${autres > 1 ? 'S' : ''} CONNECTÉ${autres > 1 ? 'S' : ''}` : 'PERSONNE D\'AUTRE EN LIGNE'}
             </span>
             <button type="button" class="fr-close-btn" data-act="close" title="Fermer le Registre Ami (Échap)">FERMER ✕</button>
           </div>
@@ -97,7 +99,7 @@ export function friendsScreen(game) {
       const tabsHtml = `
         <div class="fr-tabs-bar">
           <button type="button" class="fr-tab${tab === 'online' ? ' active' : ''}" data-act="tab-online">
-            🌐 DRESSEURS EN DIRECT (${onlinePeers.length})
+            🌐 DRESSEURS EN DIRECT (${autresVus})
           </button>
           <button type="button" class="fr-tab${tab === 'friends' ? ' active' : ''}" data-act="tab-friends">
             👥 MES AMIS (${friendsList.length})
@@ -163,7 +165,7 @@ export function friendsScreen(game) {
         bodyHtml = `
           <div class="fr-tab-pane fr-pane-online">
             <div class="fr-pane-hdr">
-              <span class="fr-pane-title">DRESSEURS ACTIFS DANS CETTE SESSION D\'ODYSSÉE (${onlinePeers.length})</span>
+              <span class="fr-pane-title">AUTRES DRESSEURS DANS CETTE SESSION D\'ODYSSÉE (${autresVus})</span>
               <span class="fr-pane-sub">Les dresseurs connectés au même salon se déplacent avec vous dans la région.</span>
             </div>
             <div class="fr-cards-grid">
