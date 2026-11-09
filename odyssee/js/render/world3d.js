@@ -338,6 +338,25 @@ function rockSlope(G, A, bio, x0, z0, x1, z1, y0, y1, s, seed, topCell = null) {
   }
 }
 
+/** ce qu'un modèle de bâtiment couvre à l'écran, par rapport au coin nord-ouest de son emprise (en cases) : largeur
+ *  réelle (x0, x1 : galeries et débords compris) et rangée du sol où se projette son point le plus haut (zN) */
+const EMPRISE_ECRAN = new Map();
+function empriseEcran(parts, mod, sx, sz) {
+  const k = mod.nom + JSON.stringify(mod.o || {}) + ':' + sx.toFixed(3) + ':' + sz.toFixed(3);
+  let e = EMPRISE_ECRAN.get(k);
+  if (e) return e;
+  const tan = Math.tan(EL); e = { x0: Infinity, x1: -Infinity, zN: Infinity };
+  for (const p of parts) {
+    const a = p.geo.attributes.position;
+    for (let i = 0; i < a.count; i++) {
+      const x = a.getX(i) * sx, r = a.getZ(i) * sz - a.getY(i) / tan;
+      if (x < e.x0) e.x0 = x; if (x > e.x1) e.x1 = x; if (r < e.zN) e.zN = r;
+    }
+  }
+  EMPRISE_ECRAN.set(k, e);
+  return e;
+}
+
 /** accumulateur de géométrie (quads indexés) */
 class Geo {
   constructor() { this.p = []; this.uv = []; this.c = []; this.i = []; this.n = 0; this.an = []; }
@@ -1213,6 +1232,8 @@ export class WorldView {
     this.ombreSol(sh, x0 - 0.1, z1 - 0.3, x1 + 0.1, z1 + 0.3, 0.012, 'bande');
     g.add(new THREE.Mesh(sh.build(), this.mat.shadow));
     g.userData.b = b; g.userData.front = mFront; g.userData.fkey = fkey;
+    // ce que le bâtiment couvre à l'écran (fondu quand on passe derrière) : débords du toit, faîte et bord arrière
+    g.userData.ecran = { x0: -o, x1: b.w + o, zN: Math.min(-o - eY / Math.tan(EL), b.d / 2 - ytop / Math.tan(EL)) };
     g.position.y = hb;
     this.root.add(g); this.buildingMeshes.push(g);
     this.fenetresBat(g);
@@ -1243,6 +1264,7 @@ export class WorldView {
     this.ombreSol(sh, 0 - 0.1, b.d - 0.3, b.w + 0.1, b.d + 0.3, 0.012, 'bande');
     const ombre = new THREE.Mesh(sh.build(), this.mat.shadow); ombre.scale.set(1 / sx, 1, 1 / sz); g.add(ombre);
     g.userData.b = b; g.userData.modele = mod.nom;
+    g.userData.ecran = empriseEcran(parts, mod, sx, sz);
     return g;
   }
   buildWindowsGroup() { /* les fenêtres de nuit sont posées avec chaque bâtiment (fenetresBat) */ }
@@ -1463,10 +1485,17 @@ export class WorldView {
 
   /** un bâtiment qui cache le joueur (marchant derrière lui) devient transparent, comme une vitre */
   fadeBuildings(fx, fy, dt) {
+    const tan = Math.tan(EL);
+    // rangée de l'écran où tombent les pieds du joueur (relief en 3D : un joueur en hauteur se voit plus au nord)
+    const pied = fy + 0.55 - (this.r3d ? this.r3d.Hmarche(fx + 0.5, fy + 0.55) : 0) / tan;
     for (const g of this.buildingMeshes || []) {
       const b = g.userData.b; if (!b) continue;
-      // derrière le bâtiment, son toit et ses murs cachent environ h + 0,4 cases au nord de son emprise
-      const hid = !this.sansFondu && fx > b.x - 1 && fx < b.x + b.w && fy < b.y - 0.5 && fy > b.y - b.h - 1.2;   // sansFondu : éditeur de carte
+      // derrière le bâtiment (au nord de son emprise), il le cache dès que ses pieds passent sous le haut du modèle à
+      // l'écran (faîte, cheminée, statue, flèche…) et qu'il est dans sa largeur réelle (galeries et débords compris)
+      const e = g.userData.ecran, hb = g.userData.hb || 0;
+      const hid = !this.sansFondu && fy < b.y - 0.5 && (e
+        ? pied > b.y + e.zN - hb / tan + 0.15 && fx + 0.85 > b.x + e.x0 && fx + 0.15 < b.x + e.x1
+        : fx > b.x - 1 && fx < b.x + b.w && fy > b.y - b.h - 1.2);   // sansFondu : éditeur de carte
       const t = hid ? 0.45 : 1;
       const o = g.userData.opacity ?? 1;
       if (o === t) continue;
