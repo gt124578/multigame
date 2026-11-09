@@ -255,6 +255,12 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   roche est un replat de pierre qui fonce vers le cœur du massif (`vBord`), roche selon `caveBiome` (biome `grotte` :
   beige de HGSS). La roche dépasse toujours d'un niveau le sol où l'on marche à côté,
   et ne monte jamais assez pour cacher les pieds de qui marche au nord (pan nord élargi, sinon niveau plafonné).
+  Textures des parois, de leur lèvre et du dessus de la roche : celles de HGSS (tuiles « Mountain » de Pokémon DS Map Studio,
+  provisoires comme les personnages HGSS), recolorées par biome dans `odyssee/img/hgss/relief.png` par
+  `python3 tools/odyssee-relief-hgss.py` (sources dans `assets/graphics/hgss/relief/`) ; chaque pan prend la forme d'une
+  tuile (pied presque plat puis pan droit, `tuile()` de `falaises.js`), un talus d'herbe d'un niveau devient un petit rebord
+  de roche sous une lèvre d'herbe (le dénivelé se voit), le bord d'un ravin une tuile inclinée puis une paroi lisse ;
+  `?roche=proc` remet les roches dessinées par le programme.
   `?r3zoom=Z` élargit la vue (regarder une montagne entière). Le Pic Céleste (`picCeleste` de `region.js`) : montagne
   géante au nord du Plateau Céleste, terrasses de quatre niveaux jusqu'au niveau 60 (la carte des hauteurs du schéma
   plafonne l'affichage à 13 ; une case non retouchée garde sa hauteur).
