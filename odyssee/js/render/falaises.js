@@ -393,6 +393,9 @@ vec3 fLevre(float k, float i) { int j = int(clamp(i, 0.0, 2.0));
         float t = clamp((top - vP.y) / (top - bas), 0.0, 1.0) + (bay - 0.5) * 0.16;
         s = t < 0.1 ? 1.12 : t < 0.3 ? 0.97 : t < 0.52 ? 0.86 : t < 0.75 ? 0.76 : 0.66;
         s *= lum > 0.6 ? 1.04 : lum < 0.2 ? 0.94 : 1.0;
+        // paliers écrits comme on les voit : le rendu mélange en lumière linéaire (0,66 n'y fonçait que de 17 % à
+        // l'écran, le talus se lisait à peine)
+        s = pow(s, 2.2);
       }
       if (pd < 0.12) s *= 0.7; else if (pd < 0.3 && (1.0 - pd / 0.3) > bay) s *= 0.84;
       diffuseColor.rgb *= s;
