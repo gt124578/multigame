@@ -1,7 +1,7 @@
 // odyssee/js/game.js — le jeu : déplacements sur la grille, PNJ, dresseurs, rencontres, capacités de terrain (Coupe,
 // Surf, Éclate-Roc, Vol), menus, histoire (les quinze arènes et l'archipel des trois frères), sauvegarde
 import { T, walkable, isGrassEnc, DIRS, OPP } from './world/tiles.js';
-import { nearestWalkable } from './world/mapgen.js';
+import { reprendre } from './core/reprise.js';
 import { MEGAS_OF, MEGA_RING, LEGEND, STONE_FORM, revertMegas } from './core/mega.js';
 import { MEGA_FORMS } from './core/mega.js';
 import { createMon, monName, healFull, levelEvolution, itemEvolution, evolve, setUidBase, levelCap, ensureNature, apteCT } from './core/mon.js';
@@ -194,6 +194,8 @@ export class Game {
   }
   load(from) {
     const s = from ? JSON.parse(JSON.stringify(from)) : JSON.parse(localStorage.getItem(SAVE_KEY));
+    // sauvegarde incomplète (ancienne version, code tapé à la main) : les champs manquants reprennent leur valeur de départ
+    s.party ||= []; s.box ||= []; s.bag ||= {}; s.flags ||= {}; s.badges ||= []; s.visited ||= ['aube']; s.time ||= 0;
     s.cleared ||= {}; s.explored ||= [];
     s.dex ||= { seen: [], caught: [], seenCount: {} };
     s.dex.seenCount ||= {};
@@ -214,9 +216,10 @@ export class Game {
     // qui a changé (falaise, arbre) : on la reprend sur la case libre la plus proche
     const mv = this.world.moved?.[state.map];
     if (mv) Object.assign(state, { map: mv.map, x: mv.x, y: mv.y, dir: mv.dir || state.dir, surf: false });
-    if (state.map === 'monde' && !state.surf && !walkable(this.world.maps.monde.get(state.x, state.y))) [state.x, state.y] = nearestWalkable(this.world.maps.monde, state.x, state.y);
     // intérieur redessiné depuis (l'Arène de Sylvebourg, par exemple) : une partie arrêtée dans un mur reprend à l'entrée
     { const M0 = this.world.maps[state.map]; if (M0 && state.map !== 'monde' && !state.surf && M0.exitX != null && (!M0.in(state.x, state.y) || !walkable(M0.get(state.x, state.y)))) Object.assign(state, { x: M0.exitX, y: M0.exitY - 1, dir: 'up' }); }
+    // carte qui n'existe plus, case devenue un mur, poche refermée : jamais de joueur bloqué (core/reprise.js)
+    const repriseSure = repriseVille ? null : reprendre(this.world, state);
     this.state = state; this._seen = null;
     revertMegas(state.party); revertMegas(state.box);
     this.stepLock = false; this.stepGap = false;
@@ -233,6 +236,11 @@ export class Game {
     this.view.update(0, this.player.x, this.player.y); await this.view.solPret?.();   // le sol généré est prêt avant d'ouvrir l'écran
     await this.ui.fade(false, 400);
     if (!state.flags.intro) { state.flags.intro = true; this.busy = true; await this.ui.say(['Une douce lumière filtre à travers les rideaux...', `Aujourd'hui, ${state.name}, ton aventure commence !`, 'Le Prof. Saule t\'attend à son laboratoire, le grand bâtiment blanc au cœur du village.', 'Appuie sur H à tout moment pour revoir les touches.']); this.busy = false; }
+    else if (repriseSure === 'carte' || repriseSure === 'poche') {
+      this.busy = true;
+      await this.ui.say(['La région a changé depuis ta dernière visite : l\'endroit où tu t\'étais arrêté n\'existe plus tel quel.', 'Tu reprends ton voyage en lieu sûr.']);
+      this.busy = false; this.save(true);
+    }
     else if (repriseVille) {
       this.busy = true;
       await this.ui.say(['La région d\'Odyssée s\'est agrandie pendant ton absence : les villes ont poussé, les routes serpentent plus loin.', `Tu reprends ton voyage au ${repriseVille.centerId ? 'Centre de soins de ' + repriseVille.name : 'calme de ta maison'}.`]);
