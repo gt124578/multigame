@@ -378,6 +378,8 @@ function fenetresInterieur(m, decoAt) {
   }
   return out;
 }
+/** teinte du ciel selon la météo (multiplie la teinte de l'heure, en lumière linéaire) */
+const METEO_TEINTE = { rain: [0.48, 0.53, 0.68], hail: [0.62, 0.66, 0.8], sandstorm: [0.95, 0.72, 0.46], ash: [0.72, 0.68, 0.64] };
 const VOISINS_AUTOMNE = [[-4, 0], [4, 0], [0, -4], [0, 4], [-2, -2], [2, -2], [-2, 2], [2, 2], [-2, 0], [2, 0], [0, -2], [0, 2]];
 /** accumulateur de géométrie (quads indexés) */
 class Geo {
@@ -535,7 +537,7 @@ export class WorldView {
     this.focus = new THREE.Vector3(); this.shake = 0;
     this.actors = new Map();
     this.root = null;
-    try { this.weather = new WeatherSystem(this.scene, this.renderer.domElement); } catch (e) { this.weather = null; }
+    try { this.weather = new WeatherSystem(this.scene, this.renderer.domElement, SPRITE_UNIFORMS); } catch (e) { this.weather = null; }
   }
 
   resize(w, h) {
@@ -1554,6 +1556,9 @@ export class WorldView {
     let k = indoorOrCave ? (this.map?.floor === 'cave' ? [0.82, 0.8, 0.86] : [1, 1, 1]) : this.eclipse ? [0.3, 0.17, 0.44] : c;
     // sous les frondaisons : plus sombre, un peu plus vert
     if (!indoorOrCave && this.ombre < 0.999) { const o = this.ombre; k = [k[0] * o * 0.94, k[1] * Math.min(1, o * 1.06), k[2] * o * 0.92]; }
+    // ciel couvert : la pluie et la grêle assombrissent et bleuissent, le sable jaunit, la cendre grise (lumière linéaire)
+    const ciel = indoorOrCave ? null : METEO_TEINTE[this.weather?.current];
+    if (ciel) k = k.map((v, i) => v * ciel[i]);
     this.tint.setRGB(k[0], k[1], k[2]);
     for (const m of this.tinted) { const base = m.userData.base; if (m.userData.vitre && !indoorOrCave && this.night > 0.5) m.color.setRGB(...VITRE_NUIT); else if (base) m.color.copy(base).multiply(this.tint); else m.color.copy(this.tint); }
     if (this.nightGroup) this.nightGroup.visible = !indoorOrCave && this.night > 0.5;
@@ -1618,9 +1623,10 @@ export class WorldView {
     this.camera.position.set(this.focus.x, this.focus.y + d * Math.sin(EL), this.focus.z + d * Math.cos(EL));
     if (this.shake > 0) { this.camera.position.x += (Math.random() - 0.5) * this.shake; this.camera.position.y += (Math.random() - 0.5) * this.shake; this.shake *= 0.85; if (this.shake < 0.01) this.shake = 0; }
     this.camera.lookAt(this.focus.x, this.focus.y, this.focus.z);
+    if (this.weather) this.weather.sol = this.focus.y + 0.02;   // les gouttes éclaboussent le sol où l'on marche
     this.weather?.update(dt, this.focus.x, this.focus.z);
     this.ambiance.maj(dt, fx, fy);
   }
-  setWeather(w) { this.weather?.setWeather(w); }
+  setWeather(w) { const a = this.weather?.current; this.weather?.setWeather(w); if (this.weather && this.weather.current !== a && this.tintBase) this.applyTint(this.tintBase); }
   render() { this.renderer.render(this.scene, this.camera); }
 }
