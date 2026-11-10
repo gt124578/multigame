@@ -132,6 +132,62 @@ export async function pcScreen(game) {
       }
       game.save(true);
     });
+    const sortBox = (boxIdx, criterion) => {
+      if (inHand && inHand.from === 'grid' && inHand.box === boxIdx) {
+        ui.sound.sfx('bump');
+        return;
+      }
+      const monsInBox = st.box.filter((m) => m && m.box === boxIdx);
+      if (monsInBox.length <= 1) {
+        ui.sound.sfx('blip');
+        return;
+      }
+      monsInBox.sort((a, b) => {
+        const sa = SPECIES[a.sp] || {};
+        const sb = SPECIES[b.sp] || {};
+        const numA = Number(a.sp) || 9999;
+        const numB = Number(b.sp) || 9999;
+        const nameA = a.nick || sa.n || String(a.sp);
+        const nameB = b.nick || sb.n || String(b.sp);
+        const lvlA = a.lvl || 1;
+        const lvlB = b.lvl || 1;
+        const typeA = (sa.t && sa.t[0]) || '';
+        const typeB = (sb.t && sb.t[0]) || '';
+
+        if (criterion === 'dex') {
+          if (numA !== numB) return numA - numB;
+          if (lvlB !== lvlA) return lvlB - lvlA;
+          return nameA.localeCompare(nameB, 'fr');
+        } else if (criterion === 'lvl') {
+          if (lvlB !== lvlA) return lvlB - lvlA;
+          if (numA !== numB) return numA - numB;
+          return nameA.localeCompare(nameB, 'fr');
+        } else if (criterion === 'name') {
+          const cmp = nameA.localeCompare(nameB, 'fr');
+          if (cmp !== 0) return cmp;
+          return lvlB - lvlA;
+        } else if (criterion === 'type') {
+          const cmp = typeA.localeCompare(typeB, 'fr');
+          if (cmp !== 0) return cmp;
+          if (numA !== numB) return numA - numB;
+          return lvlB - lvlA;
+        }
+        return 0;
+      });
+
+      monsInBox.forEach((m, idx) => {
+        m.slot = idx;
+      });
+      st.box.sort((a, b) => ((a?.box ?? 0) * 100 + (a?.slot ?? 0)) - ((b?.box ?? 0) * 100 + (b?.slot ?? 0)));
+
+      if (selArea === 'grid' && selSlot >= monsInBox.length) {
+        selSlot = Math.min(selSlot, Math.max(0, monsInBox.length - 1));
+      }
+
+      game.save(true);
+      ui.sound.sfx('select');
+      draw();
+    };
 
     const doDropOrSwap = (targetArea, targetSlot) => {
       if (!inHand) return;
@@ -333,6 +389,13 @@ export async function pcScreen(game) {
               </div>
               <button type="button" class="pc-box-arrow next" data-act="next-box" title="Boîte suivante (▶)">▶</button>
             </div>
+            <div class="pc-sort-bar">
+              <span class="pc-sort-lbl">Trier :</span>
+              <button type="button" class="pc-sort-btn" data-sort="dex" title="Trier par numéro de Pokédex">N° Dex</button>
+              <button type="button" class="pc-sort-btn" data-sort="lvl" title="Trier par niveau décroissant">Niveau</button>
+              <button type="button" class="pc-sort-btn" data-sort="name" title="Trier par ordre alphabétique">Nom</button>
+              <button type="button" class="pc-sort-btn" data-sort="type" title="Trier par type principal">Type</button>
+            </div>
             <div class="pc-grid">
               ${[...Array(30).keys()].map((sIdx) => {
                 const pm = getMonAt('grid', sIdx);
@@ -384,6 +447,12 @@ export async function pcScreen(game) {
         curBox = (curBox + 1) % 8;
         ui.sound.sfx('blip');
         draw();
+      });
+      s.querySelectorAll('[data-sort]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          if (busy) return;
+          sortBox(curBox, btn.dataset.sort);
+        });
       });
 
       s.querySelectorAll('.pc-cell').forEach((cell) => {

@@ -90,7 +90,7 @@ const WS_SERVER_URL = "wss://duo-drift-relay.onrender.com";
         if (w) { w.onclose = w.onmessage = w.onopen = null; try { w.close(); } catch (e) {} }
         this.ws = null; this.up = false; this.established = false; this.opened = false; this.dead = false;
         this.lostAt = 0; this.downs = 0; this.wasDown = false; this.signaled = false;
-        this.sid = null; this.skey = null; this.rseq = 0; this.ackSent = 0; this.cseq = 0; this.outbox = []; this.rejoinUntil = 0;
+        this.sid = null; this.skey = null; this.rseq = 0; this.ackSent = 0; this.cseq = 0; this.outbox = []; this.rejoinUntil = 0; this.placeLost = false;
       },
       // fixedCode : code imposé (migration d'hôte) ; sinon un code au hasard
       host(cb, fixedCode) {
@@ -156,6 +156,7 @@ const WS_SERVER_URL = "wss://duo-drift-relay.onrender.com";
           this.signaled = true;
           this._startKeepAlive(ws);
           if (this.sid) this._raw({ type: 'resume', sid: this.sid, key: this.skey, ack: this.rseq });
+          else if (this.placeLost) { this.placeLost = false; this._lost('expired'); } // hôte dont la file a débordé (_overflow)
           else this._joinRoom();
         };
         ws.onmessage = (ev) => { if (gen === this.gen) { this.lastIn = performance.now(); this._onMsg(ev.data); } };
@@ -262,7 +263,9 @@ const WS_SERVER_URL = "wss://duo-drift-relay.onrender.com";
             if (this.role === 'host' && msg.cid && this.cb.away) this.cb.away(msg.cid, msg.type === 'peer_away');
             return;
           case 'peer_left': if (this.role === 'host' && msg.cid) this._drop(msg.cid); return;
-          case 'relay': if (msg.data) { if (this.role === 'host') this._hostData(msg.from, msg.data); else this._guestData(msg.data); } return;
+          // un invité n'écoute que l'hôte : le relais marque ses messages from 'host', ce qu'aucun autre joueur ne peut
+          // imiter (sinon un client modifié enverrait aux autres de faux départs, de fausses parties ou de faux renvois)
+          case 'relay': if (msg.data) { if (this.role === 'host') this._hostData(msg.from, msg.data); else if (msg.from === 'host') this._guestData(msg.data); } return;
         }
       },
       _onError(msg) {
@@ -274,7 +277,8 @@ const WS_SERVER_URL = "wss://duo-drift-relay.onrender.com";
               return;
             }
             if (this.established) {
-              // L'hôte tente de reprendre son salon après une micro-coupure : le serveur garde encore l'ancienne socket dans sa période de grâce
+              // L'hôte rouvre son code alors que le relais lui garde encore l'ancienne place, qu'il ne peut pas reprendre
+              // (par exemple file d'envoi débordée, et personne pour reprendre le salon) : on réessaie jusqu'à ce qu'elle expire
               if (!this.rejoinUntil) this.rejoinUntil = Date.now() + 25000;
               if (Date.now() < this.rejoinUntil) {
                 this.retryTo = setTimeout(() => this._joinRoom(), 1200);
@@ -294,6 +298,15 @@ const WS_SERVER_URL = "wss://duo-drift-relay.onrender.com";
         const full = `Le salon est complet (${maxPeers + 1} joueurs max).`;
         if (this.opened) { this._closed(); return; }
         this._fail(msg.reason === 'room-not-found' ? "Aucun salon avec ce code. Vérifie-le avec ton pote." : msg.reason === 'room-full' ? full : msg.message || 'Erreur de connexion.');
+      },
+      // Trop de messages en attente d'accusé de réception (OUTBOX_MAX) : on ne pourra plus renvoyer ce qui manque, on
+      // renonce à reprendre la place et on rentrera à neuf. L'hôte ne peut pas pour autant rouvrir son code : le relais
+      // lui garde l'ancienne place jusqu'à la fin de la coupure, puis annonce son départ, et les invités partent chez le
+      // successeur. À sa reconnexion, il fait donc comme si sa place avait expiré (cb.lost) : il les suit, ou rouvre son
+      // code si personne d'autre n'est là pour reprendre le salon (avant, il le rouvrait toujours : deux parties).
+      _overflow() {
+        this.sid = null; this.outbox = [];
+        if (this.role === 'host') this.placeLost = true;
       },
       // Le serveur ne nous a pas gardé notre place (redémarrage, ou coupure trop longue)
       _lost(reason) {
@@ -373,7 +386,7 @@ const WS_SERVER_URL = "wss://duo-drift-relay.onrender.com";
             if (h.c) {
               // gardé jusqu'à l'accusé de réception ; pendant une coupure, il partira à la reprise
               this.outbox.push([h.c, f]);
-              if (this.outbox.length > OUTBOX_MAX) { this.sid = null; this.outbox = []; } // trop de retard : on rentrera à neuf
+              if (this.outbox.length > OUTBOX_MAX) this._overflow();
             }
             if (open) ws.send(f);
           } else if (open) ws.send(JSON.stringify({ type: 'relay', roomId: this.roomId, to: to === 'all' ? undefined : to, except: except || undefined, v: v ? 1 : undefined, data }));

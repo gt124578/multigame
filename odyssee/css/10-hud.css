@@ -70,6 +70,16 @@
   background: rgba(10, 16, 28, .68); border: calc(var(--px) * .7) solid rgba(255, 210, 88, .55);
   border-radius: calc(var(--px) * 2.5); padding: calc(var(--px) * .5) calc(var(--px) * 2.5); white-space: nowrap;
 }
+.hud-route-catch-pill {
+  font-size: calc(var(--px) * 5.6); font-weight: 700; color: #a5f3fc;
+  background: rgba(8, 28, 44, .78); border: calc(var(--px) * .7) solid rgba(56, 189, 248, .55);
+  border-radius: calc(var(--px) * 2.5); padding: calc(var(--px) * .5) calc(var(--px) * 2.2); white-space: nowrap;
+  cursor: pointer; transition: transform .1s ease, filter .1s ease;
+}
+.hud-route-catch-pill:hover { filter: brightness(1.18); transform: scale(1.04); }
+.hud-route-catch-pill.done {
+  color: #bbf7d0; background: rgba(12, 42, 24, .82); border-color: rgba(74, 222, 128, .65);
+}
 .hud-bdots-row { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--px) * 1.5); padding: calc(var(--px) * 1.2) calc(var(--px) * 2.5);
   background: rgba(10, 16, 28, .55); border-radius: calc(var(--px) * 3); border: calc(var(--px) * .6) solid rgba(160, 192, 232, .22); cursor: pointer; }
 .hud-bdot { width: calc(var(--px) * 4.2); height: calc(var(--px) * 4.2); border-radius: 50%; background: rgba(255,255,255,.16); border: calc(var(--px) * .7) solid #0c121e; display: inline-block; }
@@ -100,3 +110,254 @@
 }
 .hud-btn.save { box-shadow: inset 0 0 0 calc(var(--px) * 1) #98e4b0, 0 calc(var(--px) * 1.5) 0 rgba(0,0,0,.45); background: linear-gradient(180deg, #285c42 0%, #183c2a 100%); }
 .hud-btn.off { opacity: .45; cursor: default; transform: none; filter: grayscale(.6); }
+
+/* Panneau d'orientation automatique / Carrefour */
+.hud-road-sign {
+  position: absolute;
+  top: calc(var(--px) * 6);
+  left: 50%;
+  transform: translateX(-50%) translateY(calc(var(--px) * -20));
+  opacity: 0;
+  pointer-events: none;
+  z-index: 15;
+  background: rgba(14, 20, 32, 0.94);
+  border: calc(var(--px) * 1) solid #4a6288;
+  border-radius: calc(var(--px) * 12);
+  padding: calc(var(--px) * 1.5) calc(var(--px) * 5);
+  display: flex;
+  align-items: center;
+  gap: calc(var(--px) * 2.5);
+  box-shadow: 0 calc(var(--px) * 2) calc(var(--px) * 8) rgba(0, 0, 0, 0.6), 0 0 calc(var(--px) * 6) rgba(74, 98, 136, 0.4);
+  transition: transform 0.28s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.25s ease;
+  max-width: 90vw;
+  white-space: nowrap;
+}
+.hud-road-sign.in {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+.hud-road-sign .road-sign-icon {
+  font-size: calc(var(--px) * 6);
+  filter: drop-shadow(0 0 calc(var(--px) * 2) #ffd858);
+}
+.hud-road-sign .road-sign-text {
+  font-size: calc(var(--px) * 5.2);
+  font-weight: 700;
+  color: #eaf0fa;
+  letter-spacing: 0.3px;
+  text-shadow: 0 calc(var(--px) * 0.8) 0 #000;
+}
+#ui:has(> .screen, > .wipe, > .battle-wipe, > .door-iris.on, > .battle, > .title-scr, > .intro-scr, > .list, > .dlg, > .keypanel.on, > .starter-select-modal) .hud-road-sign {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+
+/* ==========================================================================
+   PRO ENHANCEMENTS: Quick-Item, Habitat DexNav & Chat Button
+   ========================================================================== */
+
+/* 1. Quick-Item Slot */
+.hud-quick-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(180deg, #2b3b50 0%, #151e2a 100%);
+  border: 1.5px solid #ffcc00;
+  border-radius: 6px;
+  padding: 2px 7px 2px 5px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 8px rgba(255, 204, 0, 0.3);
+  transition: transform 0.1s ease, filter 0.15s ease;
+  user-select: none;
+}
+.hud-quick-item:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 12px rgba(255, 204, 0, 0.5);
+}
+.hud-quick-item:active {
+  transform: translateY(1px);
+}
+.hqi-key {
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  background: #ffcc00;
+  color: #1a1500;
+  border-radius: 3px;
+  padding: 1px 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.hqi-ico {
+  width: 18px;
+  height: 18px;
+  image-rendering: pixelated;
+  object-fit: contain;
+}
+.hqi-lbl {
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff4c0;
+  letter-spacing: 0.02em;
+}
+
+/* 2. Habitat DexNav Bar */
+.hud-dexnav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(14, 22, 34, 0.92);
+  border: 1.5px solid #00f0ff;
+  border-radius: 7px;
+  padding: 4px 7px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(4px);
+  max-width: 280px;
+}
+.hud-dexnav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.hdn-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #00f0ff;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.hdn-cnt {
+  font-size: 11px;
+  font-weight: 900;
+  background: #1c2a3c;
+  color: #e0f4ff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #355070;
+}
+.hdn-cnt.done {
+  background: linear-gradient(180deg, #d4a010 0%, #8c6400 100%);
+  color: #ffffff;
+  border-color: #ffd700;
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+}
+.hud-dexnav-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding-top: 3px;
+  border-top: 1px solid rgba(0, 240, 255, 0.2);
+}
+.hdn-slot {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: #121c28;
+  border: 1px solid #283a50;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.hdn-slot.caught {
+  border-color: #34d870;
+  background: linear-gradient(180deg, #153522 0%, #0d2215 100%);
+}
+.hdn-slot.seen {
+  border-color: #f0a020;
+  background: #252018;
+}
+.hdn-slot.unk {
+  border-color: #202b3a;
+  background: #0d141e;
+}
+.hdn-ico {
+  width: 20px;
+  height: 20px;
+  image-rendering: pixelated;
+  object-fit: contain;
+}
+.seen-ico {
+  filter: brightness(0.2) contrast(1.5) sepia(1) hue-rotate(20deg);
+  opacity: 0.8;
+}
+.hdn-check {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  font-size: 8px;
+  color: #38ff84;
+  text-shadow: 0 0 2px #000;
+  font-weight: 900;
+}
+.hdn-q {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  font-weight: 900;
+  color: #ffb830;
+  text-shadow: 0 1px 2px #000;
+}
+.hdn-q-unk {
+  font-size: 11px;
+  font-weight: 900;
+  color: #3b4d66;
+}
+
+/* 3. Chat Button in HUD */
+.hud-chat-btn img {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+.hud-dexnav.town {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(16, 24, 36, 0.82);
+}
+.hud-dexnav.town .hdn-title {
+  color: #a0c0e0;
+}
+.hdn-cnt.town {
+  font-size: 10px;
+  font-weight: 600;
+  color: #98b4d0;
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.hud-dexnav.min .hud-dexnav-row {
+  display: none !important;
+}
+.hud-dexnav-row {
+  max-height: 120px;
+  overflow-y: auto;
+}
+.hud-dexnav-row::-webkit-scrollbar {
+  width: 4px;
+}
+.hud-dexnav-row::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.4);
+  border-radius: 2px;
+}
+.hdn-slot {
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.1s ease;
+}
+.hdn-slot:hover {
+  transform: scale(1.15);
+  z-index: 2;
+  border-color: #00f0ff;
+}
+
+/* bouton pour retirer complètement la barre Habitat (réactivable dans Options) */
+.hdn-close { margin-left: 4px; padding: 0 5px; border: 0; border-radius: 4px; background: rgba(0,0,0,.25); color: #fff; font: inherit; font-size: 10px; line-height: 16px; cursor: pointer; pointer-events: auto; opacity: .7; }
+.hdn-close:hover { opacity: 1; background: #c0392b; }
+

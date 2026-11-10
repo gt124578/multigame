@@ -2,14 +2,26 @@ Textures de The Backrooms. Toutes sont dans le domaine public (CC0 1.0,
 https://creativecommons.org/publicdomain/zero/1.0/) : utilisation libre, même commerciale, sans obligation de citer.
 On les cite quand même, avec plaisir.
 
-Poly Haven (https://polyhaven.com), réduites en 512 px puis recolorées et mélangées aux motifs dessinés dans
+Poly Haven (https://polyhaven.com), réduites en 1024 px (depuis la 2K) puis recolorées et mélangées aux motifs dessinés dans
 backrooms/view/textures.js :
-  moquette.jpg  Dirty Carpet        https://polyhaven.com/a/dirty_carpet
   papier.jpg    Decrepit Wallpaper  https://polyhaven.com/a/decrepit_wallpaper
   plafond.jpg   Ceiling Interior    https://polyhaven.com/a/ceiling_interior
   l1_mur.jpg    Concrete Wall 004   https://polyhaven.com/a/concrete_wall_004  (Level 1 : parpaings peints)
   l1_sol.jpg    Concrete Floor Worn 001  https://polyhaven.com/a/concrete_floor_worn_001  (Level 1 : dalle usée)
   l1_plafond.jpg  Concrete Wall 006  https://polyhaven.com/a/concrete_wall_006  (Level 1 : dalle brute)
+  porte_metal.jpg  Blue Metal Plate  https://polyhaven.com/a/blue_metal_plate  (porte coupe-feu, repeinte)
+  tole_larmee.jpg  Metal Plate       https://polyhaven.com/a/metal_plate  (tôle larmée du sol de l'ascenseur)
+  l2_brique.jpg (+ _relief)  Red Brick 03  https://polyhaven.com/a/red_brick_03  (Level 2 : brique des réserves, couleur et profondeur)
+  l2_brique_peinte.jpg (+ _relief)  Painted Worn Brick  https://polyhaven.com/a/painted_worn_brick  (Level 2 : chaufferies)
 
 Les objets abandonnés et ceux fixés aux murs viennent de Poly Haven (CC0) : voir backrooms/models/LICENSE.txt.
 Le souffle du joueur : voir backrooms/sfx/LICENSE.txt.
+
+Level 0 : ambientCG (https://ambientcg.com), domaine public (CC0 1.0), en 1024 px :
+  moquette_rase.jpg  Carpet011  https://ambientcg.com/view?id=Carpet011  (moquette rase, en niveaux de gris : sa couleur assombrie par ses cartes d’occlusion et de relief pour creuser les poils, grandes taches retirées pour que la répétition ne se voie pas ; seul son grain sert, recoloré)
+
+Level 37 (les Poolrooms) : ambientCG (https://ambientcg.com), domaine public (CC0 1.0), en 1024 px :
+  l37_mur.jpg     Tiles133A  https://ambientcg.com/view?id=Tiles133A  (petits carreaux blancs des murs)
+  l37_sol.jpg     Tiles107   https://ambientcg.com/view?id=Tiles107   (grands carreaux blancs des sols)
+  l37_bassin.jpg  Tiles132A  https://ambientcg.com/view?id=Tiles132A  (carreaux cyan des bassins)
+  l37_fosse.jpg   Tiles135A  https://ambientcg.com/view?id=Tiles135A  (carreaux bleu profond)

@@ -2,7 +2,7 @@
    le jeu choisi et l'état « prêt » de chaque joueur dans ce jeu ; il relaie les messages des jeux.
 
    Protocole (champ t) :
-     invité → hôte : hello {name,color,lvl,uid,fid,sid,prevId} · me {name,lvl,fid} · chat {txt} · ready {game} · g {to,m} · ping · bye
+     invité → hôte : hello {name,color,lvl,uid,fid,sid,prevId,ver} · me {name,lvl,fid} · chat {txt} · ready {game} · g {to,m} · ping · bye
      hôte → invité : welcome {id} · lobby {players,game,ready,code,host} · chat {...} · g {from,m} · pong · full · bye
    `g` transporte les messages d'un jeu ; le Hub ne les lit pas. `to` vaut un id de joueur, 'host' ou 'all'.
    `v` (volatil) : instantané d'état continu ; sauté si la connexion sature, et à l'arrivée seul le plus récent
@@ -18,6 +18,7 @@
   const PREFIX = 'ddhub-v1-';
   const PALETTE = ['#ff4b2b', '#2b8cff', '#ffc531', '#2fbf71', '#b45cff', '#ff5fa2', '#1fc7c1', '#ff8a1f'];
   const clean = (s, n) => String(s || '').replace(/[<>&"]/g, '').trim().slice(0, n);
+  const cleanVer = (v) => (/^\d{1,3}\.\d{1,4}$/.test(String(v || '')) ? String(v) : '');
   const cleanName = (s) => clean(s, 12) || 'Joueur';
   const cleanUid = (s) => (/^[a-z0-9]{6,16}$/.test(String(s)) ? String(s) : null);
   const cleanFid = (s) => (/^[A-Z2-9]{8}$/.test(String(s)) ? String(s) : undefined); // code ami (hub/friends.js)
@@ -89,8 +90,12 @@
       if (!m || typeof m !== 'object') return;
       R.lastRecvC[cid] = performance.now();
       let p = R.players.find((q) => q.cid === cid);
+      // Un invité qui a perdu sa place sur le relais revient sous une nouvelle connexion, et ses premiers messages (jeu,
+      // ping) arrivent avant son hello : son numéro (fromId) suffit à le retrouver, mais seulement si sa place est libre.
+      // Une place encore tenue par une connexion ne se reprend que par hello, avec l'identifiant de la page (sid) : sinon
+      // un client modifié prendrait la place d'un autre joueur sans dire bonjour, et recevrait ce qui n'est destiné qu'à lui.
       if (!p && Number.isInteger(m.fromId) && m.fromId !== R.hostId) {
-        const byId = R.players.find((q) => q.id === m.fromId);
+        const byId = R.players.find((q) => q.id === m.fromId && !q.cid);
         if (byId) { byId.cid = cid; p = byId; }
       }
       switch (m.t) {
@@ -105,6 +110,7 @@
             if (sid) sids[existing.id] = sid;
             existing.name = cleanName(m.name);
             if (cleanFid(m.fid)) existing.fid = cleanFid(m.fid);
+            if (cleanVer(m.ver)) existing.ver = cleanVer(m.ver);
             if (m.ready) R.ready[existing.id] = m.ready;
             net.to(cid, { t: 'welcome', id: existing.id, chat: R.chat.slice(-20) });
             changed();
@@ -126,6 +132,7 @@
           const color = PALETTE.includes(m.color) && !usedC.has(m.color) ? m.color : PALETTE.find((c) => !usedC.has(c));
           const np = { id, cid, name: cleanName(m.name), color, lvl: Math.max(1, Math.min(99, m.lvl | 0)), uid: uid || 'g' + Math.random().toString(36).slice(2, 10) };
           if (cleanFid(m.fid)) np.fid = cleanFid(m.fid);
+          if (cleanVer(m.ver)) np.ver = cleanVer(m.ver); // la version de son Hub : le salon voit qui est en retard
           if (sid) sids[id] = sid;
           R.players.push(np);
           if (m.ready) R.ready[id] = m.ready;
@@ -191,17 +198,16 @@ removePlayer(R.players[i]);
       for (const q of R.players) if (q.id !== R.myId) { q.cid = null; q.away = true; lostAt[q.id] = now; }
       changed();
     }
-    // Notre place d'hôte a expiré (coupure trop longue) : les autres ont déjà migré vers un nouvel hôte, on les y rejoint
+    // Le relais n'a pas gardé notre place d'hôte (cb.lost de DDNet). 'expired' : la coupure a duré plus longtemps que la
+    // place gardée, le relais a déjà annoncé notre départ et les invités présents passent chez le successeur. On les y
+    // rejoint tout de suite, partie en cours ou non : rouvrir l'ancien code nous laisserait seuls avec une seconde partie.
+    // Autre raison (relais redémarré, qui a oublié toutes les places), ou personne de présent pour reprendre le salon
+    // (les autres sont eux aussi coupés et reviendront à l'ancien code) : on rouvre le même code (false).
     function onHostLost(reason) {
-      const others = R.players.filter((q) => q.id !== R.myId).map((q) => q.id).sort((a, b) => a - b);
-      if (reason !== 'expired' || !others.length) return false;
-      // Si une partie est en cours, ne pas abandonner le rôle d'hôte immédiatement sur un hoquet réseau
-      if (R.game && R.isHost && (!R.lostHostAt || Date.now() - R.lostHostAt < 20000)) {
-        if (!R.lostHostAt) R.lostHostAt = Date.now();
-        return false;
-      }
-      R.lostHostAt = 0;
-      const succ = others[0], succName = (R.players.find((q) => q.id === succ) || {}).name || '?';
+      if (reason !== 'expired') return false;
+      const succ = successorOf(R.myId, true);
+      if (succ == null) return false;
+      const succName = (R.players.find((q) => q.id === succ) || {}).name || '?';
       const me = R.me || { name: 'Joueur', color: PALETTE[0], lvl: 1 };
       migrating = true;
       emit('migrating', { to: succ, name: succName, me: false });
@@ -214,7 +220,7 @@ removePlayer(R.players[i]);
       ready, error, join(cid) { R.lastRecvC[cid] = performance.now(); },
       msg: onHostMsg, leave: onHostLeave, away: onHostAway, reset: onHostReset, lost: onHostLost, status: netStatus,
     });
-    const hello = (me, extra) => net.toHost({ t: 'hello', name: me.name, color: me.color, lvl: me.lvl, uid: me.uid, fid: me.fid, sid: SID,
+    const hello = (me, extra) => net.toHost({ t: 'hello', name: me.name, color: me.color, lvl: me.lvl, uid: me.uid, fid: me.fid, ver: me.ver, sid: SID,
       prevId: R.myId >= 0 ? R.myId : undefined, ready: myReady || undefined, ...extra });
 
     /* ---------- invité ---------- */
@@ -272,9 +278,22 @@ removePlayer(R.players[i]);
     }
 
     /* ---------- migration d'hôte ----------
-       Si l'hôte disparaît, le joueur restant au plus petit numéro devient hôte, sous un nouveau code
+       Si l'hôte disparaît, l'un des joueurs restants devient hôte (successorOf), sous un nouveau code
        que tout le monde peut calculer ; les autres s'y reconnectent en gardant leur numéro. */
     let myReady = null, migrating = false;
+    // Le successeur de l'hôte oldHost : un joueur présent (un joueur en coupure ne rouvrirait pas le salon et tout le
+    // monde l'attendrait pour rien), de préférence l'un de ceux qui ont la partie en cours ouverte (un successeur resté
+    // au salon laisserait les autres sans personne pour faire tourner la partie), puis le plus petit numéro.
+    // Chacun fait ce calcul sur le même état, la dernière liste diffusée par l'hôte (l'hôte sur la sienne) : tout le
+    // monde désigne le même joueur. Personne de présent : le plus petit numéro, ou null si strict.
+    function successorOf(oldHost, strict) {
+      const others = R.players.filter((p) => p.id !== oldHost);
+      const here = others.filter((p) => !p.away);
+      const game = R.game && R.game.id;
+      const inGame = game ? here.filter((p) => R.ready[p.id] === game) : [];
+      const pool = inGame.length ? inGame : (here.length || strict) ? here : others;
+      return pool.length ? Math.min(...pool.map((p) => p.id)) : null;
+    }
     const CODE_ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
     function deriveCode(code, id) {
       let h = 2166136261;
@@ -285,15 +304,15 @@ removePlayer(R.players[i]);
     function migrate(reason) {
       if (R.mode !== 'guest' || migrating) return;
       const oldHost = R.hostId;
-      const cands = R.players.filter((p) => p.id !== oldHost).map((p) => p.id).sort((a, b) => a - b);
+      const succ = successorOf(oldHost);
       if (window.DDLogger) {
         window.DDLogger.logExpulsion('EXP_HOST_MIGRATION_RESET', `Départ de l'hôte (#${oldHost}) dans le salon ${R.code || ''} : ${reason}`, {
           game: R.game ? R.game.id : 'hub', roomCode: R.code,
         });
       }
-      if (!cands.length || R.myId < 0) { emit('closed', reason); return; }
+      if (succ == null || R.myId < 0) { emit('closed', reason); return; }
       migrating = true;
-      const succ = cands[0], succName = (R.players.find((p) => p.id === succ) || {}).name || '?';
+      const succName = (R.players.find((p) => p.id === succ) || {}).name || '?';
       const code2 = deriveCode(R.code, succ);
       const me = R.me || { name: 'Joueur', color: PALETTE[0], lvl: 1 };
       emit('migrating', { to: succ, name: succName, me: succ === R.myId });
@@ -307,7 +326,7 @@ removePlayer(R.players[i]);
       R.mode = 'host'; R.hostId = R.myId; R.lastRecvC = {}; R.pings = {}; R.hostAway = false; // l'hôte, c'est nous désormais
       for (const k in sids) delete sids[k];
       for (const k in lostAt) delete lostAt[k];
-      R.players = [{ id: R.myId, name: cleanName(me.name), color: me.color, lvl: me.lvl | 0 || 1, uid: me.uid, fid: cleanFid(me.fid) }];
+      R.players = [{ id: R.myId, name: cleanName(me.name), color: me.color, lvl: me.lvl | 0 || 1, uid: me.uid, fid: cleanFid(me.fid), ver: cleanVer(me.ver) || undefined }];
       R.ready = myReady ? { [R.myId]: myReady } : {};
       let tries = 0;
       const go = () => net.host(hostCallbacks(
@@ -334,7 +353,7 @@ removePlayer(R.players[i]);
     /* ---------- API ---------- */
     Object.assign(R, {
       host(me) {
-        R.mode = 'host'; R.myId = 0; R.hostId = 0; R.hostAway = false; R.players = [{ id: 0, name: cleanName(me.name), color: me.color, lvl: me.lvl | 0 || 1, uid: me.uid, fid: cleanFid(me.fid) }];
+        R.mode = 'host'; R.myId = 0; R.hostId = 0; R.hostAway = false; R.players = [{ id: 0, name: cleanName(me.name), color: me.color, lvl: me.lvl | 0 || 1, uid: me.uid, fid: cleanFid(me.fid), ver: cleanVer(me.ver) || undefined }];
         R.chat = []; R.ready = {}; R.game = null; R.code = null;
         net.host(hostCallbacks(
           (code) => { R.code = code; emit('joined', R); changed(); },
@@ -355,8 +374,17 @@ open() { R.lastRecv = performance.now(); R.hostAway = false; hello(me); },
       },
       solo(me) {
         R.mode = 'solo'; R.myId = 0; R.hostId = 0; R.code = null; R.chat = []; R.ready = {}; R.game = null;
-        R.players = [{ id: 0, name: cleanName(me.name), color: me.color, lvl: me.lvl | 0 || 1, uid: me.uid, fid: cleanFid(me.fid) }];
+        R.players = [{ id: 0, name: cleanName(me.name), color: me.color, lvl: me.lvl | 0 || 1, uid: me.uid, fid: cleanFid(me.fid), ver: cleanVer(me.ver) || undefined }];
         setTimeout(() => { emit('joined', R); emit('update', R); }, 0);
+      },
+      // le code que le salon aura quand je le quitte : le mien si je suis invité ; si je suis l'hôte, celui sous lequel
+      // mon successeur le reprendra (migration : le même choix que celui des invités) ; null si je suis seul (le salon
+      // disparaît avec moi)
+      successorCode() {
+        if (!R.code || R.mode === 'solo') return null;
+        if (!R.isHost) return R.code;
+        const succ = successorOf(R.myId);
+        return succ == null ? null : deriveCode(R.code, succ);
       },
       leave() { migrating = false; myReady = null; net.close(); R.mode = null; R.players = []; R.game = null; R.ready = {}; R.code = null; },
       updateMe(me) {

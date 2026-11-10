@@ -1,7 +1,20 @@
 // odyssee/js/ui/screens/map.js — carte de la région (C-Gear)
 import { el, esc } from '../ui.js';
 import { levelCap, GYM_CAPS } from '../../core/mon.js';
-import { BADGES, LEADERS } from '../../world/region.js';
+import { BADGES, LEADERS, SPAWNS } from '../../world/region.js';
+import { getZoneCatchStats } from '../../core/trophies.js';
+
+function findZoneSpawnKey(z) {
+  if (!z) return null;
+  if (z.spawns && SPAWNS[z.spawns]) return z.spawns;
+  if (z.route && SPAWNS[z.route]) return z.route;
+  if (z.enc) {
+    for (const [k, v] of Object.entries(SPAWNS)) {
+      if (v?.land === z.enc) return k;
+    }
+  }
+  return null;
+}
 import { ASSETS } from '../../assets.js';
 import { SPRITES } from '../../data/sprites.js';
 import { T, walkable } from '../../world/tiles.js';
@@ -30,49 +43,109 @@ function loadCarteIcons() {
 /** relief de la région, une case = un pixel (gardé en cache : la carte ne change pas) */
 function regionTerrain(game) {
   if (game._regionTerrain) return game._regionTerrain;
-  const W = game.world.maps.monde, w = W.w, h = W.h, B = 2;
-  const bw = Math.ceil(w / B), bh = Math.ceil(h / B);
-  // nature de chaque bloc de 2 × 2 cases
-  // 0 eau, 1 plaine, 2 forêt, 3 montagne, 4 pied de montagne (sol praticable des zones volcaniques et enneigées)
-  const kind = new Uint8Array(bw * bh);
-  for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++) {
-    let water = 0, walk = 0, roc = 0;
-    for (let dy = 0; dy < B; dy++) for (let dx = 0; dx < B; dx++) {
-      const t = W.get(bx * B + dx, by * B + dy);
-      if (t === T.WATER || t === T.WHIRL) water++; else if (walkable(t) || t === T.DOOR) walk++; else if (t === T.CAVEWALL) roc++;
+  // Carte illustrée façon Pokégear : la grille de cases sert de calque, puis tout est adouci
+  // (côtes arrondies, biomes en dégradés) ; montagnes, forêts et villes sont posées en icônes dessinées.
+  const W = game.world.maps.monde, w = W.w, h = W.h, N = w * h;
+  const isW = (t) => t === T.WATER || t === T.WHIRL;
+  const tile = new Uint8Array(N);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) tile[y * w + x] = W.get(x, y);
+  const TH = [], tw = Math.ceil(w / 4);
+  for (let y = 0; y < h; y += 4) for (let x = 0; x < w; x += 4) TH[(y >> 2) * tw + (x >> 2)] = W.zoneAt(x, y)?.theme || '';
+  const theme = (x, y) => TH[(y >> 2) * tw + (x >> 2)];
+  const SNOW = new Set(['snow', 'cime']), VOLC = new Set(['volcanic', 'cendre', 'forge']), SAND = new Set(['desert', 'dunes', 'mirage', 'canyon']);
+  const rock = (t) => t === T.ROCK || t === T.CAVEWALL || t === T.CLIFF;
+  const forest = (t) => t === T.TREE || t === T.PINE || t === T.CUT || t === T.BUSH;
+
+  // villes : clairière ronde aux bords irréguliers ; le reste du rectangle de la ville passe en forêt
+  const TZ = new Uint8Array(N);
+  for (const z of W.zones.filter((z) => z.town)) {
+    const cx = (z.x0 + z.x1) / 2, cy = (z.y0 + z.y1) / 2, rx = (z.x1 - z.x0) / 2, ry = (z.y1 - z.y0) / 2;
+    for (let y = Math.max(0, z.y0); y <= Math.min(h - 1, z.y1); y++) for (let x = Math.max(0, z.x0); x <= Math.min(w - 1, z.x1); x++) {
+      const a = Math.atan2(y - cy, x - cx), wob = 0.8 + 0.1 * Math.sin(a * 3 + z.x0) + 0.07 * Math.sin(a * 5 + z.y0);
+      TZ[y * w + x] = Math.hypot((x - cx) / rx, (y - cy) / ry) < wob ? 1 : 2;
     }
-    const th = W.zoneAt(bx * B, by * B)?.theme, hill = th === 'volcanic' || th === 'snow';
-    // la roche des massifs (Chaîne Céleste, mesas, canyon) est dessinée en montagne, comme les reliefs des îles
-    kind[by * bw + bx] = water >= 2 ? 0 : walk ? (hill ? 4 : 1) : hill || roc >= 2 ? 3 : 2;
   }
-  // distance de chaque bloc à la nature voisine (pour la mer : à la côte ; pour la montagne : au pied)
-  const dist = (pred) => {
-    const d = new Int16Array(bw * bh).fill(99), q = [];
-    for (let i = 0; i < d.length; i++) if (pred(kind[i])) { d[i] = 0; q.push(i); }
-    for (let k = 0; k < q.length; k++) {
-      const i = q[k], x = i % bw, y = (i / bw) | 0;
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= bw || ny >= bh) continue; const j = ny * bw + nx; if (d[j] > d[i] + 1) { d[j] = d[i] + 1; q.push(j); } }
-    }
-    return d;
-  };
-  const toLand = dist((k) => k !== 0), toFoot = dist((k) => k !== 3), toOpen = dist((k) => k === 1 || k === 4 || k === 0);
-  const c0 = document.createElement('canvas'); c0.width = w; c0.height = h;
-  const ctx = c0.getContext('2d'), img = ctx.createImageData(w, h);
-  for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++) {
-    const i = by * bw + bx, k = kind[i];
+  // 1. calques bruts : terre, couleur de fond, montagne, forêt
+  const mk = () => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  const cLand = mk(), cCol = mk(), cMnt = mk(), cFor = mk();
+  const iL = cLand.getContext('2d').createImageData(w, h), iC = cCol.getContext('2d').createImageData(w, h),
+    iM = cMnt.getContext('2d').createImageData(w, h), iF = cFor.getContext('2d').createImageData(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, t = tile[i], o = i * 4, th = theme(x, y);
+    const land = !isW(t);
+    iL.data[o + 3] = land ? 255 : 0;
+    iM.data[o + 3] = rock(t) ? 255 : 0;
+    iF.data[o + 3] = forest(t) || TZ[i] === 2 ? 255 : 0;
+    const c = SNOW.has(th) ? [228, 238, 246] : VOLC.has(th) ? [128, 104, 92] : SAND.has(th) ? (th === 'canyon' ? [214, 150, 102] : [232, 206, 146])
+      : th === 'marais' ? [110, 146, 92] : th === 'automne' ? [176, 168, 86] : th === 'ombre' ? [80, 124, 92] : [118, 190, 104];
+    iC.data[o] = c[0]; iC.data[o + 1] = c[1]; iC.data[o + 2] = c[2]; iC.data[o + 3] = 255;
+  }
+  cLand.getContext('2d').putImageData(iL, 0, 0); cCol.getContext('2d').putImageData(iC, 0, 0);
+  cMnt.getContext('2d').putImageData(iM, 0, 0); cFor.getContext('2d').putImageData(iF, 0, 0);
+  const soft = (src, r) => { const c = mk(), x = c.getContext('2d'); x.filter = `blur(${r}px)`; x.drawImage(src, 0, 0); return x.getImageData(0, 0, w, h).data; };
+  const L = soft(cLand, 12), Cc = soft(cCol, 7), M = soft(cMnt, 4), F = soft(cFor, 3);
+  const hash = (x, y) => { let n = x * 374761393 + y * 668265263; n = (n ^ (n >> 13)) * 1274126177; return ((n ^ (n >> 16)) & 255) / 255; };
+  // bruit doux (valeur interpolée) pour des bords naturels
+  const vn = (x, y, s) => { const gx = x / s, gy = y / s, x0 = Math.floor(gx), y0 = Math.floor(gy), fx = gx - x0, fy = gy - y0;
+    const a = hash(x0, y0), b = hash(x0 + 1, y0), c = hash(x0, y0 + 1), d = hash(x0 + 1, y0 + 1), u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; };
+
+  // 2. terre arrondie (seuil du flou + un peu de bruit), distances à la côte
+  const land = new Uint8Array(N);
+  for (let i = 0; i < N; i++) { const x = i % w, y = (i / w) | 0; land[i] = L[i * 4 + 3] / 255 + (vn(x, y, 40) - 0.5) * 0.7 + (vn(x, y, 11) - 0.5) * 0.3 > 0.5 ? 1 : 0; }
+  const bfs = (pred) => { const d = new Int16Array(N).fill(60), q = []; for (let i = 0; i < N; i++) if (pred(i)) { d[i] = 0; q.push(i); }
+    for (let k = 0; k < q.length; k++) { const i = q[k], x = i % w; if (d[i] >= 59) continue; for (const j of [x + 1 < w ? i + 1 : -1, x > 0 ? i - 1 : -1, i + w < N ? i + w : -1, i - w]) if (j >= 0 && d[j] > d[i] + 1) { d[j] = d[i] + 1; q.push(j); } }
+    return d; };
+  const toSea = bfs((i) => !land[i]), toLand = bfs((i) => land[i]);
+
+  // 3. relief doux pour l'ombrage
+  const Hh = new Float32Array(N);
+  for (let i = 0; i < N; i++) Hh[i] = land[i] ? Math.min(toSea[i], 20) * 0.08 + M[i * 4 + 3] / 255 * 3 + F[i * 4 + 3] / 255 * 0.5 + vn(i % w, (i / w) | 0, 14) * 0.6 : 0;
+
+  // 4. peinture
+  const c0 = mk(), ctx = c0.getContext('2d'), img = ctx.createImageData(w, h), D = img.data;
+  const mix = (a, b, f) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, o = i * 4;
     let c;
-    if (k === 0) c = toLand[i] <= 1 ? HG.deep : toLand[i] <= 3 ? HG.far : (bx + by * 3) % 11 === 0 ? HG.foam : HG.open;
-    else if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => bx + dx >= 0 && by + dy >= 0 && bx + dx < bw && by + dy < bh && kind[(by + dy) * bw + bx + dx] === 0)) c = HG.cliff;
-    else if (k === 3) { const d = toFoot[i]; c = d <= 1 ? HG.low : d <= 2 ? HG.high : d <= 4 ? HG.vhigh : HG.top; }
-    else if (k === 4) c = HG.low;
-    else c = k === 2 && toOpen[i] >= 2 ? HG.shadow : HG.flat;
-    for (let dy = 0; dy < B; dy++) for (let dx = 0; dx < B; dx++) {
-      const x = bx * B + dx, y = by * B + dy; if (x >= w || y >= h) continue;
-      const o = (y * w + x) * 4; img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
+    if (!land[i]) {
+      const d = toLand[i];
+      c = mix([110, 198, 214], [26, 72, 128], Math.sqrt(Math.min(d, 26) / 26));
+      if (d === 1 || d === 2) c = mix(c, [226, 246, 248], d === 1 ? 0.55 : 0.2);          // écume le long du rivage
+      if (d > 4 && vn(x, y * 3, 5) > 0.82) c = mix(c, [150, 210, 232], 0.25);              // vaguelettes
+    } else {
+      const th = theme(x, y);
+      c = [Cc[o], Cc[o + 1], Cc[o + 2]];
+      const f = F[o + 3] / 255, m = M[o + 3] / 255;
+      if (f > 0.15) c = mix(c, [c[0] * 0.55, c[1] * 0.72, c[2] * 0.6], Math.min(1, f * 1.3));       // sous-bois
+      if (m > 0.2) c = mix(c, SNOW.has(th) ? [240, 244, 250] : VOLC.has(th) ? [92, 74, 68] : [176, 150, 120], Math.min(1, m * 1.2));
+      if (toSea[i] <= 2) c = mix(c, SNOW.has(th) ? [236, 240, 244] : [238, 222, 172], toSea[i] === 1 ? 0.9 : 0.5);   // plage
+      const sh = Math.max(-0.3, Math.min(0.25, ((x > 0 ? Hh[i - 1] : Hh[i]) - Hh[i] + (y > 0 ? Hh[i - w] : Hh[i]) - Hh[i]) * -1.6));
+      const k = 1 + sh + (vn(x, y, 3) - 0.5) * 0.08;
+      c = [c[0] * k, c[1] * k, c[2] * k];
     }
+    D[o] = c[0]; D[o + 1] = c[1]; D[o + 2] = c[2]; D[o + 3] = 255;
   }
   ctx.putImageData(img, 0, 0);
-  return (game._regionTerrain = { canvas: c0, kind, bw, bh, toOpen, toFoot, B });
+  // contour de côte
+  const out = mk(), ox = out.getContext('2d'), oi = ox.createImageData(w, h);
+  for (let i = 0; i < N; i++) if (land[i] && toSea[i] === 1) { oi.data[i * 4] = 40; oi.data[i * 4 + 1] = 70; oi.data[i * 4 + 2] = 70; oi.data[i * 4 + 3] = 150; }
+  ox.putImageData(oi, 0, 0); ctx.drawImage(out, 0, 0);
+
+  // 5. icônes : sommets sur les massifs, bosquets dans les forêts (jamais sur une ville ni une route)
+  const townAt = (x, y) => W.zoneAt(x, y)?.town;
+  const peaks = [], trees = [];
+  for (let y = 4; y < h - 4; y += 6) for (let x = 4; x < w - 4; x += 6) {
+    const jx = x + Math.floor(hash(x, y) * 6) - 3, jy = y + Math.floor(hash(y, x) * 6) - 3, i = jy * w + jx;
+    if (!land[i] || TZ[i] === 1) continue;
+    const m = M[i * 4 + 3] / 255, f = F[i * 4 + 3] / 255, th = theme(jx, jy);
+    if (m > 0.6 && hash(jx, jy + 7) > 0.45) peaks.push({ x: jx, y: jy, s: 5 + m * 5 + hash(jx, jy) * 3, snow: SNOW.has(th) || m > 0.9 && !VOLC.has(th), volc: VOLC.has(th), sand: SAND.has(th) });
+    else if (f > 0.6 && hash(jx + 1, jy) > 0.25) trees.push({ x: jx, y: jy, s: 3 + hash(jx, jy + 1) * 1.6, pine: SNOW.has(th) || th === 'ombre', autumn: th === 'automne' });
+  }
+  peaks.sort((a, b) => a.y - b.y); trees.sort((a, b) => a.y - b.y);
+  // anciens champs encore lus ailleurs
+  const B = 2, bw = Math.ceil(w / B), bh = Math.ceil(h / B), kind = new Uint8Array(bw * bh), toOpen = new Int16Array(bw * bh), toFoot = new Int16Array(bw * bh);
+  return (game._regionTerrain = { canvas: c0, peaks, trees, kind, bw, bh, toOpen, toFoot, B });
 }
 
 /** cadre de la carte : ce qu'on a exploré (plus une marge), jamais plus petit qu'un tiers de la région ;
@@ -117,7 +190,7 @@ export function fullRegionView(game, targetAspect) {
   const ar = targetAspect || (16 / 10);
   let w = W.w, h = W.h;
   if (w / h > ar) h = w / ar; else w = h * ar;
-  const x = Math.max(0, (W.w - w) / 2), y = Math.max(0, (W.h - h) / 2);
+  const x = (W.w - w) / 2, y = (W.h - h) / 2;   // centrée, quitte à déborder (fond sombre autour)
   return { x, y, w, h };
 }
 
@@ -126,8 +199,8 @@ function drawRegion(game, cv, v) {
   const W = game.world.maps.monde, ctx = cv.getContext('2d'), R = regionTerrain(game);
   const sx = cv.width / v.w, sy = cv.height / v.h;
   const X = (x) => (x - v.x) * sx, Y = (y) => (y - v.y) * sy;
-  ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = '#060c18'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.fillStyle = '#163f6e'; ctx.fillRect(0, 0, cv.width, cv.height);   // haute mer autour de la région
+  ctx.imageSmoothingEnabled = sx > 1.5; ctx.imageSmoothingQuality = 'high';
 
   // Découpage sécurisé du canvas de terrain de la région
   const sx0 = Math.max(0, Math.min(W.w, Math.floor(v.x)));
@@ -137,19 +210,34 @@ function drawRegion(game, cv, v) {
   if (sw > 0 && sh > 0) {
     ctx.drawImage(R.canvas, sx0, sy0, sw, sh, X(sx0), Y(sy0), sw * sx, sh * sy);
   }
+  ctx.imageSmoothingEnabled = false;
 
   // icônes du Pokégear : grandeur fixe à l'écran (deux pixels par pixel d'icône quand la carte est zoomée)
   const k = Math.max(1, Math.min(3, Math.round(sx / 2.2)));
   const I = loadCarteIcons();
   const icon = (key, x, y) => { const im = I[key]; if (im && im.complete && im.naturalWidth) ctx.drawImage(im, Math.round(X(x) - im.width * k / 2), Math.round(Y(y) - im.height * k + 2 * k), im.width * k, im.height * k); };
-  const { kind, bw, toOpen, toFoot, B } = R;
-  const step = Math.max(14, Math.round(22 * 2.2 / sx * k));
-  for (let y = 10; y < W.h - 6; y += step) for (let x = 10; x < W.w - 6; x += step) {
-    const jx = x + ((x * 7 + y * 13) % 9) - 4, jy = y + ((x * 11 + y * 5) % 9) - 4;
-    if (jx < v.x - 10 || jx > v.x + v.w + 10 || jy < v.y - 10 || jy > v.y + v.h + 14) continue;
-    const i = Math.floor(jy / B) * bw + Math.floor(jx / B), kk = kind[i];
-    if (kk === 2 && toOpen[i] >= 4 && ((x + y) / step | 0) % 2 === 0) icon((jx * 5 + jy) % 7 ? 'arbre_v' : 'arbre_o', jx, jy);
-    else if (kk === 3 && toFoot[i] >= 3) icon((jx * 3 + jy) % 2 ? 'montagne' : 'colline', jx, jy);
+  // forêts et montagnes dessinées (taille en cases : elles grandissent avec le zoom)
+  const inV = (o, m) => o.x > v.x - m && o.x < v.x + v.w + m && o.y > v.y - m && o.y < v.y + v.h + m;
+  const u = Math.max(sx, 0.9);
+  for (const t of R.trees) { if (!inV(t, 6)) continue;
+    const cx = X(t.x), cy = Y(t.y), r = t.s * u * 0.9;
+    const base = t.autumn ? ['#8a5a1e', '#c9852e', '#e6b04e'] : t.pine ? ['#1d4a3a', '#2f6b52', '#4f8f70'] : ['#1f5a2c', '#2f7d3a', '#58a957'];
+    ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(cx + r * .3, cy + r * .55, r, r * .45, 0, 0, 7); ctx.fill();
+    if (t.pine) { ctx.fillStyle = base[1]; ctx.beginPath(); ctx.moveTo(cx, cy - r * 1.5); ctx.lineTo(cx + r * .9, cy + r * .5); ctx.lineTo(cx - r * .9, cy + r * .5); ctx.fill();
+      ctx.fillStyle = base[2]; ctx.beginPath(); ctx.moveTo(cx, cy - r * 1.5); ctx.lineTo(cx - r * .9, cy + r * .5); ctx.lineTo(cx - r * .1, cy + r * .5); ctx.fill(); }
+    else { ctx.fillStyle = base[0]; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill();
+      ctx.fillStyle = base[1]; ctx.beginPath(); ctx.arc(cx - r * .15, cy - r * .15, r * .8, 0, 7); ctx.fill();
+      ctx.fillStyle = base[2]; ctx.beginPath(); ctx.arc(cx - r * .35, cy - r * .4, r * .38, 0, 7); ctx.fill(); }
+  }
+  for (const p of R.peaks) { if (!inV(p, 14)) continue;
+    const cx = X(p.x), by = Y(p.y), s = p.s * u, ht = s * 1.05;
+    const light = p.volc ? '#9a8070' : p.sand ? '#e0b47c' : p.snow ? '#c8d2dc' : '#b79a7c', dark = p.volc ? '#5a4640' : p.sand ? '#a87444' : p.snow ? '#7f8c9c' : '#7c624c';
+    ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(cx + s * .2, by + s * .05, s * .95, s * .22, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = light; ctx.beginPath(); ctx.moveTo(cx - s * .9, by); ctx.lineTo(cx - s * .05, by - ht); ctx.lineTo(cx + s * .9, by); ctx.fill();
+    ctx.fillStyle = dark; ctx.beginPath(); ctx.moveTo(cx - s * .05, by - ht); ctx.lineTo(cx + s * .9, by); ctx.lineTo(cx + s * .15, by); ctx.lineTo(cx + s * .1, by - ht * .5); ctx.fill();
+    if (p.snow || p.s > 11) { ctx.fillStyle = '#fbfdff'; ctx.beginPath(); ctx.moveTo(cx - s * .05, by - ht); ctx.lineTo(cx - s * .32, by - ht * .7); ctx.lineTo(cx - s * .12, by - ht * .76); ctx.lineTo(cx + s * .02, by - ht * .66); ctx.lineTo(cx + s * .24, by - ht * .74); ctx.fill(); }
+    if (p.volc && p.s > 10) { ctx.fillStyle = '#f97316'; ctx.beginPath(); ctx.ellipse(cx - s * .05, by - ht, s * .14, s * .06, 0, 0, 7); ctx.fill(); }
+    ctx.strokeStyle = 'rgba(30,20,15,.45)'; ctx.lineWidth = Math.max(1, s * .06); ctx.beginPath(); ctx.moveTo(cx - s * .9, by); ctx.lineTo(cx - s * .05, by - ht); ctx.lineTo(cx + s * .9, by); ctx.stroke();
   }
 
   // routes : un trait blanc cerclé de gris
@@ -168,15 +256,22 @@ function drawRegion(game, cv, v) {
   };
   for (const m of Object.values(game.world.maps)) if (m !== W && m.outdoor && m.outside?.map === 'monde' && m.id !== 'magma') pill(m.outside.x, m.outside.y, 6, 6, HG.special);
   const visited = new Set(game.state.visited || []);
-  for (const t of Object.values(game.world.towns)) {
-    const isGym = t.gym != null;
-    const isLigue = t.id === 'plateau';
-    const big = isGym || isLigue;
-    const isVis = visited.has(t.id);
-    const fillCol = isLigue ? (isVis ? '#a855f7' : '#7e22ce') : isGym ? (isVis ? '#fbbf24' : '#d97706') : (isVis ? '#ef4444' : '#64748b');
-    const darkCol = isLigue ? '#4c1d95' : isGym ? '#92400e' : (isVis ? '#991b1b' : '#334155');
-    pill(t.x + t.w / 2, t.y + t.h / 2, big ? 14 : 10, big ? 10 : 8, fillCol, darkCol);
-  }
+  // villes : une place ronde et quelques maisons ; arène en or, Ligue en violet, ville pas encore visitée en gris
+  const town = (t) => {
+    const isGym = t.gym != null, isLigue = t.id === 'plateau', vis = visited.has(t.id);
+    const cx = X(t.x + t.w / 2), cy = Y(t.y + t.h / 2), r = Math.max(9, Math.min(26, Math.min(t.w, t.h) * 0.32 * sx));
+    const roof = !vis ? '#7b8494' : isLigue ? '#9333ea' : isGym ? '#e0a020' : '#d94b3d';
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(cx + 2, cy + 3, r * 1.15, r * .85, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = vis ? '#efe2c0' : '#c9ccd2'; ctx.strokeStyle = '#3b3326'; ctx.lineWidth = Math.max(1.5, r * .1);
+    ctx.beginPath(); ctx.ellipse(cx, cy, r * 1.15, r * .85, 0, 0, 7); ctx.fill(); ctx.stroke();
+    const hs = r * .42, house = (hx, hy, big) => { const s2 = big ? hs * 1.3 : hs;
+      ctx.fillStyle = '#f7f3ea'; ctx.fillRect(hx - s2 / 2, hy - s2 * .2, s2, s2 * .7);
+      ctx.fillStyle = roof; ctx.beginPath(); ctx.moveTo(hx - s2 * .65, hy - s2 * .15); ctx.lineTo(hx, hy - s2 * .75); ctx.lineTo(hx + s2 * .65, hy - s2 * .15); ctx.fill();
+      ctx.strokeStyle = 'rgba(40,30,20,.6)'; ctx.lineWidth = 1; ctx.strokeRect(hx - s2 / 2, hy - s2 * .2, s2, s2 * .7); };
+    house(cx - r * .48, cy + r * .1); house(cx + r * .5, cy + r * .15); house(cx, cy - r * .1, isGym || isLigue);
+    if (isGym || isLigue) { ctx.fillStyle = isLigue ? '#c084fc' : '#fde047'; ctx.beginPath(); ctx.arc(cx, cy - r * .95, r * .16, 0, 7); ctx.fill(); ctx.strokeStyle = '#3b3326'; ctx.stroke(); }
+  };
+  for (const t of Object.values(game.world.towns)) town(t);
 
   // Voile radar B2W2 : les zones explorées sont découpées et 100% nettes et vives,
   // les zones inexplorées restent sous un élégant filtre radar semi-transparent C-Gear
@@ -194,7 +289,7 @@ function drawRegion(game, cv, v) {
   if (fog.width !== cv.width || fog.height !== cv.height) { fog.width = cv.width; fog.height = cv.height; }
   const fx = fog.getContext('2d');
   fx.globalCompositeOperation = 'source-over'; fx.clearRect(0, 0, fog.width, fog.height);
-  fx.fillStyle = 'rgba(6, 12, 22, 0.72)';
+  fx.fillStyle = 'rgba(14, 26, 44, 0.62)';
   fx.fillRect(0, 0, fog.width, fog.height);
   fx.globalCompositeOperation = 'destination-out';
   fx.imageSmoothingEnabled = true;
@@ -339,6 +434,11 @@ export function mapScreen(game) {
     const place = (node, x, y) => {
       node.style.left = ((x - view.x) / view.w * 100) + '%';
       node.style.top = ((y - view.y) / view.h * 100) + '%';
+      // nom de ville près d'un bord : ancré de ce côté pour ne pas être coupé
+      if (node.classList?.contains?.('map-pin-name') && node.style.setProperty) {
+        const px = (x - view.x) / view.w;
+        node.style.setProperty('--ax', px < 0.1 ? '-8%' : px > 0.9 ? '-92%' : '-50%');
+      }
     };
     const pinsAt = [];
     const draw = () => {
@@ -419,10 +519,17 @@ export function mapScreen(game) {
       tagEl.textContent = q.tag || '';
       tagEl.className = 'map-tag ' + (q.tagCls || '');
       
+      const zAt = (W || game.world?.maps?.monde)?.zoneAt?.(Math.round(q.x), Math.round(q.y));
+      const zKey = findZoneSpawnKey(zAt);
+      const zCatch = zKey ? getZoneCatchStats(st, zKey) : null;
+      const catchBadge = zCatch
+        ? ` <span class="map-route-catch-badge${zCatch.complete ? ' complete' : ''}">· 🐾 Pokédex Zone : <b>${zCatch.caught} / ${zCatch.total}</b> capturés${zCatch.complete ? ' ★' : ''}</span>`
+        : '';
+
       if (k === 0) {
-        subEl.textContent = 'Tu es ici.';
+        subEl.innerHTML = `Tu es ici.${catchBadge}`;
       } else {
-        subEl.innerHTML = `${esc(q.sub || '')} <span class="map-sub-dist">· ${distLabel(q.x - p.x, q.y - p.y)}</span>`;
+        subEl.innerHTML = `${esc(q.sub || '')} <span class="map-sub-dist">· ${distLabel(q.x - p.x, q.y - p.y)}</span>${catchBadge}`;
       }
     };
     show();
@@ -449,10 +556,16 @@ export function mapScreen(game) {
       } else {
         ui.sound.sfx('select');
         curAt[1] = worldX; curAt[2] = worldY; place(cur, worldX, worldY);
-        whereEl.textContent = 'Repère';
+        const clickZone = world.zoneAt?.(worldX, worldY);
+        const clickKey = findZoneSpawnKey(clickZone);
+        const clickCatch = clickKey ? getZoneCatchStats(st, clickKey) : null;
+        const clickCatchHtml = clickCatch
+          ? ` <span class="map-route-catch-badge${clickCatch.complete ? ' complete' : ''}">· 🐾 Pokédex Zone : <b>${clickCatch.caught} / ${clickCatch.total}</b> capturés${clickCatch.complete ? ' ★' : ''}</span>`
+          : '';
+        whereEl.textContent = clickZone?.name || 'Repère';
         tagEl.textContent = '';
         tagEl.className = 'map-tag waypoint';
-        subEl.innerHTML = `Repère temporaire posé sur la carte <span class="map-sub-dist">· ${distLabel(worldX - p.x, worldY - p.y)}</span>`;
+        subEl.innerHTML = `Repère temporaire posé sur la carte <span class="map-sub-dist">· ${distLabel(worldX - p.x, worldY - p.y)}</span>${clickCatchHtml}`;
       }
     });
 

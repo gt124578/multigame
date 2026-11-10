@@ -114,6 +114,8 @@ reprend le dernier état reçu et relance la question en cours (`restartQuestion
      `group` ajoute un intertitre (ex. « Règles maison »).
    - `maxPlayers` ≤ 6 (capacité du salon, `DDRoom.MAX_PLAYERS`).
    - `tag` : le sous-titre de l'affiche ; `desc` : **une seule phrase**, écrite pour les joueurs.
+   - `big: true` : range le jeu dans les « Gros jeux », les jeux beaucoup plus complets (aujourd'hui The Backrooms et
+     Odyssée) : rangée à part en haut de l'accueil, avec ses boutons pour jouer, et en tête du choix du jeu dans le salon.
    - `cover` : affiche JPEG 960 × 540 dans `<jeu>/img/affiche.jpg`, dans le style commun à tous les jeux : une vraie
      image du jeu (sans interface), le titre en grand en deux couleurs et un bandeau pour le sous-titre.
      `tools/affiche.html?img=…&t1=…&t2=…&c1=…&c2=…&sub=…&pill=…` la compose à partir d'une capture du jeu.

@@ -20,6 +20,8 @@ import { redresserPonts } from './ponts.js';
 import { rangs, mers, tourbillonsDuBord, rendreALaForet, degager, oterDecorIsole } from './acces.js';
 import { appliquerBareme } from './bareme.js';
 import { buildArena } from './arenes.js';
+import { construireArene } from './arenes-plan.js';
+import { PLANS } from './arenes-plans.js';
 import { areneSylve } from './arene-sylve.js';
 import { buildSud, BADGES_SUD, LEADERS_SUD, GYM_TRAINERS_SUD } from './sud.js';
 import { addVehicules } from './vehicules.js';
@@ -37,6 +39,7 @@ import { grotteDuCol, grotteDansFalaise } from './grottes.js';
 import { volcan } from './volcan.js';
 import { contreforts, plateauNaturel } from './contreforts.js';
 import { canyonsDOcre } from './ocre.js';
+import { addFauneVilles, addVieRoutes, addMarches, addFouilles, addVoisinage, addFetes } from './faune.js';
 import { ANCIENS_OBJETS } from './anciens-objets.js';
 
 /** version de la carte du monde : une sauvegarde d'une version plus ancienne reprend au Centre de la dernière ville
@@ -92,7 +95,7 @@ const STOCK = {
 };
 
 /* ---------------- rencontres sauvages : [espèce, niveau min, niveau max, poids] ---------------- */
-const ENC = {
+export const ENC = {
   r1: [[1010, 2, 4, 25], [1013, 2, 4, 25], [16, 2, 4, 15], [19, 2, 4, 15], [1017, 2, 3, 12], [161, 2, 4, 8]],
   r2: [[1010, 4, 7, 15], [1013, 4, 6, 15], [1017, 4, 6, 15], [1018, 6, 7, 5], [1034, 5, 7, 10], [1021, 5, 7, 10], [21, 5, 7, 10], [10, 4, 6, 10], [1039, 5, 6, 5], [29, 5, 6, 5]],
   bois: [[1053, 7, 9, 5], [1017, 6, 8, 15], [1018, 7, 9, 8], [1015, 6, 9, 15], [1021, 6, 9, 15], [1020, 7, 9, 8], [1013, 7, 9, 10], [165, 6, 9, 8], [167, 6, 9, 8], [1043, 7, 9, 5], [1038, 8, 9, 3], [46, 7, 9, 5]],
@@ -119,6 +122,7 @@ const ENC = {
 };
 // plus de diversité : chaque zone reçoit aussi tous les Pokémon des lieux équivalents des jeux officiels (Rouge à X / Y)
 enrichirTout(ENC);
+export const SPAWNS = ENC;
 
 /* ---------------- dresseurs ---------------- */
 // classe → apparence sur la carte et portrait en combat, prime de base
@@ -265,7 +269,9 @@ export function poserBatiment(W, maps, def, b) {
   else if (b.kind === 'mart') inside = martInterior(id, 'Boutique', STOCK[def.stock || 1]);
   else if (b.kind === 'gym') {
     // la première arène (Sylvebourg) est dessinée à la main : la Grande Serre (world/arene-sylve.js) ; les autres sont tirées d'une graine
-    const ar = def.gym === 0 ? areneSylve(id, 'Arène de ' + def.name) : buildArena(id, def.gym, LEADERS[def.gym].type, 'Arène de ' + def.name);
+    // les autres sont dessinées dans un plan (world/arenes-plans.js, mécanismes dans world/arenes-plan.js) ; repli : énigme tirée d'une graine
+    const nom = 'Arène de ' + def.name;
+    const ar = PLANS[def.gym] ? construireArene(id, def.gym, PLANS[def.gym], nom) : def.gym === 0 ? areneSylve(id, nom) : buildArena(id, def.gym, LEADERS[def.gym].type, nom);
     inside = ar.map; def.gymArena = ar;
   }
   else if (b.kind === 'lab') inside = labInterior(id);
@@ -364,6 +370,7 @@ function lotir(W, def, poser) {
   for (let i = cands.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [cands[i], cands[j]] = [cands[j], cands[i]]; }
   let pose = 0, v = Math.floor(r() * VOISINS.length);
   for (const [rx, ry] of cands) {
+      if (def.id === 'aube' && rx >= 12 && rx <= 26 && ry >= 12 && ry <= 25) continue;
     if (pose >= n) break;
     const [kind, bw, bd, gk] = LOTS[(pose + seed) % LOTS.length], G = gk ? GRAND[gk] : null;
     const x0 = ox + rx, y0 = oy + ry;
@@ -432,7 +439,7 @@ export function buildWorld() {
 
   /* ---------- A · Bourg-Aube ---------- */
   const A = towns.A = {
-    id: 'aube', name: 'Bourg-Aube', x: 20, y: 238, w: 40, h: 30, exits: [['n', 14], ['e', 10]], fermer: true, lotir: { n: 5, seed: 11 },
+    id: 'aube', name: 'Bourg-Aube', x: 20, y: 238, w: 40, h: 30, exits: [['n', 14], ['e', 10]], fermer: true, lotir: false,
     roads: [[14, 2, 15, 23, T.PATH], [4, 10, 39, 11, T.PATH], [14, 19, 22, 19, T.PATH], [4, 23, 35, 23, T.PATH], [30, 11, 31, 27, T.PATH], [3, 27, 36, 27, T.PATH]],
     deco: [['flowers', 9, 3, 11, 5], ['flowers', 26, 13, 27, 17], ['water', 6, 15, 3.2, 2.2], ['fence', 2, 8, 4, 8], ['fence', 24, 8, 27, 8],
       ['sign', 12, 8, 'BOURG-AUBE\nLà où chaque aventure commence.'], ['sign', 13, 17, 'LABORATOIRE\nProf. Saule'], ['lamp', 13, 9], ['lamp', 16, 9]],
@@ -452,7 +459,7 @@ export function buildWorld() {
 
   /* ---------- B · Sylvebourg (Hector, Insecte) ---------- */
   const B = towns.B = {
-    id: 'sylve', name: 'Sylvebourg', x: 18, y: 138, w: 54, h: 44, exits: [['s', 16], ['n', 16]], gym: 0, stock: 1, fermer: true, lotir: { n: 7, seed: 21 },
+    id: 'sylve', name: 'Sylvebourg', x: 18, y: 138, w: 54, h: 44, exits: [['s', 16], ['n', 16]], gym: 0, stock: 1, fermer: true, lotir: { n: 3, seed: 21 },
     roads: [[16, 0, 17, 43, T.PATH], [4, 11, 49, 12], [4, 20, 15, 21], [4, 36, 49, 37], [46, 12, 47, 36], [18, 28, 27, 28]],
     deco: [['flowers', 11, 4, 14, 7], ['flowers', 19, 4, 21, 7], ['lamp', 14, 10], ['lamp', 19, 10], ['lamp', 14, 13], ['lamp', 19, 13], ['lamp', 14, 35], ['lamp', 19, 35],
       ['sign', 14, 9, 'SYLVEBOURG\nLa ville où murmurent les feuilles.'], ['sign', 39, 38, 'ARÈNE DE SYLVEBOURG\nChampion : Hector\nL\'observateur des insectes.'],
@@ -513,7 +520,30 @@ export function buildWorld() {
     ],
     npcs: [
       { id: 'marin', x: 17, y: 5, sprite: 'marin', move: 'turn', text: ['Ahoy ! Ce ponton était le départ des ferries.', 'Depuis que les îles ont fermé leurs ports, plus aucun bateau ne part...'] },
-      { id: 'pecheur', x: 25, y: 5, sprite: 'pecheur', move: 'wander', text: ['Les Racaillou se cachent parmi les galets, méfie-toi en marchant sur la plage.'] },
+      {
+        id: 'pecheur',
+        x: 25,
+        y: 5,
+        sprite: 'pecheur',
+        move: 'wander',
+        name: 'Pêcheur Barnabé',
+        talk: async (A) => {
+          if (!A.has('canne')) {
+            await A.say([
+              'Ahoy jeune dresseur ! La brise marine est vivifiante aujourd\'hui.',
+              'Une bonne canne, de la patience et un peu de chance... voilà tout le secret d\'un bon pêcheur !',
+              'Tiens, prends ma Canne à Pêche ! Mets-toi face à l\'eau depuis le rivage et appuie pour lancer ta ligne.'
+            ]);
+            await A.give('canne');
+            await A.say('Tu pourras ferrer de superbes créatures aquatiques dans tous les étangs et en pleine mer !');
+            return;
+          }
+          await A.say([
+            'Les Racaillou se cachent parmi les galets, méfie-toi en marchant sur la plage.',
+            'Quand la mer est calme, c\'est le moment rêvé pour sortir la Canne à Pêche !'
+          ]);
+        }
+      },
       { id: 'garde', x: 34, y: 18, sprite: 'garde', dir: 'down', gate: { badges: 2, tiles: [[35, 19], [35, 20]] }, text: ['La route 4 longe une côte escarpée.', 'Il faut deux badges pour l\'emprunter.'] },
     ],
   };
@@ -719,6 +749,21 @@ export function buildWorld() {
   const relais = (x, y, dir) => ({ x, y, dir });
 
   const r1 = G2({ id: 'r1', nom: 'Route 1', de: porte('A', 'r1'), vers: arrivee('B', 'r1'), long: 3, graine: 101, w: 13, grass: 0.8, trees: 0.04, paysages: ['rebords', 'prairie', 'fleurs'], branches: 0, dresseurs: 0, promeneurs: 1, panneaux: ['ROUTE 1\n↑ Sylvebourg   ↓ Bourg-Aube', null], voix: 'general' }, 'r1');
+  const pGuide = along(r1, 0.06);
+  const [gx, gy] = caseLibre(W, pGuide.x + 0.5 + pGuide.nx * 2, pGuide.y + 0.5 + pGuide.ny * 2);
+  W.npc({
+    id: 'r1:guide',
+    x: gx,
+    y: gy,
+    dir: 'left',
+    sprite: 'randonneuse',
+    name: 'Guide de la Route',
+    text: [
+      'Bienvenue sur la Route 1 ! Tu as des Poké Balls sur toi ?',
+      'Pour capturer facilement un Pokémon sauvage, affaiblis-le d\'abord dans les herbes.',
+      'Astuce de pro : en combat sauvage, appuie directement sur B ou Y pour lancer ta meilleure Ball sans passer par les menus !'
+    ]
+  });
   routeTrainer(W, r1, 0.35, 1, 4, 'Gamin', 'Léo', [[1013, 3]], { intro: 'Hé ! Toi aussi tu viens d\'avoir ta première créature ?' });
   routeTrainer(W, r1, 0.62, -1, 4, 'Fillette', 'Inès', [[161, 4]], { intro: 'Mon Fouinette est le plus mignon de la route !' });
   routeTrainer(W, r1, 0.82, 1, 3, 'Gamin', 'Malo', [[1010, 4], [19, 4]]);
@@ -1101,6 +1146,7 @@ export function buildWorld() {
     const tourb = caveMap('tourbillons', 44, 30, 5151, [{ x: 4, y: 25 }], { name: 'Grotte des Tourbillons', via: [{ x: 16, y: 10 }, { x: 30, y: 20 }, { x: 38, y: 6 }], dark: false });
     tourb.encounter = ENC.tourbillons; maps.tourbillons = tourb;
     tourb.set(4, 26, T.CAVEDOOR); tourb.set(4, 25, T.CAVE); tourb.set(4, 27, T.CAVEWALL);
+  for (let x = 2; x <= 6; x++) for (let y = 26; y < tourb.h; y++) if (x !== 4 || y !== 26) tourb.set(x, y, T.CAVEWALL);   // sortie au bout de la salle
     tourb.warp(4, 26, { map: 'monde', x: tb.doorX, y: tb.doorY + 1, dir: 'down' });
     W.warp(tb.doorX, tb.doorY, { map: 'tourbillons', x: 4, y: 25, dir: 'up' });
     tourb.deco.push({ k: 'exitlight', x: 4, y: 26 });
@@ -1145,6 +1191,8 @@ export function buildWorld() {
   grotte.encounter = ENC.grotte; maps.grotte = grotte;
   for (const [cx, cy, out] of [[4, 26, g1in], [41, 26, g1out]]) {
     grotte.set(cx, cy + 1, T.CAVEDOOR); grotte.set(cx, cy, T.CAVE); grotte.set(cx, cy + 2, T.CAVEWALL);
+    // la sortie au bout de la salle : roche de chaque côté de la porte et en dessous (plus de case libre à côté)
+    for (let x = cx - 2; x <= cx + 2; x++) for (let y = cy + 1; y < grotte.h; y++) if (x !== cx || y !== cy + 1) grotte.set(x, y, T.CAVEWALL);
     grotte.warp(cx, cy + 1, { map: 'monde', x: out.doorX, y: out.doorY + 1, dir: 'down' });
     W.warp(out.doorX, out.doorY, { map: 'grotte', x: cx, y: cy, dir: 'up' });
     grotte.deco.push({ k: 'exitlight', x: cx, y: cy + 1 });
@@ -1157,6 +1205,7 @@ export function buildWorld() {
   victoire.encounter = ENC.victoire; maps.victoire = victoire;
   for (const [cx, cy, out] of [[50, 34, v1in], [6, 34, v1out]]) {
     victoire.set(cx, cy + 1, T.CAVEDOOR); victoire.set(cx, cy, T.CAVE); victoire.set(cx, cy + 2, T.CAVEWALL);
+    for (let x = cx - 2; x <= cx + 2; x++) for (let y = cy + 1; y < victoire.h; y++) if (x !== cx || y !== cy + 1) victoire.set(x, y, T.CAVEWALL);   // sortie au bout de la salle
     victoire.warp(cx, cy + 1, { map: 'monde', x: out.doorX, y: out.doorY + 1, dir: 'down' });
     W.warp(out.doorX, out.doorY, { map: 'victoire', x: cx, y: cy, dir: 'up' });
     victoire.deco.push({ k: 'exitlight', x: cx, y: cy + 1 });
@@ -1180,7 +1229,7 @@ export function buildWorld() {
   W.plateau = plateauNaturel(W, towns.J);
   /* ======================== ARÈNES ======================== */
   const gymTrainers = [
-    [['Insectomane', 'Lucas', [[1017, 9], [10, 10]]], ['Insectomane', 'Basile', [[1018, 10, null, [33, 81, 106]], [1020, 10]]]],
+    [['Insectomane', 'Lucas', [[13, 12], [265, 12], [1017, 13]]], ['Jardinière', 'Capucine', [[540, 13], [401, 13], [1018, 14]]]],   // la Ruche de Sylvebourg (niveaux 12 à 14)
     [['Marin', 'Yann', [[1029, 17], [116, 17]]], ['Fillette', 'Océane', [[118, 18], [1031, 18]]], ['Pêcheur', 'Paul', [[60, 19], [1033, 19]]]],
     [['Scientifique', 'Alan', [[100, 23], [1034, 23]]], ['Topdresseuse', 'Électra', [[1036, 24], [25, 24]]], ['Scientifique', 'Ohm', [[82, 25]]]],
     [['Randonneuse', 'Rose', [[69, 28], [1021, 28]]], ['Topdresseuse', 'Lila', [[44, 29], [1038, 29]]], ['Randonneuse', 'Iris', [[189, 30]]]],
@@ -1192,9 +1241,20 @@ export function buildWorld() {
   ];
   // quatrième dresseur des arènes qui n'en avaient que deux ou trois
   const GYM_EXTRA = [
-    ['Gamin', 'Théodore', [[1017, 10]]], ['Pêcheur', 'Gilles', [[1029, 18]]], ['Scientifique', 'Volt', [[1034, 24]]], ['Fillette', 'Capucine', [[1021, 29]]],
+    ['Insectomane', 'Basile', [[1018, 13, null, [33, 81, 106]], [1020, 13]]], ['Pêcheur', 'Gilles', [[1029, 18]]], ['Scientifique', 'Volt', [[1034, 24]]], ['Fillette', 'Capucine', [[1021, 29]]],
     ['Médium', 'Isaure', [[1039, 34]]], ['Montagnard', 'Roch', [[1026, 39]]], ['Karatéka', 'Kazuo', [[1041, 44]]], ['Topdresseur', 'Siegfried', [[1049, 48]]],
   ];
+  // cinquième dresseur des arènes dessinées qui ont cinq places
+  const GYM_CINQUIEME = {
+    grass: [['Jardinière', 'Pervenche'], ['Randonneuse', 'Myrtille']], psychic: [['Médium', 'Oriane'], ['Médium', 'Séraphin']], rock: [['Montagnard', 'Silex'], ['Montagnard', 'Galet']],
+    fire: [['Karatéka', 'Daigo'], ['Topdresseur', 'Ignis']], dragon: [['Garde d\'Écaille', 'Ysolde'], ['Topdresseuse', 'Draconia']], flying: [['Pilote', 'Zéphyr'], ['Pilote', 'Alizée']],
+    dark: [['Ninja', 'Nyx'], ['Voleur', 'Sombral']], normal: [['Homme d\'affaires', 'Albert'], ['Femme d\'affaires', 'Odile']], water: [['Marin', 'Loïc'], ['Pêcheur', 'Ewen']],
+    electric: [['Scientifique', 'Ampère'], ['Topdresseuse', 'Volta Jr']], poison: [['Voleur', 'Toxin'], ['Médium', 'Belladone']], ground: [['Montagnard', 'Sablon'], ['Ouvrier', 'Gravier']],
+    steel: [['Ouvrier', 'Boulon'], ['Scientifique', 'Rivet']], fairy: [['Dame Kimono', 'Rosalie'], ['Fillette', 'Mélusine']],
+    bug: [['Gamin', 'Théodore'], ['Insectomane', 'Mathis']],
+  };
+  // objets des recoins (case « o » des plans)
+  const OBJETS_ARENE = { 0: ['potion', 'paralyze-heal'], 1: ['mystic-water'], 11: ['soft-sand'] };
   for (const t of Object.values(towns)) {
     if (t.gym == null) continue;
     const g = t.gymMap, L2 = LEADERS[t.gym], ar = t.gymArena;
@@ -1209,11 +1269,19 @@ export function buildWorld() {
     // les six générations (un Pokémon différent d'une arène à l'autre, toujours le même pour une arène donnée)
     const list = ar.dresseurs ? [] : gymTrainers[t.gym].slice();
     const extra = GYM_EXTRA[t.gym]; if (!ar.dresseurs && list.length < 4 && extra) list.push(extra);
-    list.forEach(([cls, name, team], i) => {
+    // arène dessinée : autant de dresseurs que de places (un cinquième, du même niveau que le quatrième, si le plan en prévoit un)
+    // (les places des plans font partie de l'énigme : chaque place reçoit son dresseur)
+    const plus = GYM_CINQUIEME[L2.type] || [];
+    for (let k = 0; !ar.dresseurs && ar.map.planArene && spots.length > list.length && list.length && k < plus.length; k++) {
+      const t4 = list[list.length - 1][2]; list.push([plus[k][0], plus[k][1], t4.map(([sp, lv]) => [sp, lv + 1]).slice(0, 1)]);
+    }
+    list.slice(0, spots.length).forEach(([cls, name, team], i) => {
       const lvl = Math.max(...team.map((m) => m[1]));
       const more = equipeDeType(L2.type, lvl, team.length >= 3 ? 1 : 2, t.gym * 31 + i * 7 + 3).filter(([sp]) => !team.some((m) => m[0] === sp));
-      const [x, y, dir] = spots[i]; trainerNpc(g, x, y, dir, cls, name, team.concat(more).slice(0, 4), { sight: 3, intro: 'Tu veux défier notre Champion ? Passe d\'abord par moi !', after: 'Notre Champion est bien plus fort que moi.' });
+      const [x, y, dir, vue] = spots[i]; trainerNpc(g, x, y, dir, cls, name, team.concat(more).slice(0, 4), { sight: vue ?? 3, intro: 'Tu veux défier notre Champion ? Passe d\'abord par moi !', after: 'Notre Champion est bien plus fort que moi.' });
     });
+    // objets posés dans les recoins des arènes dessinées
+    (ar.objets || []).forEach(([x, y], i) => g.item(x, y, OBJETS_ARENE[t.gym]?.[i] || 'super-potion', 1, `${g.id}:objet${i}`));
     const fem = L2.fem || ['Marine', 'Volta', 'Flora', 'Sibylle'].includes(L2.name);
     g.npc({ id: g.id + ':leader', x: ar.leader[0], y: ar.leader[1], dir: 'down', sprite: L2.ow, leader: t.gym, trainer: { cls: fem ? 'Championne' : 'Champion', name: L2.name, team: L2.team, prize: 100, bs: L2.ow, ai: t.gym === 0 ? 'normal' : 'smart', items: { 'potion': t.gym === 0 ? 2 : 0, 'super-potion': (t.gym >= 1 && t.gym < 3 ? 2 : 0), 'hyper-potion': (t.gym >= 3 ? 2 : 0), 'full-restore': (t.gym >= 6 ? 2 : (t.gym >= 4 ? 1 : 0)) }, intro: L2.intro, lose: L2.lose, sight: 0 } });
   }
@@ -1236,6 +1304,10 @@ export function buildWorld() {
   addStory({ W, maps, towns, routes: { r1, r2, bois, r3a, r3b, r4, r5, r6, r7, r10 }, legends, trainerNpc, ilot: [765, 596] });
   // la vie des villes : les requêtes des habitants (et les deux combats d'après la Ligue)
   addHabitants({ W, maps, towns, routes });
+  // des Pokémon en liberté dans les villes
+  addFauneVilles(W);
+  // routes : colporteurs, voyageurs et arbres à baies ; marché du week-end ; parois à fouiller dans les grottes
+  addVieRoutes(W, routes); addMarches(W, towns); addFouilles(maps); addVoisinage(W, maps, routes, towns); addFetes(W, towns);
   // quêtes du vélo (Voltacité) et du permis bateau (Port-Azur)
   addVehicules({ W, maps, towns });
   // la mine de Pierrefort (trois niveaux, un fossile au fond)

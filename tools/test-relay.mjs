@@ -276,6 +276,38 @@ const relays = (c, pred = () => true) => c.got.filter((m) => m.type === 'relay' 
   srv2.kill();
 }
 
+/* ---------- 6. un invité ne parle qu'à l'hôte : il ne peut pas écrire aux autres en se faisant passer pour lui ---------- */
+{
+  const room = 'hote-seul-' + Date.now();
+  const H = await client(), G1 = await client(), G2 = await client();
+  H.send({ type: 'join_room', roomId: room, role: 'host', proto: 3 });
+  await H.wait((m) => m.type === 'room_joined');
+  G1.send({ type: 'join_room', roomId: room, role: 'guest', proto: 3 });
+  await G1.wait((m) => m.type === 'room_joined');
+  G2.send({ type: 'join_room', roomId: room, role: 'guest', proto: 3 });
+  const j2 = await G2.wait((m) => m.type === 'room_joined');
+  // faux départ de l'hôte et faux renvoi, au salon entier ou directement à l'autre invité, trames compactes ou ancien format
+  G1.frame({ to: 'all', c: 1 }, { t: 'bye' });
+  G1.frame({ to: j2.cid, c: 2 }, { t: 'kicked' });
+  G1.send({ type: 'relay', roomId: room, data: { t: 'bye' } });
+  G1.send({ type: 'relay', roomId: room, to: j2.cid, data: { t: 'kicked' } });
+  G1.frame({ to: 'host', c: 3 }, { n: 1 });
+  await H.wait((m) => m.type === 'relay' && m.data.n === 1);
+  await sleep(150);
+  ok(!relays(G2).length, 'un invité ne peut écrire ni à tout le salon ni à un autre invité : ' + JSON.stringify(relays(G2)));
+  ok(relays(H).length === 1 && relays(H)[0].n === 1, 'ses messages à l\'hôte passent, et eux seuls : ' + JSON.stringify(relays(H)));
+  G1.send({ type: 'ping', ts: 1, ack: 0 });
+  const pg = await G1.wait((m) => m.type === 'pong');
+  ok(pg && pg.ack === 3, 'les messages refusés sont tout de même accusés (pas renvoyés sans fin) : ack ' + (pg && pg.ack));
+  H.frame({ to: 'all', c: 1 }, { k: 1 });
+  H.frame({ to: j2.cid, c: 2 }, { k: 2 });
+  await G2.wait((m) => m.type === 'relay' && m.data.k === 2);
+  await G1.wait((m) => m.type === 'relay' && m.data.k === 1);
+  const fromHost = [...G1.got, ...G2.got].filter((m) => m.type === 'relay');
+  ok(relays(G2).length === 2 && relays(G1).length === 1 && fromHost.every((m) => m.from === 'host'), 'l\'hôte écrit au salon et à chacun, ses messages marqués « host » : ' + JSON.stringify(fromHost.map((m) => m.from)));
+  for (const c of [H, G1, G2]) c.ws.close();
+}
+
 srv.kill();
 console.log(fails ? `\n${fails} échec(s), ${passes} réussis` : `Relais : ${passes} vérifications réussies`);
 process.exit(fails ? 1 : 0);

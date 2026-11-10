@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1232" height="1040" viewBox="36 16 616 520">
+<defs><pattern id="ruled" width="20" height="22" patternUnits="userSpaceOnUse"><rect width="20" height="22" fill="#ece4cc"/><line x1="0" y1="21" x2="20" y2="21" stroke="#9fb3c8" stroke-width="0.8" opacity="0.7"/></pattern></defs>
+<g transform="rotate(-1.6 340 280)">
+<path d="M44 34 L638 30 L640 522 L612 516 L590 526 L560 518 L530 527 L498 519 L470 528 L440 520 L410 527 L380 518 L350 526 L318 519 L290 528 L258 520 L228 526 L196 518 L166 527 L136 519 L104 526 L76 518 L46 524Z" fill="url(#ruled)"/>
+<line x1="96" y1="32" x2="98" y2="524" stroke="#c96a6a" stroke-width="1.2" opacity="0.7"/>
+<path d="M340 32 Q344 280 338 526" stroke="#cfc5a8" stroke-width="2" fill="none" opacity="0.8"/>
+<path d="M46 270 Q340 276 638 266" stroke="#d6ccb0" stroke-width="1.5" fill="none" opacity="0.8"/>
+<ellipse cx="560" cy="420" rx="44" ry="30" fill="#b9a26a" opacity="0.25"/><ellipse cx="140" cy="110" rx="26" ry="18" fill="#b9a26a" opacity="0.18"/>
+<circle cx="64" cy="80" r="6" fill="#8f8a6e" opacity="0.6"/><circle cx="64" cy="270" r="6" fill="#8f8a6e" opacity="0.6"/><circle cx="64" cy="460" r="6" fill="#8f8a6e" opacity="0.6"/>
+</g>
+<rect x="18" y="20" width="84" height="26" fill="#e9e3c2" opacity="0.8" transform="rotate(-28 60 33)"/>
+<rect x="580" y="12" width="84" height="26" fill="#e9e3c2" opacity="0.8" transform="rotate(24 622 25)"/>
+<rect x="584" y="506" width="76" height="24" fill="#e9e3c2" opacity="0.75" transform="rotate(-20 622 518)"/>
+<g transform="rotate(-1.6 340 280) translate(108 44) scale(0.78)" font-family="'Segoe Print','Bradley Hand','Comic Sans MS',cursive" stroke-linecap="round" stroke-linejoin="round">
+<g transform="rotate(-2 340 40)">
+<text x="340" y="44" text-anchor="middle" font-size="30" fill="#14110c">if you're reading this</text>
+<path d="M150 56 Q260 64 340 57 Q430 52 530 60" stroke="#8a1a12" stroke-width="3" fill="none"/>
+</g>
+<g fill="none" stroke="#0b0907">
+<path d="M90 120 Q97 148 94 168 Q93 186 96 202" stroke-width="7"/>
+<path d="M96 202 Q85 222 77 241 Q80 266 84 291" stroke-width="5"/><path d="M96 202 Q110 220 119 240 Q114 264 109 292" stroke-width="5"/>
+<path d="M93 136 Q74 150 61 170 Q53 196 47 226" stroke-width="4"/><path d="M47 226 l-7 9 M47 226 l1 13 M47 226 l9 8" stroke-width="2"/>
+<path d="M96 136 Q118 146 133 161 Q143 188 151 216" stroke-width="4"/><path d="M151 216 l-6 11 M151 216 l3 12 M151 216 l9 7" stroke-width="2"/>
+</g>
+<path d="M76 100 Q78 82 93 82 Q110 84 109 104 Q107 124 92 126 Q76 122 76 100Z" fill="#0b0907"/>
+<path d="M82 98 q3 -4 6 0 q-3 5 -6 0Z" fill="#ece4cc"/><path d="M96 98 q3 -5 7 0 q-4 5 -7 0Z" fill="#ece4cc"/>
+<g stroke="#8a1a12" fill="none" stroke-width="2.5"><path d="M120 92 q7 9 1 19"/><path d="M129 85 q12 15 1 32"/><path d="M139 79 q16 22 2 44"/></g>
+<g transform="rotate(-4 90 316)"><text x="22" y="322" font-size="20" fill="#8a1a12">IT HEARS YOU</text></g>
+<g stroke="#14110c" stroke-width="3" fill="none">
+<path d="M204 198 q-1 -11 10 -12 q11 1 10 12 q-1 10 -10 10 q-10 -1 -10 -10Z"/>
+<path d="M214 209 Q218 226 224 240 Q214 251 206 262 Q217 271 228 281"/><path d="M224 240 Q236 245 246 253 Q246 265 244 277"/>
+<path d="M218 222 Q209 219 203 214 Q205 204 210 196"/><path d="M205 201 l7 4" stroke-width="3.5"/>
+</g>
+<g transform="rotate(3 250 186)"><text x="232" y="188" font-size="18" fill="#14110c">shhh...</text></g>
+<g transform="rotate(-3 220 310)"><text x="200" y="308" font-size="18" fill="#14110c">stay low</text><text x="198" y="330" font-size="16" fill="#14110c">walk slow</text></g>
+<g stroke="#14110c" stroke-width="3" fill="none">
+<path d="M274 110 q0 -9 8 -9 q9 0 9 9 q-1 8 -9 8 q-8 0 -8 -8Z"/>
+<path d="M282 119 Q279 133 276 146 Q268 155 261 163 M276 146 Q285 153 293 161 M280 128 Q289 124 297 119 M280 128 Q271 132 263 137"/>
+<path d="M300 150 l10 -2 M302 158 l12 0" stroke-width="2"/>
+</g>
+<path d="M254 90 Q282 128 312 174" stroke="#8a1a12" stroke-width="4" fill="none"/><path d="M310 92 Q284 130 252 172" stroke="#8a1a12" stroke-width="4" fill="none"/>
+<g transform="rotate(2 280 194)"><text x="248" y="198" font-size="15" fill="#8a1a12">dont run</text></g>
+<g transform="translate(376 80) rotate(-2)" fill="#14110c">
+<path d="M2 2 L54 0 L55 31 L1 33Z"/><path d="M64 1 L117 3 L115 33 L63 32Z"/><path d="M126 0 L178 2 L179 32 L127 34Z"/>
+<path d="M1 44 L53 42 L55 74 L2 75Z"/><path d="M63 43 L116 44 L116 75 L62 74Z"/><path d="M127 42 L179 44 L177 75 L126 76Z"/>
+<g fill="#ece4cc"><circle cx="15" cy="17" r="6"/><circle cx="40" cy="16" r="6"/><circle cx="77" cy="17" r="6"/><circle cx="102" cy="18" r="6"/><circle cx="140" cy="17" r="6"/><circle cx="165" cy="18" r="6"/><circle cx="15" cy="59" r="6"/><circle cx="40" cy="58" r="6"/><circle cx="77" cy="59" r="6"/><circle cx="102" cy="60" r="6"/><circle cx="140" cy="59" r="6"/><circle cx="164" cy="60" r="6"/></g>
+</g>
+<g transform="rotate(-6 600 120)"><text x="572" y="128" font-size="34" fill="#8a1a12">x6</text></g>
+<g transform="rotate(-1 460 186)"><text x="370" y="190" font-size="20" fill="#14110c">the tapes open the way</text></g>
+<g stroke="#14110c" stroke-width="3" fill="none">
+<path d="M384 216 Q426 212 472 217"/><path d="M384 270 Q430 266 474 271"/>
+<path d="M418 214 Q430 208 443 214 Q430 220 418 214Z" fill="#14110c"/>
+<path d="M430 223 Q432 238 430 254" stroke="#8a1a12"/><path d="M422 246 L430 257 L438 245" stroke="#8a1a12"/>
+<path d="M499 270 L500 257 L513 256 L514 245 L527 244 L528 233 L541 232 L542 221 L556 220 L557 214"/>
+<path d="M509 231 Q524 220 538 211" stroke="#8a1a12"/><path d="M528 208 L540 209 L537 220" stroke="#8a1a12"/>
+</g>
+<g transform="rotate(1 440 292)"><text x="352" y="296" font-size="15" fill="#14110c">the floor gives way</text></g>
+<g transform="rotate(-2 550 292)"><text x="532" y="298" font-size="15" fill="#14110c">stairs back</text></g>
+<g transform="rotate(-1 460 318)"><text x="374" y="324" font-size="16" fill="#14110c">theres another floor below</text></g>
+<g stroke="#14110c" stroke-width="3" fill="none">
+<path d="M44 396 Q48 384 62 386 L120 388 Q128 390 126 400 L124 404 Q118 410 108 406 L60 404 Q46 406 44 396Z"/>
+<path d="M60 404 L58 416 M82 405 L81 418 M104 406 L104 418 M58 416 L106 418" stroke-width="2"/>
+</g>
+<g stroke="#14110c" stroke-width="2" fill="none"><path d="M78 376 l-4 -10 M86 374 l0 -11 M94 376 l4 -10"/></g>
+<path d="M140 380 Q170 396 200 384 Q230 372 260 390" stroke="#8a1a12" stroke-width="3" fill="none"/>
+<path d="M160 372 L220 400 M220 372 L160 400" stroke="#8a1a12" stroke-width="3.5" fill="none"/>
+<g transform="rotate(-2 150 440)"><text x="40" y="446" font-size="18" fill="#14110c">when the hum stops</text></g>
+<g transform="rotate(-3 150 468)"><text x="56" y="476" font-size="22" fill="#8a1a12">it is coming</text></g>
+<g transform="rotate(1 150 494)"><text x="58" y="502" font-size="16" fill="#14110c">get down. dont breathe</text></g>
+<g stroke="#14110c" stroke-width="3" fill="none">
+<path d="M430 382 L496 380 L498 478 L431 476Z"/><path d="M464 381 Q462 430 465 477"/>
+<path d="M548 380 L614 382 L612 478 L549 477Z"/><path d="M581 381 Q583 430 580 477"/>
+</g>
+<path d="M424 374 Q462 426 504 484" stroke="#8a1a12" stroke-width="4" fill="none"/><path d="M502 372 Q466 428 422 486" stroke="#8a1a12" stroke-width="4" fill="none"/>
+<path d="M560 432 Q570 442 577 450 Q594 424 606 402" stroke="#1d5420" stroke-width="5" fill="none"/>
+<path d="M574 368 q7 -7 13 0 q-6 8 -13 0Z" fill="#c0261b"/>
+<g transform="rotate(-3 450 500)"><text x="438" y="504" font-size="16" fill="#8a1a12">its a lie</text></g>
+<g transform="rotate(2 580 500)"><text x="540" y="504" font-size="16" fill="#14110c">only this one</text></g>
+<g transform="rotate(-1 520 524)"><text x="374" y="532" font-size="15" fill="#8a1a12">when the lights turn red RUN. dont leave anyone</text></g>
+</g>
+<g transform="rotate(-4 520 510)"><text x="470" y="512" font-size="13" fill="#3a2f22" font-family="'Segoe Print','Bradley Hand','Comic Sans MS',cursive">- S. day 3</text></g>
+</svg>

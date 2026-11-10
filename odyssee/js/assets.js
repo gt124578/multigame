@@ -4,6 +4,7 @@
 import { SPECIES } from './data/species.js';
 import { SPRITES } from './data/sprites.js';
 import { ITEMS as ITEM_DEFS } from './core/items.js';
+import { spritesChoix } from './gfx.js';
 
 const params = new URLSearchParams(location.search);
 // sprites des Pokémon (face, dos, chromatiques, icônes) copiés de PokeAPI dans le dépôt : le jeu n'en dépend plus en ligne
@@ -14,7 +15,7 @@ const CRIES = new URL('../snd/cris', import.meta.url).href;
 const HG = BASE + '/pokemon/versions/generation-iv/heartgold-soulsilver';
 // après le n° 493 (pas de dessin HeartGold / SoulSilver) : dessins Noir / Blanc, même style pixel
 const BW = BASE + '/pokemon/versions/generation-v/black-white';
-const gen = (id) => (id <= 493 ? HG : BW);
+const gen = (id) => (id <= 493 && spritesChoix() !== 'bw' ? HG : BW);   // Options → Graphismes → Sprites des Pokémon
 const IMG = new URL('../img/', import.meta.url).href;
 const ITEMS = new Set(SPRITES.items || []), PORTRAITS = new Set(SPRITES.portraits || []), DRESSEURS = new Set(SPRITES.dresseurs || []);
 // champions dont le portrait de combat n'est pas encore dessiné : un dresseur qui leur ressemble
@@ -53,6 +54,7 @@ export const ASSETS = {
   facade: (k) => `${IMG}facades/${k}.png`,
   sol: (k) => `${IMG}sol/${k}.png`,
   sol32: (k) => `${IMG}sol32/${k}.png`,
+  gfx: (dossier, k) => `${IMG}${dossier}/${k}.png`,
   sol16: (k) => `${IMG}sol16/${k}.png`,
   herbe: (k) => `${IMG}herbes/${k}.png`,
   hgss: (k) => `${IMG}hgss/${k}.png`,

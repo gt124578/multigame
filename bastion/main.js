@@ -238,14 +238,18 @@ function checkPresence() {
   if (fx.length) { handleFxEvents(fx); pendingNetFx.push(...fx); }
 }
 
-// Sauvegarde complète envoyée toutes les 2 s au seul joueur qui reprendrait la partie si l'hôte partait
-// (le plus petit numéro parmi les autres, comme le choisit le salon). Elle n'est pas affichée.
+// Sauvegarde complète envoyée toutes les 2 s au seul joueur qui reprendrait la partie si l'hôte partait, choisi comme
+// le fait le salon (successorOf dans shared/room.js) : un joueur présent (pas en reconnexion), de préférence l'un de
+// ceux qui ont la partie ouverte, puis le plus petit numéro. Elle n'est pas affichée.
 let backupState = null;
 let lastBackupAt = 0;
 function successorId() {
   const H = window.HubBridge;
-  const ids = H.players.map((p) => Number(p.id)).filter((id) => id !== Number(myId)).sort((a, b) => a - b);
-  return ids.length ? ids[0] : null;
+  const others = H.players.filter((p) => Number(p.id) !== Number(myId));
+  const here = others.filter((p) => !p.away);
+  const inGame = here.filter((p) => H.readyMap && H.readyMap[p.id] === H.info.game);
+  const pool = inGame.length ? inGame : here.length ? here : others;
+  return pool.length ? Math.min(...pool.map((p) => Number(p.id))) : null;
 }
 function sendBackup() {
   const H = window.HubBridge;

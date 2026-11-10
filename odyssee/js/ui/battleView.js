@@ -708,11 +708,23 @@ export class BattleView {
     for (;;) {
       this.ui.typePage(this.textBox, `Que doit faire ${monName(me)} ?`, { last: true });
       const c = await this.commandMenu();
+      if (c && c.fastBall) {
+        const ballId = c.fastBall;
+        if (this.game.state.party.length >= 6 && this.game.state.box.length >= 300) {
+          await this.msg('Plus de place dans le PC !', { wait: true });
+          continue;
+        }
+        this.lastBattleItem = ballId;
+        this.game._lastBattleItem = ballId;
+        return { type: 'item', item: ballId };
+      }
       if (c === 0) { this.megaArmed = false; const mv = await this.moveMenu(); if (mv < 0) continue; const mega = !!this.megaArmed && b.canMega?.(0); this.megaArmed = false; return mega ? { type: 'move', idx: mv, mega: true } : { type: 'move', idx: mv }; }
       if (c === 1 && b.pvp) { await this.msg('Pas d\'objets dans un combat entre dresseurs !', { wait: true }); continue; }
       if (c === 3 && b.pvp) { if (await this.ui.yesNo('Abandonner le combat ?')) return { type: 'forfeit' }; continue; }
       if (c === 1) {
-        const r = await bagScreen(this.game, { battle: true }); if (!r) continue;
+        const r = await bagScreen(this.game, { battle: true, initialItem: this.lastBattleItem || this.game._lastBattleItem }); if (!r) continue;
+        this.lastBattleItem = r.item;
+        this.game._lastBattleItem = r.item;
         const it = ITEMS[r.item], cap = this.game.levelCap();
         if (it.ball) { if (this.game.state.party.length >= 6 && this.game.state.box.length >= 300) { await this.msg('Plus de place dans le PC !', { wait: true }); continue; } return { type: 'item', item: r.item }; }
         const target = await partyScreen(this.game, { mode: 'pick', prompt: `Utiliser ${itemName(r.item)} sur quelle créature ?`, filter: (m) => (canUseOn(r.item, m, cap) ? null : it.candy && m.lvl >= cap && m.lvl < 100 ? `Niv. max (${cap})` : 'Pas d\'effet') });
@@ -736,15 +748,53 @@ export class BattleView {
       }
     }
   }
+  getFastBall() {
+    if (!this.battle?.wild) return null;
+    const bag = this.game.state?.bag || {};
+    // 1. Priorité au dernier objet utilisé s'il s'agit d'une Ball encore en stock
+    const last = this.lastBattleItem || this.game._lastBattleItem;
+    if (last && ITEMS[last]?.ball && (bag[last] || 0) > 0) {
+      return { id: last, name: itemName(last), count: bag[last], it: ITEMS[last] };
+    }
+    // 2. Priorité standard aux Balls classiques (hors Master Ball sauf si seule restante)
+    const priority = ['ultra-ball', 'great-ball', 'poke-ball', 'master-ball'];
+    for (const pid of priority) {
+      if ((bag[pid] || 0) > 0) {
+        return { id: pid, name: itemName(pid), count: bag[pid], it: ITEMS[pid] };
+      }
+    }
+    // 3. Autre Ball quelconque en stock
+    for (const [k, qty] of Object.entries(bag)) {
+      if (qty > 0 && ITEMS[k]?.ball) {
+        return { id: k, name: itemName(k), count: qty, it: ITEMS[k] };
+      }
+    }
+    return null;
+  }
   commandMenu() {
     return new Promise((resolve) => {
+      const fastBall = this.getFastBall();
       const items = [
         { label: 'ATTAQUE', sub: 'Capacités', cls: 'fight', icon: 'img/battle/fight.png' },
         { label: 'SAC', sub: 'Objets & Balls', cls: 'bag', icon: 'img/hud/bag.png' },
         { label: 'ÉQUIPE', sub: 'Changer', cls: 'mon', icon: 'img/hud/team.png' },
         { label: this.battle.pvp ? 'ABANDON' : 'FUITE', sub: this.battle.pvp ? 'Forfait' : 'Quitter', cls: 'run', icon: 'img/hud/run.png' },
       ];
-      this.cmd.innerHTML = `<div class="cmd-grid">${items.map((it, i) => `
+      const fastHtml = fastBall ? `
+        <div class="fast-ball-banner" title="Lancer rapide (Touche B ou Clic)">
+          <div class="fbb-left">
+            <span class="fbb-key-pill">B</span>
+            <img class="fbb-ico" src="${ASSETS.item(fastBall.id)}" alt="${esc(fastBall.name)}">
+            <div class="fbb-text">
+              <span class="fbb-sub">Lancer rapide</span>
+              <span class="fbb-name">${esc(fastBall.name)}</span>
+            </div>
+          </div>
+          <div class="fbb-right">
+            <span class="fbb-count">×${fastBall.count}</span>
+          </div>
+        </div>` : '';
+      this.cmd.innerHTML = `${fastHtml}<div class="cmd-grid">${items.map((it, i) => `
         <div class="cbtn ${it.cls}" data-i="${i}">
           <img class="cbtn-ico" src="${it.icon}" alt="">
           <div class="cbtn-txt">
@@ -758,20 +808,31 @@ export class BattleView {
       const show = () => btns.forEach((b, k) => b.classList.toggle('sel', k === i));
       show();
       let done = false;
-      const pick = (idx) => {
+      const pick = (res) => {
         if (done) return;
         done = true;
         pop();
         this.cmd.classList.remove('on'); this.root.classList.remove('cmdon');
-        this.lastCmd = idx === 3 ? 0 : idx;
+        if (typeof res === 'number') this.lastCmd = res === 3 ? 0 : res;
         this.sound.sfx('select');
-        resolve(idx);
+        resolve(res);
       };
+      const fastBannerEl = this.cmd.querySelector('.fast-ball-banner');
+      if (fastBannerEl && fastBall) {
+        fastBannerEl.addEventListener('click', (e) => {
+          e.stopPropagation();
+          pick({ fastBall: fastBall.id });
+        });
+      }
       btns.forEach((b, idx) => {
         b.addEventListener('pointerenter', () => { if (i !== idx) { i = idx; this.sound.sfx('blip'); show(); } });
         b.addEventListener('click', (e) => { e.stopPropagation(); i = idx; show(); pick(idx); });
       });
       const pop = this.ui.input.push((k) => {
+        if (k === 'ball' && fastBall) {
+          pick({ fastBall: fastBall.id });
+          return;
+        }
         if (k === 'up' || k === 'down') i ^= 2; else if (k === 'left' || k === 'right') i ^= 1;
         else if (k === 'a') { pick(i); return; }
         else if (k === 'b') { i = 3; }

@@ -1,0 +1,7 @@
+L'entité du Level 1 (l'entrepôt), reprise telle quelle aux Poolrooms (Level 37).
+
+Déposer ici le modèle .glb de la nouvelle entité (rigué si possible, avec ou sans animations).
+Elle remplacera, au Level 1 et au Level 37, l'entité actuelle de ces deux niveaux.
+
+Ses sons sont ceux de backrooms/sfx/level1/ (cris de poursuite, ambiances, son de la mort) :
+le Level 37 lit le même dossier.

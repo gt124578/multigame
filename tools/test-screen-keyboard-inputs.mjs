@@ -32,7 +32,7 @@ const createMockEl = (tag) => {
     remove: () => { el.isRemoved = true; },
     children: Array.from({ length: 200 }).map(() => ({
       classList: { toggle() {}, add() {}, remove() {} },
-      scrollIntoView() {}
+      scrollIntoView() {}, addEventListener() {}
     })),
     querySelector: () => createMockEl('DIV'),
     querySelectorAll: () => [],

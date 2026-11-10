@@ -155,7 +155,7 @@ export function buildRivalParty(game, rawTeamSpec) {
     // sauf son starter qui a 2 niveaux de plus !
     // Début du jeu (aucun badge) : Théo est à ta hauteur — même niveau pour son starter, un de moins pour les autres,
     // et des IV ordinaires. La règle « +2 niveaux, IV parfaits » ne s'applique qu'à partir du premier badge.
-    const early = badges < 1;
+    const early = badges <= 1; // 0 ou 1 badge (début et Route 2) : niveau équitable, pas de sur-niveau +2
     const lvl = early
       ? (isStarter ? Math.max(baseLvl, maxPlayerLvl) : Math.max(baseLvl, maxPlayerLvl - 1))
       : (isStarter ? Math.max(baseLvl, maxPlayerLvl + 2) : Math.max(baseLvl, maxPlayerLvl));

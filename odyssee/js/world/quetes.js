@@ -727,6 +727,11 @@ export function buildQuests(ctx) {
   {
     const m = MAG, c = caverne;
     caveLink(m, 42, 10, c, 6, 29);
+    // la sortie au bout de la salle : roche de chaque côté de la porte et en dessous (plus de case libre à côté)
+    for (let x = 4; x <= 10; x++) for (let y = 30; y < c.h; y++) if (x !== 6 || y !== 30) c.set(x, y, T.CAVEWALL);
+    c.deco = c.deco.filter((d) => !(d.x === 10 && d.y === 30));
+    // relier la chambre sud-est au reste de la caverne depuis le nord
+    for (let y = 24; y <= 26; y++) { c.set(18, y, T.CAVE); c.set(19, y, T.CAVE); }
     for (let y = 13; y < 22; y++) { if (m.get(44, y) === T.PATH) break; if (m.get(44, y) === T.TREE || m.get(44, y) === T.ASH) m.set(44, y, T.PATH); }
     c.rect(36, 2, 45, 9, T.CAVE); c.prop('brasero', 37, 3); c.prop('brasero', 44, 3);
     pnj(c, 'q:nox2', 40, 6, { sprite: 'nox', dir: 'up', when: (fl) => st(fl, 'magma') === 2, talk: async (A) => {

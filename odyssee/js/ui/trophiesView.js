@@ -30,13 +30,25 @@ function timeAgo(ts) {
   return `Il y a ${days} j`;
 }
 
+const CUSTOM_MEDAL_ICONS = {
+  dex_route_1: 'img/trophies/medal_route_scout_64.png',
+  dex_route_5: 'img/trophies/medal_route_hunter_64.png',
+  dex_route_all: 'img/trophies/medal_habitat_master_64.png',
+  dex_caught_200: 'img/trophies/medal_pokedex_master_64.png'
+};
+
+export function getTrophyIconSrc(trophy) {
+  if (trophy?.id && CUSTOM_MEDAL_ICONS[trophy.id]) return CUSTOM_MEDAL_ICONS[trophy.id];
+  return `img/trophies/medal_${trophy?.tier || 'bronze'}_64.png`;
+}
+
 /**
  * Affiche une bannière toast façon Pokémon Noir 2 / Blanc 2 lors du déblocage d'une médaille.
  */
 export function showTrophyToast(game, trophy) {
   if (!game?.ui?.root || !trophy) return;
   const t = el('div', 'trophy-toast box');
-  const iconSrc = `img/trophies/medal_${trophy.tier}_64.png`;
+  const iconSrc = getTrophyIconSrc(trophy);
   t.innerHTML = `
     <div class="trophy-toast-icon">
       <img src="${iconSrc}" alt="" class="medal-pixel" onerror="this.src='img/trophies/box_120.png'">
@@ -349,7 +361,7 @@ function renderMedalsTab(filteredTrophies, allTrophies, summary, medalFilter, ca
       <div class="tmedals-grid">
         ${filteredTrophies.length ? filteredTrophies.map((t) => {
           const pct = Math.min(100, Math.round((t.current / t.max) * 100));
-          const iconSrc = `img/trophies/medal_${t.tier}_64.png`;
+          const iconSrc = getTrophyIconSrc(t);
           const isDone = t.done || t.unlocked;
           const isClaimed = t.claimed;
           const isClaimable = isDone && !isClaimed;

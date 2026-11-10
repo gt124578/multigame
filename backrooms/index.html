@@ -6,7 +6,7 @@
 <title>The Backrooms</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=VT323&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="backrooms.css">
 </head>
 <body>
@@ -16,6 +16,66 @@
 
 <script src="../shared/bridge.js"></script>
 <script src="../shared/volume.js"></script>
-<script type="module" src="app.js"></script>
+<!-- Les fichiers du jeu portent la version du Hub (?v=4.63, donnée par le Hub) : un navigateur ne peut plus garder
+     en cache une partie d'une ancienne version et en charger une partie de la nouvelle. Un tel mélange donnait une
+     autre carte que celle des coéquipiers (escaliers et cassettes ailleurs). Liste vérifiée par tools/test-backrooms.mjs. -->
+<script>
+(function () {
+  var FILES = [
+    'app.js',
+    'engine/director.js',
+    'engine/gait.js',
+    'engine/goats.js',
+    'engine/hotel.js',
+    'engine/hides.js',
+    'engine/interp.js',
+    'engine/level1.js',
+    'engine/level2.js',
+    'engine/map.js',
+    'engine/nav.js',
+    'engine/poolrooms.js',
+    'engine/sim.js',
+    'view/beast.js',
+    'view/entity.js',
+    'view/gear.js',
+    'view/goats.js',
+    'view/hotel.js',
+    'view/hotelEntity.js',
+    'view/hud.js',
+    'view/kit.js',
+    'view/pipes.js',
+    'view/players.js',
+    'view/scene.js',
+    'view/sfx.js',
+    'view/textures.js',
+    'view/textures2.js',
+    'view/vhs.js',
+    'view/inset.js',
+    'view/voice.js',
+    'view/warehouse.js',
+    'view/water.js',
+  ];
+  var v = new URLSearchParams(location.search).get('v');
+  var q = v ? '?v=' + encodeURIComponent(v) : '';
+  if (v) {
+    var imports = {};
+    FILES.forEach(function (f) {
+      var u = new URL(f, location.href).href;
+      imports[u] = u + q;
+    });
+    var map = document.createElement('script');
+    map.type = 'importmap';
+    map.textContent = JSON.stringify({ imports: imports });
+    document.head.appendChild(map);
+    var css = document.querySelector('link[href="backrooms.css"]');
+    if (css) css.href = 'backrooms.css' + q;
+  }
+  window.BACKROOMS_FILES = FILES;
+  var app = document.createElement('script');
+  app.type = 'module';
+  app.src = 'app.js' + q;
+  document.body.appendChild(app);
+})();
+</script>
 </body>
 </html>

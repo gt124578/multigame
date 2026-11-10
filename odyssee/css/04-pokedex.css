@@ -10,3 +10,47 @@
 .dex-list { overflow-y: auto; flex: 1; }
 .dexn { color: #687890; width: calc(var(--px) * 22); }
 .ball-mini { width: calc(var(--px) * 7); height: calc(var(--px) * 7); border-radius: 50%; background: linear-gradient(#e83838 0 45%, #202020 45% 55%, #f4f4f4 55%); border: var(--px) solid #202020; }
+.dex-habitat {
+  margin-top: calc(var(--px) * 4);
+  padding: calc(var(--px) * 2.5) calc(var(--px) * 3.5);
+  background: rgba(15, 25, 42, 0.75);
+  border: calc(var(--px) * 0.8) solid rgba(96, 165, 250, 0.35);
+  border-radius: calc(var(--px) * 3);
+}
+.dex-habitat.locked {
+  border-color: rgba(148, 163, 184, 0.25);
+  opacity: 0.85;
+}
+.dex-habitat-title {
+  font-size: calc(var(--px) * 4.8);
+  font-weight: 800;
+  color: #93c5fd;
+  margin-bottom: calc(var(--px) * 1.5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dex-seen-cnt {
+  font-size: calc(var(--px) * 4.4);
+  color: #cbd5e1;
+  font-weight: 600;
+}
+.dex-habitat-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--px) * 1.5);
+}
+.dex-hab-pill {
+  font-size: calc(var(--px) * 4.6);
+  font-weight: 700;
+  color: #e0f2fe;
+  background: linear-gradient(180deg, #1e3a8a 0%, #172554 100%);
+  border: calc(var(--px) * 0.7) solid rgba(56, 189, 248, 0.5);
+  border-radius: calc(var(--px) * 2);
+  padding: calc(var(--px) * 0.6) calc(var(--px) * 2.2);
+}
+.dex-hab-none, .dex-hab-hint {
+  font-size: calc(var(--px) * 4.6);
+  color: #94a3b8;
+  font-style: italic;
+}

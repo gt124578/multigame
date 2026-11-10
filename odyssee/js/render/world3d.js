@@ -1,7 +1,8 @@
 // odyssee/js/render/world3d.js — rendu « fausse 3D » façon DS : sol en tuiles, bâtiments en volume,
 // arbres / herbes / personnages en sprites verticaux, caméra inclinée en perspective étroite, rendu basse résolution.
 import * as THREE from 'three';
-import { T } from '../world/tiles.js';
+import { T, walkable } from '../world/tiles.js';
+import { styleMur } from './murs-tex.js';
 import { pente, ravin, mont } from '../world/relief.js';
 import { sensPont } from '../world/ponts.js';
 import { buildAtlas, buildAnimAtlas, buildSprites, applySpriteImages, facade, sideWall, roofTex, roofColors, kitColor, PAL, SOL16 } from './textures.js';
@@ -503,6 +504,7 @@ function kitStyle(b, map) {
 export class WorldView {
   constructor(renderer, charsImg, art = {}) {
     this.renderer = renderer;
+    this.batPack = art.batiments || null;   // pack de graphismes : bâtiments dessinés d'un seul tenant (gfx.js)
     // Pokémon qui suivent le dresseur (img/suiveurs.png) : leurs lignes s'ajoutent sous celles des personnages
     if (charsImg && art.suiveurs && SPRITES.suiveurs) {
       const c = document.createElement('canvas'); c.width = charsImg.width; c.height = charsImg.height + art.suiveurs.height;
@@ -600,10 +602,23 @@ export class WorldView {
     if (this.r3d && !this.r3dHGSS && !this.tinted.includes(matParoi())) this.tinted.push(matParoi(), matFacettes());
     for (const e of this.herbes?.values() || []) e.tex?.dispose(); this.herbes = new Map();   // herbes de devant (herbes.js)
     this.decoAt = new Map(); for (const d of map.deco) this.decoAt.set(d.x + ',' + d.y, d);
+    // arènes dessinées : tous les décors d'une case, dans l'ordre où ils ont été posés
+    this.decosAt = new Map(); if (map.etat) for (const d of map.deco) (this.decosAt.get(d.x + ',' + d.y) || this.decosAt.set(d.x + ',' + d.y, []).get(d.x + ',' + d.y)).push(d);
     this.tiers = map.outdoor ? null : caveTiers(map); this.biome = caveBiome(map);
     this.int = styleInterieur(map);   // maison : murs et sol assortis à sa ville (interieurs.js)
     if (this.int && !this.A.cells[`int_${this.int}_haut`]) this.int = null;
     this.fenetresInt = this.int ? fenetresInterieur(map, this.decoAt) : null;
+    // intérieurs : murs façon HeartGold / SoulSilver (vrais volumes, plinthe, fenêtres) quand le style a ses tuiles
+    const sm = !this.int && !map.outdoor && !map.t.includes(T.CAVEWALL) ? styleMur(map) : null;
+    const anciens = typeof location !== 'undefined' && /[?&]anciensmurs/.test(location.search);   // comparaison avant / après
+    this.murStyle = sm && !anciens && this.A?.cells?.['murh_' + sm] ? sm : null;
+    this.fenetres = new Set();
+    if (this.murStyle && map.w > 6) {
+      // fenêtres sur le haut du mur du fond, là où rien ne s'adosse au mur
+      const libres = []; for (let x = 2; x < map.w - 2; x++) if (map.get(x, 1) === T.WALL && map.get(x, 2) === T.FLOOR && !map.deco.some((d) => d.x === x && d.y === 2)) libres.push(x);
+      const n = map.w >= 12 ? 3 : 2;
+      for (const x of libres) if (this.fenetres.size < n && [...this.fenetres].every((f) => Math.abs(f - x) >= 3)) this.fenetres.add(x);
+    }
     // relief du dehors : plateaux plus hauts, parois de falaise, marches (world/relief.js)
     this.relief = !this.r3d && !!map.outdoor && (map.hg?.some((h) => h !== 0) || map.t?.includes(T.CLIFF));
     this.rh = this.tiers && !this.A?.cells?.[`rp_${this.biome}_00`] ? caveHeights(map, this.tiers) : null;
@@ -1038,6 +1053,7 @@ export class WorldView {
       else if (t === T.BOULDER && m.bloc && S[m.bloc]) { const r = S[m.bloc]; billboard(P, x + 0.5, y + 0.66, SW(r) * 1.1, SH(r) * 1.1, r); this.ombreSol(Sh, x + 0.14, y + 0.5, x + 0.86, y + 0.86); }
       else if (t === T.BOULDER) { const r = (m.bloc && S[m.bloc]) || (m.outdoor ? S.rock : S.caverock || S.rock); billboard(P, x + 0.5, y + 0.62, SW(r) * 1.15, SH(r) * 1.15, r); this.ombreSol(Sh, x + 0.02, y + 0.35, x + 0.98, y + 0.9); }
       else if (t === T.SMASH) { const r = S.crackrock; billboard(P, x + 0.5, y + 0.62, SW(r), SH(r), r); this.ombreSol(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85); }
+      else if (t === T.WALL && this.murStyle && this.murCell(Wl, x, y, wallH)) { /* mur d'intérieur façon HGSS */ }
       else if (t === T.WALL) {
         // mur du fond en volume ; murs latéraux et bas réduits à une bordure sombre, comme sur DS
         if (y <= 1 && this.int) this.murInterieur(Wl, x, y, wallH);
@@ -1085,7 +1101,17 @@ export class WorldView {
         box(Wl, x + 0.08, y + 0.35, x + 0.92, y + 0.9, 0.62 * Math.tan(EL), A['barr_' + g], A['barr_' + g + '_top'], A['barr_' + g]);
       }
       // décor posé (lampadaires, panneaux, meubles…)
-      const d = this.decoAt.get(x + ',' + y);
+      // ombre portée des murs sur le sol (intérieurs façon HGSS)
+      if (this.murStyle && t !== T.WALL) {
+        if (m.get(x, y - 1) === T.WALL && y <= 2) flat(O0, x, y, x + 1, y + 1, 0.0042, A.ombre_n);
+        if (x === 1 && m.get(0, y) === T.WALL) flat(O0, x, y, x + 1, y + 1, 0.0041, A.ombre_o);
+        if (x === m.w - 2 && m.get(x + 1, y) === T.WALL) flat(O0, x, y, x + 1, y + 1, 0.0041, A.ombre_e);
+        // tapis des maisons, sous la table (3 × 2 cases au milieu de la pièce)
+        if (this.murStyle.startsWith('in') && A['tapis_' + this.murStyle] && x === (m.w >> 1) - 1 && y === 4 && m.h >= 8) flat(O0, x, y, x + 3, y + 2, 0.0043, A['tapis_' + this.murStyle]);
+      }
+      let d = this.decoAt.get(x + ',' + y);
+      // arènes dessinées dans un plan : plusieurs décors par case, selon l'état de l'arène (portes, fleurs, miroirs…)
+      if (m.etat) { this.celluleArene(O0, P, Sh, x, y, Wl); d = null; }
       // décalques des arènes au sol : flèches, souffles, courants, dalles, téléporteurs, socles des barrières
       // mine : rails (orientés selon les rails voisins) et échelles entre les niveaux
       if (m.rails?.has(x + ',' + y)) {
@@ -1164,6 +1190,86 @@ export class WorldView {
     this.root.add(grp);
     this.sol.demande(ci, cj, grp);
     return grp;
+  }
+
+  /** mur d'intérieur façon HeartGold / SoulSilver : mur du fond en deux (papier peint et lambris, fenêtres), murs
+   *  latéraux en vrais volumes coiffés d'un chaperon, mur du bas en muret ; renvoie false pour les autres murs */
+  murCell(Wl, x, y, wallH) {
+    const m = this.map, A = this.A.cells, st = this.murStyle, W = (a, b) => m.get(a, b) === T.WALL;
+    const haut = A['murh_' + st], bas = A['murb_' + st], cap = A['cap_' + st], capv = A['capv_' + st] || cap, fen = A['fen_' + st];
+    const face = (x0, x1, z, h) => {
+      Wl.quad([x0, 0, z], [x1, 0, z], [x1, h / 2, z], [x0, h / 2, z], bas[0], bas[1], bas[2], bas[3], 1);
+      Wl.quad([x0, h / 2, z], [x1, h / 2, z], [x1, h, z], [x0, h, z], haut[0], haut[1], haut[2], haut[3], 1);
+    };
+    const dessus = (h, c = cap) => Wl.quad([x, h, y + 1], [x + 1, h, y + 1], [x + 1, h, y], [x, h, y], c[0], c[1], c[2], c[3], 1);
+    if (y <= 1) {
+      if (!W(x, y + 1)) {
+        face(x, x + 1, y + 1, wallH);
+        if (this.fenetres.has(x) && fen) Wl.quad([x, wallH * 0.5, y + 1.004], [x + 1, wallH * 0.5, y + 1.004], [x + 1, wallH, y + 1.004], [x, wallH, y + 1.004], fen[0], fen[1], fen[2], fen[3], 1);
+      }
+      dessus(wallH);
+      return true;
+    }
+    if (x === 0 || x === m.w - 1) {
+      // mur latéral : un volume aussi haut que le mur du fond ; son bout se voit en bas de la pièce
+      if (!W(x, y + 1) && y + 1 < m.h) face(x, x + 1, y + 1, wallH);
+      else if (y === m.h - 1) face(x, x + 1, y + 1, wallH);
+      dessus(wallH, capv);
+      return true;
+    }
+    if (y === m.h - 1) {
+      // mur du bas : un muret, pour ne pas cacher la dernière rangée de la pièce
+      const h = 0.3 * Math.tan(EL);
+      Wl.quad([x, 0, y + 1], [x + 1, 0, y + 1], [x + 1, h, y + 1], [x, h, y + 1], cap[0], cap[1], cap[2], cap[3], 0.7);
+      dessus(h);
+      return true;
+    }
+    return false;
+  }
+
+  /** une case d'arène dessinée (world/arenes-plan.js) : décalques à plat puis objets debout, selon les registres */
+  celluleArene(O0, P, Sh, x, y, Wl) {
+    const m = this.map, A = this.A.cells, S = this.S.rects, R = m.regs || m.regs0 || [], t = m.get(x, y);
+    const marche = walkable(t);
+    let h = 0.005;
+    const aPlat = (k) => { if (!A[k]) return false; flat(O0, x, y, x + 1, y + 1, h, A[k]); h += 0.0004; return true; };
+    const debout = (k, dz = 0.62, ombre = true) => {
+      const r = S[k]; if (!r) return false;
+      billboard(P, x + 0.5, y + dz, SW(r), SH(r), r);
+      if (ombre && S.shadow) flat(Sh, x + 0.1, y + 0.4, x + 0.9, y + 0.85, 0.015, [S.shadow.u0, S.shadow.v0, S.shadow.u1, S.shadow.v1]);
+      return true;
+    };
+    const ou = (k, dz) => aPlat('dec_' + k) || debout(k, dz);
+    const roche = (a, b) => (this.decosAt.get(a + ',' + b) || []).some((q) => q.k === 'roche_gym');
+    for (const d of this.decosAt.get(x + ',' + y) || []) {
+      const k = d.k;
+      // roche de la carrière : un bloc de roche comme les parois des grottes
+      if (k === 'roche_gym' && A.cavewall) {
+        const s2 = !roche(x, y + 1), e = !roche(x + 1, y), w = !roche(x - 1, y);
+        box(Wl, x, y, x + 1, y + 1, 0.9 * Math.tan(EL), A.cavewall, A.cavetop, A.cavewall, { south: s2, east: e, west: w });
+        continue;
+      }
+      if (k === 'etat') {
+        if (d.bras && !marche) { debout(d.f, 0.62, false) || aPlat('dec_' + d.f); continue; }
+        const n = marche ? d.o : d.f; if (!n) continue;
+        if (d.dir && (A[`dec_${n}_${d.dir}`] || S[`${n}_${d.dir}`])) ou(`${n}_${d.dir}`); else ou(n);
+        continue;
+      }
+      if (k === 'fleur_gym') { const n = R[d.r] ? 'fleur_ouverte' : 'fleur_bouton'; if (marche) aPlat('dec_' + n); else debout(n, 0.6, false); continue; }
+      if (k === 'canon') { aPlat('dec_arrivee_vent'); debout('canon_' + (d.dir || 'up'), 0.66); continue; }
+      if (k === 'miroir') { const f = (d.base === '/') !== !!(d.f % 2); debout(f ? 'miroir_a' : 'miroir_b'); continue; }
+      if (k === 'cristal_cible') { debout(d.on ? 'cristal_cible_on' : 'cristal_cible'); continue; }
+      if (k === 'mur_marais' || k === 'pont_ombre') { if (R[d.r]) aPlat('dec_' + k); continue; }
+      if (k === 'fragile') { aPlat(d.f ? 'dec_fendue' : 'dec_fragile'); continue; }
+      if (k === 'ciel') { aPlat(hash(x * 3 + 1, y * 5 + 2) < 0.1 ? 'dec_nuage' : 'dec_ciel'); continue; }
+      if (k === 'fleche' || k === 'vent' || k === 'courant' || k.startsWith('tapis_')) { aPlat(`dec_${k}_${d.dir || 'up'}`); continue; }
+      if (k === 'lanterne_marais' || k === 'torche_ombre') { const o = m.objectAt(x, y), r = o?.a?.set?.[0]; debout(r != null && R[r] ? k + '_on' : k); continue; }
+      if (k === 'sign' || k === 'gymstatue' || k === 'plant' || k === 'pupitre') { debout(k, k === 'gymstatue' ? 0.66 : 0.6); continue; }
+      const cle = k + (d.g != null ? '_' + d.g : d.dir ? '_' + d.dir : '');
+      if (!aPlat('dec_' + cle) && !aPlat('dec_' + k)) debout(cle) || debout(k);
+    }
+    // le rayon de lumière (arène Fée)
+    const ry = m.rayon?.get(x + ',' + y); if (ry) aPlat('dec_rayon_' + ry);
   }
 
   /** une case a changé (arbre coupé, rocher brisé) : le morceau de carte qui la contient est reconstruit */
@@ -1348,6 +1454,29 @@ export class WorldView {
         hole.geometry.dispose(); hole.geometry = gg; hole.position.set(0, 0, 0); mat.polygonOffset = true; mat.polygonOffsetFactor = -2; mat.polygonOffsetUnits = -4;
       }
       g.add(hole); this.root.add(g); return;
+    }
+    // pack de graphismes (Options → Graphismes) : une image d'un seul tenant, à 32 px par case comme l'écran (pixel pour
+    // pixel), dont la largeur colle à l'emprise ; sa porte tombe sur la porte du jeu, son pied sur le bord avant
+    const BP = this.batPack, choix = BP?.styles[b.style];
+    if (choix) {
+      const ok = choix.filter(([n, w]) => BP.images[n] && Math.abs(w / 32 - b.w) <= 1.5);
+      const best = ok.length && Math.min(...ok.map(([, w]) => Math.abs(w / 32 - b.w)));
+      const pris = ok.filter(([, w]) => Math.abs(w / 32 - b.w) <= best + 0.35);
+      const pick = pris.length ? pris[(b.x * 7 + b.y * 3) % pris.length] : null;
+      if (pick) {
+        const [n, , porte] = pick, im = BP.images[n];
+        const t = T3('pack_' + n, () => im); t.flipY = true; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.needsUpdate = true;
+        const W = im.width * WPX / 2, H = im.height * HPX / 2;
+        const geo = new THREE.PlaneGeometry(W, H); geo.translate(0, H / 2, 0);
+        geo.setAttribute('anchor', new THREE.Float32BufferAttribute(new Array(12).fill(0), 3));
+        const px = porte == null || b.door < 0 ? null : porte / 32;
+        const left = px == null ? b.x + (b.w - W) / 2 : b.x + b.door + 0.5 - px;
+        const ax = Math.round((left + W / 2) * 32) / 32, az = b.y + b.d;
+        const mat = screenSprite(new THREE.MeshBasicMaterial({ map: t, alphaTest: 0.5, side: THREE.DoubleSide }));
+        this.tinted.push(mat); mat.color.copy(this.tint);
+        const me = new THREE.Mesh(geo, mat); me.position.set(ax, hb, az); g.add(me); g.userData.b = b;
+        this.root.add(g); this.buildingMeshes.push(g); return;
+      }
     }
     // bâtiment en fausse 3D (modèle de batiments3d.js) quand un modèle a la bonne emprise ; sinon l'ancienne façade
     if (!/[?&]bati=0/.test(globalThis.location?.search || '')) {

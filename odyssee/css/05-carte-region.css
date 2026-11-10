@@ -626,3 +626,11 @@
 
 /* étiquette vide (lieu sans arène, position du joueur) : rien à afficher */
 .map-tag:empty { display: none; }
+.map-route-catch-badge {
+  color: #7dd3fc;
+  font-weight: 600;
+  margin-left: calc(var(--px) * 1);
+}
+.map-route-catch-badge.complete {
+  color: #86efac;
+}

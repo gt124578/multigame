@@ -49,7 +49,7 @@ const DECORS = { moulin: [4, 4, 6], grange: [6, 5, 4], phare: [3, 3, 8], cabaneP
  */
 const THEMES = {
   aube: { riviere: 'ns', q: { ferme: 2, verger: 1, jardins: 1 }, reperes: ['boulangerie'], decor: ['moulin'], amp: 9 },
-  sylve: { riviere: 'ew', colline: 1, maisons: 'chalet', reperes: ['auberge', 'chapelle'], decor: ['cabaneChasseur'], q: { verger: 1, bosquet: 2 }, amp: 12 },
+  sylve: { riviere: 'ew', colline: 0, maisons: 'chalet', reperes: ['auberge', 'chapelle'], decor: ['cabaneChasseur'], q: { verger: 1, bosquet: 1 }, amp: 6 },
   pierre: { plan: 'terrasses', colline: 2, roche: true, reperes: ['auberge', 'boulangerie'], decor: ['puits'], q: { carriere: 2 }, amp: 8 },
   azur: { plan: 'arete', riviere: 'ns', reperes: ['auberge', 'boulangerie'], decor: ['phare', 'cabanePecheur'], q: { verger: 0 }, amp: 7 },
   volta: { plan: 'grille', style: 'ville', reperes: ['gare', 'mairie'], q: { centrale: 1 }, amp: 5 },

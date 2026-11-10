@@ -1,0 +1,3 @@
+Sprites Noir / Blanc (Gen 5) des Pokémon n° 1 à 493, ajoutés pour Options → Graphismes → Sprites des Pokémon.
+Source : https://github.com/PokeAPI/sprites (sprites/pokemon/versions/generation-v/black-white : face, dos, chromatiques).
+Pokémon © Nintendo / Game Freak / Creatures. Projet de fans sans but lucratif.

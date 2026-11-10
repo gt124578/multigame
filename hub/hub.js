@@ -1,7 +1,7 @@
 /* Hub : profil, salon commun et lancement des jeux dans une iframe.
    Le salon (DDRoom) vit ici pendant toute la session : changer de jeu ne coupe pas la connexion. */
 (function () {
-  const VERSION = '4.27';
+  const VERSION = '5.26';
   const $ = (s) => document.querySelector(s);
   const ORIGIN = location.origin === 'null' ? '*' : location.origin;
   const GAMES = window.HUB_GAMES;
@@ -18,6 +18,7 @@
   let room = null;
   let frame = null;        // { game, n, el, loaded }
   let leftGame = null;     // partie quittée volontairement (pas de rechargement automatique)
+  let launchAnyway = 0;    // lancer malgré une version différente : second clic dans les 8 s
   const pick = { game: GAMES[0].id, settings: {} };
   for (const g of GAMES) {
     pick.settings[g.id] = {};
@@ -32,6 +33,70 @@
     t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms);
   }
 
+  /* ------------------------------------------------------------ mises à jour */
+  // Un onglet ouvert avant une mise en ligne garde l'ancienne version tant qu'on ne le recharge pas : ses jeux n'ont
+  // plus les mêmes fichiers que ceux des autres joueurs (au Backrooms, une autre carte). Le Hub compare sa version à
+  // celle en ligne (au démarrage, puis toutes les 3 minutes hors partie) et à celle de chaque joueur du salon : en
+  // retard, il se met à jour tout seul et revient dans le même salon.
+  const verNum = (v) => { const m = /^(\d+)\.(\d+)$/.exec(String(v || '')); return m ? +m[1] * 10000 + +m[2] : 0; };
+  async function onlineVersion() {
+    try {
+      const r = await fetch('hub/hub.js?t=' + Date.now(), { cache: 'no-store' });
+      const m = /const VERSION = '([\d.]+)'/.exec(await r.text());
+      return m ? m[1] : '';
+    } catch (e) { return ''; }
+  }
+  let updating = false;
+  async function updateTo(target, extra = []) {
+    if (updating) return;
+    // on vient déjà de recharger pour cette version (elle n'est pas encore servie partout) : pas de boucle
+    let last = null;
+    try { last = JSON.parse(sessionStorage.getItem('hub_update') || 'null'); } catch (e) {}
+    if (last && last.v === target && Date.now() - last.t < 120000) { toast(`La version ${target} arrive : recharge la page dans une minute (Ctrl+Maj+R)`, 6000); return; }
+    updating = true;
+    try { sessionStorage.setItem('hub_update', JSON.stringify({ v: target, t: Date.now() })); } catch (e) {}
+    toast(`Mise à jour vers la version ${target}…`, 8000);
+    // les fichiers du Hub gardés par le navigateur sont repris pour de bon, puis la page (on revient dans le salon)
+    // (et ceux du jeu, quand c'est lui qui a vu que sa carte n'était pas celle de l'hôte)
+    const urls = [...document.querySelectorAll('script[src], link[rel=stylesheet][href]')].map((e) => e.src || e.href).concat(extra).filter((u) => u.startsWith(location.origin + '/'));
+    await Promise.all(urls.map((u) => fetch(u, { cache: 'reload' }).catch(() => {})));
+    const q = new URLSearchParams();
+    for (const k of ['local', 'ws', 'as', 'debug', 'mute']) if (QS.has(k)) q.set(k, QS.get(k));
+    // l'hôte qui part laisse le salon au suivant, sous un autre code : c'est celui-là qu'on rejoint en revenant
+    const code = room && room.successorCode();
+    if (code) q.set('join', code);
+    location.replace(location.pathname + (q.toString() ? '?' + q.toString().replace(/=(&|$)/g, '$1') : ''));
+  }
+  async function checkOnline() {
+    if (frame || updating) return; // jamais au milieu d'une partie
+    const v = await onlineVersion();
+    if (verNum(v) > verNum(VERSION) && !frame) updateTo(v);
+  }
+  // les joueurs du salon qui n'ont pas notre version (sans version : un Hub d'avant cette vérification, donc ancien)
+  const otherVersion = (p) => p.id !== (room && room.myId) && (p.ver || '') !== VERSION;
+  let peerWarned = '';
+  let peerCheck = { v: '', t: 0 };
+  function checkPeers() {
+    if (!room || room.mode === 'solo') return;
+    const newer = room.players.filter((p) => p.id !== room.myId && verNum(p.ver) > verNum(VERSION)).sort((a, b) => verNum(b.ver) - verNum(a.ver))[0];
+    if (!newer) return;
+    if (!frame) {
+      // seulement si cette version est vraiment en ligne : un ami sur une version de test (ou servie trop tôt) ne doit
+      // pas faire recharger tout le salon en boucle. Une vérification par minute au plus
+      if (peerCheck.v === newer.ver && Date.now() - peerCheck.t < 60000) return;
+      peerCheck = { v: newer.ver, t: Date.now() };
+      onlineVersion().then((v) => {
+        if (frame || updating) return;
+        if (verNum(v) >= verNum(newer.ver)) updateTo(newer.ver);
+        else if (peerWarned !== newer.ver) { peerWarned = newer.ver; toast(`${newer.name} a la version ${newer.ver}, qui n'est pas encore en ligne`, 6000); }
+      });
+      return;
+    }
+    if (peerWarned !== newer.ver) { peerWarned = newer.ver; toast(`${newer.name} a la version ${newer.ver} : tu seras mis à jour à la fin de la partie`, 6000); }
+  }
+  setTimeout(checkOnline, 4000);
+  setInterval(checkOnline, 180000);
+
   /* ------------------------------------------------------------ accueil */
   $('#ver').textContent = 'v' + VERSION;
   // Vignette d'un jeu, la même à l'accueil et dans le salon : l'affiche porte le titre et le sous-titre
@@ -42,8 +107,10 @@
       <span class="tx"><span class="ds">${esc(g.desc)}</span>
         <span class="meta"><span class="chip">👥 ${g.minPlayers} à ${g.maxPlayers} joueurs</span>${bots ? '<span class="chip">🤖 Bots</span>' : ''}</span>${extra}</span></${el}>`;
   }
-  $('#shelf').innerHTML = GAMES.map((g) => gameCard(g, { attrs: `data-g="${g.id}"` })).join('');
-  $('#shelfCount').textContent = GAMES.length + ' jeux';
+  // les « Gros jeux » (big: true dans le registre) ont leur rangée à part, au-dessus (hub/home.js) : la liste garde les autres
+  const SMALL = GAMES.filter((g) => !g.big);
+  $('#shelf').innerHTML = SMALL.map((g) => gameCard(g, { attrs: `data-g="${g.id}"` })).join('');
+  $('#shelfCount').textContent = SMALL.length + ' jeux';
   $('#name').value = me.name;
   $('#name').addEventListener('input', (e) => { me.name = e.target.value.slice(0, 12); DDProfile.save(me); FR.setMe(profile()); renderAccount(); if (room) room.updateMe(me); });
   function renderSwatches() {
@@ -229,10 +296,13 @@
       const R = await DDNetTest.run((key, label, v) => {
         let li = list.querySelector(`[data-k="${key}"]`);
         if (!li) { li = document.createElement('li'); li.dataset.k = key; list.appendChild(li); }
-        li.className = v === null ? 'wait' : v ? 'ok' : 'ko';
-        li.innerHTML = `<i></i><span></span><b>${v === null ? 'test…' : v ? 'OK' : 'bloqué'}</b>`;
+        const ms = v && typeof v === 'object' ? v : null;   // le ping : un résultat chiffré
+        const txt = v === null ? 'test…' : ms ? `${ms.med} ms` : v ? 'OK' : 'bloqué';
+        li.className = v === null ? 'wait' : ms ? (ms.med < 120 ? 'ok' : ms.med < 200 ? 'wait' : 'ko') : v ? 'ok' : 'ko';
+        li.innerHTML = `<i></i><span></span><b>${txt}</b>`;
         li.querySelector('span').textContent = label;
-        if (v !== null) lines.push(`${label} : ${v ? 'OK' : 'bloqué'}`);
+        if (ms) { const sm = document.createElement('small'); sm.style.cssText = 'display:block;opacity:.7;font-size:12px'; sm.textContent = `de ${ms.min} à ${ms.max} ms · variation ${ms.jit} ms`; li.querySelector('span').appendChild(sm); }
+        if (v !== null) lines.push(`${label} : ${ms ? `${ms.med} ms (de ${ms.min} à ${ms.max}, variation ${ms.jit})` : v ? 'OK' : 'bloqué'}`);
       });
       const vd = DDNetTest.verdict(R), box = ov.querySelector('.ntverdict');
       box.hidden = false; box.className = 'ntverdict ' + (vd.ok ? 'ok' : 'ko'); box.textContent = vd.text;
@@ -341,7 +411,7 @@
   // page des logs : outil de développement, visible seulement avec ?debug
   if (QS.has('debug')) for (const id of ['#btnLogs', '#btnLogsRoom']) $(id).hidden = false;
   const busy = (b) => { for (const id of ['#btnHost', '#btnJoin', '#btnSolo']) $(id).disabled = b; };
-  const profile = () => ({ name: DDRoom.cleanName(me.name), color: me.color, lvl: me.lvl, uid: me.uid, fid: me.fid || undefined });
+  const profile = () => ({ name: DDRoom.cleanName(me.name), color: me.color, lvl: me.lvl, uid: me.uid, fid: me.fid || undefined, ver: VERSION });
 
   $('#btnHost').onclick = () => { homeErr(''); busy(true); $('#btnHost').textContent = 'Création…'; newRoom(); room.host(profile()); };
   $('#btnJoin').onclick = () => {
@@ -384,7 +454,7 @@
     $('#chatLog').innerHTML = '';
     room = DDRoom.create({
       joined() { busy(false); $('#btnHost').textContent = 'Créer un salon'; $('#btnJoin').textContent = 'Rejoindre'; showScreen(frame ? 'play' : 'room'); renderRoom(); },
-      update() { renderRoom(); syncFrame(); postRoster(); if (window.HubInGame) window.HubInGame.refresh(); },
+      update() { renderRoom(); syncFrame(); postRoster(); checkPeers(); if (window.HubInGame) window.HubInGame.refresh(); },
       chat(c) { appendChat(c); },
       game(from, m) { if (frame && frame.loaded) frame.el.contentWindow.postMessage({ dd: 'hub', k: 'msg', from, m }, ORIGIN); },
       error(msg) { if ($('#home').classList.contains('on')) goHome(msg); else toast(msg, 4000); },
@@ -453,15 +523,18 @@ renderPlayers(); renderNet(); pubState(); renderFriends(); renderPings();
     const running = room.game && !frame;
     $('#runBanner').hidden = !running;
     if (running) $('#runText').textContent = 'Partie de ' + gameDef(room.game.id).title + ' en cours';
-    // jeux
+    // jeux : les « Gros jeux » d'abord, dans leur groupe, puis les autres
     const n = room.players.length;
-    setHTML($('#games'), GAMES.map((g) => {
+    const card = (g) => {
       const tooMany = n > g.maxPlayers;
       const sel = (room.game ? room.game.id : pick.game) === g.id && (host || room.game);
       return gameCard(g, { el: 'button', cls: (sel ? ' sel' : '') + (tooMany ? ' off' : ''),
         attrs: `data-game="${g.id}" ${host && !tooMany ? '' : 'tabindex="-1"'} aria-pressed="${sel}"`,
         extra: tooMany ? `<span class="why">${g.maxPlayers} joueurs maximum</span>` : '' });
-    }).join(''));
+    };
+    const BIG = GAMES.filter((g) => g.big);
+    setHTML($('#games'), (BIG.length ? `<div class="ggrp"><b>Gros jeux</b><span>Des jeux beaucoup plus complets</span></div>${BIG.map(card).join('')}<div class="ggrp"><b>Les autres jeux</b></div>` : '')
+      + SMALL.map(card).join(''));
     renderLaunch();
   }
 
@@ -483,6 +556,7 @@ renderPlayers(); renderNet(); pubState(); renderFriends(); renderPings();
       if (p.away) tags.push('<span class="pill away" title="Sa connexion a sauté : le serveur lui garde sa place">reconnexion…</span>');
       else if (room.ready[p.id]) tags.push('<span class="pill in">En jeu</span>');
       const other = p.id !== room.myId;
+      if (otherVersion(p)) tags.push(`<span class="pill away" title="Il doit recharger la page (Ctrl+Maj+R) : sinon vos parties ne seront pas les mêmes">${p.ver ? 'v' + esc(p.ver) : 'ancienne version'}</span>`);
       if (other && p.fid && FR.isFriend(p.fid)) tags.push('<span class="pill fr" title="Ton ami">Ami</span>');
       else if (other && p.fid && FR.status === 'on' && p.fid !== FR.fid) tags.push(FR.sent.has(p.fid)
         ? '<span class="addf" aria-disabled="true">Demandé</span>'
@@ -628,7 +702,16 @@ renderPlayers(); renderNet(); pubState(); renderFriends(); renderPings();
       const v = isNaN(Number(b.dataset.v)) ? b.dataset.v : Number(b.dataset.v);
       set[b.dataset.k] = v; DDProfile.set('hub_set_' + g.id + '_' + b.dataset.k, v); renderLaunch();
     };
-    $('#btnLaunch').onclick = () => { leftGame = null; room.setGame(g.id, { ...set }); };
+    $('#btnLaunch').onclick = () => {
+      // quelqu'un n'a pas la même version : ses fichiers de jeu diffèrent (une autre carte) ; on prévient d'abord
+      const off = room.players.filter(otherVersion);
+      if (off.length && !(launchAnyway > performance.now())) {
+        launchAnyway = performance.now() + 8000;
+        toast(`${off.map((p) => p.name).join(', ')} n'${off.length > 1 ? 'ont' : 'a'} pas la même version que toi : il faut recharger la page (Ctrl+Maj+R). Clique encore pour lancer quand même.`, 7000);
+        return;
+      }
+      leftGame = null; room.setGame(g.id, { ...set });
+    };
   }
 
   /* ------------------------------------------------------------ jeu dans l'iframe */
@@ -646,11 +729,12 @@ renderPlayers(); renderNet(); pubState(); renderFriends(); renderPings();
     const role = room.mode === 'solo' ? 'solo' : room.isHost ? 'host' : 'guest';
     const q = new URLSearchParams({ hub: '1', role, game: g.id });
     if (room.code) q.set('code', room.code);
+    q.set('v', VERSION); // les fichiers du jeu sont chargés à cette version : tout le salon a les mêmes
     const pass = new URLSearchParams(location.search);
     for (const k of ['debug', 'ws', 'mute']) if (pass.has(k)) q.set(k, pass.get(k));
     let src = def.url + '?' + q.toString() + (DDNet.LOCAL_TEST ? '&local' : '');
     const el = document.createElement('iframe');
-    el.title = def.title; el.src = src; el.allow = 'autoplay; fullscreen; gamepad';
+    el.title = def.title; el.src = src; el.allow = 'autoplay; fullscreen; gamepad; microphone'; // micro : la voix de proximité des Backrooms
     $('#play').innerHTML = ''; $('#play').appendChild(el);
 const watchdog = setTimeout(() => {
       if (frame && frame.el === el && !frame.loaded && window.DDLogger) {
@@ -677,6 +761,7 @@ const watchdog = setTimeout(() => {
     if (window.HubInGame) window.HubInGame.close();
     if (room) room.setReady(null);
     if (toRoom && room) { showScreen('room'); renderRoom(); }
+    setTimeout(() => { checkPeers(); checkOnline(); }, 800); // une mise à jour attendait la fin de la partie
   }
 
   function postRoster() {
@@ -705,6 +790,15 @@ const watchdog = setTimeout(() => {
       case 'log': if (window.DDLogger && d.entry) window.DDLogger.receiveFromChild(d.entry); break;
       case 'shown': if (window.HubInGame) window.HubInGame.shown(); break;
       case 'exit': leaveGame(); break;
+      case 'outdated': {
+        // en pleine partie, le jeu a vu que sa carte n'est pas celle de l'hôte (une autre version, ou des fichiers
+        // abîmés dans le cache) : la partie est injouable ainsi. On reprend tout à la version la plus récente des deux
+        // et on revient dans le salon, puis dans la partie
+        const v = verNum(d.v) > verNum(VERSION) ? String(d.v) : VERSION;
+        const files = (Array.isArray(d.files) ? d.files : []).filter((u) => typeof u === 'string').slice(0, 100);
+        updateTo(v, files);
+        break;
+      }
     }
   });
   // Quitter le jeu : l'hôte ferme la partie pour tout le salon, un invité revient seul au salon
@@ -722,4 +816,30 @@ const watchdog = setTimeout(() => {
 
   addEventListener('pagehide', () => { try { if (room) room.leave(); } catch (e) {} });
   if (joinParam) $('#name').focus();
+  // juste après une mise à jour automatique : on revient tout seul dans le salon qu'on a quitté pour elle. Si on était
+  // l'hôte, le salon est repris sous un nouveau code par un autre joueur, qui met un instant à le rouvrir : on réessaie
+  // pendant 25 s
+  try {
+    const upd = JSON.parse(sessionStorage.getItem('hub_update') || 'null');
+    if (joinParam && upd && Date.now() - upd.t < 60000 && !upd.back) {
+      upd.back = true;
+      sessionStorage.setItem('hub_update', JSON.stringify(upd));
+      const code = joinParam.toUpperCase().slice(0, 4);
+      const t0 = Date.now();
+      let lastTry = 0;
+      const tryJoin = () => {
+        if (room && room.mode && room.myId >= 0) return; // de retour dans le salon
+        if (Date.now() - t0 > 25000 || code.length !== 4) return;
+        // pas encore de salon, refusé (pas encore rouvert), ou sans réponse depuis 5 s : on retente
+        if (!room || !room.mode || Date.now() - lastTry > 5000) {
+          lastTry = Date.now();
+          if (room) goHome();
+          $('#joinCode').value = code;
+          $('#btnJoin').click();
+        }
+        setTimeout(tryJoin, 1000);
+      };
+      setTimeout(tryJoin, 300);
+    }
+  } catch (e) {}
 })();

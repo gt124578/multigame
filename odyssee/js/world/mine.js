@@ -2,6 +2,7 @@
 // Trois niveaux reliés par des échelles : galeries étayées, rails et wagonnets, lanternes de mineur, filons de minerai.
 // Au fond (derrière un éboulement qu'on dégage avec Force), le dernier filon garde un fossile que le paléontologue
 // installé à l'entrée sait ranimer. Quête : flags['Q:mine'] (1 puis 'fin'), lue par le journal. Sans DOM.
+import { FOSSILES } from './faune.js';
 import { T } from './tiles.js';
 import { GameMap } from './mapgen.js';
 import { ITEMS } from '../core/items.js';
@@ -104,10 +105,19 @@ export function addMine({ W, maps, towns, trainerNpc, ENC }) {
   } });
   W.npc({ id: 'mine:silex', x: px - 2, y: cy0 - 6, sprite: 'scientifique', dir: 'right', talk: async (A) => {
     const who = 'Dr Silex, paléontologue';
-    if (A.step('mine') === 'fin') { await A.say('Prends soin de ton Kabuto. Il a quelques millions d\'années de retard à rattraper !', who); return; }
-    if (!A.has('fossile-dome')) { await A.say(['Les fossiles de cette montagne sont d\'une qualité rare.', 'J\'ai de quoi ranimer un Pokémon fossile, si on m\'en rapporte un.'], who); return; }
-    await A.say(['Un Fossile Dôme ! Et intact ! Laisse-moi faire...', '... ... ...', 'C\'est fait ! Le Pokémon du fossile est revenu à la vie !'], who);
-    A.take('fossile-dome'); await A.giveMon(140, 20, { met: 'Mine de Pierrefort' });
-    await A.set('mine', 'fin');
+    if (A.has('fossile-dome')) {
+      await A.say(['Un Fossile Dôme ! Et intact ! Laisse-moi faire...', '... ... ...', 'C\'est fait ! Le Pokémon du fossile est revenu à la vie !'], who);
+      A.take('fossile-dome'); await A.giveMon(140, 20, { met: 'Mine de Pierrefort' });
+      await A.set('mine', 'fin'); return;
+    }
+    // les fossiles trouvés en fouillant les parois des grottes
+    const f = Object.keys(FOSSILES).find((k) => A.has(k));
+    if (f) {
+      const [sp, , name] = FOSSILES[f];
+      await A.say([`Oh ! Un ${name} ! Où l'as-tu déniché ?`, 'Laisse-moi faire...', '... ... ...', 'C\'est fait ! Le Pokémon du fossile est revenu à la vie !'], who);
+      A.take(f); await A.giveMon(sp, 20, { met: 'Mine de Pierrefort' }); return;
+    }
+    if (A.step('mine') === 'fin') { await A.say(['Prends soin de ton Kabuto. Il a quelques millions d\'années de retard à rattraper !', 'Et si tu trouves d\'autres fossiles en grattant les parois des grottes, apporte-les-moi !'], who); return; }
+    await A.say(['Les fossiles de cette montagne sont d\'une qualité rare.', 'J\'ai de quoi ranimer un Pokémon fossile, si on m\'en rapporte un. Il y en a parfois dans les parois qui brillent, au fond des grottes.'], who);
   } });
 }

@@ -6,10 +6,12 @@ import { el, esc } from './ui.js';
 import { ASSETS } from '../assets.js';
 import { monName, expProgress } from '../core/mon.js';
 import { BADGES } from '../world/region.js';
-import { hpCol, statusTag, partyScreen, summaryScreen, mapScreen, cardScreen, questsScreen, trophiesScreen, friendsScreen } from './screens.js';
+import { hpCol, statusTag, partyScreen, summaryScreen, mapScreen, cardScreen, questsScreen, trophiesScreen, friendsScreen, dexScreen } from './screens.js';
 import { getFriendsManager } from '../net/friends.js';
-import { getPvpSummary } from '../core/trophies.js';
+import { getPvpSummary, getZoneCatchStats } from '../core/trophies.js';
 import { getTrackedQuest } from '../core/questsData.js';
+import { itemName } from '../core/items.js';
+import { SPECIES } from '../data/species.js';
 
 const gender = (m) => (m.gender === 'm' ? '<span class="g m">♂</span>' : m.gender === 'f' ? '<span class="g f">♀</span>' : '');
 
@@ -18,7 +20,11 @@ export class Hud {
     this.game = game;
     this.swapFrom = -1;
     this.collapsed = false;
+    this.dexnavCollapsed = false;
     try { this.collapsed = localStorage.getItem('odyssee-hud-collapsed') === '1'; } catch (e) {}
+    try { this.dexnavCollapsed = localStorage.getItem('odyssee-dexnav-collapsed') === '1'; } catch (e) {}
+    this.dexnavHidden = false;
+    try { this.dexnavHidden = localStorage.getItem('odyssee-dexnav-hidden') === '1'; } catch (e) {}
     this._sig = '';
 
     this.root = el('div', 'hud' + (this.collapsed ? ' collapsed' : ''));
@@ -28,6 +34,13 @@ export class Hud {
     game.ui.root.appendChild(this.root);
 
     this.bindEvents();
+  }
+
+  /** retire complètement (ou réaffiche) la barre Habitat DexNav ; réglable aussi dans Options */
+  setDexnavHidden(v) {
+    this.dexnavHidden = !!v;
+    try { localStorage.setItem('odyssee-dexnav-hidden', this.dexnavHidden ? '1' : '0'); } catch (e) {}
+    this.update(true);
   }
 
   toggle() {
@@ -108,6 +121,17 @@ export class Hud {
         return;
       }
       if (!this.canInteract()) return;
+      const slotEl = e.target.closest('.hdn-slot[data-sp]');
+      if (slotEl && this.game.state?.flags?.dex) {
+        const sp = Number(slotEl.dataset.sp);
+        if (sp) {
+          e.stopPropagation();
+          const g = this.game;
+          g.busy = true; g.sound.sfx('select');
+          try { await dexScreen(g, { focusSp: sp }); } finally { g.busy = false; this.update(true); }
+          return;
+        }
+      }
       const actEl = e.target.closest('[data-act]');
       if (!actEl) return;
       e.stopPropagation();
@@ -136,6 +160,19 @@ export class Hud {
       } else if (act === 'friends') {
         g.busy = true; g.sound.sfx('select');
         try { await friendsScreen(g); } finally { g.busy = false; this.update(true); }
+      } else if (act === 'quick-item') {
+        g.useRegisteredItem();
+      } else if (act === 'chat') {
+        g.openChat();
+      } else if (act === 'hide-dexnav') {
+        this.game.sound.sfx('cancel');
+        this.setDexnavHidden(true);
+        this.game.ui.toast?.('Barre Habitat retirée (réactivable dans Options)');
+      } else if (act === 'toggle-dexnav') {
+        this.dexnavCollapsed = !this.dexnavCollapsed;
+        try { localStorage.setItem('odyssee-dexnav-collapsed', this.dexnavCollapsed ? '1' : '0'); } catch (e) {}
+        this.game.sound.sfx('blip');
+        this.update(true);
       }
     });
   }
@@ -155,11 +192,14 @@ export class Hud {
     const trTotal = pvpSummary?.trophiesTotal ?? 32;
     const friendsMgr = getFriendsManager(g);
     const onlineCount = friendsMgr.getOnlineCount();
+    const curSpawns = g.currentSpawns?.() || null;
+    const zoneCatch = curSpawns ? getZoneCatchStats(st, curSpawns) : null;
+    const zoneCatchKey = zoneCatch ? (zoneCatch.isTown ? `town:${zoneCatch.zoneName}` : `${zoneCatch.zoneKey}:${zoneCatch.caught}/${zoneCatch.total}:${st.dex?.seen?.length || 0}`) : '';
     const badgesKey = st.badges.map((b) => (b ? '1' : '0')).join('');
     const partyKey = st.party
       .map((m) => `${m.uid}:${m.sp}:${m.nick || ''}:${m.lvl}:${m.hp}:${m.stats[0]}:${m.exp}:${m.status || ''}:${m.shadow ? 1 : 0}:${m.shiny ? 1 : 0}`)
       .join('|');
-    const sig = `${this.collapsed ? 1 : 0};${g.autoRun ? 1 : 0}:${g.runSpeed ?? 1};${this.swapFrom};${loc};${st.money};${badgesKey};${trUnlocked};${st.trackedQuest || ''}:${tracked?.notes?.length || 0};${onlineCount};${partyKey}`;
+    const sig = `${this.collapsed ? 1 : 0};${g.autoRun ? 1 : 0}:${g.runSpeed ?? 1};${this.swapFrom};${loc};${zoneCatchKey};${st.money};${badgesKey};${trUnlocked};${st.trackedQuest || ''}:${tracked?.notes?.length || 0};${onlineCount};${partyKey}`;
     if (!force && sig === this._sig) return;
     this._sig = sig;
 
@@ -231,6 +271,50 @@ export class Hud {
             <span>Niv. max ${g.levelCap()}</span>
           </div>
         </div>
+        ${(() => {
+          const reg = st.registeredItem || (st.bag?.['running-shoes'] ? 'running-shoes' : null) || (st.bag?.['canne'] ? 'canne' : null);
+          if (!reg || (st.bag?.[reg] || 0) <= 0) return '';
+          return `<div class="hud-quick-item" data-act="quick-item" title="Objet Rapide (Touche Y ou Clic) : ${esc(itemName(reg))}">
+            <span class="hqi-key">Y</span>
+            <img class="hqi-ico" src="${ASSETS.item(reg)}" alt="">
+            <span class="hqi-lbl">${esc(itemName(reg))}</span>
+          </div>`;
+        })()}
+        ${(() => {
+          if (!zoneCatch || this.dexnavHidden) return '';
+          if (zoneCatch.isTown) {
+            return `<div class="hud-dexnav town">
+              <div class="hud-dexnav-head" title="Zone urbaine ou abritée : aucun Pokémon sauvage à proximité">
+                <span class="hdn-title">🐾 HABITAT</span>
+                <span class="hdn-cnt town">Zone urbaine (0 sauvage)</span>
+                <button type="button" class="hdn-close" data-act="hide-dexnav" title="Retirer la barre Habitat (réactivable dans Options)" tabindex="-1">✕</button>
+              </div>
+            </div>`;
+          }
+          if (!zoneCatch.speciesList?.length) return '';
+          return `<div class="hud-dexnav${this.dexnavCollapsed ? ' min' : ''}">
+            <div class="hud-dexnav-head" data-act="toggle-dexnav" title="Habitat DexNav : cliquer pour replier/déplier">
+              <span class="hdn-title">🐾 HABITAT ${zoneCatch.complete ? '👑' : ''}</span>
+              <span class="hdn-cnt${zoneCatch.complete ? ' done' : ''}">${zoneCatch.caught}/${zoneCatch.total}</span>
+              <button type="button" class="hdn-close" data-act="hide-dexnav" title="Retirer la barre Habitat (réactivable dans Options)" tabindex="-1">✕</button>
+            </div>
+            ${!this.dexnavCollapsed ? `
+            <div class="hud-dexnav-row">
+              ${zoneCatch.speciesList.map((sp) => {
+                const caught = st.dex?.caught?.includes(sp);
+                const seen = caught || st.dex?.seen?.includes(sp);
+                const name = SPECIES[sp]?.n || 'Inconnu';
+                if (caught) {
+                  return `<div class="hdn-slot caught" data-sp="${sp}" title="${esc(name)} (Capturé - Pokédex)"><img class="hdn-ico" src="${ASSETS.icon(sp)}" alt=""><span class="hdn-check">✔</span></div>`;
+                } else if (seen) {
+                  return `<div class="hdn-slot seen" data-sp="${sp}" title="${esc(name)} (Vu - Pokédex)"><img class="hdn-ico seen-ico" src="${ASSETS.icon(sp)}" alt=""><span class="hdn-q">?</span></div>`;
+                } else {
+                  return `<div class="hdn-slot unk" data-sp="${sp}" title="Espèce inconnue (Pokédex)"><span class="hdn-q-unk">?</span></div>`;
+                }
+              }).join('')}
+            </div>` : ''}
+          </div>`;
+        })()}
         <div class="hud-bdots-row" data-act="card" title="Badges d'Arène">${badgeDots}</div>
         ${tracked ? `
           <div class="hud-quest-card" data-act="quests" title="Objectif suivi : cliquer pour ouvrir le Journal (Touche Q)">
@@ -264,6 +348,9 @@ export class Hud {
         </button>
         <button type="button" class="hud-btn hud-friends-btn" data-act="friends" tabindex="-1" title="Amis (touche O)">
           <img src="img/hud/friends.png" alt="" onerror="this.src='img/hud/team.png'"><span>AMIS${onlineCount > 1 ? ` (${onlineCount - 1})` : ''}</span>
+        </button>
+        <button type="button" class="hud-btn hud-chat-btn" data-act="chat" tabindex="-1" title="Émotes & Chat (Touche P)">
+          <img src="img/hud/chat.png" alt=""><span>CHAT</span>
         </button>
       </div>
     `;

@@ -60,7 +60,7 @@ export function sorteCase(m, x, y) {
   }
   const th = m.zoneAt?.(x, y)?.theme;
   // sol de fond de la zone : herbe, herbe sombre de forêt, neige, cendre du volcan
-  const fond = th === 'snow' ? K.SN : th === 'volcanic' ? K.AS : th === 'forest' || th === 'foretsombre' ? K.GF
+  const fond = th === 'snow' ? K.SN : th === 'volcanic' ? K.AS : th === 'forest' || th === 'foretsombre' || th === 'sylve' ? K.GF
     : th === 'automne' ? K.FA : th === 'desert' ? K.SA : th === 'canyon' ? K.RC : K.G;
   const herbeux = fond === K.G || fond === K.GF || fond === K.FA;
   const jardin = th === 'automne';

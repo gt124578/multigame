@@ -14,3 +14,9 @@
 @keyframes ow-fog-drift { from { translate: -12% 0; } to { translate: 12% 0; } }
 @media (prefers-reduced-motion: reduce) { .ow-fog i { animation: none; } }
 
+
+/* grottes : gouttes, poussière, cristaux, chauves-souris (vie.js), avec un léger assombrissement des bords */
+.ow-grotte { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(4, 2, 12, .7) 100%); }
+/* papillons, lucioles et mouettes au-dessus du décor (vie-monde.js) */
+.ow-betes { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }

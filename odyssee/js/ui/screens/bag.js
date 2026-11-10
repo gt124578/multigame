@@ -24,13 +24,6 @@ export function bagScreen(game, o = {}) {
       { id: 'cles', label: 'Objets Rares', sub: 'Objets précieux, Carte et Bicyclette', color: '#ffe058', glow: 'rgba(255, 224, 88, 0.45)', bg: 'img/bag/backpack_cles.jpg', icon: 'img/bag/icon_cles.png', arcX: 34.2, arcY: 87.8 },
     ];
 
-    let pocket = 0;
-    if (typeof o.pocket === 'number') pocket = (o.pocket % POCKET_CFG.length + POCKET_CFG.length) % POCKET_CFG.length;
-    else if (typeof o.pocket === 'string') {
-      const idx = POCKET_CFG.findIndex((p) => p.id === o.pocket);
-      if (idx >= 0) pocket = idx;
-    }
-
     const itemPocketId = (k) => {
       const it = ITEMS[k];
       if (!it) return 'objets';
@@ -48,6 +41,27 @@ export function bagScreen(game, o = {}) {
         .filter((k) => ITEMS[k] && itemPocketId(k) === target && bag[k] > 0)
         .sort((a, b) => Object.keys(ITEMS).indexOf(a) - Object.keys(ITEMS).indexOf(b));
     };
+
+    let pocket = 0;
+    if (typeof o.pocket === 'number') pocket = (o.pocket % POCKET_CFG.length + POCKET_CFG.length) % POCKET_CFG.length;
+    else if (typeof o.pocket === 'string') {
+      const idx = POCKET_CFG.findIndex((p) => p.id === o.pocket);
+      if (idx >= 0) pocket = idx;
+    }
+
+    // Mémoire de position : en combat (ou via initialItem), ouvrir directement sur la poche et l'objet dernièrement utilisé
+    const targetItem = o.initialItem || (o.battle ? game._lastBattleItem : null);
+    if (targetItem && ITEMS[targetItem]) {
+      const targetPId = itemPocketId(targetItem);
+      const targetPIdx = POCKET_CFG.findIndex((p) => p.id === targetPId);
+      if (targetPIdx >= 0) {
+        pocket = targetPIdx;
+        const list = entriesFor(pocket);
+        const itemIdx = list.indexOf(targetItem);
+        if (itemIdx >= 0) i = itemIdx;
+        else if (list.length > 0) i = Math.min(i, list.length - 1);
+      }
+    }
 
     const entries = () => entriesFor(pocket);
     const close = closer(ui, s, () => pop, resolve, null);
@@ -129,14 +143,17 @@ export function bagScreen(game, o = {}) {
           <button type="button" class="b2w2-touch-btn b2w2-btn-use" data-act="use" title="Utiliser (Entrée / A)">
             <span class="touch-btn-lbl">UTILISER</span>
           </button>
+          <button type="button" class="b2w2-touch-btn b2w2-btn-reg" data-act="reg" title="Enregistrer en raccourci rapide (Touche Y / R)">
+            <span class="touch-btn-lbl">ENREG. [Y]</span>
+          </button>
+          <button type="button" class="b2w2-touch-btn b2w2-btn-back" data-act="back" title="Fermer le sac (Échap / B)">
+            <span class="touch-btn-lbl">RETOUR</span>
+          </button>
           <button type="button" class="b2w2-touch-btn b2w2-btn-give" data-act="give" title="Donner à un Pokémon (D)">
             <span class="touch-btn-lbl">DONNER</span>
           </button>
           <button type="button" class="b2w2-touch-btn b2w2-btn-toss" data-act="toss" title="Jeter une quantité (J)">
             <span class="touch-btn-lbl">JETER</span>
-          </button>
-          <button type="button" class="b2w2-touch-btn b2w2-btn-back" data-act="back" title="Fermer le sac (Échap / B)">
-            <span class="touch-btn-lbl">RETOUR</span>
           </button>
         </div>
       </div>
@@ -161,6 +178,7 @@ export function bagScreen(game, o = {}) {
     const useBtn = s.querySelector('.b2w2-btn-use');
     const giveBtn = s.querySelector('.b2w2-btn-give');
     const tossBtn = s.querySelector('.b2w2-btn-toss');
+    const regBtn = s.querySelector('.b2w2-btn-reg');
     const backBtn = s.querySelector('.b2w2-btn-back');
     const leftPanel = s.querySelector('.b2w2-bag-left');
 
@@ -226,6 +244,13 @@ export function bagScreen(game, o = {}) {
         const canToss = !o.battle && !it.key;
         tossBtn.disabled = !canToss;
         tossBtn.classList.toggle('disabled', !canToss);
+        const isReg = st.registeredItem === sel;
+        if (regBtn) {
+          regBtn.disabled = !!o.battle;
+          regBtn.classList.toggle('disabled', !!o.battle);
+          regBtn.classList.toggle('active', isReg);
+          regBtn.innerHTML = `<span class="touch-btn-lbl">${isReg ? "DÉS-ENREG." : "ENREG. [Y]"}</span>`;
+        }
       } else {
         // Ligne de fermeture sélectionnée
         inspSpriteEl.style.display = 'none';
@@ -239,6 +264,7 @@ export function bagScreen(game, o = {}) {
         giveBtn.classList.add('disabled');
         tossBtn.disabled = true;
         tossBtn.classList.add('disabled');
+        if (regBtn) { regBtn.disabled = true; regBtn.classList.add('disabled'); regBtn.classList.remove('active'); }
       }
     };
 
@@ -260,13 +286,14 @@ export function bagScreen(game, o = {}) {
         itemsListEl.innerHTML = es.map((k, n) => {
           const it = ITEMS[k];
           const heldTag = it.hold ? `<span class="b2w2-held-tag">TENU</span>` : '';
+          const regTag = st.registeredItem === k ? `<span class="b2w2-reg-badge" title="Objet Enregistré (Touche Y / F)">★ [Y]</span>` : '';
           return `<div class="list-row b2w2-item-row ${n === i ? 'on' : ''}" data-row="${n}">
             <span class="cur">${n === i ? '▶' : ''}</span>
             <div class="b2w2-item-ico-wrap">
               <img class="b2w2-item-ico" src="${ASSETS.item(k)}" alt="">
             </div>
             <span class="b2w2-item-name">${esc(itemName(k))}</span>
-            ${heldTag}
+            ${regTag}${heldTag}
             <span class="b2w2-item-qty">${it.key ? 'CLÉ' : '× ' + bag[k]}</span>
           </div>`;
         }).join('') +
@@ -346,6 +373,7 @@ export function bagScreen(game, o = {}) {
         return;
       }
       ui.sound.sfx('select');
+      if (o.battle) game._lastBattleItem = item;
       close({ item });
     };
 
@@ -444,6 +472,24 @@ export function bagScreen(game, o = {}) {
     s.querySelector('.scr-close-btn')?.addEventListener('click', () => { ui.sound.sfx('cancel'); close(null); });
 
     // Contrôles Clavier / Manette
+    const toggleRegister = () => {
+      if (busy || o.battle) return;
+      const es = entries();
+      if (i >= es.length) return;
+      const item = es[i];
+      if (!item) return;
+      if (st.registeredItem === item) {
+        st.registeredItem = null;
+        ui.sound.sfx('cancel');
+      } else {
+        st.registeredItem = item;
+        ui.sound.sfx('select');
+      }
+      game.save(true);
+      updateInspector();
+      renderList();
+    };
+    regBtn?.addEventListener('click', toggleRegister);
     const pop = ui.input.push(async (k) => {
       if (busy) return;
       if (k === 'left') { changePocket(pocket - 1); return; }
@@ -453,6 +499,7 @@ export function bagScreen(game, o = {}) {
       if (k === 'b') { ui.sound.sfx('cancel'); close(null); return; }
       if (k === 'd' || k === 'g') { await handleGive(); return; }
       if (k === 'j' || k === 'x') { await handleToss(); return; }
+      if (k === 'ball' || k === 'autorun' || k === 'y' || k === 'r') { toggleRegister(); return; }
       if (k === 'a') {
         const es = entries();
         if (i === es.length) { ui.sound.sfx('cancel'); close(null); return; }

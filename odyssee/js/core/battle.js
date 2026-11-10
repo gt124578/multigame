@@ -110,6 +110,7 @@ export class Battle {
         this.lastUser = side; this.boost(opp, 4, -1, true);
       }
     } else if (ab.id === 'coeur-vaillant') {
+      if (side === 1 && this.sides[1].trainer?.friendly) return;
       this.say(`Le Cœur Vaillant de ${this.nm(side)} s'enflamme de bravoure !`);
       this.lastUser = side; this.boost(side, 2, 1, true);
     } else if (ab.id === 'drizzle') {
@@ -393,15 +394,26 @@ export class Battle {
         else if (x.ail === 'seed') {
           s = (this.sides[0].v.seed || playerType.includes('grass')) ? 0.001 : playerMon.stats[0] * 0.95;
         }
-        // Boost de statistiques
+        // Boost ou baisse de statistiques
         else if (x.st) {
           const turn = this.sides[1].v.turns;
-          const isAtkBoost = x.st.some(([stat, amt]) => (stat === 1 || stat === 3) && amt > 0);
-          const curStage = Math.max(this.sides[1].v.st[1] || 0, this.sides[1].v.st[3] || 0);
-          if (curStage < 2 && m.hp >= m.stats[0] * 0.50) {
-            s = isAtkBoost ? playerMon.stats[0] * 1.3 : playerMon.stats[0] * 0.85;
+          const isDebuff = x.st.some(([stat, amt]) => amt < 0);
+          if (isDebuff) {
+            // Ne pas spammer Rugissement/Flash : max 1 fois en début de combat, et quasi jamais après
+            const alreadyLowered = x.st.some(([stat]) => (this.sides[0].v.st[stat] || 0) <= -1);
+            if (alreadyLowered || turn > 1 || m.hp < m.stats[0] * 0.70) {
+              s = 0.001;
+            } else {
+              s = playerMon.stats[0] * 0.35;
+            }
           } else {
-            s = playerMon.stats[0] * 0.1;
+            const isAtkBoost = x.st.some(([stat, amt]) => (stat === 1 || stat === 3) && amt > 0);
+            const curStage = Math.max(this.sides[1].v.st[1] || 0, this.sides[1].v.st[3] || 0);
+            if (curStage < 2 && m.hp >= m.stats[0] * 0.50) {
+              s = isAtkBoost ? playerMon.stats[0] * 1.3 : playerMon.stats[0] * 0.85;
+            } else {
+              s = playerMon.stats[0] * 0.1;
+            }
           }
         }
         // Protection / Abri
@@ -589,7 +601,7 @@ export class Battle {
     const scr = this.sides[d].screens;
     if (!crit && ((phys && scr.reflect) || (!phys && scr.light))) dmg = Math.floor(dmg / 2);
     dmg += 2;
-    if (crit) dmg *= 2;
+    if (crit) dmg = Math.floor(dmg * 1.5);
     dmg = Math.floor(dmg * rand);
     const aAb = getAbility(A);
     const dAb = getAbility(D);
@@ -787,7 +799,7 @@ export class Battle {
     for (; n < hits; n++) {
       if (isFainted(T)) break;
       const noCrit = tAb?.id === 'battle-armor' || tAb?.id === 'shell-armor';
-      const crit = !noCrit && this.r(16) < [1, 2, 4, 5, 8][Math.min(4, (x.crit || 0) + (this.ab(i) === 'super-luck' ? 1 : 0))];
+      const crit = !noCrit && this.r(24) < [1, 3, 6, 8, 12][Math.min(4, (x.crit || 0) + (this.ab(i) === 'super-luck' ? 1 : 0))];
       let p = this.movePower(i, d, mv);
       if (tv.invuln === 'dig' && ['earthquake', 'magnitude'].includes(mv.key)) p *= 2;
       let dmg = this.fixedDamage(i, d, mv);

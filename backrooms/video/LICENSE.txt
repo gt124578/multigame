@@ -1,0 +1,11 @@
+intro.mp4 / intro_vip.mp4 — l'intro du Level 0 (vlog d'urbex au caméscope ; la version VIP est sous-titrée),
+montée à partir de :
+
+Vidéos Pexels (licence Pexels : utilisation et modification libres, sans crédit obligatoire)
+  https://www.pexels.com/video/4903225/  (l'usine abandonnée)
+  https://www.pexels.com/video/6317860/  (Safia dans la galerie)
+  https://www.pexels.com/video/6317864/  (Safia dans la chapelle ; la trappe y est ajoutée en trucage)
+
+Son
+  « Snapping twig.ogg », Wikimedia Commons, domaine public (le craquement du plancher, ralenti)
+  Le vent, le souffle de la pièce, les parasites et le bourdonnement sont fabriqués au montage (ffmpeg).

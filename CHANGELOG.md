@@ -1,5 +1,780 @@
 # Journal des versions — Arcadia
 
+## 5.26 — 10 novembre 2026
+- **Odyssée** — Le relief façon HeartGold / SoulSilver : falaises en étages de pierres, roches en terrasses et en pentes arrondies, talus d'herbe, grottes en relief, et des ravins aux parois de roche qui plongent dans le noir.
+- **Odyssée** — Une région plus vivante :
+  - Fumée des cheminées, papillons, lucioles, feuilles qui tombent, vols d'oiseaux, ailes des moulins au vent, carpes koï dans les bassins.
+  - Un vrai soir orangé, une vraie nuit : lanternes, braseros, phares et lampadaires éclairent autour d'eux.
+  - Pluie, grêle, sable et cendre qu'on voit enfin ; neige douce sur les zones enneigées ; empreintes de pas dans le sable, la neige et la cendre.
+  - Arbres retouchés, chaque arbre un peu différent ; Forêt des Torii aux couleurs d'automne ; Bois Murmure vraiment sombre.
+- **Odyssée** — Villes et routes :
+  - Chaque ville a son plan et son architecture, ses maisons meublées à son image, de l'air entre les maisons et des terrasses où l'on marche.
+  - Rebords à sauter, raccourcis à sens unique, récompenses à aller chercher avec Coupe ou Surf, dresseurs aux passages étroits, un panneau aux deux bouts de chaque route.
+  - Des objets cachés à trouver en fouillant les routes, et en ville dans les tonneaux et les pots.
+  - De nouvelles grottes à explorer, un volcan pour Cendrelune, des canyons où l'on descend enfin.
+  - Plus de bord de carte visible, plus de décor hors d'atteinte, plus de porte cachée derrière une maison.
+- **Odyssée** — La tenue garde le dresseur d'origine : on choisit seulement la couleur de la casquette (le serre-tête pour la dresseuse), du haut, du bas, des chaussures et de la sacoche.
+- **Odyssée** — Se joue à la manette et au doigt sur téléphone.
+- **Odyssée** — Démarrage plus court, plus d'à-coups en changeant de bloc de carte, moins de mémoire prise sur les petits téléphones, et une partie reprend toujours à un endroit d'où l'on peut repartir.
+- **Odyssée** — Le bouton Amis ne compte plus son propre dresseur, et le son s'arrête quand on quitte l'onglet.
+
+## 5.25 — 10 novembre 2026
+- **Odyssée** — Les Pokémon sauvages changent à mesure qu'on avance sur une route, dans une grotte ou sur une île :
+  - Chaque passage a sa quinzaine de Pokémon ; ceux qu'on croisait souvent juste avant s'y font plus rares, et de nouveaux apparaissent.
+  - Quelques Pokémon croisés un peu plus tôt réapparaissent de temps en temps, et chaque passage cache un ou deux Pokémon rares.
+  - Les Pokémon gagnent en niveau au fil du chemin.
+
+## 5.24 — 9 novembre 2026
+- **The Backrooms** — Plus d'ombre en dents de scie sur la moquette au pied des murs en biais du Level 0 : la lumière s'y pose bien à plat.
+- **The Backrooms** — au Level 0 :
+  - Un tiers de culs-de-sac en moins : bien des couloirs qui butaient contre un mur rejoignent maintenant le reste du dédale.
+  - L'entité est un peu moins agressive : elle voit et entend un peu moins loin, surgit et traque moins souvent, et laisse plus de répit après une poursuite.
+  - Elle ne se lance plus sur toi sans que tu l'aies vue. Jusqu'à la 3e cassette, jamais dans le dos : elle se montre d'abord, au bout d'un couloir ou au coin d'un mur, puis elle charge. Ensuite, c'est encore le cas la plupart du temps.
+  - Quand quelqu'un la regarde, elle ne se fige plus : elle pousse un de ses nouveaux cris, puis part en courant.
+  - Plus de bourdonnement qui monte à son approche : rien ne l'annonce, elle peut vraiment surprendre.
+  - Bien plus de cris pendant la poursuite (29 au lieu de 3), et les anciens retravaillés pour leur ressembler.
+  - Un nouveau corps : une longue silhouette droite de brins noirs noueux et hérissés, une large barre d'épaules, des bras qui pendent jusqu'au sol, une petite tête ronde coiffée d'un large bord plat. Plus de visage, sauf quand elle se rue sur toi.
+  - En mode VIP, elle a ce même corps, avec la photo pour visage.
+
+## 5.23 — 9 novembre 2026
+- **Hub** — Nouvelle catégorie « Gros jeux » : The Backrooms et Odyssée, des jeux bien plus complets, ont leur rangée à part en haut de l'accueil, avec leurs boutons pour jouer, et passent en tête dans le salon.
+- **Hub** — L'écran de chargement d'un jeu ne défile plus : tout tient dans l'écran, sur ordinateur comme sur téléphone, même tenu à l'horizontale.
+- **The Backrooms** — Nouvelle affiche tirée du Level 0, et une présentation qui ne gâche plus la surprise : un endroit étrange et immense, rien de plus. Compte plusieurs heures pour en voir le bout.
+- **The Backrooms** — au Level 0 :
+  - Moins de grands espaces ouverts : des salles plus petites, plus de cloisons, on se perd plus vite.
+  - Quelques couloirs partent en diagonale et cassent le quadrillage : on ne sait plus trop dans quel sens on marche. Leurs murs sont en biais des deux côtés, et leurs néons et les dalles du plafond suivent le couloir.
+  - L'entité n'apparaît plus dans un recoin trop étroit pour elle, où elle restait plantée.
+  - The Old Timer parle toujours avec la voix chuchotée, même sur un ordinateur réglé en français.
+- **The Backrooms** — Le pouce fait le tour de la bouteille au lieu de pointer dans le vide.
+- **The Backrooms** — Les commandes de l'écran de chargement disent juste : F pour ramasser, actionner et se cacher, et courir fait du bruit et donne soif.
+- **Hub** — Une manette branchée pendant le chargement affiche ses commandes à la place de celles du clavier, et le lien « Jeux » du haut mène aux Gros jeux.
+- **The Backrooms** — au Level 1, l'entrepôt :
+  - Le poste de garde est une vraie pièce : on y entre par une porte d'acier qui s'ouvre devant soi. Assis au bureau, on passe d'une caméra à l'autre (flèches, molette ou chiffres), et l'image tombe pile dans les écrans.
+  - L'entité se faufile aussi par les gaines du plafond : on l'entend cogner au-dessus, puis la grille tombe et elle ressort près de sa proie.
+  - Les quais de chargement font un raccourci : un boîtier relève lentement leur rideau de fer, sous un gyrophare qui balaie le quai. L'entité bute sur un rideau baissé, cogne, puis l'arrache.
+  - Les alarmes incendie attirent l'entité, qui vient frapper la cloche ; chacune ne sert qu'une fois, et son flash baigne le couloir de rouge.
+  - Brume en volume au ras du sol, vrais tuyaux au plafond, béton gris sans taches qui se répètent, cabine d'ascenseur éclairée par son plafonnier.
+- **The Backrooms** — un nouvel explorateur : la combinaison jaune « Hazmat Suit » de Cj.savage, plus détaillée et animée.
+  - Sa tête suit ton regard, et ses doigts se referment vraiment sur la lampe, la bouteille et les piles.
+  - En baissant les yeux, tu vois tes bras, ton corps et tes pieds, la lampe dans la main droite et l'objet choisi dans la gauche.
+  - Gants noirs propres, le même jaune partout, plus aucun trou aux bras ni à la paume.
+  - L'inventaire revient à trois cases : la lampe, puis deux objets.
+  - Plus de rejeu de la mort : après l'attaque, l'image se perd tout de suite.
+
+## 5.22 — 9 novembre 2026
+- **The Backrooms** — Une partie qui commence au Level 0 s'ouvre sur une vidéo filmée au caméscope : une soirée d'urbex dans une usine abandonnée, où Safia passe à travers une trappe du plancher… et le groupe saute pour la rejoindre. Espace ou Entrée pour la passer.
+  - En mode VIP, la vidéo est sous-titrée.
+  - La feuille scotchée au mur de l'arrivée est signée Safia.
+
+## 5.21 — 9 novembre 2026
+- **The Backrooms** — Au Level 1, on entend maintenant Khaoula : sa voix résonne de temps en temps quand elle rôde près de toi, et bien plus souvent quand elle te poursuit. Plus elle est loin ou derrière les murs, plus elle est étouffée.
+
+## 5.2 — 9 novembre 2026
+- Fix typo in hud.js string (Metier Amiel)
+
+## 5.1 — 9 novembre 2026
+- Modify NOTES entries in hud.js (Metier Amiel)
+
+## 5.00 — 9 novembre 2026
+- **The Backrooms** — Une voix sur le talkie : « The Old Timer », là depuis toujours, prend parfois la parole sur le canal 9. Tout le monde l'entend en même temps, deux ou trois fois par niveau, jamais pendant une poursuite. Il aide un peu… et il en sait beaucoup trop. Quand il ne reste qu'un survivant, il ne parle plus qu'à lui.
+
+## 4.99 — 9 novembre 2026
+- **The Backrooms** — Du lore à chaque niveau : chaque monstre a une histoire, qu'on découvre en ramassant les objets.
+  - Level 0 : les cassettes sont celles de Safia, une exploratrice perdue dans le Lobby… qui n'en est jamais sortie.
+  - Level 1 : avec chaque fusible, un mot griffonné de Khaoula, qui s'est cachée au sous-sol pour fuir quelqu'un.
+  - Poolrooms : avec chaque volant de vanne, un carreau gravé à la gloire de St Didier Auroux, le père de toute chose.
+  - Pipe Dreams : à chaque vanne fermée, une trace à la craie sur Teo, l'élève de 1934 devenu le bouc à la cloche.
+  - Terror Hotel : avec chaque lettre, une ligne du registre de 1934… et ton nom y est déjà.
+  - Tout trouver débloque un dernier message à la sortie.
+
+## 4.98 — 9 novembre 2026
+- **Odyssée** — Pokémon sauvages refaits badge par badge :
+  - Chaque route, forêt, grotte ou mer a désormais les Pokémon que les jeux officiels, de Rouge à X / Y, font rencontrer au même moment de l'aventure, entre les mêmes badges et dans le même genre de lieu.
+  - Les îles, volcans, tours, grottes marines et lieux glacés reprennent les Pokémon des lieux officiels de même ambiance.
+  - Les Pokémon les plus forts en combat sont plus rares, et un Pokémon arrive évolué si la zone est d'un niveau assez haut.
+  - Les Terres du Sud accueillent les Pokémon d'après la Ligue des jeux officiels : les moins forts près de Métropole, les plus redoutables vers Ombreval.
+
+## 4.97 — 9 novembre 2026
+- **The Backrooms** — La caméra se tourne au pavé tactile, sans souris (iPad compris) : glisser à deux doigts pour regarder autour de soi, ou cliquer-glisser.
+  - En mode « Sans souris », le pavé tactile s'ajoute aux flèches ; pincer zoome le caméscope.
+  - Sur tablette, un clic au pavé tactile ne fait plus apparaître le joystick de marche et reprend la partie mise en pause.
+
+## 4.96 — 9 novembre 2026
+- **The Backrooms** — Nouveau bruitage de course : le souffle enregistré, qui grésillait en boucle, laisse place à une vraie respiration (inspiration, expiration) plus douce, qui s'accélère à mesure que tu t'essouffles.
+
+## 4.95 — 9 novembre 2026
+- **Hub** — Revert "feat(hub,backrooms): trailer officiel de 30 secondes pour The Backrooms avec bouton de lecture sur la carte du Hub" (Amiel)
+
+## 4.94 — 9 novembre 2026
+- **Hub** — Nouveau : trailer officiel de 30 secondes pour The Backrooms avec bouton de lecture sur la carte du Hub (Amiel)
+
+## 4.93 — 6 novembre 2026
+- **The Backrooms** — au Terror Hotel (Level 5) :
+  - Caché sous un lit ou dans une armoire, une fois que l'entité a perdu ta trace, elle quitte la chambre et reprend sa ronde au loin, au lieu de fouiller autour de toi.
+  - Elle entend les pas de tous les joueurs : si un autre court ou marche près d'elle, elle part voir.
+  - L'hôtel est nettement plus éclairé : toutes les chambres ont leur plafonnier allumé, et presque toutes les appliques marchent.
+
+## 4.92 — 6 novembre 2026
+- **The Backrooms** — le hall du Terror Hotel (Level 5), où l'on arrive, est un vrai hall d'hôtel des années 1930, plus petit et meublé de partout.
+  - Une réception au comptoir de marbre et de bois mouluré, avec sa caisse enregistreuse, sa pendule, sa lampe à pétrole, sa sonnette et son registre ouvert ; derrière, la vitrine et les tableaux à clés.
+  - Un salon : canapé capitonné, deux fauteuils, table basse, pouf et tapis vert bordé d'or, sous un tableau.
+  - Au milieu, une banquette ronde de velours vert surmontée d'une plante ; deux colonnes de marbre encadrent l'entrée.
+  - Un chariot à bagages en laiton chargé de vieilles valises, une horloge comtoise, une commode et son miroir, un buste de marbre, des plantes et cinq lustres.
+
+## 4.91 — 6 novembre 2026
+- **The Backrooms** — aux Poolrooms (Level 37), l'entité ne se cache plus derrière les cloisons pour t'observer : elle rôde et te traque à découvert, tu la vois venir.
+  - Derrière une cloison, son bourdonnement est étouffé : on ne croit plus l'entendre à travers les murs.
+
+## 4.90 — 6 novembre 2026
+- **The Backrooms** — l'entité du Level 1 te suit aux Poolrooms (Level 37) : même apparence, mêmes sons, même screamer.
+  - Elle passe d'une salle à l'autre par les portes, jamais à travers les cloisons, et les cloisons te cachent d'elle.
+  - Elle marche au fond des bassins ; l'eau la freine, un peu moins que toi.
+
+## 4.89 — 6 novembre 2026
+- **The Backrooms** — au Terror Hotel (Level 5), se faire attraper donne un vrai screamer : l'entité de l'hôtel se jette sur toi en un quart de seconde, bras tendus vers ton visage, la tête qui tremble, l'image qui saute et se déchire, un éclair rouge et un hurlement déchiré, puis le noir.
+
+## 4.88 — 6 novembre 2026
+- **The Backrooms** — le Terror Hotel (Level 5) a sa propre entité : un homme en chemise sombre et jean, plus grand que toi, qui marche raide dans les couloirs, se penche en avant pour courir quand il te traque, et dont la tête penchée tressaute sans arrêt.
+
+## 4.87 — 6 novembre 2026
+- **The Backrooms** — le Terror Hotel (Level 5) est moins sombre : les appliques du couloir éclairent plus, presque toutes marchent, et chaque chambre a un plafonnier en plus de sa lampe de chevet.
+
+## 4.86 — 6 novembre 2026
+- **The Backrooms** — nouveau niveau : le Level 5, le Terror Hotel. On y arrive en prenant le toboggan rouge des Poolrooms.
+  - Un hôtel des années 1930 : papier peint damassé, lambris sombres, moquette rouge, appliques Art déco qui grésillent, et un couloir qui fait le tour sans fin de 21 chambres numérotées, de 201 à 221.
+  - Six lettres sur papier sont cachées dans les chambres, sur un lit, sur un bureau ou par terre. Chacune se poste dans la boîte aux lettres de sa chambre, dans le hall. Ensemble, elles forment un mot.
+  - Les six lettres postées, un code à quatre chiffres s'allume au plafond du hall. On le tape sur le clavier de la porte de l'escalier de secours, qui s'ouvre : c'est la sortie.
+  - On ne se bat pas : on court, on s'accroupit (C) et on se cache sous un lit ou dans une armoire (E).
+  - L'entité rôde dans le couloir et entre parfois dans les chambres. Elle entend la course de loin et la marche de près ; accroupi, on passe en silence. Un œil se remplit quand elle te voit : plein, elle te traque. Si tu te caches loin d'elle, elle perd ta trace ; si elle t'a vu te glisser dans ta cachette, elle t'en sort.
+  - Un joueur attrapé avec des lettres en poche : elles retournent là où il les avait trouvées.
+  - Parquet qui craque et boîte à musique désaccordée au loin.
+- **The Backrooms** — les toboggans jaune et bleu des Poolrooms mènent toujours à l'écran de fin, en attendant leurs niveaux.
+## 4.85 — 9 novembre 2026
+- **The Backrooms** — Un vrai inventaire : quatre cases d'objets à côté de la lampe, à choisir avec les touches 2 à 5 ou la molette.
+  - G pose l'objet choisi par terre, juste devant soi : une eau d'amande ou des piles à laisser à un coéquipier, l'échelle à garder pour plus tard. On l'entend tomber.
+  - Au doigt, un appui long sur une case pose son objet ; à la manette, c'est la croix vers le bas.
+- **The Backrooms** — Plus de bouteilles d'eau d'amande à trouver, à tous les niveaux (environ 40 % de plus).
+- **The Backrooms** — Un objet échangé contre celui du sol s'affiche enfin tel qu'il est (on voyait encore l'ancien), et ce qui tombe des poches d'un coéquipier mort apparaît bien là où il est tombé.
+
+## 4.84 — 9 novembre 2026
+- **The Backrooms** — L'ascenseur qui se referme en mur est toujours le plus proche de l'équipe : il faut courir jusqu'à l'autre.
+- **The Backrooms** — Les portes de l'ascenseur refermées ne laissent plus voir le couloir à travers la cabine, et on ne passe plus au travers : elles poussent dans la cabine ou dans le couloir celui qui reste sur le seuil.
+- **The Backrooms** — Mort ou à l'abri dans l'ascenseur, l'écran de spectateur ne fait plus planter l'affichage.
+- **The Backrooms** — Sur les arêtes au bord du vide, l'équilibre est bien moins capricieux : on penche moins vite, les à-coups sont plus doux et Q / D rattrapent mieux. Sans rien faire, on finit quand même par tomber.
+- **The Backrooms** — À l'étage du bas du Level 0, les champs de puits sont entourés de sol : chaque arête entre deux puits mène de l'autre côté, plus aucune ne finit contre un mur ou un meuble.
+- **The Backrooms** — Un saut en courant garde son élan : on file en l'air à la vitesse de la course, même en lâchant les touches. En l'air, on ne peut que l'infléchir un peu, et un mur l'arrête.
+- **The Backrooms** — Le Level 1 fait peau neuve : un vrai entrepôt de béton, aux murs de parpaings peints en gris clair, au sol lissé où les réglettes se reflètent en longues traînées, au plafond à caissons éclairé par la lueur des néons (qui grésille et s'éteint avec eux).
+  - Au plafond, des gaines de ventilation sur leurs étriers, leurs branches rondes et leurs grilles ; aux murs, des postes d'incendie avec leur alarme, des coffrets électriques, des caméras, des horloges arrêtées et des quais de chargement condamnés.
+  - Sur les palettes, des caisses clouées, des grands bacs, des sacs de terreau et de ciment, et enfin des fûts.
+- **Odyssée** — Les quinze arènes ont été entièrement redessinées, chacune avec sa propre énigme en plusieurs salles et un panneau qui en donne les règles à l'entrée.
+  - Sylvebourg devient la Ruche : des ruchers font fondre ou rebâtir des murs de cire de cinq couleurs.
+  - Port-Azur : deux bassins à trois niveaux d'eau, des pontons et des radeaux. Voltacité : des barrières qui s'inversent et trois fusibles à rapporter.
+  - Floralia : des parterres à faire fleurir dalle après dalle. Mirage : un palais de téléporteurs en trois phases (lune, soleil, étoile).
+  - Port-Granit : des rochers à pousser dans les fosses. Cendrelune : deux réseaux de coulées de lave à aiguiller, des trous et des gardiens du savoir. Fort-Écaille : des ponts-dragons qui pivotent.
+  - Métropole : une galerie où il faut examiner les vitrines dans le bon ordre, sans toucher à l'intrus. Port-Lisière : des îles volantes et des canons à vent qui tournent après chaque tir.
+  - Marais-Noir : un labyrinthe aux murs invisibles et cinq lanternes. Dunes d'Ocre : du sable qui glisse et des dalles d'argile qui cèdent si l'on repasse dessus.
+  - Forge-Acier : des tapis roulants à sens unique et deux inverseurs. Rosebrume : des miroirs qui guident un rayon infranchissable. Ombreval : des passerelles invisibles dans le noir et cinq torches.
+  - Un pupitre remet une arène à zéro si l'on s'est bloqué ; chaque arène a ses dresseurs et parfois un objet caché.
+- **Odyssée** — Les intérieurs ont de vrais murs : papier peint et lambris au fond, fenêtres, murs sur les côtés, ombres au sol et un tapis dans les maisons.
+  - Quatre papiers peints différents pour les maisons.
+  - Dans la maison de Maman, l'armoire se range au fond, à côté de l'évier.
+
+## 4.83 — 8 novembre 2026
+- **The Backrooms** — Les cassettes sont posées par terre, comme les piles et les bouteilles : on les ramasse avec F, sans coupure d'image.
+- **The Backrooms** — La fin du Level 0 se fait attendre : après la sixième cassette, quelques secondes de silence… puis l'alarme, les feux rouges, et l'entité vous traque sans relâche jusqu'à l'ascenseur.
+- **The Backrooms** — Fini l'endurance : on court sans limite.
+  - En échange, on se déshydrate peu à peu. Quand l'eau manque, la vue se brouille de plus en plus, jusqu'à en mourir. Les bouteilles d'eau d'amande vous désaltèrent.
+- **The Backrooms** — Tout fait du bruit, et l'entité l'entend.
+  - Accroupi, on ne fait presque pas de bruit ; en courant, beaucoup. Votre voix au micro compte aussi.
+  - Une barre de bruit, toujours affichée (même en solo), montre en continu le bruit que vous faites.
+- **The Backrooms** — La liste de l'équipe en haut à gauche : qui est encore là, qui est tombé, qui est parti, et qui parle.
+- **The Backrooms** — La cage d'escalier embellie et réparée : plus aucun filet de lumière au bord des murs, plus de textures qui clignotent.
+  - Une porte coupe-feu en bas aussi. Tombé à l'étage du bas, il faut trouver une clé pour remonter : il y en a une à chaque étage, et dès que l'une est trouvée, l'autre disparaît.
+- **The Backrooms** — L'ascenseur refait : on entre, on appuie sur le bouton de la cabine, les portes se ferment et il part. Coupure… on reprend au Level 1 dans la cabine qui finit de descendre, les portes s'ouvrent, et on sort.
+  - À plusieurs, la cabine attend ceux qui sont encore dehors ; un second appui part sans eux.
+  - Le monte-charge du Level 1 se lance aussi avec son bouton.
+- **The Backrooms** — Plus fluide, sans rien perdre à l'image : les objets hors de vue ne sont plus dessinés (cinq fois moins de triangles par image, image identique au pixel près).
+
+## 4.82 — 8 novembre 2026
+- **Odyssée** — Graphismes « Noir & Blanc » refaits avec les vrais décors du jeu Noir & Blanc.
+  - Centres Pokémon, Boutiques, arènes, labo, tours et une dizaine de maisons différentes, dessinés comme dans Noir & Blanc, à la bonne taille et la porte en face de l'entrée.
+  - La mer et les hautes herbes de Noir & Blanc.
+  - Un bâtiment qui n'a pas d'équivalent à sa taille garde son dessin de base.
+
+## 4.81 — 8 novembre 2026
+- **Odyssée** — Options → Graphismes plus simple : deux choix seulement, « Odyssée (de base) » ou « Noir & Blanc ».
+  - En Noir & Blanc, les Centres Pokémon, Boutiques, arènes et grands bâtiments gardent leur beau modèle en relief ; seules les maisons changent.
+  - Toits des maisons plus propres (plus de traits répétés).
+
+## 4.80 — 8 novembre 2026
+- **Odyssée** — Graphismes « Pokémon Noir & Blanc » : plus de variété dans les villes.
+  - Trois sortes de maisons : toit de tuiles orange, toit bleu avec auvent, toit turquoise.
+  - Les arbres et les sapins sont ceux des routes de Noir & Blanc.
+
+## 4.79 — 8 novembre 2026
+- **Odyssée** — Graphismes « Pokémon Noir & Blanc » : les maisons sont refaites.
+  - Elles gardent leur vraie taille et leur place : plus de dessin qui déborde sur la route ni de porte décalée.
+  - Toit de tuiles orange, corniche claire et murs beiges dans le style Noir 2 & Blanc 2, à la même échelle que le reste.
+  - Les Centres Pokémon, Boutiques et arènes reprennent leur dessin de base en attendant une vraie version Noir & Blanc.
+
+## 4.78 — 8 novembre 2026
+- **Odyssée** — Graphismes « Pokémon Noir & Blanc » : les bâtiments changent aussi.
+  - Centres Pokémon, arènes et maisons prennent les dessins des jeux Noir 2 & Blanc 2 (maisons de Phyromatical).
+  - L'herbe est plus verte, on ne la confond plus avec l'eau.
+
+## 4.77 — 8 novembre 2026
+- **The Backrooms** — La fin du Level 0 s'annonce : à la dernière cassette, les néons s'éteignent un à un, en vague qui arrive sur vous, chacun avec le claquement de son relais. Puis c'est le noir complet, et les feux rouges se rallument d'un coup dans un fracas électronique (une seule fois). Les alarmes se déclenchent à ce moment-là.
+- **The Backrooms** — Une bande son bien plus oppressante pour la phase rouge.
+  - Une sirène d'évacuation au son riche, noyée dans une grande réverbération.
+  - D'autres alarmes surgissent par-dessus, de toutes les directions (sonnerie d'incendie, bips, klaxon, sirènes), de plus en plus serrées au fil des minutes.
+  - Dessous, un grave qui bat, un accord dissonant et une gamme qui monte sans fin.
+  - Quand le courant se coupe, toutes les alarmes se taisent net ; les feux qui claquent près de vous grésillent.
+- **The Backrooms** — Les feux rouges vivent : leur lueur grésille et se déforme, des volutes de brume traversent leur cône, et une poussière très fine flotte dans la lumière, portée par les courants d'air.
+- **The Backrooms** — Pendant la phase rouge, la lampe torche est plus faible et ses pannes plus variées (salves, extinctions, faux contact, éclair trop fort, agonie). L'endurance s'use deux fois moins vite, pour courir jusqu'à l'ascenseur.
+- **The Backrooms** — Une fine pellicule d'eau au cœur des plus grosses taches de la moquette : elle reflète le plafond, les néons (ou les feux rouges) et la lampe torche, et vos pas y font un bruit mouillé.
+- **The Backrooms** — Un papier peint plus fidèle aux photos au Level 0, toujours discret : sur les rayures de deux teintes, de fines chaînes de perles et des chevrons emboîtés pointés vers le haut.
+- **The Backrooms** — Les grilles d'aération du plafond ne chevauchent plus les néons.
+- **The Backrooms** — Les recoins calmes du Level 0 refaits.
+  - Un vrai fauteuil, un lampadaire à abat-jour de tissu et une petite radio en bois.
+  - La lampe éclaire vraiment les murs, le sol et le plafond d'une lumière chaude, au lieu d'un disque orange.
+  - La radio joue doucement une vieille valse, avec son souffle et ses craquements, d'où elle est posée ; elle se dérègle quand le recoin s'use.
+- **The Backrooms** — Les pas dans l'eau des taches de moquette sont beaucoup plus discrets.
+- **The Backrooms** — À l'œil nu, l'image est calculée en pleine définition (les vrais pixels de l'écran) ; le caméscope garde l'image de sa bande.
+- **The Backrooms** — Ce que vous tenez en main prend la couleur de la lumière autour de vous : rouge à la fin, noir quand tout s'éteint.
+- **The Backrooms** — La flèche à côté du signal a maintenant une tige : on voit tout de suite dans quel sens elle pointe.
+- **Odyssée** — Nouveaux graphismes « Pokémon Noir & Blanc » : Options → Graphismes.
+  - Herbe turquoise, chemins, sable, eau, lave, hautes herbes, arbres, palmiers, sapins enneigés, buissons, rochers et arbres morts dans le style des jeux Noir & Blanc.
+  - Les Pokémon gardent leurs sprites ; on revient aux graphismes de base en choisissant « Odyssée » sur la même ligne (le jeu se relance).
+  - Les artistes (thefloofypanthar, UltimoSpriter, Phyromatical) sont crédités dans les Options.
+
+## 4.76 — 8 novembre 2026
+- **Odyssée** — Tu choisis maintenant tes graphismes : Options → « Sol du dehors » et « Sprites des Pokémon ».
+  - Sol du dehors : « Odyssée » (le sol dessiné par le jeu, avec son relief), « Classique » (les tuiles d'origine) ou le nouveau « Pokémon Lumineux » (herbe, terre, sable, pierre, neige, eau, lave et hautes herbes dans un style Rubis / Émeraude aux couleurs vives).
+  - Le sol change au prochain lancement d'Odyssée ; depuis l'écran-titre, le jeu se relance tout seul en quittant les Options.
+  - Sprites des Pokémon : « HeartGold / SoulSilver » (comme avant) ou « Noir & Blanc » (Gen 5) pour les 493 premiers Pokémon, avec leurs versions de dos et chromatiques. Le changement est immédiat.
+- **Odyssée** — Un écran « Crédits graphismes » dans les Options remercie les artistes dont les tuiles et les sprites sont utilisés.
+
+## 4.75 — 8 novembre 2026
+- **The Backrooms** — Des puits sans fond à l'étage du bas du Level 0.
+  - Dans certaines grandes salles, le sol laisse place à une grille de trous carrés séparés par d'étroites passerelles.
+  - Ils sont si profonds qu'on n'en voit jamais le fond : leurs parois s'enfoncent dans le noir.
+  - Y tomber est mortel : on bascule, on tombe longtemps en voyant la lumière rapetisser au-dessus… et personne ne vous entend atterrir.
+  - On peut les traverser par les passerelles en gardant l'équilibre ; le perdre, c'est tomber.
+  - Les escaliers, les cassettes et la sortie restent toujours accessibles sans passer au-dessus d'un puits.
+- **The Backrooms** — Les trous de l'étage du haut sont plus larges, avec des passerelles plus fines et des parois éclairées.
+- **The Backrooms** — L'intérieur des trous et des puits a la même teinte que les murs de l'étage, au lieu d'un gris-vert.
+- **The Backrooms** — Nouvelles couleurs à l'étage du haut du Level 0 : un jaune moins vert, murs jaune pâle, moquette beige à peine plus foncée que les murs, plafond blanc cassé à la grille discrète et néons d'un blanc à peine chaud.
+- **The Backrooms** — La fin du Level 0 plonge dans le noir : quand toutes les cassettes sont trouvées, les néons s'éteignent et seuls des feux de secours rouges restent allumés, un par zone : aucune région ne reste dans le noir pour de bon.
+  - Des feux à bout de souffle, chacun à son rythme : ils claquent en tentant de se rallumer, tiennent parfois une seconde, puis lâchent de nouveau. Le noir domine.
+  - Leur lumière, diffuse et sans bord net, porte un peu plus loin qu'un néon ; elle tombe vers le sol et laisse le plafond dans l'ombre. Chaque feu allumé jette une lueur sur les dalles autour de lui et un cône de lumière poussiéreuse vers le bas.
+  - Parfois tout se coupe d'un coup avant de se rallumer en hoquetant.
+  - La lampe torche aussi est à bout : elle claque, faiblit ou lâche par moments (elle reste blanche).
+- **The Backrooms** — Les piles sont de vraies piles AA, au sol comme dans la main.
+- **The Backrooms** — L'eau au Level 0 : flaques et plaques d'humidité plus rares, aux bords irréguliers (plus aucun rond parfait), auréoles du plafond plus discrètes qui ne passent plus d'une pièce à l'autre à travers les murs.
+- **The Backrooms** — Une vraie moquette rase au Level 0, la même aux deux étages : des poils fins qu'on distingue à hauteur d'homme, avec leurs ombres, et plus aucun motif qui se répète sur le sol.
+- **The Backrooms** — Les murs de l'étage du haut sont propres : plus de coulures, presque plus d'auréoles ni de traces d'humidité.
+- **The Backrooms** — L'étage du bas du Level 0 garde son ambiance d'avant : papier peint doré juste plus gris (plus aucune tache, fissure ni moisissure) et lumière plus chaude.
+
+## 4.74 — 8 novembre 2026
+- Correction : sortie de la Caverne du Magma bien encadree de roche et chambre sud-est reliee au nord (Amiel)
+
+## 4.73 — 8 novembre 2026
+- Correction : sorties des grottes au bout de la salle (Grotte Lunaire, Tourbillons, Victoire), plus de case libre a cote de la porte (Amiel)
+
+## 4.72 — 8 novembre 2026
+- Nouveau : barre Habitat DexNav retirable completement (bouton x + option) (Amiel)
+
+## 4.71 — 8 novembre 2026
+- **The Backrooms** — Au Level 0, une panne de courant en pleine partie.
+  - Une fois la moitié des cassettes trouvée, tout s'éteint d'un coup, une seule fois, pendant 25 à 35 secondes.
+  - Dans le noir, les néons ne protègent plus, le caméscope perd le signal et l'entité vient vers vous.
+- **The Backrooms** — Un final sous alarme quand toutes les cassettes sont trouvées.
+  - Toutes les lumières allumées passent au rouge et clignotent chacune à son rythme.
+  - Une sirène lointaine et un grondement grave s'ajoutent à l'ambiance jusqu'au départ.
+  - Une flèche rouge à côté du signal (et sur le caméscope) indique où est l'ascenseur. Depuis l'autre étage, elle mène d'abord à l'escalier, ou à la clé tant qu'elle n'est pas prise.
+- **The Backrooms** — L'étage du bas du Level 0 a l'air abandonné : papier peint grisé, taché, fissuré, arraché par endroits et moisi au pied des murs.
+- **The Backrooms** — Le bourdonnement des néons est un peu moins fort.
+
+## 4.70 — 8 novembre 2026
+- **The Backrooms** — Un Level 0 plus court, pour aller au bout.
+  - 6 cassettes à trouver au lieu de 7 : 4 à l'étage du haut, 2 en bas.
+  - L'étage du bas est bien plus petit : un carré de 100 m de côté au lieu de 160, sous le couloir piégé. Il y a moins de terrain à fouiller, et les escaliers y mènent toujours.
+  - Toutes les cartes changent avec cette version, la Carte du jour aussi.
+- **The Backrooms** — L'échelle ne se perd plus.
+  - Elle est posée bien plus près de la cassette perchée (40 m en moyenne au lieu de 90).
+  - Quand il ne reste à ton étage que la cassette perchée et que personne n'a l'échelle, le caméscope te mène à l'échelle (LADDER sur la jauge de signal).
+  - Si un coéquipier meurt l'échelle en main, toute l'équipe est prévenue : elle tombe là où il est tombé, et le caméscope y mène jusqu'à ce que quelqu'un la reprenne.
+  - Plus aucun meuble devant l'entrée d'un escalier.
+
+## 4.69 — 8 novembre 2026
+- Correction : imports hud, affichage habitat dexnav en ville et routes, report chat menu et lock inputs (Amiel)
+
+## 4.68 — 8 novembre 2026
+- Correction : affichage et detection universelle de l'habitat DexNav dans le HUD (Amiel)
+
+## 4.67 — 8 novembre 2026
+- **The Backrooms** — Le Level 0 redevient un labyrinthe.
+  - Des cloisons fines coupent les salles trop ouvertes, souvent avec un passage au milieu : moins de grands espaces vides, plus de recoins et de détours. Certains murs droits deviennent eux aussi de simples cloisons de plâtre.
+  - Toutes les cartes changent avec cette version, la Carte du jour aussi.
+- **The Backrooms** — L'entité ne reste plus jamais plantée devant toi à te fixer.
+  - Si tu la fixes, même lampe éteinte ou en la filmant au caméscope, elle hurle et charge au bout d'une seconde. Si c'est un coéquipier qui la fixe, c'est lui qu'elle charge.
+  - Aperçue du coin de l'œil, ou quand tu es à l'abri (sous un néon fort, dans un recoin calme), elle se glisse hors de ta vue, dans le noir, au lieu de faire les cent pas au bord de la lumière.
+  - La première rencontre est brève : dès qu'on la regarde, même de côté ou par un coéquipier, elle s'efface.
+  - Elle n'apparaît plus au-dessus d'un trou ni dans un pilier, et ne te frôle plus en allant se cacher dans un coin sombre.
+- **The Backrooms** — On entend l'entité là où elle est.
+  - Ses pas tombent au moment où ses pieds touchent le sol, avec les vrais bruits de pas de la poursuite.
+  - Tous ses bruits viennent d'elle : plus faibles de loin, étouffés derrière un mur (un peu moins à travers une cloison fine), sourds à travers le plancher, avec l'écho du lieu (presque sec dans un couloir, long dans une grande salle).
+  - Pendant la traque, elle pousse des rugissements graves et saturés.
+- **The Backrooms** — Caméscope, lampe et cassettes.
+  - Le caméscope zoome maintenant jusqu'à ×12 (molette), avec la barre W–T à l'écran le temps de zoomer.
+  - Plus aucune ondulation de chaleur sur les murs.
+  - La cassette perchée est rangée dans un trou carré creusé dans le mur, plus haut qu'avant : il faut toujours l'échelle pour l'attraper.
+  - La lampe est éteinte au départ : la touche 1 l'allume.
+  - L'étiquette des cassettes reste lisible dans le noir.
+
+## 4.66 — 8 novembre 2026
+- **Tous les jeux en ligne** — Ta place dans le salon n'est qu'à toi, et un hôte coupé en pleine action ne rouvre plus une seconde partie dans son coin.
+  - Un joueur ne peut plus se faire passer pour un autre auprès de l'hôte : ce qui t'est destiné (ta fiche de rôle dans Mystère Mystère, par exemple) n'arrive qu'à toi, et personne ne joue ni ne parle à ta place.
+  - Un hôte qui perd sa connexion en pleine action, avec trop de messages en retard pour reprendre sa place, rejoint lui aussi le salon repris par un autre joueur, au lieu de rouvrir seul son ancien salon. S'il n'y a personne d'autre pour le reprendre, il le rouvre, et chacun y revient avec son numéro.
+
+## 4.65 — 8 novembre 2026
+- **Tous les jeux en ligne** — Quand l'hôte s'en va ou perd sa connexion, tout le salon repart chez un seul et même nouvel hôte.
+  - Un hôte coupé trop longtemps en pleine partie rejoint, avec son numéro, le salon qui a continué sans lui, au lieu de rouvrir seul son ancien salon : fini les deux parties en parallèle.
+  - Le nouvel hôte est toujours un joueur présent : plus personne n'attend un joueur qui avait fermé son onglet, pour finir sur « Impossible de joindre le nouvel hôte ».
+  - Le nouvel hôte est de préférence un joueur qui a la partie ouverte : ceux qui jouent ne restent plus sans personne pour faire tourner la partie quand le premier de la liste était resté au salon.
+  - Dans Bastion Clash, celui qui reprend la partie la retrouve toujours en entier, armées adverses comprises.
+  - Un joueur ne peut plus se faire passer pour l'hôte auprès des autres : faux départ de l'hôte, fausse partie ou faux renvoi du salon sont ignorés.
+- **The Backrooms** — Si l'hôte ne donne plus de nouvelles, ton jeu le relance de lui-même. Et si le nouvel hôte n'a même pas la partie ouverte, un message le dit et tu reviens au salon au bout d'une vingtaine de secondes, au lieu d'attendre seul pour toujours.
+
+## 4.64 — 8 novembre 2026
+- Nouveau : refonte HUD & Sac B2W2, DexNav habitat, chat multijoueur et audit de stabilite (Amiel)
+
+## 4.63 — 8 novembre 2026
+- **The Backrooms** — Plus jamais de parties où chacun a sa propre carte.
+  - La vraie cause est trouvée : un joueur sur Chrome et un autre sur Firefox ou Safari avaient toujours deux cartes différentes (le tirage de la carte dépendait du navigateur). Maintenant, tout le monde a exactement la même carte, quel que soit son navigateur. Toutes les cartes changent avec cette version, la Carte du jour aussi.
+  - Si ta carte n'est pas celle de l'hôte (une ancienne version gardée par le navigateur), ton jeu se met à jour tout seul et te ramène dans la même partie, sur la même carte.
+  - Si c'est l'hôte qui a l'ancienne version, c'est lui qui se met à jour : la partie continue pour les autres pendant ce temps, et il revient dedans.
+  - Un joueur qui a raté le début d'une nouvelle partie la rattrape tout seul, au lieu de rester sur l'ancienne carte.
+- **Hub** — Fini les parties entre joueurs qui n'ont pas la même version.
+  - Le Hub se met à jour tout seul quand une nouvelle version sort (jamais au milieu d'une partie) et revient dans le même salon.
+  - Si un joueur du salon a une version plus récente, les autres se mettent à jour et reviennent tout seuls ; l'hôte qui se met à jour revient lui aussi, dans le salon repris par un autre joueur.
+  - Dans le salon, chaque joueur affiche sa version ; au lancement, un avertissement prévient si quelqu'un n'est pas à jour.
+- **The Backrooms** — Corrections.
+  - Les voix résonnent de nouveau dans les couloirs : un peu d'écho de près, beaucoup quand le coéquipier est loin ou derrière un mur.
+  - Tout le monde voit le caméscope des coéquipiers (avant, seul celui de l'hôte s'affichait), et l'image de leur petit écran tourne avec leur regard, sans à-coups.
+  - Fini les cassettes qu'on voit briller au fond d'un trou sans pouvoir les prendre (elles étaient à l'étage du dessous, et le signal ne les comptait pas) : celles d'en bas ne sont plus jamais sous un trou.
+- **The Backrooms** — L'entité ne fait plus aucun mouvement bizarre.
+  - Elle se déplace comme un vrai corps : elle se tourne avant d'avancer (plus de pas de côté ni de marche arrière), accélère, freine, et ne traverse plus jamais un mur, un meuble, un casier ou une cage d'escalier.
+  - Elle monte et descend vraiment les marches, et peut sauter dans un trou pour te suivre à l'étage du dessous.
+  - Plus d'arrêts d'une fraction de seconde au milieu d'un couloir : en ronde, elle s'arrête pour écouter, puis repart.
+  - Elle n'apparaît et ne disparaît jamais sous tes yeux, ni devant la lumière d'une zone claire.
+- **The Backrooms** — L'entité, encore plus terrifiante.
+  - Quand elle t'observe ou te traque, sa tête se tourne vers toi et te suit.
+  - Elle arrive dans le noir : les néons autour claquent, ta lampe hoquette et meurt un instant… et quand la lumière revient, elle est là.
+  - Au bord de la lumière, elle arpente l'ombre sans te quitter des yeux ; si tu te retournes, elle est plus près qu'avant, immobile.
+  - En poursuite, les néons qu'elle frôle grésillent : on l'entend venir, de néon en néon.
+  - Elle passe la porte du haut de l'escalier d'un coup d'épaule ; au bord d'un trou, ses griffes raclent le rebord, puis on entend le choc à l'étage du dessous.
+  - Repoussée, elle titube en arrière avant de s'enfuir dans le noir.
+  - Les zones très éclairées restent un abri sûr : leurs néons ne s'éteignent jamais.
+- **The Backrooms** — À plusieurs, plus de joueur perdu ni de partie bloquée.
+  - Quand l'hôte s'en va, la partie continue vraiment pour tous : avant, les autres restaient coincés, la caméra sur un coéquipier, sans pouvoir bouger.
+  - Le nouvel hôte reprend l'entité où elle en était (pas de nouvelle minute de calme), et les fusibles que chacun a en poche au Level 1 ne disparaissent plus (la partie devenait impossible à gagner).
+  - Si l'hôte part pendant le chargement, un autre joueur lance la partie au lieu de laisser tout le monde attendre.
+  - Un joueur qui perd la connexion ne continue plus de courir et de parler tout seul jusqu'à la fin (il attirait l'entité sur tout le monde) ; absent 20 secondes, il quitte la partie.
+  - Un joueur revenu au salon n'est plus remis dans la partie suivante quand on clique sur Rejouer.
+  - Ce qu'un joueur portait ne se perd plus quand il meurt ou s'en va : l'échelle, les piles, l'eau d'amande et les fusibles tombent là où il était.
+  - Dans l'ascenseur, si celui qui attendait dans la cabine s'en va, le compte à rebours s'arrête (avant, ceux restés dehors mouraient pour rien).
+  - Sur tous les niveaux, les néons qui clignotent ou s'éteignent sont les mêmes pour tout le monde (avant, seulement au Level 0) ; dans les Tuyauteries, les lampes qui tiennent les chèvres à distance aussi.
+  - Échanger un objet contre un autre, encore et encore, ne ralentit plus la partie.
+  - Plus de coéquipier fantôme à l'étage suivant après le départ d'un joueur.
+  - Pour les invités, le recul d'un coup de chèvre et l'arrivée après une chute se font au même endroit que chez l'hôte, et la vapeur brûle aussi quand on reste immobile dedans.
+- **The Backrooms** — Autres corrections.
+  - On ne commence plus jamais dans une cage d'escalier, et une chute dans un trou ne finit plus coincé dans un meuble (il n'y a plus de meuble sous les trous).
+  - L'échelle n'est plus jamais posée dans la salle au bout du couloir piégé, qu'on ne pouvait atteindre qu'en franchissant les trous.
+  - Level 37 (Poolrooms) : on n'apparaît plus collé à un mur ni dans un recoin d'où l'on ne peut pas sortir.
+  - Level 2 (Tuyauteries) : chaque vanne a de nouveau son disjoncteur (sur certaines cartes, il en manquait un et l'on ne pouvait pas finir).
+  - En relançant une partie, plus de son bloqué (l'entité qui agrippe, la vanne), d'écran de fin ou d'image de mort qui reste affiché, ni de souffle retenu.
+  - Ton souffle retenu ne se relâche plus quand c'est un coéquipier qui reprend sa respiration.
+  - Un coéquipier parti ne reste plus figé sur place, lampe allumée, et l'arrivée d'un coéquipier (ou le rejeu de ta mort) ne fige plus l'image une seconde.
+  - Plus de musique de poursuite en double, ni de son de mort qui démarre après coup ; la brume de chaleur s'arrête bien en qualité basse, et repasser de « basse » à « auto » remet la bonne qualité.
+  - Ta lampe ne t'éclaire plus deux fois quand un coéquipier te filme.
+  - La silhouette aperçue au loin disparaît bien dès que ta lampe la touche (avant, ça ratait après quelques tours sur toi-même).
+  - La vérification de carte entre joueurs compare aussi la clé, les casiers et les recoins calmes : une différence là aussi se répare toute seule.
+- **Hub** — Un ami qui a une version pas encore en ligne ne fait plus recharger tout le salon toutes les deux minutes.
+- **Odyssée** — La première arène, celle d'Hector à Sylvebourg, est entièrement nouvelle : une grande serre lumineuse en trois salles.
+  - À l'accueil, le panneau des règles t'attend au milieu de la pièce, et deux portes mènent à la Grande Serre.
+  - Dans chaque moitié de la serre, des blocs de pollen trop collants pour être poussés à la main : marche sur la dalle derrière une soufflerie, et le bloc glisse tout droit jusqu'au premier obstacle.
+  - Fais tomber un bloc dans la stèle de chaque côté pour ouvrir le dôme d'Hector. Un pupitre près de chaque porte remet les blocs en place.
+  - Deux dresseurs guettent les allées du bord, avec des baies et des potions à gagner : résous l'énigme du premier coup et tu peux les éviter.
+- **Odyssée** — Hector a une nouvelle équipe de trois Pokémon qui jouent ensemble : Mimigal ralentit, Couverdure encaisse et endort, et son Bourdonnet puise dans ses Sacoches de Pollen quand il faiblit.
+- **Odyssée** — Les CT arrivent : en battant Hector, tu reçois la CT01 Pollen Collant, une attaque Insecte inédite qui baisse la Vitesse. Une CT ne s'use pas, on l'apprend depuis le Sac.
+
+## 4.62 — 7 novembre 2026
+- **The Backrooms** — Une image nette, et un vrai caméscope à sortir (touche V).
+  - Sans caméscope, l'écran n'a plus d'effet de cassette : image propre, sans lignes, ni bande déformée, ni compteur REC.
+  - Avec V, on sort le caméscope : l'image passe au format carré, entre deux bandes noires, avec un effet de cassette bien plus fort qu'avant (REC, compteur, coins du viseur, lignes, couleurs qui bavent).
+  - La jauge de signal des cassettes reste toujours affichée en bas à droite ; au caméscope, elle s'affiche en plus grand et plus précise dans la bande de gauche.
+  - Le caméscope est un peu parasité : une légère neige, une barre de bruit qui remonte l'image, quelques lignes qui sautent.
+  - Il zoome ×1,5 dès qu'on le sort, et la molette zoome davantage (jusqu'à ×4), avec le petit bruit du moteur de l'objectif.
+  - Quand un coéquipier filme, on voit son image en direct dans un petit écran en bas à droite, avec son nom.
+  - La bande de droite montre les parasites : quand l'entité approche, la jauge monte et l'image se déchire.
+  - Dans le noir, le caméscope passe tout seul en mode nuit (image verte) : on y voit sans lampe, donc sans se faire repérer.
+  - Il tire un peu sur la même pile que la lampe. Les coéquipiers qui filment ont un petit voyant rouge.
+- **The Backrooms** — À plusieurs, tout bouge en douceur.
+  - Les coéquipiers et l'entité avancent et tournent la tête d'un mouvement régulier, au lieu de petits sauts 20 fois par seconde (chez l'hôte comme chez les invités) ; une vraie téléportation ou une chute reste nette.
+  - Sur un écran à plus de 60 images par seconde, la souris ne perd plus de mouvement (avant, plus de la moitié pouvait sauter à 144 Hz), et ta propre marche est fluide à chaque image.
+- **The Backrooms** — Tous les niveaux au même niveau de détail que le Level 0.
+  - Level 2 (Tuyauteries) : les réserves sont en vraie brique, avec son relief, et les chaufferies en brique peinte écaillée ; le carrelage et l'enduit sont salis comme le papier peint du Level 0.
+  - Level 37 (Poolrooms) : carrelages deux fois plus fins, nets même collé au mur.
+  - Level 1 : cartons, fûts, étiquettes, pochoirs et panneaux d'allée deux fois plus fins, et plus nets au loin.
+- **The Backrooms** — Le Level 0 plus vivant, et plus inquiétant.
+  - Les néons vivent : certains grésillent fort et clignotent d'un coup, et parfois toute une rangée s'éteint derrière toi, dans un claquement de disjoncteur.
+  - La moquette raconte quelque chose : des taches d'humidité, des traces de pas mouillées qui mènent quelque part, et des gouttes qui tombent du plafond dans des flaques (on les entend).
+  - Tout au fond des couloirs, l'air tremble à peine et jaunit un peu, comme s'il faisait trop chaud.
+  - Le plafond est un peu plus haut (20 cm).
+  - Fini les grandes plaques d'ombre crénelées au plafond : la lumière y est douce, comme renvoyée par le sol.
+  - Les bords des murs, des piliers et des néons sont lisses : fini les marches d'escalier sur les contours.
+  - Collé contre la cage d'escalier (sa porte cadenassée comme tous ses murs), on ne voit plus à travers : on bute juste devant, et la chaîne de la porte cogne.
+  - La porte de l'escalier a un vrai hublot en verre armé : trouble et grillagé, il laisse deviner la cage éclairée derrière.
+- **The Backrooms** — Des matières bien plus détaillées : moquette, papier peint, plafond, entrepôt du Level 1, porte coupe-feu en acier peint, sol de l'ascenseur en tôle, parois en inox.
+  - La lampe torche et le cadenas de la porte de l'escalier sont de vrais objets en 3D ; une caméra de surveillance observe la cabine de l'ascenseur.
+  - La lampe fait un petit clic quand on l'allume ou l'éteint (et on entend celle des coéquipiers proches).
+- **The Backrooms** — On part ensemble, ou pas du tout.
+  - Dès que quelqu'un entre dans l'ascenseur, les autres ont 45 secondes pour le rejoindre. Un compte à rebours s'affiche, et l'entité entend la cabine : elle arrive.
+  - À zéro, les portes se ferment : ceux qui sont encore dehors sont perdus, et l'ascenseur part avec les autres.
+- **The Backrooms** — L'endurance compte davantage.
+  - Chaque eau d'amande bue agrandit la jauge pour de bon (jusqu'à presque deux fois sa taille), en plus de rendre du souffle : elle n'est donc jamais inutile.
+- **The Backrooms** — Une entité qui ne lâche plus.
+  - En chasse, elle va toujours plus vite qu'un joueur qui marche : pour la semer, il faut courir.
+  - Elle fonce droit sur toi sans hésiter, au lieu de tourner sur elle-même juste devant toi quand elle essaie de t'attraper.
+- **The Backrooms** — 7 cassettes à trouver au lieu de 5 (4 à l'étage du haut, 3 en bas), sur une carte de la même taille.
+- **The Backrooms** — On court plus vite, et on peut sauter.
+  - Espace pour sauter : un petit bond qui coûte un peu de souffle et s'entend à la réception. Il ne permet pas de franchir un trou.
+  - C pour s'accroupir se fait maintenant d'un appui (plus besoin de garder la touche) ; Espace ou la course relèvent.
+- **The Backrooms** — Tout le monde a enfin la même carte : escaliers, cassettes et objets au même endroit pour chaque joueur.
+  - Le jeu se charge toujours en entier à la version du Hub : un navigateur ne peut plus mélanger des fichiers d'une ancienne version (gardés en mémoire) avec ceux de la nouvelle, ce qui donnait une autre carte que celle des coéquipiers.
+  - Si les cartes diffèrent malgré tout (quelqu'un a encore une vieille version ouverte), un message dit qui doit recharger la page, chez l'hôte comme chez l'invité, et revient tant que ce n'est pas réglé.
+- **The Backrooms** — Un multijoueur plus solide, et des voix plus claires.
+  - Fini les téléportations : quand le jeu de l'hôte se fige un instant (une saccade, ou un passage sur un autre onglet), les autres ne sont plus ramenés en arrière.
+  - Les coéquipiers se déplacent de façon fluide à l'écran, au lieu d'avancer par petits sauts.
+  - Les bruits d'ambiance (enregistrements lointains, tôle qui craque, coups dans les conduites…) arrivent en même temps chez tout le monde, au même endroit du niveau : fort pour celui qui est à côté, étouffé pour celui qui est loin.
+  - Les voix des joueurs sont plus fortes et toutes au même niveau, qu'on chuchote ou qu'on parle fort ; les grésillements du talkie ne sont pas remontés avec elles.
+  - L'écho des voix est plus discret : court, juste après la voix, sans graves qui noient ; on l'entend surtout quand la personne est loin.
+  - La jauge du micro est devenue un simple trait fin, avec un petit repère : au-delà, on t'entend.
+
+## 4.61 — 7 novembre 2026
+- **The Backrooms** — Une jauge du micro pour savoir si tu fais du bruit.
+  - En bas à gauche, une petite jauge « MIC » suit ta voix en direct, comme le vumètre d'un caméscope.
+  - Sous le trait, tu chuchotes : personne ne t'entend, l'entité non plus. Au-dessus, la jauge passe au jaune et affiche « HEARD » : les joueurs proches t'entendent, et elle aussi.
+  - Tout en haut, elle vire au rouge et clignote « TOO LOUD » : tu fais plus de bruit qu'en courant.
+  - Si le navigateur bloque le micro, la jauge affiche « BLOCKED ».
+- **The Backrooms** — Un début de partie plus lent, et des voix perdues dans le talkie.
+  - Avant la première cassette, l'entité n'est tout simplement pas là : seule sa toute première apparition, au bout d'un couloir, vient troubler l'exploration. Pas de traque, pas de fausses alertes, pas de néons qui meurent, pas de parasites dans le talkie. Elle n'arrive qu'une vingtaine de secondes après la première cassette, et de loin.
+  - De temps en temps (c'est rare), une voix passe sur le canal du talkie : quelqu'un d'autre, perdu ici. Ses mots s'écrivent à l'écran pendant qu'il parle.
+  - Voix de proximité : tout près, la voix est sèche, avec juste un soupçon d'écho ; en s'éloignant, la voix s'efface et l'écho des couloirs prend le dessus.
+  - Si un joueur n'a pas la même carte que l'hôte (une vieille version du jeu restée en mémoire), il est prévenu qu'il doit recharger la page, et l'hôte aussi.
+
+## 4.60 — 7 novembre 2026
+- **The Backrooms** — Voix de proximité sans touche, et quelques retouches au caméscope.
+  - Plus besoin d'appuyer pour parler aux joueurs proches : le micro est ouvert, il suffit de parler. Seul le talkie se tient sur R.
+  - Dans ⚙️ Réglages, « Voix » propose simplement micro activé ou coupé.
+  - L'image ne floute plus tout le temps quand tu cours : seulement de temps en temps, le temps que l'autofocus raccroche.
+  - Un petit rappel des touches (F interagir, E utiliser, R talkie à plusieurs) s'affiche en bas à gauche, discret, avec le reste de l'écran du caméscope.
+  - Les parasites du talkie sont moins forts et ne couvrent plus les voix.
+  - Corrigé : il arrivait de devoir garder le clic gauche enfoncé pour tourner la caméra. Si la souris n'a pas pu être capturée (par exemple en recliquant juste après Échap), un nouveau clic suffit maintenant.
+
+## 4.59 — 7 novembre 2026
+- **The Backrooms** — Un screamer qui fait vraiment sursauter, une clé pour l'escalier, et un caméscope plus lisible.
+  - Le screamer a été refait : un instant de noir et de silence total, puis son visage blême, orbites vides et mâchoire décrochée, se jette contre l'objectif et tressaute, avec un cri plus violent.
+  - Ton souffle est beaucoup plus discret : on l'entend surtout en courant, à peine quand on marche.
+  - L'image ne devient floue qu'en courant.
+  - « PRESS F » ou « PRESS E » s'affiche quand tu peux ramasser un objet, te cacher, poser l'échelle, boire l'eau d'amande ou changer les piles.
+  - Le signal du caméscope capte de plus loin.
+  - La porte du haut de la cage d'escalier est fermée par une chaîne et un cadenas. La clé traîne quelque part dans le noir de l'étage du haut, sur un carton : le laiton brille quand ta lampe passe dessus. Celui qui la trouve ouvre la porte pour tout le monde. Les trous dans le sol restent un raccourci… risqué.
+  - Le signal du caméscope te guide vers la clé une fois les cassettes de l'étage trouvées.
+- **The Backrooms** — Voix de proximité et talkie-walkie (micro à autoriser dans le navigateur).
+  - Maintiens V pour parler aux joueurs proches : ta voix porte une vingtaine de mètres, passe mal les murs et très mal les planchers, et résonne dans les couloirs.
+  - Maintiens R pour parler dans le talkie : toute l'équipe t'entend, avec le son nasillard d'une vieille radio, de plus en plus haché quand on est loin.
+  - Attention : l'entité entend aussi. Parler fait du bruit là où tu es, et le talkie grésille chez ceux qui le reçoivent. Plus l'équipe parle, plus elle devient agressive.
+  - Le talkie lâche parfois des parasites tout seul : grésillements, bips, une respiration, une voix qui ne veut rien dire. Plus souvent quand elle rôde ; tout près d'elle, il crépite.
+  - Pendant les coupures de courant, les talkies sont morts.
+  - Nouveau dans ⚙️ Réglages : « Voix » (appuyer pour parler, micro ouvert ou coupé, volume des voix).
+
+## 4.58 — 7 novembre 2026
+- **Fief Maudit** — Un début de partie plus vif.
+  - Le premier jour dure deux minutes et demie au lieu de quatre et demie ; les suivants, un peu moins de quatre.
+  - On porte jusqu'à trois bûches à la fois : E près d'une autre bûche pour l'empiler, et les trois se rangent d'un coup.
+  - Des coffres luisent dans les bois, gardés par des squelettes endormis qui se réveillent quand on approche, même en plein jour. Dedans : du bois, des vivres, des poutres, de l'huile pour les braseros ou un élixir qui soigne toute l'équipe. Le premier est tout près du village, avec un seul garde ; de nouveaux coffres apparaissent à chaque aube.
+  - Une cloche près du feu de camp : la sonner (E) fait tomber la nuit tout de suite quand on est prêts.
+  - On peut relever un équipier même avec du bois dans les bras.
+
+## 4.57 — 7 novembre 2026
+- **The Backrooms** — Le Level 0 ressemble enfin aux vidéos.
+  - Les zones éclairées baignent vraiment dans la lumière jaune des néons, du sol au plafond ; les zones mortes restent noires.
+  - Plinthes au pied des murs, taches du plafond plus discrètes.
+  - L'escalier est maintenant une vraie cage fermée : une porte en bas, une en haut, des marches avec nez de marche, des mains courantes au mur, et des appliques qui l'éclairent (elles s'éteignent pendant les coupures).
+  - L'ascenseur a été refait : cadre en inox, portes brossées, seuil, voyant à flèches, bouton d'appel et vraie cabine éclairée. Plus de texture qui clignote, et sa lueur rouge ne repeint plus tout le couloir.
+  - Si tu tombes nez à nez avec l'entité et que tu la vois en face, elle ne reste plus plantée là : elle hurle et fonce sur toi.
+  - L'entité est plus grande (elle frôle le plafond) et bouge autrement : coudes et genoux qui plient dans le mauvais sens, mouvements saccadés image par image, tête qui se tord d'un coup, bras interminables qui ballottent, démarche boiteuse et course désarticulée. Quand elle charge, sa bouche s'ouvre en grand et elle tend les bras vers toi.
+  - En arrivant au Level 1, on sort du même ascenseur que celui pris au Level 0 : ses portes se referment derrière toi une fois que tu as fait quelques pas.
+  - Sous les néons les plus forts, on est presque à l'abri : l'entité ne t'y prend en chasse que si tu la frôles. Elle reste à la lisière de l'ombre, immobile, et attend que tu en sortes.
+  - Quand plus personne ne la regarde, elle ne joue plus franc jeu : elle peut réapparaître juste derrière un angle devant toi, immobile et muette, ou se glisser dans ton dos sans un bruit. Et après t'avoir observé, il suffit de te retourner pour qu'elle ait disparu.
+  - Avant chacune de ces apparitions, un signe : un grattement derrière le mur, ou une respiration lente dans ton dos. On la sent venir sans savoir exactement où.
+  - La toute première rencontre : pendant la première minute, au bout d'un couloir, elle est là, immobile. Regarde-la trop longtemps, ou approche, et le néon au-dessus d'elle claque : il n'y a plus personne.
+  - De temps en temps, les néons s'éteignent un à un jusqu'à toi… et quand ils se rallument, elle a été lâchée au fond du couloir.
+  - Nouvelles fausses alertes : des pas qui suivent les tiens et s'arrêtent quand tu t'arrêtes, une silhouette qui s'efface, l'ascenseur qui sonne tout seul.
+  - Des recoins calmes : un fauteuil, une lampe de salon, une vieille radio. Elle n'y entre pas… pendant 45 secondes. Ensuite la lampe grésille et plus rien n'y protège, jusqu'à ce qu'on l'ait laissé reposer.
+  - Elle s'adapte : si tu es mort vite la dernière fois, elle triche moins ; si tu t'en sors, elle s'enhardit.
+  - À plusieurs, elle traque surtout celui qui s'éloigne du groupe.
+  - Mort, tu peux encore aider (ou piéger) les vivants : E fait grésiller le néon au-dessus de celui que tu regardes, T frappe un peu plus loin devant lui et l'y attire.
+  - À ta mort, la bande rejoue tes dernières secondes, vues de sa tête.
+  - En fin de partie, le bilan : combien de fois elle t'a vu, les poursuites semées, ton passage le plus serré.
+  - Nouveau réglage « Carte du jour » : la même carte pour tout le monde ce jour-là, avec ton meilleur temps.
+  - L'écran titre conseille de jouer au casque, lumière éteinte, et montre le réglage de luminosité.
+  - Les zones éclairées sont un peu moins éblouissantes (environ 10 % de lumière en moins).
+  - Ne la fixe pas : si tu la regardes plus d'une seconde à moins de quinze mètres, lampe allumée ou non, elle hurle et fonce sur toi. Et si tu t'approches à moins de six mètres, aussi.
+  - La lampe ne la fait plus fuir : tout au plus sursaute-t-elle une fois, de très loin, au début. Seule la première rencontre se termine par une disparition.
+
+## 4.56 — 6 novembre 2026
+- **Fief Maudit** — La crypte et le Roi-Squelette : l'expédition a enfin une fin.
+  - À l'aube du onzième jour, la porte du donjon s'ouvre. En bas, deux leviers à tenir en même temps lèvent la herse, puis un couloir de brume où les morts se relèvent mène à la salle du trône.
+  - Le Roi-Squelette se bat en trois temps : il appelle ses morts, les appelle plus vite, puis souffle les torches du trône et devient furieux. On rallume les torches avec E ; près d'elles, on reprend des forces.
+  - Si toute l'équipe tombe, on retente la crypte directement. Le Roi vaincu, l'écran de fin montre qui a abattu le plus de squelettes, et la partie compte dans le classement du salon.
+  - Chaque métier a sa capacité sur F : Grand coup du bûcheron, Rempart du chevalier, fusée éclairante de la chasseuse, Prière du prêtre, barricade de la forgeronne. Les équipiers IA s'en servent aussi.
+  - De la musique : un luth le jour, des cloches la nuit, des voix sombres dans la crypte, des tambours contre le Roi.
+  - Nouveau panneau Réglages (⚙) : volume de la musique et des effets, qualité de l'image (ombres, forêt lointaine, brume), sensibilité de la souris, rappel des commandes.
+  - Nouvel écran d'accueil, bouton F sur écran tactile et Y à la manette.
+
+## 4.55 — 6 novembre 2026
+- **Fief Maudit** — L'expédition complète : relever le village et tenir dix nuits.
+  - Les ruines se relèvent. E devant une ruine ouvre le chantier avec le bois et les poutres de l'entrepôt, puis on le bâtit à coups de marteau (clic). La forgeronne bâtit deux fois plus vite.
+  - Chaque bâtiment aide : une maison donne +15 PV à toute l'équipe et un abri pour récupérer la nuit, la forge +30 % de dégâts, le moulin du pain et des vivres à chaque aube. Autour de la chapelle, les morts ne se relèvent plus, et les tombés reviennent à ses pieds.
+  - La faim : des buissons de baies poussent dans la vallée. On cueille un panier, on le range à l'entrepôt, et on y mange avec E. Ventre vide, on perd des PV.
+  - Le froid : la nuit, quelques secondes loin de toute lumière et on gèle doucement.
+  - Expédition : tenez dix nuits. Les nuits 5 et 10 sont des sièges, plus longues, avec le chevalier noir, un géant qui enfonce l'entrepôt (deux à la dixième nuit). Mode « Sans fin » dans les réglages.
+  - Trois difficultés : Paisible (les morts ne se relèvent pas), Normale et Peste noire. Les squelettes sont plus nombreux quand l'équipe est grande.
+  - La partie se sauvegarde à chaque aube et à chaque bâtiment relevé. On la reprend au matin depuis l'écran d'accueil.
+
+## 4.54 — 6 novembre 2026
+- **Fief Maudit** — On défend le village ensemble.
+  - Tout le salon joue dans la même vallée, jusqu'à six joueurs, avec ou sans chevaliers IA. Un joueur peut arriver en cours de partie, il apparaît près du feu de camp.
+  - Si celui qui a lancé la partie s'en va, un autre joueur la reprend là où elle en était.
+  - Cinq métiers à choisir en arrivant ou dans le menu : bûcheron (trois coups par arbre, porte une poutre seul), chevalier (plus de vie, encaisse mieux), chasseuse (plus rapide, frappe de plus loin), prêtre (soigne autour de lui, relève deux fois plus vite) et forgeronne (ses bûches brûlent plus longtemps, elle répare l'entrepôt).
+  - Les chênes donnent une poutre en plus d'une bûche. Une poutre se porte à deux : chacun prend un bout avec E. Un chevalier IA vient tenir l'autre bout si personne n'est là.
+  - À plusieurs, le menu ne met plus la partie en pause : la vallée continue pour les autres.
+
+## 4.53 — 6 novembre 2026
+- **The Backrooms** — Un nouveau niveau : le Level 2, les Tuyauteries.
+  - Aux Poolrooms, le toboggan jaune ne sort plus des Backrooms : il descend dans les galeries de service. Le rouge et le bleu font toujours sortir.
+  - De longues galeries carrelées sous les tuyaux, des réserves en brique, des chaufferies et plusieurs grandes salles à piliers, dont certaines au cœur du réseau. Chaque partie a son plan.
+  - Il faut fermer les 4 vannes de vapeur, une dans chaque chaufferie, puis rejoindre l'ascenseur de service.
+  - Les jets de vapeur brûlent : attends qu'ils se coupent pour passer.
+  - Un troupeau de chèvres rôde dans le noir. Elles craignent la lumière : reste sous les lampes, et braque ta lampe torche sur celle qui charge pour la faire fuir. Une chèvre qui charge tourne mal : un pas de côté au dernier moment, et elle s'écrase contre le mur.
+  - Chaque vanne fermée fait sauter les lampes autour d'elle. Une armoire ELECTRICAL à voyant rouge permet de réarmer le disjoncteur et de rallumer le secteur.
+  - Le bouc alpha porte une cloche. En fin de partie, quand la cloche sonne, il ne craint plus la lumière : attire sa charge dans un jet de vapeur pour le faire fuir.
+  - De temps en temps, tout le courant saute : le troupeau sait où tu es et passe à l'attaque.
+  - Un écran de mort qui fait peur, avec son bruit à lui.
+  - Si le jeu ne peut pas capturer la souris, on regarde autour de soi en glissant avec le clic gauche.
+- **The Backrooms** — Tout le jeu fait plus peur, et il est plus juste.
+  - L'entité ne voit que devant elle, et elle entend : la course s'entend de loin, la marche de près. Accroupi (C), on avance lentement et presque sans bruit.
+  - Elle ne tue plus au premier contact : elle t'agrippe. Tape sur n'importe quelle touche pour te dégager, ou un coéquipier l'aveugle avec sa lampe. La deuxième prise est mortelle. Au Level 2, le premier coup de chèvre te renverse, le deuxième tue.
+  - Des casiers au Level 1 et au Level 2 : F pour s'y enfermer. Elle ne te trouve pas, sauf si elle t'a vu entrer. Quand elle passe tout près, retiens ton souffle (Maj)… pas trop longtemps.
+  - Le jeu dose la peur : après une poursuite, un vrai moment de calme. Puis de fausses alertes : des pas, une porte qui claque, un néon qui saute, un coéquipier qui siffle alors qu'il est loin. Et parfois, une fois par niveau, quelque chose de rare.
+  - Elle apprend : après deux fuites devant ta lampe, elle ne fuit plus, et elle se poste là où tu l'as semée.
+  - Au début de la partie, elle te laisse une minute pour apprendre à te déplacer, et la première poursuite est un peu plus lente.
+  - Moins de piles et d'eau d'amande quand on joue à peu nombreux ; l'eau d'amande rend la moitié du souffle. La lampe se vide plus vite pendant les coupures.
+  - Level 1 : les fusibles se portent jusqu'au panneau (si tu meurs, ils tombent par terre), puis il faut relancer le monte-charge en restant devant… et le moteur fait beaucoup de bruit.
+  - Le signal ne capte plus qu'à 25 m, il tremble, et il se coupe pendant les coupures de courant.
+  - Les vannes et les disjoncteurs demandent un peu plus de temps.
+  - Les cassettes racontent une histoire : chacune contient un enregistrement, et ceux que tu as déjà entendus restent dans ta collection.
+  - Deux fins : le toboggan rouge ou bleu te ramène… au Level 0. Seul le jaune, par les Tuyauteries, fait vraiment sortir, et rapporte beaucoup plus de points.
+  - Seul, on peut reprendre au dernier niveau atteint depuis l'écran titre.
+  - Le son a été refait : musique de tension, cœur qui bat, sons étouffés derrière les murs, une ambiance propre à chaque niveau, des bruits réels au lieu des bips. Les Tuyauteries ont enfin leurs propres sons et leur écho métallique.
+  - L'image fait plus vieux caméscope : bande qui saute, mise au point qui cherche, image qui se perd à la mort. L'entité surgit devant l'objectif au lieu d'une image plaquée.
+  - Interface plus discrète (la jauge de souffle et l'inventaire s'effacent quand ils ne servent pas), écran titre et écran de fin façon étiquette de cassette ; on peut passer l'écran de mort au bout de 3 s.
+  - Nouveaux réglages : sensibilité, axe vertical inversé, champ de vision, luminosité, caméra stable, qualité, flashs réduits, sous-titres avec la direction des sons, touches ZQSD ou WASD.
+  - Corrigé : l'écran noir après plusieurs changements de niveau, le petit gel au premier regard, l'entité qui traversait les caisses, une chèvre qui pouvait renverser plusieurs joueurs d'un coup, le score qui donnait plus en mourant aux Tuyauteries qu'en sortant.
+
+## 4.52 — 6 novembre 2026
+- **Fief Maudit** — La nuit tombe sur la vallée.
+  - Le jour dure quatre minutes et demie. Au crépuscule, la cloche sonne, puis la brume monte et les morts sortent du sol, du côté du château.
+  - Six braseros entourent la place. Une bûche dedans, c'est un peu moins d'une minute et demie de feu. On peut reprendre le bois rangé à l'entrepôt pour les charger.
+  - Un squelette abattu dans la brume se relève quelques secondes plus tard. Abattu dans la lumière d'un brasero ou du feu de camp, il reste à terre.
+  - Deux sortes de squelettes : les soldats à la lame, rapides, et les guerriers à la hache, qui parent de face avec leur bouclier (contourne-les).
+  - Ils s'en prennent à qui passe près d'eux, sinon aux braseros allumés, sinon à l'entrepôt.
+  - À 0 PV, on tombe à terre : un équipier a 40 secondes pour te relever en tenant E près de toi.
+  - Un chevalier IA joue avec toi (ou deux, ou aucun, dans les réglages du salon) : il coupe du bois, charge les braseros, se bat et te relève.
+  - À l'aube, les morts retournent à la poussière et tout le monde est soigné. Si l'entrepôt tombe ou si toute l'équipe est à terre, on peut rejouer la nuit.
+  - Dans le menu, « Avancer jusqu'au soir » saute la journée.
+
+## 4.51 — 6 novembre 2026
+- **Fief Maudit** — Nouveau jeu en avant-première : une survie médiévale en coopération, en 3D. Les derniers habitants d'un village en ruine doivent le relever avant que les morts ne sortent de la crypte du château.
+  - Cette première version permet de découvrir la vallée : le village en ruine, l'entrepôt, le feu de camp, la rivière et le château sur sa colline.
+  - On joue le bûcheron : trois coups de hache pour abattre un arbre, qui tombe dans le sens du coup et donne deux bûches. On les ramasse et on les rapporte à l'entrepôt, une par une (on marche moins vite en portant).
+  - Pour l'instant, chacun joue dans sa propre vallée. La nuit, les squelettes et le jeu à plusieurs arrivent dans les prochaines versions.
+
+## 4.50 — 6 novembre 2026
+- **Arcadia** — « Tester ma connexion » affiche ton ping avec le serveur, en millisecondes, et dit si ta connexion va faire laguer les jeux (ping élevé, connexion instable).
+
+## 4.49 — 6 novembre 2026
+- **Arcadia** — Les commandes à la manette s'affichent dans le menu Arcadia et sur l'écran de chargement de chaque jeu, bouton par bouton. Elles passent en premier quand une manette est branchée.
+  - Le bouton Vue (⧉) de la manette ouvre et ferme le menu Arcadia en pleine partie, B le referme.
+
+## 4.48 — 6 novembre 2026
+- **The Backrooms** — Beaucoup moins de lag à plusieurs.
+  - On n'est plus ramené en arrière quand on court avec une connexion lente.
+  - Un coup ou une chute ne bloque plus deux fois de suite.
+  - Les autres joueurs et l'entité glissent d'un point à l'autre au lieu de sauter.
+
+## 4.47 — 6 novembre 2026
+- **The Backrooms** — aux Poolrooms (Level 37), on ne sort plus par un ascenseur mais par un toboggan.
+  - Trois gros toboggans, rouge, jaune et bleu, sortent des murs, avec leur tuyau qui grimpe jusqu'au plafond.
+  - Une grille les ferme tant que les 3 volants de vanne n'ont pas été trouvés.
+  - Chaque couleur mène à un endroit différent. Le premier qui se glisse dans un toboggan choisit pour toute l'équipe : les deux autres se referment.
+- **The Backrooms** — à tous les niveaux, les objectifs (cassettes, fusibles, volants de vanne, toboggans) sont placés le plus loin possible les uns des autres : il faut vraiment explorer toute la carte.
+
+## 4.46 — 6 novembre 2026
+- **The Backrooms** — chaque niveau a désormais ses propres sons.
+  - Dans l'entrepôt (Level 1), la poursuite a sa propre musique ; les cris, les ambiances et le son de la mort du Level 0 restent au Level 0.
+  - Une nouvelle nappe angoissante s'ajoute par-dessus toutes les poursuites, quel que soit le niveau.
+
+## 4.45 — 5 novembre 2026
+- **The Backrooms** — les Poolrooms (Level 37) sont reconstruites salle par salle : fini le damier, chaque salle est dessinée avec sa propre forme et reliée aux autres par des portes en plein cintre.
+  - Des lagons aux bassins courbes, avec leur margelle arrondie, un îlot au milieu de l'eau et d'énormes colonnes.
+  - Des salles en voûtes d'arêtes au-dessus d'un grand bassin, avec leurs échelles chromées.
+  - Des tunnels inondés et sombres rythmés d'arcs, et des galeries voûtées claires.
+  - Des halles sous une longue verrière à deux pans, avec des hublots ronds sur les murs.
+  - Des pataugeoires à colonnes et des locaux techniques bas de plafond, où attendent les volants de vanne.
+  - Chaque partie assemble ces salles autrement.
+
+## 4.44 — 5 novembre 2026
+- **The Backrooms** — les Poolrooms (Level 37) bien plus variées, inspirées des vraies photos du lieu.
+  - Des couloirs inondés en tunnels voûtés, rythmés d'arcs, qui s'enfoncent à perte de vue.
+  - De grandes salles en voûtes d'arêtes portées par d'énormes colonnes rondes, les pieds dans l'eau.
+  - Une mosaïque de tout petits carreaux partout, jusqu'au plafond et dans les voûtes.
+  - Des halles sous verrière éblouissantes, et des salles plongées dans le noir où seule la lumière du couloir passe.
+  - Des passerelles qui traversent les grands bassins, des échelles chromées pour descendre dans l'eau.
+  - Une eau plus vert d'eau, comme une vraie piscine.
+
+## 4.43 — 5 novembre 2026
+- **The Backrooms** — un troisième niveau : le Level 37, les Poolrooms. Le monte-charge de l'entrepôt ne remonte plus : il descend dans un complexe de bassins carrelés blancs et cyan, immense, lumineux et désespérément vide.
+  - Des pataugeoires où l'on marche avec de l'eau aux chevilles, de grands bassins avec leur plage et leurs margelles, des couloirs inondés, des halles à colonnes rondes.
+  - L'eau ralentit : plus elle est profonde, plus on avance lentement, et on s'y enfonce.
+  - Une eau limpide qui fonce avec la profondeur, des reflets qui dansent au fond, des ronds dans l'eau à chaque pas, une brume légère au ras de la surface.
+  - Le son de l'endroit : des échos interminables, le ronronnement des pompes, des gouttes au loin, les pas qui pataugent.
+  - Pour sortir : retrouver les 3 volants de vanne dans les locaux techniques, puis les rapporter à l'ascenseur. Quand les vannes sont fermées, les pompes s'arrêtent d'un coup.
+  - L'entité ne sort pas de l'eau ici… mais il arrive qu'une ombre passe au fond d'un bassin, et que le niveau de l'eau ne soit plus tout à fait le même.
+
+## 4.42 — 5 novembre 2026
+- **The Backrooms** — quand l'entité approche, plus de grésillement électrique ni de lumière rouge : on l'entend venir à ses cris et à ses pas.
+
+## 4.41 — 5 novembre 2026
+- **The Backrooms** — avec les monstres VIP, l'entité du Level 0 prend aussi le grand corps en 3D, avec le visage de sa photo d'origine.
+- **The Backrooms** — l'entité garde sa vraie posture : sa tête ne se replie plus peu à peu sur son corps.
+
+## 4.40 — 5 novembre 2026
+- **Odyssée** — La fin des nouveautés pour faire vivre le monde.
+  - Fossiles : on en trouve en grattant les parois scintillantes des grottes (Nautile, Racine, Griffe, Crâne, Armure, Couvercle, Plume, Mâchoire, Nageoire). Le Dr Silex, à la mine de Pierrefort, les ranime tous.
+  - Concours Pokémon à Floralia, une fois par jour : Beauté, Force, Grâce ou Sagesse selon le jour, avec un classement et des prix.
+  - Fête de village le vendredi et le samedi soir à Bourg-Aube et dans les petits villages : guirlandes de lanternes, musicien, danseurs et un stand de loterie.
+  - Deux nouvelles petites quêtes : le colis du facteur de Voltacité, et le Psykokwak perdu de Papi Octave, à Floralia.
+  - Échanges en jeu : quatre habitants (Sylvebourg, Voltacité, Port-Granit, Cendrelune) échangent un Pokémon courant contre un compagnon rare, avec son surnom.
+  - Sur les routes : des bancs, des panneaux qui racontent l'histoire du coin, des cyclistes, et des relais où une gardienne offre un thé qui requinque l'équipe (une fois par jour).
+  - Les dresseurs des routes s'entraînent : leur Pokémon sautille à côté d'eux.
+  - En ville, la fumée sort des cheminées, des drapeaux flottent sur les arènes et les Centres Pokémon, les fontaines jaillissent.
+  - Rosée du matin sur l'herbe, ronds dans les flaques quand il pleut.
+  - Dans les grottes, des mineurs et des explorateurs, la roche qui gronde et fait tomber des cailloux, et des Pokémon qui tombent du plafond.
+
+## 4.39 — 5 novembre 2026
+- **Odyssée** — Encore plus de vie sur les routes et dans les villes.
+  - Des colporteurs sur certaines routes vendent de quoi tenir le voyage, et une pierre d'évolution.
+  - Le samedi et le dimanche, une marchande s'installe au centre des villes à arène, avec des objets rares (Super Bonbon, pierres d'évolution…).
+  - Des voyageurs se promènent sur les routes : peintre, randonneur, ornithologue…
+  - Des arbres à baies poussent en bordure des routes : on peut les cueillir une fois par jour.
+  - Dans les grottes, certaines parois scintillent : en les grattant, on trouve des pierres, des objets et parfois une Méga-Gemme (une fois par jour).
+  - Les dresseurs des routes déjà battus redemandent une revanche le lendemain, avec une équipe plus forte, et une récompense à la clé.
+  - Les habitants parlent de tes badges, de la Team Éclipse, de l'heure qu'il est ou du marché du week-end.
+  - Sons d'ambiance : oiseaux le jour, grillons le soir, vagues au bord de l'eau, vent dans la neige, mouettes.
+  - Des papillons volent près des fleurs, des lucioles s'allument le soir et des mouettes survolent la mer.
+
+## 4.38 — 5 novembre 2026
+- **Odyssée** — Le monde est plus vivant.
+  - Des Pokémon en liberté se promènent dans chaque ville, selon le décor : Roucool et Pikachu en ville, Psykokwak au port, Goupix près des volcans, Évoli dans la neige… On peut leur parler.
+  - Sur les routes, on voit des Pokémon sauvages dans les hautes herbes ; ils sautillent d'une touffe à l'autre. Marcher dessus lance le combat contre celui-là.
+  - Les habitants vont plus loin dans leur quartier, et le soir les enfants et une partie des passants rentrent chez eux.
+  - Dans les grottes, des gouttes tombent du plafond, la poussière flotte, des cristaux scintillent et des chauves-souris s'envolent sur ton passage.
+
+## 4.37 — 5 novembre 2026
+- **Odyssée** — La carte de la région est maintenant illustrée comme dans les vrais jeux.
+  - Les îles ont des côtes découpées, avec des plages et de l'écume.
+  - Les montagnes sont dessinées, enneigées au sommet ou fumantes dans les volcans.
+  - Les forêts sont en bosquets d'arbres (sapins dans le froid, feuillage roux en automne).
+  - Chaque ville est une petite place avec ses maisons, au milieu d'une clairière ronde : toits dorés pour les arènes, violets pour la Ligue, gris tant qu'on n'y est pas allé.
+
+## 4.36 — 5 novembre 2026
+- **Odyssée** — Carte de la région : les villes ne sont plus des rectangles, ce sont des taches arrondies qui se fondent dans le paysage.
+
+## 4.35 — 5 novembre 2026
+- **Odyssée** — Nouvelle carte de la région, plus belle : relief ombré, plages, mer qui fonce au large, couleurs propres à chaque coin (neige, volcans, désert, marais, automne).
+  - Les villes ressortent en places claires, et la mer entoure la région au lieu de bandes noires.
+
+## 4.34 — 5 novembre 2026
+- **Odyssée** — Carte de la région : la vue « Toute la région » est de nouveau centrée dans le cadre.
+  - Le nom d'une ville au bord de la carte n'est plus coupé.
+
+## 4.33 — 5 novembre 2026
+- **Odyssée** — La région devient immense : plus de sept fois plus grande, pour partir vraiment à l'aventure.
+  - Les villes et villages sont trois fois plus grands : rues, places, marchés, parcs, ports et phares, maisons avec jardins, et plus de mille maisons où entrer.
+  - Six nouvelles villes dans les Terres du Sud, chacune avec son caractère : Port-Lisière, Marais-Noir, Dunes d'Ocre, Forge-Acier, Rosebrume et Ombreval.
+  - Les routes sont trois à quatre fois plus longues (sauf la route 1) et serpentent entre prairies, bosquets et collines : on ne sait jamais vraiment où mène le chemin.
+  - Près de 70 lieux cachés dans la forêt entre les routes : hameaux, fermes, lacs, ruines, campements…
+  - La Ligue s'installe sur le Plateau Céleste, au cœur d'une vraie chaîne de montagnes enneigées.
+  - Au sud, les Hauts d'Ocre : des plateaux rocheux et leurs oasis.
+  - Ta partie en cours repart du Centre de soins de la dernière ville visitée.
+- **Odyssée** — La région change de visage :
+  - Maisons, centres, boutiques, laboratoire, Ligue, casino et bourse passent en fausse 3D ; leurs fenêtres s'allument la nuit.
+  - Nouvelles arènes à portique et voûte, coiffées de la statue de leur Champion.
+  - Du relief partout : talus de pelouse, falaises à longer, routes sinueuses qui montent et descendent, un désert et le Canyon d'Ocre.
+  - Deux montagnes à gravir, le Mont Lunaire et le Mont Givré, avec leurs lacets et leurs passerelles au-dessus des ravins.
+  - La Forêt des Torii rejoint la carte, plus grande : sentiers, ruisseau, jardin d'automne, et deux tours anciennes à découvrir.
+  - Le Bois Murmure devient une forêt dense et sombre, avec ses cabanes et ses mystères.
+  - La mine de Pierrefort : trois niveaux à explorer.
+  - Une usine Poké Ball monumentale à Pierrefort.
+  - L'archipel et les îles de l'Est se rejoignent en bateau, au-delà des tourbillons.
+  - Les hautes herbes bougent et s'écartent quand on y entre ; l'ancien sol ne réapparaît plus quand la carte change.
+  - Casino de Métropole : poker Texas Hold'em, tables dessinées et salle d'arcade à quatre bornes.
+  - Le professeur Orme et son Méga-Anneau t'attendent toujours à Port-Granit, à côté de l'arène.
+
+## 4.32 — 5 novembre 2026
+- **Arcadia** — Les 18 jeux se jouent à la manette.
+  - DavidSimulator, Tête de Calcul, Bastion Clash, Fil Rouge et Mini-Golf Party : un curseur se déplace au stick, A clique (maintenu pour glisser), X fait le clic droit et les gâchettes zooment.
+  - Birdie Party, Poké Duel et Odyssée : la croix et le stick remplacent les flèches, A valide, B annule.
+  - La fiche de chaque jeu indique ses commandes à la manette.
+- **The Backrooms** — Manette : stick gauche pour avancer, stick droit pour regarder, A ramasse, X utilise, Y allume la lampe, RB change d'objet, B siffle, LB court.
+- **Poké Duel** — Nouvelle description et nouvelles commandes dans la fiche : des centaines de Pokémon, le double façon VGC et le 2 contre 2.
+- **Accueil** — La présentation du site parle bien des 18 jeux.
+
+## 4.31 — 5 novembre 2026
+- **The Backrooms** — au Level 0, les piliers ne se ressemblent plus : colonnes rondes, piliers carrés fins ou épais, piliers pleins, et de gros blocs dans les grandes salles. On passe à côté des plus fins.
+- **The Backrooms** — beaucoup moins de culs-de-sac : la plupart des impasses débouchent maintenant sur un autre couloir (il en reste quelques-unes).
+- **The Backrooms** — l'entité encore calme qui t'aperçoit va se tapir dans le noir pour t'observer au lieu de charger ; tout près, même tapie, on l'entend.
+
+## 4.30 — 5 novembre 2026
+- **The Backrooms** — ramasser une cassette (ou un fusible au Level 1) ne fige plus le jeu une à deux secondes chez tout le monde, pas plus que l'ascenseur qui se referme une fois toutes les cassettes trouvées.
+
+## 4.29 — 5 novembre 2026
+- **The Backrooms** — l'entité prend corps en 3D : une grande silhouette décharnée et voûtée, aux bras qui pendent jusqu'aux genoux, aux doigts interminables et au cou trop long, avec le même visage aux yeux blancs et à la bouche béante. Elle marche, court et s'arrête vraiment.
+- **The Backrooms** — au début de la partie, l'entité se tapit dans les coins sombres pour observer les explorateurs de loin, sans attaquer ; braquer sa lampe sur elle la fait fuir dans le noir.
+  - À chaque cassette trouvée, elle devient plus agressive : elle voit et entend plus loin, charge plus vite, lâche moins facilement, et observe de moins en moins avant d'attaquer.
+- **The Backrooms** — les bruits d'ambiance sont joués très bas, à peine audibles.
+
+## 4.28 — 5 novembre 2026
+- **The Backrooms** — à plusieurs, tes coéquipiers sont de vrais explorateurs en combinaison jaune, casque à visière et gants noirs, qui marchent, courent et attendent.
+- **The Backrooms** — la lampe des autres joueurs éclaire vraiment les murs devant eux, sans le gros cône dessiné dans l'air ; ta propre lampe a un faisceau plus doux, avec un halo autour.
+- **The Backrooms** — l'entité ne sait plus où tu es quand elle te perd de vue : elle court là où elle t'a vu pour la dernière fois, fouille les environs, puis reprend sa ronde. On peut enfin la semer en se cachant.
+- **The Backrooms** — l'eau d'amande remplit bien la barre d'endurance quand on n'est pas l'hôte de la partie.
+- **The Backrooms** — à plusieurs, monter ou descendre l'escalier ne te ramène plus en arrière, et les autres te voient au bon endroit.
+
 ## 4.27 — 5 novembre 2026
 - **The Backrooms** — le Level 1 fait enfin peau neuve : un vrai entrepôt souterrain, bien plus réaliste.
   - Des rayonnages à palettes : échelles bleues percées, lisses orange, croisillons, planchers et fonds grillagés, protections jaunes et noires en bout de rangée.

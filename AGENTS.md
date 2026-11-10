@@ -1,7 +1,7 @@
 # Consignes pour les assistants de code (Claude, Codex, Copilot, Cursor, Gemini…) et les contributeurs
 
 Ce dépôt est **Arcadia** (anciennement « Game Hub »), le salon de jeux d'Amiel : un site statique (GitHub Pages, sans étape de build) qui réunit plusieurs
-jeux multijoueurs dans le navigateur — Duo Drift, DavidSimulator, Tête de Calcul, Bastion Clash, Outbreak, Fil Rouge, Cyber Kart GP, Convoy Storm, Birdie Party, Mini-Golf Party, Island Rush, Odyssée, Mollo !, Site Noir, Mystère Mystère, Dogfight 3D et The Backrooms.
+jeux multijoueurs dans le navigateur — Duo Drift, DavidSimulator, Tête de Calcul, Bastion Clash, Outbreak, Fil Rouge, Cyber Kart GP, Convoy Storm, Birdie Party, Mini-Golf Party, Island Rush, Odyssée, Mollo !, Site Noir, Mystère Mystère, Dogfight 3D, The Backrooms et Fief Maudit.
 
 ## À chaque modification poussée sur `main` : journal + version
 
@@ -30,12 +30,12 @@ Filet de sécurité : si un push sur `main` ne touche pas `CHANGELOG.md`, l'acti
 (`tools/changelog-auto.mjs`) et monte la version. Elle est moins bien écrite qu'une entrée faite à la main :
 préférer l'écrire soi-même. Pour qu'elle soit lisible, écrire des messages de commit clairs, par exemple
 `feat(calcul): mode Éclair` ou `fix(david): la caméra qui suit ne se désactive plus`
-(portées reconnues : `drift`, `david`, `calcul`, `bastion`, `outbreak`, `filrouge`, `kart`, `convoy`, `golf`, `minigolf`, `royale`, `odyssee`, `mollo`, `sitenoir`, `mystery`, `hub`, `server`).
+(portées reconnues : `drift`, `david`, `calcul`, `bastion`, `outbreak`, `filrouge`, `kart`, `convoy`, `golf`, `minigolf`, `royale`, `odyssee`, `mollo`, `sitenoir`, `mystery`, `fief`, `hub`, `server`).
 Ajouter `[skip changelog]` dans le message d'un commit purement technique pour qu'il n'apparaisse pas.
 
 ## Repères
 
-- Chaque jeu vit dans son dossier (`drift/`, `david/`, `calcul/`, `bastion/`, `outbreak/`, `filrouge/`, `kart/`, `convoy/`, `golf/`, `minigolf/`, `royale/`, `odyssee/`, `mollo/`, `sitenoir/`, `mystery/`, `backrooms/`) et tourne dans une iframe du Hub ;
+- Chaque jeu vit dans son dossier (`drift/`, `david/`, `calcul/`, `bastion/`, `outbreak/`, `filrouge/`, `kart/`, `convoy/`, `golf/`, `minigolf/`, `royale/`, `odyssee/`, `mollo/`, `sitenoir/`, `mystery/`, `backrooms/`, `fief/`) et tourne dans une iframe du Hub ;
   le Hub (`index.html`, `hub/`) gère le salon, le classement entre potes et le pont `shared/bridge.js`.
 - Multijoueur : relais WebSocket (`shared/net.js`, serveur dans `server/`). `?local` dans l'adresse simule le réseau
   entre onglets du même navigateur pour tester à plusieurs.
@@ -75,7 +75,9 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   du couloir piégé, des puits de 6,40 m (`FLOOR_DY`), on remonte par 2 escaliers coudés : deux volées et un palier, repère `u`/`v` de `stairAt` ; 5 cassettes réparties ; un ascenseur par étage, un seul vrai, `realFloor`) puis Level 1 (`level1.js`, entrepôt,
   étagères, 3 fusibles, coupures de courant, embuscades), reliés par un ascenseur qui part quand tous les joueurs encore en vie sont dedans.
   À plusieurs, l'hôte fait autorité (`snapshot` / `applySnapshot`), l'invité se déplace chez lui (`predict`). `node --experimental-detect-module tools/test-backrooms.mjs`.
-  `backrooms/?parkour` (seul) fait commencer devant le couloir piégé, `backrooms/?level1` (seul) directement au Level 1.
+  Puis Level 37, les Poolrooms (`poolrooms.js`), après l'ascenseur du Level 1 : des salles préfabriquées (lagon, voûtes d'arêtes, tunnel, galerie, verrière, pataugeoire, local technique) posées sur des modules de 10 m et reliées par des portes ; le moteur garde sa grille (murs hors des salles) plus `segs` (cloisons minces, portes ôtées), `cols` (colonnes), `collide`, `lightBlocked` et `depthAt` (forme des bassins en distance signée, l'eau ralentit) ; 3 volants de vanne = les `fuses` ; une fois trouvés, on sort par l'un des 3 toboggans colorés (`slides`, table `SLIDES` : chaque couleur a son niveau d'arrivée `to`, `null` = sortie des Backrooms ; le premier joueur qui s'y glisse choisit, `sim.slide`) ; l'entité du Level 1 y chasse aussi (même modèle, mêmes sons : `sfx/level1/`, et le dossier `models/level1/` attend sa nouvelle entité), ses chemins ne passent que par les portes (`canStep`), les cloisons cachent (`lightBlocked` dans `hasLineOfSight`). Les objectifs de chaque niveau sont placés le plus loin possible les uns des autres (`spreadOut` dans `map.js`). Rendu des salles, de l'eau et de l'ombre : `view/water.js`.
+  Puis Level 5, le Terror Hotel (`hotel.js`, rendu `view/hotel.js`), par le toboggan rouge des Poolrooms (`SLIDES[0].to = 4`, `HOTEL_LEVEL` ; le 3 est le Level 2, les Tuyauteries, par le jaune) : un couloir en boucle autour de 21 chambres (201 à 221), 6 lettres (`letters`, ramassées en passant, gardées par chaque joueur dans `P.letters`) à poster dans les boîtes du hall (`mailbox`, E), puis le code à 4 chiffres (`map.code`, affiché au plafond quand `sim.codeShown`) à taper sur le clavier (`enterCode`, action réseau `c`) : la porte de secours s'ouvre (`powered`). Cachettes (`spots`, lit ou armoire, `P.hidden` ; ce sont aussi les `hides` du moteur, comme les casiers : `enterHide`, `leaveHide`, souffle retenu), accroupi (`P.crouch`, touche C), jauge de détection (`P.detect`) ; l'entité y rôde (ronde, enquête au bruit, traque, perte de trace, `map.nav` lui fait contourner les meubles). Le mot vient de `WORDS` (standard) ou, en mode VIP, de `backrooms/password_level5/mots.txt` (un mot de 6 lettres par ligne, `parseWords`).
+  `backrooms/?parkour` (seul) fait commencer devant le couloir piégé, `backrooms/?level1` (seul) directement au Level 1, `backrooms/?level37` aux Poolrooms, `backrooms/?level5` à l'hôtel.
   Habillage du Level 1 (rayonnages, marchandises, tuyaux, marquages, piliers, panneaux) : `backrooms/view/warehouse.js`.
 - Sauvegardes en ligne (`server/saves.js`, client `odyssee/js/net/cloud.js`) : le relais range les parties dans le dépôt GitHub,
   branche `saves`, sous le code ami du compte Hub. Mise en route sur Render : `docs/SAUVEGARDES.md`. Test : `node tools/test-saves.mjs`.
@@ -106,6 +108,22 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   Histoire principale (la Team Éclipse, Lugia Obscur au Sanctuaire des Marées, l'Éclipse, le Conseil 4 avant Célestine, les CS Flash et Force
   et leurs recoins cachés, les quêtes annexes) : `odyssee/js/world/story.js` (PNJ et lieux) et `odyssee/js/story.js` (scènes) ;
   `node tools/test-odyssee-story.mjs` rejoue toute l'aventure dans l'ordre et vérifie que chaque étape est atteignable au bon moment.
+  Arènes dessinées dans un plan ASCII (les quinze, Sylvebourg comprise) : plans, légendes, registres et règles dans `odyssee/js/world/arenes-plans.js`,
+  écrit par `python3 tools/odyssee-arenes/dessiner.py` (arènes peintes dans `nord.py` et `sud.py` à côté ; `archipel()` : 3 × 4 îles reliées par
+  des passages, configurations trouvées par recherche). Mécanismes et solveur communs dans `odyssee/js/world/arenes-plan.js` (portes à condition
+  sur des registres, dalles et leviers, verrous, tapis qui tournent, glace et sable, trous, téléporteurs, canons à vent, rochers et fosses, rayon
+  et miroirs qui barrent la route, dalles d'argile, pupitre de remise) ; côté jeu `odyssee/js/arenes-jeu.js` (registres dans le drapeau `R:<carte>`,
+  `PV:<carte>` pour les sauvegardes d'avant), graphismes `odyssee/js/render/arenes-tex.js`, une case d'arène = plusieurs décors (`celluleArene`
+  de `world3d.js`). Chaque place de dresseur du plan reçoit son dresseur (`GYM_CINQUIEME` de `region.js`). `node tools/test-odyssee-arenes-plan.mjs [type]` :
+  chaque arène se résout, sans état sans retour, sans dresseur qui bloque ; `node tools/test-odyssee-arenes-jeu.mjs [n°]` (Playwright, `CHROME_PATH`
+  possible) rejoue chaque solution dans le vrai jeu et compare les registres coup par coup : à lancer quand on touche à l'un de ces fichiers.
+  Les énigmes tirées d'une graine (`odyssee/js/world/arenes.js`, `node tools/test-odyssee-arenes.mjs`) ne servent plus que de repli ; l'ancienne
+  Grande Serre de Sylvebourg (`arene-sylve.js`, `serre-tex.js`) reste vérifiée seule par `node tools/test-odyssee-arene-sylve.mjs` (avec Sacoches de
+  Pollen et la CT01 Pollen Collant).
+  Intérieurs façon HeartGold / SoulSilver (`murCell` de `world3d.js`, tuiles de `odyssee/js/render/murs-tex.js`) : mur du fond en deux (papier peint
+  et corniche, lambris et plinthe), fenêtres là où rien ne s'adosse, murs latéraux en vrais volumes coiffés d'un chaperon, muret en bas, ombre des
+  murs sur le sol, tapis sous la table des maisons ; quatre papiers peints de maison tirés de l'identifiant de la carte (`styleMur`) ; `?anciensmurs`
+  dans l'adresse remet l'ancien rendu pour comparer.
   Histoire secondaire (la Brume) et nouveaux lieux (Lac Miroir, Grotte des Marées, Jardin des Songes, Forêt des Torii et Temple Kagura,
   Île du Magma) : `odyssee/js/world/quetes.js`. Une quête = des étapes dans `flags['Q:id']`, des PNJ qui apparaissent selon l'étape
   (`when`), des scripts (`talk`, `use`, `onWin`, `after`) qui reçoivent les outils de `game.api()`. `node tools/test-odyssee-quetes.mjs`
@@ -292,6 +310,7 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   montagnes déroulées dans une bande de roche générée avec le sol (`rendreRoche` de `solgen.js`, rangée sous l'image du bloc),
   ombrées gradin par gradin ; ravins à parois verticales (`geoRavin`, `r3fond` : profondeur du fondu au noir). Sans le paramètre,
   rien ne change.
+- Odyssée, choix des graphismes (Options → Graphismes, `odyssee/js/gfx.js`) : sol du dehors (« odyssee » = sol généré, « classique » = tuiles d'origine, ou un pack de tuiles de 16 px dans `odyssee/img/gfx/<pack>/`, déclaré dans `PACKS`) et sprites des Pokémon (HeartGold / SoulSilver ou Noir & Blanc, `gen()` dans `assets.js`) ; écran « Crédits graphismes » (`CREDITS`). Le sol se lit au chargement (`loadArt` dans `main.js`, `setArt` dans `render/textures.js`). Pack « Lumineux » : `python3 tools/odyssee-pack-sol.py <planche 1.png de Team Aqua>`. Sprites Noir & Blanc 1 à 493 : copiés de PokeAPI/sprites dans `odyssee/img/pokeapi/pokemon/versions/generation-v/black-white/`. Toute tuile ou sprite ajouté doit être crédité (`CREDITS` et un `LISEZMOI.txt` à côté).
 - Island Rush (battle royale, `royale/`) : l'île vient d'une graine (`royale/engine/map.js`, île officielle `ILE`), `royale/carte.html`
   la montre en 2D. `node tools/test-royale.mjs` vérifie l'île sur plusieurs graines, le déplacement (portes, escaliers, murs, nage),
   une partie (butin, combat, construction), les copies des invités et le relais d'hôte, la prédiction : à lancer quand on touche
@@ -303,7 +322,30 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   `node tools/bench-dogfight.mjs [joueurs] [niveau] [éliminations] [parties]` fait jouer des bots hors navigateur. `python3 tools/glb-webp.py modele.glb` allège un modèle. Licences des modèles : `dogfight/LICENSE.txt` (F-22 à confirmer).
 - Réseau (`shared/net.js`, `shared/room.js`, `server/`) : `node tools/test-relay.mjs` et `node tools/test-net.mjs`
   (prérequis : `cd server && npm install`). Le serveur relais doit être redéployé quand `server/server.js` change.
+  Si l'hôte part, son successeur est choisi par `successorOf` (`shared/room.js`) : un joueur présent (pas `away`), de préférence
+  dans la partie (`ready[id] === game`), puis le plus petit numéro ; un jeu qui le devine (Bastion Clash, pour sa sauvegarde
+  de reprise) suit la même règle. Un invité n'écoute que l'hôte (`from: 'host'`), et le relais ne le laisse écrire qu'à l'hôte.
+  Côté hôte, une place tenue par une connexion ne se reprend que par hello (avec le `sid` de la page) ; le numéro `fromId` d'un
+  message ne rattache une nouvelle connexion qu'à une place libre. Un hôte qui renonce à sa place (file d'envoi débordée,
+  `_overflow` dans `shared/net.js`) fait comme si elle avait expiré (`cb.lost`) : il suit le successeur, ou rouvre son code s'il est seul.
 - Bastion Clash : le moteur (`bastion/engine/`, sans DOM) est testé par `node tools/test-bastion.mjs` ;
   `node tools/bench-bastion.mjs [minutes] [graine] [mode] [carte]` fait jouer 4 bots hors navigateur et mesure
   le coût d'un pas de simulation (doit rester sous 33 ms), les éliminations, les cibles des bots et les unités bloquées.
+- Fief Maudit (`fief/`, moteur sans DOM dans `fief/engine/`) : survie médiévale en coop (conception et étapes dans `docs/FIEF-MAUDIT.md`).
+  Vallée, village, braseros, arbres et collisions dans `map.js` ; chemins A* sur une grille de 1 m dans `nav.js` ; joueurs, hache, bûches, entrepôt, cycle jour / nuit (`CYCLE`),
+  braseros (`FUEL`), squelettes (`FOES`, réveil, cibles, résurrection dans la brume `RISE`), à terre / relevé (`HP`), défaite, `snapshot` / `restore` dans `sim.js` ;
+  métiers (`JOBS`), poutres à deux (`BEAM`, `stepBeams`), arrivées et départs (`addPlayer`, `removePlayer`, `setJob`) dans `sim.js` ;
+  bâtiments à relever (`BUILDS`, `siteNear`, `startBuild`, `finishBuild`, effets `hpBonus` / `dmgMul` / `canRise` / `sheltered`), faim et baies (`FOOD`, `map.bushes`),
+  froid (`COLD`), modes et difficultés (`MODES`, `DIFF`), nuits de siège et chevalier noir (`siegeNight`, `nightLen`, `FOES.knight`), sauvegarde (`saveData` / `loadSave`,
+  écrite par l'hôte dans `localStorage` à chaque aube) dans `sim.js` ;
+  la crypte : plan et salles dans `crypt.js` (grille de 2 m, `inside`, `halls`), règles dans `sim.js` (`openCrypt`, `stepCrypt` : leviers `LEVER_T`, herse, brume, Roi `FOES.king` en trois phases, torches `relight`) ;
+  capacités des métiers sur F (`ABILITY`, `ability`, entrée `ac`), fusées `flares` et barricades `bars` dans `sim.js` ;
+  durée du jour `dayLen` (premier jour plus court), bûches empilées (`LOAD_MAX`, `p.load`), coffres gardés des bois (`placeChests`, `LOOT`, gardes `state: 'sleep'`, vue `view/chests.js`), cloche du feu de camp (`ring`) ;
+  coéquipiers IA dans `bots.js` (mêmes entrées qu'un joueur). Réseau dans `net.js` : l'hôte envoie `encodeState` (~15 fois par seconde), `encodeWorld` et
+  un `snapshot` complet toutes les 4 s ; l'invité garde une copie de la vallée (`applyState`, `smooth`) et prédit son déplacement (`predict`, `reconcile`) ;
+  le nouvel hôte repart du dernier instantané. `tools/fief-duo.html?q=debug%26manual` charge deux ou trois jeux dans une page et fait passer leurs messages
+  comme le salon (`duo.dropHost()` fait partir l'hôte). Vue : `view/night.js` (lumière, ciel, brume, braseros), `view/actors.js` (héros, squelettes, Roi), `view/crypt.js` (crypte et effets des capacités), `view/music.js` (musique WebAudio) ; réglages par `DDVolume.panel`, qualité `scene.setQuality`.
+  `node tools/test-fief.mjs` (le `Sim` des tests retire les coffres sauf `{ chests: true }` ; à lancer quand on touche au moteur : vallée, chemins, hache et bûches, nuit, braseros, squelettes, bouclier, relève, défaite, instantané, une nuit jouée par deux bots, métiers, poutres, arrivées et départs, réseau, construction, faim, froid, sièges, dix nuits, sauvegarde, crypte et Roi, capacités, début de partie : jour court, bûches empilées, cloche, coffres).
+  Modèles (Quaternius Medieval Village MegaKit, KayKit Adventurers et Skeletons, CC0) préparés par `node tools/fief-assets.mjs <clones>` dans `fief/models/` (crédits : `fief/models/LICENSE.txt`) ;
+  arbres, ciel et textures repris de Birdie Party, rochers de Kenney et sons d'Island Rush et Birdie Party. `?debug` expose `__fief` (`ff(sec)`, `tp(x, z, cap)`, `cam(cap, inclinaison, distance)`, `press('fc'|'uc')`), `?manual` ne dessine qu'à la demande (`__fief.frames(n)`), `?seed`, `?bots=0..2`, `?job=…`, `?autostart`.
 - Commits : auteur et messages en français, un message qui décrit ce que le joueur gagne.

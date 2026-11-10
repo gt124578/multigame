@@ -69,7 +69,7 @@
 
 /* carte de la région : nom des villes visitées sous leur repère */
 .map-pin-name {
-  position: absolute; transform: translate(-50%, calc(var(--px) * 6)); z-index: 5;
+  position: absolute; transform: translate(var(--ax, -50%), calc(var(--px) * 6)); z-index: 5;
   white-space: nowrap; pointer-events: none; font-size: calc(var(--px) * 4.6); font-weight: 800; letter-spacing: .02em;
   color: #f2f8ff; text-shadow: calc(var(--px) * .6) calc(var(--px) * .6) 0 #000, calc(var(--px) * -.6) calc(var(--px) * .6) 0 #000, 0 calc(var(--px) * -.6) 0 #000;
 }

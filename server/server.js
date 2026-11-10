@@ -265,6 +265,8 @@ function resume(ws, msg) {
 
 // Relais d'un paquet de jeu : vers l'hôte, vers un invité (cid) ou à toute la salle (sauf l'expéditeur et `except`).
 // `data` est le JSON des données, déjà sérialisé : le paquet sortant est construit une seule fois.
+// Un invité ne parle qu'à l'hôte, qui fait suivre au reste du salon : un client modifié ne peut pas écrire directement
+// aux autres invités pour se faire passer pour l'hôte (les pages restées en cache ne vérifient pas l'expéditeur).
 function relay(s, to, except, volatile, data, c) {
   if (!s || s.gone) return;
   if (s.v3 && Number.isInteger(c)) { if (c <= s.inSeq) return; s.inSeq = c; } // renvoi d'un message déjà reçu
@@ -275,6 +277,7 @@ function relay(s, to, except, volatile, data, c) {
     if (room.host && room.host !== s) deliver(room.host, out, volatile);
     return;
   }
+  if (room.host !== s) return;
   if (typeof to === 'string' && to !== 'all') {
     const target = room.guests.get(to);
     if (target && target !== s) deliver(target, out, volatile);

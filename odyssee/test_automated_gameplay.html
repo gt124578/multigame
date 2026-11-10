@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Audit Automatisé Gameplay Odyssée</title>
+<link rel="stylesheet" href="odyssee.css">
+<script type="importmap">
+  { "imports": { "three": "../shared/vendor/three/three.module.min.js" } }
+</script>
+</head>
+<body style="margin:0;background:#000;">
+<canvas id="gl" width="400" height="300" style="display:none;"></canvas>
+<div id="ui" style="width:1280px;height:720px;position:relative;"></div>
+
+<script type="module">
+  import { buildWorld, BADGES } from './js/world/region.js';
+  import { Game } from './js/game.js';
+  import { UI, wait } from './js/ui/ui.js';
+  import { Sound } from './js/audio.js';
+  import { Input } from './js/input.js';
+  import { createMon, expProgress, levelCap, gainExp } from './js/core/mon.js';
+  import { Battle } from './js/core/battle.js';
+  import { encodeSave, decodeSave, saveSummary } from './js/core/savecode.js';
+  import {
+    partyScreen,
+    summaryScreen,
+    bagScreen,
+    pcScreen,
+    mapScreen,
+    cardScreen,
+    questsScreen,
+    trophiesScreen,
+    friendsScreen,
+    optionsScreen,
+  } from './js/ui/screens.js';
+
+  window.__auditResults = {
+    steps: [],
+    errors: [],
+    done: false,
+  };
+
+  const report = async () => {
+    try {
+      await fetch('/report_audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(window.__auditResults),
+      });
+    } catch (e) {
+      console.error('Failed to send report:', e);
+    }
+  };
+
+  window.onerror = (msg, src, line, col, err) => {
+    window.__auditResults.errors.push(`GlobalError: ${msg} at ${src}:${line}:${col}`);
+    report();
+  };
+
+  window.onunhandledrejection = (e) => {
+    window.__auditResults.errors.push(`UnhandledRejection: ${e.reason?.message || e.reason}`);
+    report();
+  };
+
+  async function runAudit() {
+    try {
+      const world = buildWorld();
+      const uiRoot = document.getElementById('ui');
+      const canvas = document.getElementById('gl');
+      const sound = new Sound();
+      const input = new Input();
+      const ui = new UI(uiRoot, input, sound);
+
+      // Mock View
+      const view = {
+        loadMap() {},
+        resize() {},
+        render() {},
+        actor() { return { setPos() {}, setDir() {}, setAction() {} }; },
+        removeActor() {},
+      };
+
+      const game = new Game({
+        canvas,
+        ui,
+        world,
+        view,
+        sound,
+        input,
+      });
+
+      // Valid test state
+      game.state = {
+        v: 2,
+        name: 'AuditTrainer',
+        gender: 'm',
+        id: 77777,
+        money: 9999,
+        badges: [true, true, true, false, false, false, false, false],
+        party: [
+          createMon(152, 20), // Germignon
+          createMon(25, 18),  // Pikachu
+          createMon(133, 15), // Évoli
+        ],
+        box: [
+          createMon(16, 5),   // Roucool
+          createMon(10, 4),   // Chenipan
+        ],
+        bag: {
+          'poke-ball': 20,
+          potion: 10,
+          antidote: 5,
+          'velo-pliable': 1,
+        },
+        dex: { seen: [152, 25, 133, 16, 10], caught: [152, 25, 133] },
+        flags: { intro: true, starter: 152 },
+        visited: ['aube', 'port', 'chenal'],
+        explored: [],
+        repel: 0,
+        time: 3600,
+      };
+
+      game.player = { x: 31, y: 219, dir: 'down' };
+      game.mapObj = world.maps.monde;
+
+      // 1. Basic properties
+      window.__auditResults.steps.push({ step: 'boot', ok: true });
+      const loc = game.locationName();
+      const cap = game.levelCap ? game.levelCap() : 24;
+      const bCount = game.badgeCount ? game.badgeCount() : 3;
+      window.__auditResults.steps.push({ step: 'properties', loc, cap, bCount, ok: true });
+
+      // 2. Test partyScreen
+      const p1 = partyScreen(game, { mode: 'menu' });
+      await wait(80);
+      input.emit('b'); // Close
+      await p1;
+      window.__auditResults.steps.push({ step: 'partyScreen', ok: true });
+
+      // 3. Test summaryScreen
+      const p2 = summaryScreen(game, game.state.party, 0);
+      await wait(80);
+      input.emit('b');
+      await p2;
+      window.__auditResults.steps.push({ step: 'summaryScreen', ok: true });
+
+      // 4. Test bagScreen (fieldBag)
+      const p3 = game.fieldBag();
+      await wait(80);
+      input.emit('b');
+      await p3;
+      window.__auditResults.steps.push({ step: 'bagScreen', ok: true });
+
+      // 5. Test pcScreen
+      const p4 = pcScreen(game);
+      await wait(80);
+      input.emit('b');
+      await p4;
+      window.__auditResults.steps.push({ step: 'pcScreen', ok: true });
+
+      // 6. Test mapScreen
+      const p5 = mapScreen(game);
+      await wait(80);
+      input.emit('b');
+      await p5;
+      window.__auditResults.steps.push({ step: 'mapScreen', ok: true });
+
+      // 7. Test cardScreen
+      const p6 = cardScreen(game, BADGES);
+      await wait(80);
+      input.emit('space');
+      await wait(40);
+      input.emit('b');
+      await p6;
+      window.__auditResults.steps.push({ step: 'cardScreen', ok: true });
+
+      // 8. Test questsScreen
+      const p7 = questsScreen(game);
+      await wait(80);
+      input.emit('b');
+      await p7;
+      window.__auditResults.steps.push({ step: 'questsScreen', ok: true });
+
+      // 9. Test trophiesScreen
+      const p8 = trophiesScreen(game);
+      await wait(80);
+      input.emit('b');
+      await p8;
+      window.__auditResults.steps.push({ step: 'trophiesScreen', ok: true });
+
+      // 10. Test friendsScreen
+      const p9 = friendsScreen(game);
+      await wait(80);
+      input.emit('right');
+      await wait(40);
+      input.emit('right');
+      await wait(40);
+      input.emit('b');
+      await p9;
+      window.__auditResults.steps.push({ step: 'friendsScreen', ok: true });
+
+      // 11. Test optionsScreen
+      const p10 = optionsScreen(game);
+      await wait(80);
+      input.emit('b');
+      await p10;
+      window.__auditResults.steps.push({ step: 'optionsScreen', ok: true });
+
+      // 12. Test Save / Load cycle
+      const savecode = await encodeSave(game.state);
+      if (!savecode.startsWith('ODY1.')) {
+        throw new Error('Savecode format invalid: ' + savecode);
+      }
+      const loaded = await decodeSave(savecode);
+      if (!loaded || !loaded.state || loaded.state.name !== 'AuditTrainer') {
+        throw new Error('Savecode decode failed!');
+      }
+      window.__auditResults.steps.push({ step: 'saveLoadCycle', codeLength: savecode.length, ok: true });
+
+      // 13. Test Battle Engine
+      const playerMon = game.state.party[0];
+      const wildMon = createMon(16, 5); // Roucool sauvage lvl 5
+      const battle = new Battle({
+        player: { name: game.state.name, party: [playerMon], bag: game.state.bag || {} },
+        foe: { name: 'Roucool sauvage', party: [wildMon] },
+        cap: 35,
+      });
+      battle.start();
+      const events = battle.playerAction({ type: 'move', idx: 0 });
+      window.__auditResults.steps.push({ step: 'battleTurn', eventCount: (events || []).length, ok: true });
+
+      window.__auditResults.done = true;
+      await report();
+    } catch (err) {
+      window.__auditResults.errors.push(`AuditCatch: ${err.message}\n${err.stack}`);
+      window.__auditResults.done = true;
+      await report();
+    }
+  }
+
+  runAudit();
+</script>
+</body>
+</html>

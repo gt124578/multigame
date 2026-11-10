@@ -24,6 +24,7 @@ Object.assign(ITEMS, {
   'bouteille-mer': { pocket: 'cles', price: 0, key: true, icon: 'fresh-water', name: 'Bouteille à la mer', desc: 'Une bouteille avec un message : « Je suis Sven, pêcheur à Givrebourg. Écris-moi ! »' },
   'flacon-parfum': { pocket: 'cles', price: 0, key: true, icon: 'gift', name: 'Flacon de parfum', desc: 'Un parfum de fleurs de Floralia, pour Madame Opaline, à Mirage.' },
   'collier-miaouss': { pocket: 'cles', price: 0, key: true, icon: 'soothe-bell', name: 'Collier à clochette', desc: 'Un petit collier rouge avec une clochette. Celui d\'un Miaouss ?' },
+  'colis-postal': { pocket: 'cles', price: 0, key: true, icon: 'gift', name: 'Colis', desc: 'Un colis bien ficelé, adressé à Mme Léonie, Port-Granit. Il est tout mou.' },
   clochette: { pocket: 'cles', price: 0, key: true, icon: 'cleanse-tag', name: 'Clochette de vent', desc: 'Une clochette du Jardin de la Grue, emportée par la tempête. Il y en a trois.' },
 });
 
@@ -186,6 +187,21 @@ export const MISSIONS = [
     thanks: ['... Bon. Tu es vraiment le Maître.', 'Tu sais quoi ? Je vais partir pour une autre région. Voir des Pokémon que personne ici ne connaît.', 'Mais je reviendrai. Et ce jour-là, c\'est moi qui gagnerai ! Tiens, un souvenir.'], reward: [['rare-candy', 3]],
     again: ['Alors, on se le fait, ce dernier combat ?'], done: ['Je pars demain. Prends soin de Bourg-Aube pour moi !'],
     journal: { name: 'Là où tout a commencé', start: 'Théo m\'attendait à Bourg-Aube pour un dernier combat, là où tout a commencé.', end: 'J\'ai battu Théo une dernière fois. Il part découvrir une autre région.' } },
+  // petites quêtes de voisinage : un colis à livrer, un Psykokwak perdu
+  { id: 'mColis', town: 'E', at: [9, 19], sprite: 'facteur', who: 'Facteur Albin', kind: 'relay', item: 'colis-postal',
+    to: { town: 'K', at: [14, 18], sprite: 'habitante', who: 'Mme Léonie', reward: [['ultra-ball', 3], ['hyper-potion', 1]],
+      idle: ['J\'attends un colis de ma sœur, à Voltacité. La Poste est si lente…'],
+      thanks: ['Mon colis ! Des pulls tricotés par ma sœur, je reconnais son emballage.', 'Tiens, pour ta peine. Les dresseurs ont toujours besoin de ça.'],
+      done: ['Ma sœur tricote les plus beaux pulls de la région. Celui-ci a même une poche pour une Poké Ball !'] },
+    ask: ['Ma tournée est bien trop longue aujourd\'hui… Ce colis doit partir à Port-Granit, pour Mme Léonie.', 'Tu voyages, toi ? Tu veux bien le lui porter ? Elle saura te remercier.'],
+    wait: ['Le colis de Mme Léonie, à Port-Granit… Tu ne l\'as pas perdu, j\'espère ?'], done: ['Merci pour le coup de main ! Tu ferais un sacré facteur.'],
+    journal: { name: 'Le colis de Port-Granit', start: 'Le facteur Albin, à Voltacité, m\'a confié un colis pour Mme Léonie, à Port-Granit.', end: 'Mme Léonie a reçu son colis.' } },
+
+  { id: 'mPsyko', town: 'F', at: [20, 8], sprite: 'vieil_homme', who: 'Papi Octave', kind: 'check', test: (st) => !!st.flags.psykoRetrouve, reward: [['rare-candy', 1], ['lum-berry', 2]],
+    ask: ['Mon Psykokwak a encore filé ! Il a mal à la tête, alors il marche tout droit sans réfléchir…', 'La dernière fois, je l\'ai retrouvé sur la route 5, à regarder les nuages. Tu pourrais aller voir ?'],
+    again: ['Toujours pas de nouvelles de mon Psykokwak ? Il doit traîner sur la route 5…'],
+    thanks: ['Psykokwak ! Te revoilà, gros malin. Tu m\'as fait une de ces peurs.', 'Merci, petit. Prends ça : ça lui sert quand sa migraine le reprend.'], done: ['Psykokwak se tient la tête… C\'est bon signe, il réfléchit !'],
+    journal: { name: 'Le Psykokwak de Papi Octave', start: 'Le Psykokwak de Papi Octave, à Floralia, s\'est perdu du côté de la route 5.', end: 'Psykokwak est rentré chez Papi Octave.' } },
 ];
 
 /** missions par identifiant (pour le journal) */

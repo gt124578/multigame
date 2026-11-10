@@ -65,6 +65,10 @@ kbd { display: inline-block; font: inherit; font-size: .85em; min-width: 1.4em; 
 .dark-ov { position: absolute; inset: 0; pointer-events: none; display: none; }
 .dark-ov.cave { display: block; background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0 8%, rgba(0,0,0,.6) 12%, rgba(0,0,0,.96) 18%); }
 .dark-ov.cave.flash { background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0 26%, rgba(0,0,0,.45) 42%, rgba(0,0,0,.8) 64%); }
+.dark-ov.cave.lueur0 { background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0 9%, rgba(0,0,0,.55) 14%, rgba(0,0,0,.94) 22%); }
+.dark-ov.cave.lueur1 { background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0 13%, rgba(0,0,0,.5) 20%, rgba(0,0,0,.92) 30%); }
+.dark-ov.cave.lueur2 { background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0 18%, rgba(0,0,0,.45) 28%, rgba(0,0,0,.88) 40%); }
+.dark-ov.cave.lueur3 { background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0 26%, rgba(0,0,0,.4) 40%, rgba(0,0,0,.8) 58%); }
 .dark-ov.eclipse { display: block; background: radial-gradient(ellipse at 50% 45%, rgba(70,20,110,0) 35%, rgba(36,0,64,.5) 100%); }
 .shadowmon { filter: drop-shadow(0 0 calc(var(--px) * 1.5) #00e0ff) drop-shadow(0 0 calc(var(--px) * 2.5) #6a20c0); }
 /* fiche dresseur : l'équipe (la sienne, ou celle d'un autre joueur) */

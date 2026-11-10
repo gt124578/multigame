@@ -3,6 +3,13 @@ Sons de The Backrooms.
 souffle.mp3  « breathing tired » de mikeask, OpenGameArt (https://opengameart.org/content/breathing-tired),
              domaine public (CC0 1.0). Remonté en volume et converti en mp3 mono.
 
-chase_1.mp3 à chase_3.mp3 (cris de la poursuite), ambiant_1.mp3 à ambiant_9.mp3 (ambiances au hasard),
-death.mp3 (l'entité est sur toi) : fournis par TahitoaSenis pour le jeu (wav 48 kHz, débuts et fins silencieux
+level0/ : chase_1.mp3 à chase_3.mp3 (cris de la poursuite), ambiant_1.mp3 à ambiant_9.mp3 (ambiances au hasard),
+death.mp3 (l'entité est sur toi) ; level1/chase_1.mp3 (poursuite de l'entrepôt) ; chase_all.mp3 (couche jouée par-dessus
+toutes les poursuites) : fournis par TahitoaSenis pour le jeu (wav 48 kHz, débuts et fins silencieux
 coupés, convertis en mp3 112 kb/s : mono pour les cris et la mort, stéréo pour les ambiances).
+level0/chase_4.mp3 à chase_29.mp3 (cris de la poursuite du Level 0) : extraits d'une compilation de sons de l'entité
+fournie par Nicolas Muratore pour le jeu (« My attempt of isolating all bacteria sounds », mp3 44,1 kHz), découpés
+entre ses silences, fondus aux bords, ramenés au même volume (−10 LUFS visé, crêtes à −0,8 dB), mono 112 kb/s.
+level0/chase_1.mp3 à chase_3.mp3 : ceux de TahitoaSenis, égalisés pour prendre le timbre de cette compilation (plus
+sombre, plus de corps entre 300 et 800 Hz).
+level1/khaoula.mp3 (la voix de Khaoula au Level 1, quand elle est proche ou te poursuit) : fourni par Amiel pour le jeu.

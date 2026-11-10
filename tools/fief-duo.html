@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Fief Maudit — banc d'essai à plusieurs</title>
+<style>
+  body { margin: 0; background: #111; color: #ddd; font: 14px system-ui, sans-serif; }
+  header { padding: 6px 10px; display: flex; gap: 10px; align-items: center; }
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; background: #000; }
+  .lbl { padding: 2px 8px; background: #222; }
+</style>
+</head>
+<body>
+<!-- Petit Hub de poche pour tester Fief Maudit à deux (ou trois) dans une même page, sans relais :
+     il donne à chaque jeu son identité (hôte / invité) et fait passer leurs messages comme le ferait le salon.
+     Adresse : tools/fief-duo.html?n=2 (nombre de joueurs) ; &q=… est ajouté à l'adresse de chaque jeu (ex. &q=debug%26manual).
+     window.duo.dropHost() fait partir l'hôte : le joueur suivant devient hôte, comme dans le vrai salon. -->
+<header><b>Fief Maudit · banc d'essai</b><button id="drop">Faire partir l'hôte</button><span id="log"></span></header>
+<main id="grid"></main>
+<script>
+const QS = new URLSearchParams(location.search);
+const N = Math.max(2, Math.min(4, +(QS.get('n') || 2)));
+const extra = QS.get('q') ? '&' + QS.get('q') : '';
+const NAMES = ['Amiel', 'Bastien', 'Chloé', 'Dalia'], COLORS = ['#e0a040', '#6aa0e0', '#e06a8a', '#7ac46a'];
+let hostId = 1;
+const players = () => slots.filter((s) => s.alive).map((s) => ({ id: s.id, name: s.name, color: s.color }));
+const slots = Array.from({ length: N }, (_, i) => ({ id: i + 1, name: NAMES[i], color: COLORS[i], alive: true, frame: null, ready: false }));
+const info = (s) => ({ myId: s.id, role: s.id === hostId ? 'host' : 'guest', hostId, players: players(), settings: { bots: +(QS.get('bots') ?? 1) }, game: 'fief', code: 'TEST', ready: Object.fromEntries(slots.filter((o) => o.ready).map((o) => [o.id, 'fief'])) });
+const stats = { msgs: 0, bytes: 0 };
+for (const s of slots) {
+  const box = document.createElement('div');
+  box.innerHTML = `<div class="lbl">${s.name} (#${s.id})</div>`;
+  const f = document.createElement('iframe');
+  f.src = `../fief/?hub=1${extra}`;
+  box.appendChild(f); document.getElementById('grid').appendChild(box);
+  s.frame = f; s.box = box;
+}
+const byWin = (w) => slots.find((s) => s.alive && s.frame.contentWindow === w);
+const deliver = (s, m) => s.alive && s.frame.contentWindow.postMessage({ dd: 'hub', ...m }, location.origin);
+addEventListener('message', (e) => {
+  const s = byWin(e.source); const d = e.data;
+  if (!s || !d || d.dd !== 'hub') return;
+  if (d.k === 'hello') deliver(s, { k: 'init', info: info(s) });
+  else if (d.k === 'ready') { s.ready = true; for (const o of slots) deliver(o, { k: 'roster', players: players(), hostId, ready: info(o).ready, role: info(o).role }); }
+  else if (d.k === 'send') {
+    stats.msgs++; stats.bytes += JSON.stringify(d.m).length;
+    const to = d.to === 'host' ? [slots.find((o) => o.id === hostId)] : d.to === 'all' ? slots.filter((o) => o !== s) : [slots.find((o) => o.id === d.to)];
+    for (const o of to) if (o) deliver(o, { k: 'msg', from: s.id, m: d.m });
+  }
+});
+function dropHost() {
+  const h = slots.find((o) => o.id === hostId); h.alive = false; h.box.remove();
+  hostId = slots.find((o) => o.alive).id;
+  for (const o of slots) if (o.alive) deliver(o, { k: 'roster', players: players(), hostId, ready: info(o).ready, role: info(o).role });
+}
+document.getElementById('drop').onclick = dropHost;
+setInterval(() => { document.getElementById('log').textContent = `${stats.msgs} messages · ${(stats.bytes / 1024).toFixed(0)} Ko`; }, 500);
+window.duo = { slots, dropHost, stats, win: (i) => slots[i].frame.contentWindow, get hostId() { return hostId; } };
+</script>
+</body>
+</html>

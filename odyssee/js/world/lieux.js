@@ -222,7 +222,26 @@ export function lieux(W, { maps, trainerNpc, ENC }) {
       W.blob(X + 0.5, Y - 0.5, 5.5, 3.8, T.WATER, r, [T.GRASS]);
       let x = X, y = Y + 5; while (W.get(x, y - 1) === T.WATER || W.get(x, y) === T.WATER) { if (W.get(x, y) === T.WATER) W.set(x, y, T.BRIDGE); y--; if (y < Y - 4) break; }
       for (let k = 0; k < 8; k++) { const a = r() * 6.28; const u = Math.round(X + cos(a) * 7.5), v = Math.round(Y + sin(a) * 6); if (W.get(u, v) === T.GRASS && r() < 0.6) W.set(u, v, T.FLOWER); }
-      pnj(X + 1, Y + 6, { sprite: 'pecheur', text: ['Ce lac n\'est sur aucune carte. Garde le secret, d\'accord ?', 'Il paraît qu\'un Pokémon très rare remonte à la surface les nuits de pleine lune.'] });
+      pnj(X + 1, Y + 6, {
+        sprite: 'pecheur',
+        name: 'Pêcheur',
+        talk: async (A) => {
+          if (!A.has('canne')) {
+            await A.say([
+              'Une bonne canne, de la patience et un peu de chance... C\'est tout le secret de la pêche !',
+              'Ce lac secret est parfait pour s\'entraîner.',
+              'Tiens, prends ma Canne à Pêche ! Mets-toi face à l\'eau et appuie pour lancer ta ligne.'
+            ]);
+            await A.give('canne');
+            await A.say('Tu pourras ferrer des créatures aquatiques dans tous les étangs et en mer !');
+            return;
+          }
+          await A.say([
+            'Ce lac n\'est sur aucune carte. Garde le secret, d\'accord ?',
+            'Il paraît qu\'un Pokémon très rare remonte à la surface les nuits de pleine lune.'
+          ]);
+        }
+      });
       prop('bateau', X - 6, Y + 1);
       objet(X - 6, Y + 5);
     } else if (kind === 'marais') {

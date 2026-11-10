@@ -1,0 +1,22 @@
+Modèles 3D de Fief Maudit. Tous sont dans le domaine public (CC0 1.0,
+https://creativecommons.org/publicdomain/zero/1.0/) : utilisation libre, même commerciale, sans obligation de citer.
+On les cite quand même, avec plaisir.
+
+village.glb   Pièces du village et du château (murs, angles, portes, fenêtres, volets, toits, pignons, sols, lierre,
+              briques, charrette, caisses, clôtures, poutres)
+  Quaternius — Medieval Village MegaKit (version Standard, avril 2025)
+  https://quaternius.com/packs/medievalvillagemegakit.html · https://quaternius.itch.io/medieval-village-megakit
+  Copie glTF utilisée : https://github.com/J-Ponzo/gltf-medieval-village-megakit
+
+persos/       barbarian, knight, rogue, mage, rogue_hooded
+  Kay Lousberg — KayKit Character Pack : Adventurers 1.0, https://kaylousberg.itch.io/kaykit-adventurers
+  https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0
+persos/       skeleton_minion, skeleton_warrior, skeleton_rogue, skeleton_mage
+  Kay Lousberg — KayKit Character Pack : Skeletons 1.0, https://kaylousberg.itch.io/kaykit-skeletons
+  https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0
+
+anims.glb, anims-squelettes.glb   Animations des deux packs KayKit ci-dessus (même squelette d'animation pour tous)
+
+Tout est préparé par tools/fief-assets.mjs : textures en WebP, animations retirées des personnages et regroupées.
+Ailleurs dans le jeu : rochers, souches, buissons, tas de bûches et feu de camp de Kenney (Nature Kit, CC0,
+royale/models/nature/) ; arbres, ciel et textures dessinés dans le code de Birdie Party (golf/view/).

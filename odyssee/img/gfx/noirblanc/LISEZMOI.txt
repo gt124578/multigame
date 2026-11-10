@@ -1,0 +1,14 @@
+Pack de graphismes « Pokémon Noir & Blanc » (Odyssée → Options → Graphismes), découpé par tools/odyssee-pack-noirblanc.py
+dans les planches de assets/graphics/noirblanc/ :
+  printemps.png — BW Spring Tileset v2, thefloofypanthar (DeviantArt)
+  eau.png       — B/W Water Tiles, UltimoSpriter (DeviantArt)
+  volcan.png    — DoT Day 23 Alternate Volcano Tiles, Phyromatical (DeviantArt)
+  arbres.png    — BW Taragonia Mix Special Trees, Phyromatical (DeviantArt)
+Planches reçues mais pas encore utilisées : saisons (shiney570), maisons BW2 (Phyromatical), Dreamyard, Cold Storage, Starter Kit (UltimoSpriter).
+Tuiles retournées, décalées ou recolorées par le script. Projet de fans sans but lucratif ; crédits obligatoires.
+Planches de villes et de routes reçues ensuite (fond en damier enlevé par tools/odyssee-detourer.py) :
+  maisons_toits.png, ville.png, route.png, maisons_japon.png — artistes à confirmer d'après les pages DeviantArt d'origine.
+  Utilisées : arbres et sapins (route.png), maisons au toit bleu (maisons_toits.png) et turquoise (ville.png).
+Kit « Pokémon Essentials BW » v3.1.1 (KleinStudio) : planche PkmnBlackWhiteSet.png (kit_bw_set.png) pour les bâtiments
+(positions et portes : assets/graphics/noirblanc/kit_bw_batiments.json), autotiles Sea / Sea deep (mer) et hautes herbes.
+Ces tuiles reprennent les graphismes de Pokémon Noir & Blanc (© Nintendo / Game Freak).

@@ -28,6 +28,15 @@ const rivalB = (g) => (g.rivalB ? g.rivalB() : { name: 'Lyra', il: 'elle', e: 'e
    Le registre
    ====================================================================== */
 const QUESTS = [
+  /* ---------- Le début du voyage ---------- */
+  { id: 'depart', cat: 'main', name: 'Le départ de Bourg-Aube', giver: 'Maman',
+    started: () => true, done: (f) => !!f.starter && !!f.rival1,
+    notes: [
+      [() => true, 'Aujourd\'hui commence mon aventure ! Je dois rejoindre le Prof. Saule à son laboratoire au sud-est de Bourg-Aube pour choisir mon premier Pokémon.'],
+      [(f) => f.metProf, 'Le Professeur Saule m\'a accueilli dans son laboratoire. Il m\'invite à choisir mon tout premier compagnon sur la table.'],
+      [(f) => f.starter, (f) => 'J\'ai choisi mon premier partenaire ! Théo a pris le sien et m\'a défié dans notre tout premier combat.'],
+      [(f) => f.starter && f.momGift, 'Maman m\'a encouragé et m\'a offert les Chaussures de Course et des Baies Oran. En route vers la Route 1 et l\'Arène de Sylvebourg !']
+    ] },
   /* ---------- les voyages : le vélo et le permis bateau ---------- */
   { id: 'velo', cat: 'npc', name: 'Le vélo de Lucien', giver: 'Lucien',
     started: (f) => !!f['Q:velo'], done: (f) => f['Q:velo'] === 'fin',

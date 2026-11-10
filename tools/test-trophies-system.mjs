@@ -16,7 +16,7 @@ console.log('Testing Odyssée Trophies, Medals & PvP System...');
 // ============================================================================
 // 1. Catalog integrity & Master Ball reward constraint
 // ============================================================================
-assert.equal(TROPHIES_CATALOG.length, 32, 'Le catalogue doit comporter exactement 32 trophées (12 PvP + 20 Non-PvP)');
+assert.equal(TROPHIES_CATALOG.length, 36, 'Le catalogue comporte 36 trophées (12 PvP + 24 Aventure/Dex)');
 
 const pvpTrophies = TROPHIES_CATALOG.filter((t) => ['combat', 'reseau', 'rival', 'streak'].includes(t.category));
 assert.equal(pvpTrophies.length, 12, 'Il doit y avoir exactement 12 trophées PvP');
@@ -25,7 +25,7 @@ const aventureTrophies = TROPHIES_CATALOG.filter((t) => t.category === 'aventure
 assert.equal(aventureTrophies.length, 4, 'Il doit y avoir 4 trophées Aventure');
 
 const dexTrophies = TROPHIES_CATALOG.filter((t) => t.category === 'pokedex');
-assert.equal(dexTrophies.length, 4, 'Il doit y avoir 4 trophées Pokédex');
+assert.equal(dexTrophies.length, 8, 'Il doit y avoir 8 trophées Pokédex (dont captures 200 et complétion de routes)');
 
 const trainTrophies = TROPHIES_CATALOG.filter((t) => t.category === 'entrainement');
 assert.equal(trainTrophies.length, 4, 'Il doit y avoir 4 trophées Entraînement');
@@ -77,7 +77,7 @@ let summary = getPvpSummary(state);
 assert.equal(summary.totalMatches, 0);
 assert.equal(summary.winRate, '0.0%');
 assert.equal(summary.unlockedCount, 0);
-assert.equal(summary.trophiesTotal, 32);
+assert.equal(summary.trophiesTotal, 36);
 assert.equal(summary.rank.title, 'Challenger');
 
 // ============================================================================
@@ -319,6 +319,6 @@ assert.equal(state.bag['choice-band'], 1);
 summary = getPvpSummary(state);
 assert(summary.unlockedCount >= 25);
 assert(summary.claimedCount >= 5);
-assert.equal(summary.trophiesTotal, 32);
+assert.equal(summary.trophiesTotal, 36);
 
 console.log('✔ All Trophies, Medals (PvP + Non-PvP) & Master Ball constraint tests PASSED 100%!');

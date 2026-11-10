@@ -63,10 +63,12 @@ ok(m.items.every((it) => regard.has(k(it.x, it.y))), 'les objets de la serre son
 /* ---------------- le monde se construit avec cette arène */
 const { buildWorld, LEADERS } = await import('../odyssee/js/world/region.js');
 const W = buildWorld(), g = Object.values(W.maps).find((q) => q.gymLock === 0);
-ok(g && g.serre, 'Sylvebourg a la Grande Serre');
+// depuis novembre 2026, Sylvebourg est une arène dessinée comme les autres (la Ruche, world/arenes-plans.js) ; la Grande
+// Serre reste ici, vérifiée seule, pour qui voudrait la remettre
+ok(g && g.planArene, 'Sylvebourg a la Ruche (arène dessinée)');
 const tr = g.npcs.filter((n) => n.trainer && n.leader == null), chef = g.npcs.find((n) => n.leader === 0);
-ok(tr.length === 2 && tr.every((n) => n.trainer.team.every(([, l]) => l >= 12 && l <= 14)), 'deux dresseurs, niveaux 12 à 14');
-ok(chef && chef.trainer.team.length === 3 && chef.x === ar.leader[0] && chef.y === ar.leader[1], 'Hector et ses trois Pokémon, sur l\'estrade');
+ok(tr.length === 4 && tr.every((n) => n.trainer.team.every(([, l]) => l >= 12 && l <= 15)), 'quatre dresseurs, niveaux 12 à 15');
+ok(chef && chef.trainer.team.length === 3, 'Hector et ses trois Pokémon');
 ok(LEADERS[0].team.some((e) => e[4] === 'sacoches-pollen'), 'l\'as d\'Hector a Sacoches de Pollen');
 ok(g.npcs.some((n) => n.script === 'gymguide'), 'le guide de l\'arène est là');
 

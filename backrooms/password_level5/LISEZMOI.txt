@@ -1,0 +1,8 @@
+Mots du Level 5 (le Terror Hotel), version VIP.
+
+Mettre ici un fichier mots.txt : un mot de 6 lettres par ligne (A à Z, les accents sont retirés,
+les mots qui n'ont pas 6 lettres sont ignorés). Au début de chaque partie en mode VIP, le jeu en tire un au
+hasard ; ce sont ses 6 lettres qu'il faut retrouver dans les chambres.
+
+Sans fichier mots.txt (ou sans mot valide), le jeu prend la liste standard :
+SEARCH, SHADOW, SILENT, HIDDEN, ESCAPE, MIRROR, CORNER, WINDOW, LETTER, STAIRS.

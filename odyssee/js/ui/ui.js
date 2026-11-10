@@ -58,12 +58,17 @@ export class UI {
         i += speed; txt.textContent = text.slice(0, i);
         if (i >= text.length) { clearInterval(iv); finish(); if (o.auto) setTimeout(end, o.auto); if (o.last) end(); }
       }, 16);
-      const end = () => { if (closed) return; closed = true; clearInterval(iv); pop(); resolve(); };
-      const pop = this.input.push((k) => {
-        if (k !== 'a' && k !== 'b') return;
+      const end = () => { if (closed) return; closed = true; clearInterval(iv); box.removeEventListener('click', onBoxClick); pop(); resolve(); };
+      const advance = () => {
         if (!done) { clearInterval(iv); finish(); if (o.last) end(); else if (o.auto) setTimeout(end, Math.min(o.auto, 400)); return; }
         if (!o.auto) this.sound.sfx('blip');
         end();
+      };
+      const onBoxClick = (e) => { e.stopPropagation(); advance(); };
+      box.addEventListener('click', onBoxClick);
+      const pop = this.input.push((k) => {
+        if (k !== 'a' && k !== 'b') return;
+        advance();
       });
     });
   }
@@ -97,6 +102,22 @@ export class UI {
       const show = () => { rows.forEach((r, k) => r.classList.toggle('on', k === i)); rows[i]?.scrollIntoView({ block: 'nearest' }); o.onMove?.(i, wrap); };
       show();
       const close = (v) => { pop(); if (!o.keep) wrap.remove(); resolve(v); };
+      const selectIdx = (idx) => {
+        if (idx < 0 || idx >= o.items.length) return;
+        i = idx; show();
+        if (o.onKey && o.onKey('a', i, { close, refresh: show, wrap, rows })) return;
+        if (o.items[i]?.disabled) { this.sound.sfx('bump'); return; }
+        this.sound.sfx('select'); close(i);
+      };
+      rows.forEach((r, idx) => {
+        r.addEventListener('mouseenter', () => {
+          if (i !== idx) { i = idx; show(); }
+        });
+        r.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectIdx(idx);
+        });
+      });
       const pop = this.input.push((k) => {
         if (o.onKey && o.onKey(k, i, { close, refresh: show, wrap, rows })) return;
         const n = o.items.length;
@@ -106,6 +127,8 @@ export class UI {
         else if (k === 'b' && o.cancel !== null && o.cancel !== undefined) { this.sound.sfx('cancel'); close(o.cancel); }
       });
       wrap._close = close;
+      wrap._select = selectIdx;
+      wrap._hover = (idx) => { if (idx >= 0 && idx < o.items.length && i !== idx) { i = idx; show(); } };
     });
   }
 
@@ -216,6 +239,19 @@ export class UI {
     requestAnimationFrame(() => b.classList.add('in'));
     clearTimeout(this.bannerT); this.bannerT = setTimeout(() => { b.classList.remove('in'); setTimeout(() => b.remove(), 400); }, 2200);
   }
+  /** Panneau flottant d'orientation aux carrefours / routes */
+  showRoadSign(text) {
+    if (!this.roadSignEl) {
+      this.roadSignEl = el('div', 'hud-road-sign');
+      this.root.appendChild(this.roadSignEl);
+    }
+    this.roadSignEl.innerHTML = `<span class="road-sign-icon">🧭</span><span class="road-sign-text">${esc(text)}</span>`;
+    requestAnimationFrame(() => this.roadSignEl?.classList.add('in'));
+  }
+  hideRoadSign() {
+    if (!this.roadSignEl) return;
+    this.roadSignEl.classList.remove('in');
+  }
   /** petit bouton gris en bas de l'écran : ouvre le panneau des touches (aussi avec H) */
   helpButton() {
     const bar = el('div', 'keybar'); this.root.appendChild(bar);
@@ -238,7 +274,11 @@ export class UI {
       <tr><td>Carte de la région</td><td><kbd>C</kbd></td></tr>
       <tr><td>Journal Quêtes / Trophées</td><td><kbd>Q</kbd> (Quêtes) · <kbd>T</kbd> (Trophées & Médailles)</td></tr>
       <tr><td>Afficher / replier le HUD</td><td><kbd>U</kbd> (ou clic sur ▴ / ▾)</td></tr>
-      <tr><td>Capacités de terrain</td><td>face à un petit arbre, un rocher fissuré ou à l'eau : <kbd>F</kbd></td></tr>
+      <tr><td>Pêche & Capacités</td><td>Face à l'eau (Canne à Pêche / Surf), un arbre ou un rocher : <kbd>F</kbd></td></tr>
+      <tr><td>Lancer rapide de Ball</td><td>En combat sauvage : <kbd>B</kbd> ou clic sur le bandeau tactile</td></tr>
+      <tr><td>Objet Enregistré</td><td><kbd>Y</kbd> (ou bouton Y du HUD)</td></tr>
+      <tr><td>Ouvrir le Sac</td><td><kbd>I</kbd></td></tr>
+      <tr><td>Émotes & Chat multijoueur</td><td><kbd>P</kbd> (ou bouton CHAT du HUD)</td></tr>
       <tr><td>Sauvegarder</td><td><kbd>Échap</kbd> → SAUVER (ou bouton SAUVER du HUD)</td></tr>
       <tr><td>Afficher / cacher cette aide</td><td><kbd>H</kbd></td></tr></table><div class="hint">Appuie sur H, F ou Échap pour fermer</div>`);
     this.root.appendChild(panel);

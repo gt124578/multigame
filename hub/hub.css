@@ -511,3 +511,62 @@ body:not(:has(#play.on)) .atab{display:none}
 .amenu{justify-content:flex-end}
 @keyframes amslideR{from{transform:translateX(30px)}}
 .am-panel{animation-name:amslideR}
+
+/* ======================================================================= écran de chargement : jamais de défilement
+   Ni la page derrière (rien ne défile tant qu'un jeu est affiché), ni la fiche : elle se resserre d'un cran à la fois
+   pour tenir dans l'écran (hub/ingame.js, fit), puis se réduit juste assez (--fit), depuis son bord haut */
+html:has(#play.on),body:has(#play.on){overflow:hidden;overscroll-behavior:none}
+.gload{overflow:hidden;overscroll-behavior:none;touch-action:none}
+.gl-card{max-height:none;overflow:hidden;transform-origin:50% 0;transform:translateY(calc(var(--fy,0px) + 14px)) scale(calc(var(--fit,1) * .98))}
+.gload.on .gl-card{transform:translateY(var(--fy,0px)) scale(var(--fit,1))}
+/* réduite : calée en haut de la grille (sinon elle déborde des deux côtés), puis recentrée par --fy */
+.gload.gl-fit{align-items:start}
+/* 1er cran : sans le bloc de commandes qui ne sert pas (la manette quand aucune n'est branchée) */
+.gload.gl-c1 .alt{display:none}
+/* 2e cran : plus serré */
+.gload.gl-c2 .gl-body{padding:14px 18px;gap:7px}
+.gload.gl-c2 .gl-title{font-size:24px}
+.gload.gl-c2 .gl-keys{gap:4px 12px}
+.gload.gl-c2 .kr{flex-direction:row;flex-wrap:wrap;align-items:center;gap:2px 8px;font-size:12.5px}
+.gload.gl-c2 kbd{font-size:11px;padding:0 6px;border-bottom-width:3px}
+.gload.gl-c2 .gl-tip{padding:6px 10px;font-size:12.5px}
+/* 3e cran : sans l'astuce ; 4e cran : sans la description, et sur une colonne l'affiche, entière, rapetisse */
+.gload.gl-c3 .gl-tip{display:none}
+.gload.gl-c4 .gl-desc{display:none}
+@media(max-width:860px){
+  /* une colonne qui ne s'élargit jamais pour l'image (minmax(0, …)) : sinon l'affiche réduite poussait la fiche hors de l'écran */
+  .gl-card{grid-template-columns:minmax(0,1fr)}
+  .gload.gl-c4 .gl-cover{aspect-ratio:16/6;justify-content:center}
+  .gload.gl-c4 .gl-cover img{width:auto;max-width:100%;height:100%;object-fit:contain}
+}
+/* téléphone couché : deux colonnes, l'affiche à gauche (la règle « une colonne sous 860 px » l'emportait jusqu'ici,
+   et l'affiche prenait à elle seule toute la hauteur de l'écran) */
+@media(max-height:560px) and (orientation:landscape){
+  .gload{padding:8px}
+  .gl-card{grid-template-columns:minmax(0,.8fr) minmax(0,1fr)}
+  .gl-cover,.gload.gl-c4 .gl-cover{aspect-ratio:auto;border-right:3px solid var(--ink);border-bottom:0}
+  .gl-cover img,.gload.gl-c4 .gl-cover img{width:100%;height:auto;object-fit:contain}
+  .gl-body{padding:12px 16px;gap:7px}
+  .gl-desc{display:none}
+}
+
+/* ======================================================================= gros jeux : des jeux beaucoup plus complets,
+   dans leur rangée à part à l'accueil (en grand, avec leurs boutons) et en tête du choix du jeu dans le salon */
+.bigs .ghead h2{flex-wrap:wrap}
+.bigshelf{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
+.game.big{border-radius:18px;box-shadow:8px 8px 0 #000;color:var(--paper);
+  background:linear-gradient(170deg,color-mix(in srgb,var(--acc) 28%,#14161c) 0%,#0e1015 78%)}
+.game.big .tx{padding:16px 18px 18px;gap:14px}
+.game.big .ds{font-size:16px;line-height:1.45;color:#ece6da}
+.game.big .chip{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.28);color:#f3ecdf}
+.game.big .chip:first-child{background:var(--acc);border-color:var(--ink);color:var(--on-acc,#fff)}
+.bg-cta{display:flex;gap:10px;flex-wrap:wrap}
+.bg-cta .btn{flex:1 1 auto}
+.bg-cta .btn:first-child{background:var(--acc);color:var(--on-acc,#fff)}
+@media(max-width:860px){ .bigshelf{grid-template-columns:1fr} }
+@media(max-width:600px){ .bg-cta .btn{font-size:14px;padding:10px} }
+/* salon : les deux groupes du choix du jeu */
+.ggrp{grid-column:1/-1;display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 10px;color:var(--paper);margin:0 0 -6px}
+.ggrp b{font-family:Bungee,Impact,sans-serif;font-weight:400;font-size:18px}
+.ggrp span{font-weight:700;font-size:13px;color:#c9c0ad}
+.ggrp:not(:first-child){margin-top:14px}

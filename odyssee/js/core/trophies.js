@@ -2,6 +2,90 @@
 // Historique Face-à-Face, Séries de Victoires et Objectifs d'Aventure
 
 import { SPECIES } from '../data/species.js';
+import { SPAWNS } from '../world/region.js';
+
+/**
+ * Retourne la liste unique des espèces sauvages présentes dans une zone ou route donnée
+ * (herbes, grottes, eau et pêche combinées), ainsi que le nombre déjà capturé par le joueur,
+ * SANS révéler l'identité des espèces non capturées.
+ */
+export function getZoneCatchStats(st, zoneOrData) {
+  if (!zoneOrData) return null;
+  const pool = new Set();
+  const addFromTable = (table) => {
+    if (Array.isArray(table)) {
+      for (const row of table) {
+        if (Array.isArray(row) && row[0] != null) pool.add(Number(row[0]));
+        else if (typeof row === 'number') pool.add(row);
+      }
+    } else if (table && typeof table === 'object') {
+      if (Array.isArray(table.land)) addFromTable(table.land);
+      if (Array.isArray(table.water)) addFromTable(table.water);
+      if (Array.isArray(table.fish)) addFromTable(table.fish);
+    }
+  };
+
+  let zoneKey = 'zone', zoneName = '', isTown = false;
+  if (typeof zoneOrData === 'string') {
+    zoneKey = zoneOrData;
+    if (SPAWNS[zoneOrData]) addFromTable(SPAWNS[zoneOrData]);
+  } else if (Array.isArray(zoneOrData)) {
+    addFromTable(zoneOrData);
+  } else if (typeof zoneOrData === 'object') {
+    zoneKey = zoneOrData.key || 'zone';
+    zoneName = zoneOrData.name || '';
+    isTown = !!zoneOrData.isTown;
+    if (zoneOrData.enc) addFromTable(zoneOrData.enc);
+    if (zoneOrData.surfEnc) addFromTable(zoneOrData.surfEnc);
+    if (zoneOrData.key && SPAWNS[zoneOrData.key]) addFromTable(SPAWNS[zoneOrData.key]);
+  }
+
+  if (!pool.size) {
+    return {
+      zoneKey,
+      zoneName,
+      isTown: true,
+      caught: 0,
+      total: 0,
+      complete: true,
+      speciesList: []
+    };
+  }
+  const caughtSet = new Set((st?.dex?.caught || []).map(Number));
+  let caughtCount = 0;
+  for (const sp of pool) {
+    if (caughtSet.has(sp)) caughtCount++;
+  }
+  const totalCount = pool.size;
+  return {
+    zoneKey,
+    zoneName,
+    isTown: false,
+    caught: caughtCount,
+    total: totalCount,
+    complete: totalCount > 0 && caughtCount >= totalCount,
+    speciesList: [...pool]
+  };
+}
+
+/**
+ * Calcule le bilan global des routes et zones sauvages complétées à 100%.
+ */
+export function getAllRoutesCatchSummary(st) {
+  const keys = Object.keys(SPAWNS);
+  let completedZones = 0;
+  let totalZones = 0;
+  const zones = {};
+  for (const k of keys) {
+    const stat = getZoneCatchStats(st, k);
+    if (stat && stat.total > 0) {
+      totalZones++;
+      zones[k] = stat;
+      if (stat.complete) completedZones++;
+    }
+  }
+  return { completedZones, totalZones, zones };
+}
 
 // Identification rapide des espèces évoluées et évoluées par pierre
 const EVOLVED_SPECIES = new Set();
@@ -260,6 +344,55 @@ export const TROPHIES_CATALOG = [
     check: (st) => {
       const cnt = st.dex?.caught?.length || 0;
       return { current: Math.min(cnt, 120), max: 120, done: cnt >= 120 };
+    }
+  },
+  {
+    id: 'dex_caught_200',
+    title: 'Maître Suprême du Pokédex',
+    desc: 'Capturer au moins 200 espèces différentes de Pokémon à travers toute la région d\'Odyssée.',
+    tier: 'platinum',
+    category: 'pokedex',
+    reward: { item: 'rare-candy', count: 10, label: 'Super Bonbon ×10' },
+    check: (st) => {
+      const cnt = st.dex?.caught?.length || 0;
+      return { current: Math.min(cnt, 200), max: 200, done: cnt >= 200 };
+    }
+  },
+  {
+    id: 'dex_route_1',
+    title: 'Éclaireur de Route',
+    desc: 'Capturer 100% des espèces de Pokémon sauvages présentes sur une route ou zone sauvage.',
+    tier: 'bronze',
+    category: 'pokedex',
+    reward: { item: 'ultra-ball', count: 10, label: 'Hyper Ball ×10' },
+    check: (st) => {
+      const { completedZones } = getAllRoutesCatchSummary(st);
+      return { current: Math.min(completedZones, 1), max: 1, done: completedZones >= 1 };
+    }
+  },
+  {
+    id: 'dex_route_5',
+    title: 'Chasseur Régional',
+    desc: 'Capturer tous les Pokémon sauvages de 5 routes ou zones différentes.',
+    tier: 'silver',
+    category: 'pokedex',
+    reward: { item: 'rare-candy', count: 3, label: 'Super Bonbon ×3' },
+    check: (st) => {
+      const { completedZones } = getAllRoutesCatchSummary(st);
+      return { current: Math.min(completedZones, 5), max: 5, done: completedZones >= 5 };
+    }
+  },
+  {
+    id: 'dex_route_all',
+    title: 'Cartographe de la Faune',
+    desc: 'Capturer l\'intégralité des Pokémon sauvages sur chacune des routes et zones sauvages de la région.',
+    tier: 'gold',
+    category: 'pokedex',
+    reward: { item: 'leftovers', count: 2, label: 'Restes ×2' },
+    check: (st) => {
+      const { completedZones, totalZones } = getAllRoutesCatchSummary(st);
+      const max = Math.max(1, totalZones);
+      return { current: Math.min(completedZones, max), max, done: completedZones >= max };
     }
   },
   {

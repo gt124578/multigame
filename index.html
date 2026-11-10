@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Arcadia — jeux en ligne entre potes</title>
-<meta name="description" content="Arcadia : 14 jeux en ligne entre potes, directement dans le navigateur. Course, battle royale, bagarre de pantins, stratégie, mini-golf, Monopoly niçois, quiz… Un salon, un code, et c'est parti.">
+<meta name="description" content="Arcadia : 18 jeux en ligne entre potes, directement dans le navigateur. Course, battle royale, combat aérien, horreur, murder mystery, bagarre de pantins, stratégie, Pokémon, mini-golf, Monopoly niçois, quiz… Un salon, un code, et c'est parti.">
 <meta name="theme-color" content="#16181d">
 <link rel="icon" href="assets/brand/icon.svg" type="image/svg+xml">
 <link rel="icon" href="assets/brand/icon-192.png" sizes="192x192" type="image/png">
@@ -13,19 +13,19 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Arcadia">
 <meta property="og:title" content="Arcadia — jeux en ligne entre potes">
-<meta property="og:description" content="14 jeux multijoueurs dans le navigateur, sans rien installer. Crée un salon, partage le code, joue.">
+<meta property="og:description" content="18 jeux multijoueurs dans le navigateur, sans rien installer. Crée un salon, partage le code, joue.">
 <meta property="og:image" content="https://amielmetier.github.io/arcadia/assets/brand/og.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:locale" content="fr_FR">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Arcadia — jeux en ligne entre potes">
-<meta name="twitter:description" content="14 jeux multijoueurs dans le navigateur, sans rien installer.">
+<meta name="twitter:description" content="18 jeux multijoueurs dans le navigateur, sans rien installer.">
 <meta name="twitter:image" content="https://amielmetier.github.io/arcadia/assets/brand/og.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="hub/hub.css?v=4.27">
+<link rel="stylesheet" href="hub/hub.css?v=5.26">
 </head>
 <body>
 
@@ -35,7 +35,7 @@
   <header class="nav">
     <a class="logo" href="./" aria-label="Arcadia, accueil">ARCA<span>DIA</span></a>
     <nav class="navlinks" aria-label="Navigation">
-      <a href="#jeux">Jeux</a>
+      <a href="#gros">Jeux</a>
       <button class="linkbtn" id="navNews" type="button">Nouveautés</button>
       <button class="linkbtn" id="navBoard" type="button">Classement</button>
       <a href="apropos.html">À propos</a>
@@ -81,6 +81,10 @@
     <div class="card friends" id="friendsHome"></div>
     </div>
   </div>
+  <section class="gallery bigs" id="gros" aria-labelledby="grosTitle">
+    <div class="ghead"><h2 id="grosTitle">Gros jeux <small>Des jeux beaucoup plus complets, à explorer pendant des heures</small></h2></div>
+    <div class="bigshelf" id="bigShelf"></div>
+  </section>
   <div class="gallery" id="jeux">
     <div class="ghead"><h2>Les jeux <small id="shelfCount"></small></h2>
       <div class="filters" id="filters" role="tablist" aria-label="Catégories"></div></div>
@@ -136,22 +140,22 @@
 <!-- JEU -->
 <section class="screen" id="play"></section>
 
-<script src="shared/logger.js?v=4.27"></script>
-<script src="shared/net.js?v=4.27"></script>
-<script src="shared/room.js?v=4.27"></script>
-<script src="shared/profile.js?v=4.27"></script>
-<script src="shared/results.js?v=4.27"></script>
-<script src="shared/volume.js?v=4.27"></script>
-<script src="shared/uisfx.js?v=4.27"></script>
-<script src="hub/nettest.js?v=4.27"></script>
-<script src="hub/games.js?v=4.27"></script>
-<script src="hub/account.js?v=4.27"></script>
-<script src="hub/vip.js?v=4.27"></script>
-<script src="hub/friends.js?v=4.27"></script>
-<script src="hub/hub.js?v=4.27"></script>
-<script src="hub/home.js?v=4.27"></script>
-<script src="shared/padnav.js?v=4.27"></script>
-<script src="hub/ingame.js?v=4.27"></script>
-<script type="module" src="hub/music.js?v=4.27"></script>
+<script src="shared/logger.js?v=5.26"></script>
+<script src="shared/net.js?v=5.26"></script>
+<script src="shared/room.js?v=5.26"></script>
+<script src="shared/profile.js?v=5.26"></script>
+<script src="shared/results.js?v=5.26"></script>
+<script src="shared/volume.js?v=5.26"></script>
+<script src="shared/uisfx.js?v=5.26"></script>
+<script src="hub/nettest.js?v=5.26"></script>
+<script src="hub/games.js?v=5.26"></script>
+<script src="hub/account.js?v=5.26"></script>
+<script src="hub/vip.js?v=5.26"></script>
+<script src="hub/friends.js?v=5.26"></script>
+<script src="hub/hub.js?v=5.26"></script>
+<script src="hub/home.js?v=5.26"></script>
+<script src="shared/padnav.js?v=5.26"></script>
+<script src="hub/ingame.js?v=5.26"></script>
+<script type="module" src="hub/music.js?v=5.26"></script>
 </body>
 </html>

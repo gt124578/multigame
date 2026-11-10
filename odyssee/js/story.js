@@ -318,5 +318,7 @@ export function overlay(g) {
   let ov = g._ov;
   if (!ov) { ov = g._ov = el('div', 'dark-ov'); g.ui.root.prepend(ov); }
   const m = g.mapObj, dark = !!m?.dark, flash = m?.dark !== 'arene' && g.hasField('flash') && g.badgeCount() >= FIELD.flash.badge;   // l'arène Ténèbres reste dans le noir
-  ov.className = 'dark-ov' + (dark ? (flash ? ' cave flash' : ' cave') : '') + (g.eclipseOn() && m?.outdoor ? ' eclipse' : '');
+  // arène dessinée dans le noir : chaque torche allumée élargit la lueur autour du joueur
+  const lueur = dark && m.planArene?.noir ? ' lueur' + Math.min(3, (m.regs || []).filter((v) => v).length) : '';
+  ov.className = 'dark-ov' + (dark ? (flash ? ' cave flash' : ' cave') : '') + lueur + (g.eclipseOn() && m?.outdoor ? ' eclipse' : '');
 }

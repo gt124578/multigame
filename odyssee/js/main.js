@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { WorldView } from './render/world3d.js';
 import { setArt } from './render/textures.js';
+import { packActif } from './gfx.js';
 import { buildWorld } from './world/region.js';
 import { Input } from './input.js';
 import { brancherManette } from './manette.js';
@@ -72,7 +73,13 @@ async function loadArt(prechauffe = false) {
   const sol32 = {}; for (const k of SPRITES.sol32 || []) sol32[k] = ASSETS.sol32(k);
   for (const [th, ks] of Object.entries(SPRITES.herbes || {})) for (const k of ks) sol32[`h_${th}_${k}`] = ASSETS.herbe(`${th}_${k}`);
   // sols à 16 px (PixelLab) : ils remplacent ceux du tileset
-  for (const k of SOL16_FICHIERS) sol32['s16_' + k] = ASSETS.sol16(k);
+  const pack = packActif();   // Options → Graphismes → Sol du dehors : un pack de tuiles remplace aussi les sols à 16 px
+  if (!pack) for (const k of SOL16_FICHIERS) sol32['s16_' + k] = ASSETS.sol16(k);
+  const tuilesPack = {}; if (pack) for (const k of pack.tuiles) tuilesPack[k] = ASSETS.gfx(pack.dossier, k);
+  // décor du pack (arbres, rochers…) : remplace celui du jeu, dessiné pixel pour pixel
+  if (pack?.kits) for (const [k, f] of Object.entries(pack.kits)) kits[k] = ASSETS.gfx(pack.dossier, f);   // façades du pack
+  const batsPack = {}; if (pack?.batiments) for (const L of Object.values(pack.batiments)) for (const [n] of L) batsPack[n] = ASSETS.gfx(pack.dossier, 'b_' + n);
+  if (pack?.decor) for (const k of pack.decor) { sprites[k] = ASSETS.gfx(pack.dossier, 'd_' + k); dens[k] = 2; }
   // devant un personnage dans l'herbe : le bas de la nappe du tileset (et l'image de l'herbe qui bouge)
   for (const [th, key] of [['prairie', 'grassfront'], ['bois', 'darkfront'], ['neige', 'snowfront']]) {
     if (!SPRITES.herbes?.[th]) continue;
@@ -84,11 +91,11 @@ async function loadArt(prechauffe = false) {
   const hg = {}; for (const k of Object.keys(SPRITES.hgss || {})) hg[k] = ASSETS.hgss(k);
   if (prechauffe) {
     // même requête que loadImg (crossOrigin), pour que le cache des images du navigateur la resserve telle quelle
-    const L = [sprites, kits, sols, sol32, hg].flatMap(Object.values).concat([ASSETS.chars, ASSETS.title, SPRITES.suiveurs && ASSETS.suiveurs, ASSETS.relief]);
+    const L = [sprites, kits, sols, sol32, hg, tuilesPack, batsPack].flatMap(Object.values).concat([ASSETS.chars, ASSETS.title, SPRITES.suiveurs && ASSETS.suiveurs, ASSETS.relief]);
     return L.filter(Boolean).map((src) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.src = src; return im; });
   }
-  const [S, K, L, L32, HGI, chars, title, suiveurs, relief] = await Promise.all([loadAll(sprites), loadAll(kits), loadAll(sols), loadAll(sol32), loadAll(hg), loadImg(ASSETS.chars), loadImg(ASSETS.title), SPRITES.suiveurs ? loadImg(ASSETS.suiveurs) : null, loadImg(ASSETS.relief).catch(() => null)]);
-  return { sprites: S, dens, kits: K, sols: L, sol32: L32, hgss: HGI, chars, title, suiveurs, relief };
+  const [S, K, L, L32, HGI, chars, title, suiveurs, relief, PK, PB] = await Promise.all([loadAll(sprites), loadAll(kits), loadAll(sols), loadAll(sol32), loadAll(hg), loadImg(ASSETS.chars), loadImg(ASSETS.title), SPRITES.suiveurs ? loadImg(ASSETS.suiveurs) : null, loadImg(ASSETS.relief).catch(() => null), loadAll(tuilesPack), loadAll(batsPack)]);
+  return { sprites: S, dens, kits: K, sols: L, sol32: L32, hgss: HGI, chars, title, suiveurs, relief, pack: pack ? PK : null, batiments: pack?.batiments ? { images: PB, styles: pack.batiments } : null };
 }
 
 async function boot() {
@@ -106,8 +113,8 @@ async function boot() {
   const art = await loadArt();
   prechauffe.length = 0;
   etape('images');
-  setArt({ kits: art.kits, sols: art.sols, sol32: art.sol32, hgss: art.hgss, relief: art.relief });
-  const view = new WorldView(renderer, art.chars, { sprites: art.sprites, dens: art.dens, suiveurs: art.suiveurs });
+  setArt({ kits: art.kits, sols: art.sols, sol32: art.sol32, hgss: art.hgss, relief: art.relief, pack: art.pack });
+  const view = new WorldView(renderer, art.chars, { sprites: art.sprites, dens: art.dens, suiveurs: art.suiveurs, batiments: art.batiments });
   etape('vue');
   const game = new Game({ view, ui, input, sound, world });
   // sauvegarde en ligne (compte du Hub) : chaque sauvegarde part aussi sur le serveur, regroupée
@@ -152,13 +159,6 @@ async function boot() {
   // outil de test : démarrer directement une partie depuis la console
   window.__ody.play = async (state) => { document.querySelector('.title-scr')?.remove(); input.handlers.length = 0; ui.closeDialog(); mode = 'game'; await game.start(state); };
 
-  // version test (odyssee/test/) : on choisit un lieu et une équipe, et on y apparaît ; rien n'est sauvegardé
-  if (window.ODYSSEE_TEST) {
-    cloud.on = false;
-    const { startLabo } = await import('./labo/labo.js');
-    await startLabo({ game, world, view, ui, input, sound, setMode: (m) => { mode = m; } });
-    return;
-  }
 
   /* ---------------- écran titre ---------------- */
   for (;;) {
@@ -176,11 +176,19 @@ async function boot() {
     const newer = remote && (!info || (remote.time || 0) > (info.time || 0) + 5);
     const has = !!info || !!remote;
     const opts = (has ? ['Continuer'] : []).concat(['Nouvelle partie'], cloud.on ? ['Sauvegarde en ligne'] : [], ['Charger un code', 'Options'], H && H.embedded ? ['Retour au salon'] : []);
-    const card = info ? el('div', 'box save-info', `<b>${esc(info.name)}</b><br>Badges : ${info.badges.filter(Boolean).length} · Pokédex : ${info.dex.caught.length}<br>Temps : ${Math.floor(info.time / 3600)}:${String(Math.floor(info.time / 60) % 60).padStart(2, '0')}`) : null;
+    const leadMon = info?.party?.[0];
+    const card = info ? el('div', 'box save-info', `
+      ${leadMon ? `<div class="save-lead-preview"><img class="save-lead-ico" src="${ASSETS.icon(leadMon.sp)}" alt="" onerror="this.src='${ASSETS.front(leadMon.sp)}'"><span class="save-lead-lvl">N.${leadMon.lvl || 5}</span></div>` : ''}
+      <div class="save-details">
+        <div class="save-name">${esc(info.name)}</div>
+        <div class="save-stats">Badges : <b>${info.badges?.filter(Boolean).length || 0}</b> · Pokédex : <b>${info.dex?.caught?.length || 0}</b></div>
+        <div class="save-time">Temps : ${Math.floor((info.time || 0) / 3600)}:${String(Math.floor((info.time || 0) / 60) % 60).padStart(2, '0')}</div>
+      </div>
+    `) : null;
     if (card) title.appendChild(card);
     const r = await ui.list({ items: opts.map((label) => ({ label })), cls: 'title-menu', cancel: null, parent: title });
     const pick = opts[r];
-    if (pick === 'Options') { stopSea(); title.remove(); await optionsScreen(game); continue; }
+    if (pick === 'Options') { stopSea(); title.remove(); const r = await optionsScreen(game); if (r && r.reload) { location.reload(); return; } continue; }
     if (pick === 'Retour au salon') { H.exit(); stopSea(); title.remove(); continue; }
     if (pick === 'Sauvegarde en ligne') { stopSea(); title.remove(); await onlineScreen(ui, cloud, info); continue; }
     if (pick === 'Charger un code') {

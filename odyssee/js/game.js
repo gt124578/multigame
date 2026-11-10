@@ -1,7 +1,7 @@
 // odyssee/js/game.js — le jeu : déplacements sur la grille, PNJ, dresseurs, rencontres, capacités de terrain (Coupe,
 // Surf, Éclate-Roc, Vol), menus, histoire (les quinze arènes et l'archipel des trois frères), sauvegarde
 import { T, walkable, isGrassEnc, DIRS, OPP } from './world/tiles.js';
-import { reprendre } from './core/reprise.js';
+import { nearestWalkable } from './world/mapgen.js';
 import { encAt } from './world/rencontres.js';
 import { MEGAS_OF, MEGA_RING, LEGEND, STONE_FORM, revertMegas } from './core/mega.js';
 import { MEGA_FORMS } from './core/mega.js';
@@ -15,7 +15,8 @@ import { STARTERS, STARTER_CHOICES, STARTER_TABLE, starterSlot, RIVAL_NAME, BADG
 import { migrerCarte } from './world/migration.js';
 import { BattleView } from './ui/battleView.js';
 import { Hud } from './ui/hud.js';
-import { partyScreen, bagScreen, dexScreen, mapScreen, cardScreen, shopScreen, pcScreen, naturePcScreen, moveRelearnerScreen, optionsScreen, pokedexRegisterScene, TYPE_FR, questsScreen, trophiesScreen, showTrophyToast, hofScreen, pantheonScreen, friendsScreen } from './ui/screens.js';
+import { partyScreen, bagScreen, dexScreen, mapScreen, cardScreen, shopScreen, pcScreen, naturePcScreen, moveRelearnerScreen, optionsScreen, pokedexRegisterScene, TYPE_FR, typeTag, questsScreen, trophiesScreen, showTrophyToast, hofScreen, pantheonScreen, friendsScreen } from './ui/screens.js';
+import { openChatModal } from './ui/chatModal.js';
 import { getFriendsManager } from './net/friends.js';
 import { recordPvpMatch, ensurePvpState, checkAllTrophies } from './core/trophies.js';
 import { el, esc, wait } from './ui/ui.js';
@@ -28,12 +29,15 @@ import { storyTalk, storyTrigger, storyWin, lugiaBattle, placeLugia, purify, ove
 import { syncJournal } from './core/questsData.js';
 import { QUIZ } from './world/arenes.js';
 import { souffle, stelesPleines, moitieDe } from './world/arene-sylve.js';
+import { preparerArene, surCaseArene, actionnerArene, remettreArene, pasArene, rocherDansFosse } from './arenes-jeu.js';
 import { casinoScreen, bourseScreen, entretienPierre } from './ui/metropole.js';
 import { arcadeScreen } from './ui/arcade.js';
 import { apparenceScreen } from './ui/apparence.js';
 import { preparerDomaine, frigo, architecte, recolter, allerDomaine, resident, arrivees } from './ui/domaine.js';
 import { composer, tenueValide, tenueOrigine } from './render/tenue.js';
 import { buildRivalParty, getRivalItems } from './world/rival.js';
+import { Vie, parlerFaune, rentreLeSoir } from './vie.js';
+import { VieMonde, colporteur, marche, cueillir, fouiller, revanchePossible, revanche, noteCombat, ragot, echange, relais, concours, loterie, musicien } from './vie-monde.js';
 
 /** météos qui comptent en combat (brume et cendres ne sont que du décor, comme dans les jeux 5G) */
 const BATTLE_WEATHERS = ['rain', 'sun', 'sandstorm', 'hail'];
@@ -119,6 +123,10 @@ export class Game {
     Object.assign(this, { view, ui, input, sound, world });
     this.busy = false; this.player = null; this.npcs = []; this.items = [];
     this.bv = new BattleView(this);
+    this.vie = new Vie(this);
+    this.vieMonde = new VieMonde(this);
+    this.jour = () => new Date();
+    this.followerOk = (sp) => CHAR_ROWS['poke:' + sp] != null;
     this.autoRun = false;
     try { this.autoRun = localStorage.getItem('odyssee-autorun') === '1'; } catch (e) {}
     this.runSpeed = 1; // 0: Normale (1×), 1: Rapide (1.7×), 2: Turbo (2.5×)
@@ -195,8 +203,6 @@ export class Game {
   }
   load(from) {
     const s = from ? JSON.parse(JSON.stringify(from)) : JSON.parse(localStorage.getItem(SAVE_KEY));
-    // sauvegarde incomplète (ancienne version, code tapé à la main) : les champs manquants reprennent leur valeur de départ
-    s.party ||= []; s.box ||= []; s.bag ||= {}; s.flags ||= {}; s.badges ||= []; s.visited ||= ['aube']; s.time ||= 0;
     s.cleared ||= {}; s.explored ||= [];
     s.dex ||= { seen: [], caught: [], seenCount: {} };
     s.dex.seenCount ||= {};
@@ -217,10 +223,9 @@ export class Game {
     // qui a changé (falaise, arbre) : on la reprend sur la case libre la plus proche
     const mv = this.world.moved?.[state.map];
     if (mv) Object.assign(state, { map: mv.map, x: mv.x, y: mv.y, dir: mv.dir || state.dir, surf: false });
+    if (state.map === 'monde' && !state.surf && !walkable(this.world.maps.monde.get(state.x, state.y))) [state.x, state.y] = nearestWalkable(this.world.maps.monde, state.x, state.y);
     // intérieur redessiné depuis (l'Arène de Sylvebourg, par exemple) : une partie arrêtée dans un mur reprend à l'entrée
-    { const M0 = this.world.maps[state.map]; if (M0 && state.map !== 'monde' && !state.surf && M0.exitX != null && (!M0.in(state.x, state.y) || !walkable(M0.get(state.x, state.y)))) Object.assign(state, { x: M0.exitX, y: M0.exitY - 1, dir: 'up' }); }
-    // carte qui n'existe plus, case devenue un mur, poche refermée : jamais de joueur bloqué (core/reprise.js)
-    const repriseSure = repriseVille ? null : reprendre(this.world, state);
+    { const M0 = this.world.maps[state.map]; if (M0 && state.map !== 'monde' && !state.surf && M0.exitX != null && (!M0.in(state.x, state.y) || !walkable(M0.get(state.x, state.y)) || (M0.planArene && state.flags?.['PV:' + M0.id] !== (M0.planArene.version || 1)))) Object.assign(state, { x: M0.exitX, y: M0.exitY - 1, dir: 'up' }); }
     this.state = state; this._seen = null;
     revertMegas(state.party); revertMegas(state.box);
     this.stepLock = false; this.stepGap = false;
@@ -237,11 +242,6 @@ export class Game {
     this.view.update(0, this.player.x, this.player.y); await this.view.solPret?.();   // le sol généré est prêt avant d'ouvrir l'écran
     await this.ui.fade(false, 400);
     if (!state.flags.intro) { state.flags.intro = true; this.busy = true; await this.ui.say(['Une douce lumière filtre à travers les rideaux...', `Aujourd'hui, ${state.name}, ton aventure commence !`, 'Le Prof. Saule t\'attend à son laboratoire, le grand bâtiment blanc au cœur du village.', 'Appuie sur H à tout moment pour revoir les touches.']); this.busy = false; }
-    else if (repriseSure === 'carte' || repriseSure === 'poche') {
-      this.busy = true;
-      await this.ui.say(['La région a changé depuis ta dernière visite : l\'endroit où tu t\'étais arrêté n\'existe plus tel quel.', 'Tu reprends ton voyage en lieu sûr.']);
-      this.busy = false; this.save(true);
-    }
     else if (repriseVille) {
       this.busy = true;
       await this.ui.say(['La région d\'Odyssée s\'est agrandie pendant ton absence : les villes ont poussé, les routes serpentent plus loin.', `Tu reprends ton voyage au ${repriseVille.centerId ? 'Centre de soins de ' + repriseVille.name : 'calme de ta maison'}.`]);
@@ -261,9 +261,12 @@ export class Game {
     // arbres coupés, rochers brisés : la carte garde la trace de ce qu'on a dégagé
     for (const k of this.state.cleared[m.id] || []) { const [x, y] = k.split(',').map(Number); if (m.get(x, y) === T.CUT || m.get(x, y) === T.SMASH) m.set(x, y, m.outdoor ? T.GRASS : T.CAVE); }
     this.applyTiles(m);   // rochers poussés avec Force, autel du Sanctuaire
+    preparerArene(this, m);   // arènes dessinées : portes, tapis, miroirs dans l'état sauvegardé
     if (this.strengthOn !== m.id) this.strengthOn = null;
     this.view.eclipse = this.eclipseOn();
     this.view.setMap(m);
+    this.vie?.onMap(m);
+    this.vieMonde?.onMap(m);
     const st = this.state;
     this.npcs = m.npcs.filter((n) => this.npcVisible(n)).map((n) => this.npcState(n));
     // le rival attend au labo tant que le premier combat n'a pas eu lieu
@@ -349,6 +352,7 @@ export class Game {
   npcVisible(n) {
     const f = this.state.flags;
     if (n.when && !n.when(f, this)) return false;   // PNJ de quête : présent selon l'avancée
+    if (rentreLeSoir(n, this)) return false;          // le soir, les enfants et une partie des passants sont rentrés
     if (n.gate) return this.gateClosed(n.gate);
     if (n.vanish && f['T:' + n.id]) return false;    // sbire de la Team Éclipse battu : il s'en va
     if (n.showIf && !f[n.showIf]) return false;
@@ -394,6 +398,23 @@ export class Game {
     o = o || this.state.lastOutdoor; return o ? { x: o.x, y: o.y } : { x: 0, y: 0 };
   }
   locationName() { const z = this.mapObj.outdoor ? this.mapObj.zoneAt(this.player.x, this.player.y) : null; return z?.name || this.mapObj.name || 'Odyssée'; }
+  currentSpawns() {
+    const m = this.mapObj, p = this.player;
+    if (!m || !p) return null;
+    const z = m.outdoor ? m.zoneAt(p.x, p.y) : (m.zones?.length && m.zoneAt(p.x, p.y)) || null;
+    const k = z?.spawns || z?.route || m.spawns || (!m.outdoor && m.id && !m.id.includes(':') ? m.id : null);
+    const enc = m.outdoor ? z?.enc : (m.encounter || m.enc);
+    const surfEnc = m.outdoor ? (z?.surfEnc || m.surfEnc) : m.surfEnc;
+    const name = z?.name || m.name || 'Zone';
+    const isTown = !!(z?.town || (m.outdoor && !enc && !surfEnc && !k) || m.id?.includes(':'));
+    return {
+      key: k || null,
+      name,
+      isTown,
+      enc: enc || null,
+      surfEnc: surfEnc || null
+    };
+  }
 
   /** la carte se découvre en marchant : blocs de 8 × 8 cases autour du joueur (et toute ville visitée) */
   explore() {
@@ -418,13 +439,52 @@ export class Game {
     if (!this.musicLock) this.sound.play(p.surf && m.outdoor ? 'route2' : (z && z.music) || m.music);
     this.zone = z;
     try { this.view?.setWeather(this.getMapWeather()); } catch (e) {}
+    this.checkNearbySigns();
   }
 
+  
+  checkNearbySigns() {
+    const m = this.mapObj, p = this.player;
+    if (!m?.signs) {
+      if (this.currentRoadSign) {
+        this.currentRoadSign = null;
+        this.ui.hideRoadSign?.();
+      }
+      return;
+    }
+    let nearest = null, minDist = 4;
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        const d = Math.hypot(dx, dy);
+        if (d > 3.2) continue;
+        const txt = m.signs.get(key(p.x + dx, p.y + dy));
+        if (!txt) continue;
+        if (/[↑↓←→]/.test(txt) || (txt.includes('ROUTE') && txt.includes('\n'))) {
+          if (d < minDist) {
+            minDist = d;
+            nearest = txt;
+          }
+        }
+      }
+    }
+    if (nearest) {
+      const formatted = nearest.split('\n').map((l) => l.trim()).filter(Boolean).join(' · ');
+      if (this.currentRoadSign !== formatted) {
+        this.currentRoadSign = formatted;
+        this.ui.showRoadSign?.(formatted);
+      }
+    } else if (this.currentRoadSign) {
+      this.currentRoadSign = null;
+      this.ui.hideRoadSign?.();
+    }
+  }
   async warp(to, sfx = 'door') {
     this.busy = true;
+    if (this.currentRoadSign) { this.currentRoadSign = null; this.ui.hideRoadSign?.(); }
     this.sound.sfx(sfx);
     await this.ui.doorTransition(true, 240);
     const from = this.mapObj.id;
+    this.clearSpeechBubbles?.();
     if (this.mapObj.id === 'monde' && to.map !== 'monde') this.state.lastOutdoor = { x: this.player.x, y: this.player.y + 1, map: 'monde' };
     this.player.x = to.x; this.player.y = to.y; this.player.dir = to.dir || this.player.dir; this.player.move = null; this.player.surf = false;
     this.setMap(to.map);
@@ -522,7 +582,9 @@ export class Game {
       for (const q of syncJournal(this)) if (!q.done) this.ui.toast(`📖 Journal : « ${q.name} »`, 2200);
     }
     // PNJ et autres joueurs
-    if (!this.figer) for (const n of this.npcs) this.npcTick(n, dt);   // figés dans l'éditeur de carte
+    for (const n of this.npcs) this.npcTick(n, dt);
+    this.vie?.tick(dt);
+    this.vieMonde?.tick(dt);
     this.peersTick?.(dt);
     // la carte n'est pas redessinée sous un combat ou un écran plein cadre
     if (this.bv.alive || this.ui.root.querySelector('.screen')) { this.drawTags?.(false); return; }
@@ -536,7 +598,7 @@ export class Game {
     if (p.move) {
       const u = Math.min(1, p.move.t);
       px = p.move.fx + (p.move.tx - p.move.fx) * u; py = p.move.fy + (p.move.ty - p.move.fy) * u;
-      if (p.move.jump) hop = Math.sin(u * Math.PI) * 0.55;
+      if (p.move.jump) hop = Math.sin(u * Math.PI) * (p.move.haut || 0.55);
       stepFrame = p.surf ? 0 : u < 0.5 ? (p.step % 2 ? 1 : 2) : 0;
     } else if (p.bumpT > 0) stepFrame = p.bumpT > 0.15 ? (p.step % 2 ? 1 : 2) : 0;
     if (p.flyElevation) hop += p.flyElevation;
@@ -575,11 +637,6 @@ export class Game {
       if (n.bang) { const b = v.actor('bang:' + n.id, { kind: 'bang' }); b.mesh.position.set(nx + 0.5, 34 * HPX + v.hAt(nx + 0.5, ny + 0.55), ny + 0.56); }
       else if (v.actors.has('bang:' + n.id)) v.removeActor('bang:' + n.id);
     }
-    // éditeur de carte : caméra libre, sans dresseur ni compagnon
-    if (this.camLibre) {
-      px = this.camLibre.x; py = this.camLibre.y;
-      for (const k of ['player', 'follower', 'velo', 'wake']) { const x = v.actors.get(k); if (x) { x.mesh.visible = false; if (x.shadow) x.shadow.visible = false; } }
-    }
     v.update(dt, px, py);
     v.render();
   }
@@ -617,11 +674,15 @@ export class Game {
       if (m.in(tx, ty) && walkable(t) && t !== T.DOOR && t !== T.BRIDGE && !this.occupied(tx, ty) && m.height(tx, ty) === m.height(p.x, p.y)) { p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur: 0.25, jump: true, land: true }; p.walking = true; this.sound.sfx('ledge'); return; }
       p.walking = false; if (p.bumpT <= 0) { this.sound.sfx('bump'); p.bumpT = 0.3; } return;
     }
+    // arènes dessinées : un rayon de lumière barre la route, un bras de tourniquet se pousse
+    if (m.etat && pasArene(this, d, tx, ty)) return;
     // Force : pousser un rocher
     if (t === T.BOULDER && !m.bloc && (this.strengthOn === m.id || m.pushFree)) {
       const bx = tx + dx, by = ty + dy, bt = m.get(bx, by);
-      if (walkable(bt) && ![T.DOOR, T.MAT, T.CAVEDOOR, T.STAIRS].includes(bt) && !this.occupied(bx, by) && !m.warpAt(bx, by)) {
-        this.setTile(tx, ty, m.outdoor ? T.GRASS : T.CAVE); this.setTile(bx, by, T.BOULDER);
+      // arène de la Carrière : le rocher comble la fosse
+      if (m.etat && !this.occupied(bx, by) && rocherDansFosse(this, tx, ty, bx, by)) { p.bumpT = 0.3; p.walking = false; return; }
+      if (walkable(bt) && ![T.DOOR, T.MAT, T.CAVEDOOR, T.STAIRS].includes(bt) && !this.occupied(bx, by) && !m.warpAt(bx, by) && !(m.etat && m.objectAt(bx, by))) {
+        this.setTile(tx, ty, m.etat ? T.FLOOR : m.outdoor ? T.GRASS : T.CAVE); this.setTile(bx, by, T.BOULDER);
         this.sound.sfx('ledge'); this.view.shake = 0.08; p.bumpT = 0.3; p.walking = false;
         return;
       }
@@ -651,6 +712,12 @@ export class Game {
     if (mo?.type === 'dalle') this.dalle(mo);
     if (mo?.type === 'souffle' && !mv.slid) { this.busy = true; try { await this.souffle(mo); } finally { this.busy = false; } }
     if (mo?.type === 'tp' && !mv.slid) { this.busy = true; try { await this.teleporte(mo); } finally { this.busy = false; } return this.onStep({ slid: true }); }
+    // arènes dessinées : dalles-interrupteurs, trous, canons à vent, dalles d'argile
+    if (m.etat && mo && ['reg', 'chute', 'canon', 'fragile'].includes(mo.type)) {
+      this.busy = true; let bouge = false;
+      try { bouge = await surCaseArene(this, mo, mv.slid); } finally { this.busy = false; }
+      if (bouge) return this.onStep({ slid: true });
+    }
     if (isGrassEnc(t)) this.view.rustle(p.x, p.y);
     const w = m.warpAt(p.x, p.y);
     if (w && (t === T.DOOR || t === T.CAVEDOOR || w.step)) {
@@ -674,9 +741,16 @@ export class Game {
     // rencontres sauvages : hautes herbes, grottes, et la mer de l'archipel quand on surfe
     const enc = this.noEnc ? null : encAt(m, p.x, p.y);   // le tronçon de la zone où l'on marche ; noEnc : version test, rencontres coupées
     if (p.surf && t === T.WATER && !this.noEnc) { const sea = m.zoneAt(p.x, p.y), enc = sea?.surfEnc || sea?.enc || m.surfEnc; if (enc && Math.random() < 0.05) await this.wildBattle(enc); return; }
+    // un Pokémon visible dans l'herbe : on lui marche dessus, c'est lui qu'on affronte
+    const vu = m.outdoor && !this.noEnc ? this.vie?.at(p.x, p.y) : null;
+    if (vu) { this.vie.remove(vu); await this.wildBattle([vu.e], { fixed: true }); return; }
     if (enc && (isGrassEnc(t) || (!m.outdoor && t === T.CAVE))) {
       const rate = isGrassEnc(t) ? (t === T.DARKTALL ? 0.12 : 0.1) : 0.065;
-      if (Math.random() < rate) await this.wildBattle(enc);
+      if (Math.random() < rate) {
+        // dans les grottes, il arrive qu'un Pokémon tombe du plafond
+        if (!m.outdoor && t === T.CAVE && Math.random() < 0.3) await this.vie?.embuscade();
+        await this.wildBattle(enc);
+      }
     }
   }
 
@@ -806,6 +880,7 @@ export class Game {
     for (const k of Object.keys(st.flags)) if (k.startsWith('T:' + m.id + ':') && !k.endsWith(':leader')) delete st.flags[k];
     st.flags['IN:' + m.id] = false;
     if (m.serre) { delete st.tiles?.[m.id]; this.applyTiles(m); }   // la Grande Serre repart de zéro
+    if (m.etat) await remettreArene(this);   // arène dessinée : registres, rochers et fosses comme au début
     this.busy = false;
     await this.warp(w, 'exit');
   }
@@ -821,7 +896,8 @@ export class Game {
     n.dir = d;
     if (n.def.move === 'wander' && Math.random() < 0.6) {
       const [dx, dy] = DIRS[d], tx = n.x + dx, ty = n.y + dy;
-      if (Math.abs(tx - n.home[0]) <= 2 && Math.abs(ty - n.home[1]) <= 2 && walkable(this.mapObj.get(tx, ty)) && this.mapObj.canStep(n.x, n.y, tx, ty) && !this.occupied(tx, ty, n) && this.mapObj.get(tx, ty) !== T.DOOR && this.mapObj.get(tx, ty) !== T.MAT) {
+      const R = n.def.roam || (/:h\d+$/.test(n.id) ? 4 : 2);
+      if (Math.abs(tx - n.home[0]) <= R && Math.abs(ty - n.home[1]) <= R && walkable(this.mapObj.get(tx, ty)) && this.mapObj.canStep(n.x, n.y, tx, ty) && !this.occupied(tx, ty, n) && this.mapObj.get(tx, ty) !== T.DOOR && this.mapObj.get(tx, ty) !== T.MAT) {
         n.move = { fx: n.x, fy: n.y, t: 0, dur: 0.32 }; n.x = tx; n.y = ty;
       }
     }
@@ -853,6 +929,103 @@ export class Game {
   }
 
   /* ================= touches ================= */
+  openChat() {
+    openChatModal(this);
+  }
+
+  broadcastChat(text, emote) {
+    this.showSpeechBubble?.('me', text, emote);
+    if (this.link?.enabled) {
+      this.link.send('all', { t: 'chat', text, emote, name: this.state?.name });
+    }
+  }
+
+  async useRegisteredItem() {
+    if (this.busy || !this.input.free || this.bv.alive || this.player?.move) return;
+    this.busy = true;
+    try { await this._useRegisteredItem(); } finally { this.busy = false; this.hud?.update(true); }
+  }
+  async _useRegisteredItem() {
+    const st = this.state;
+    if (!st) return;
+    let reg = st.registeredItem;
+    if (!reg && st.bag?.['running-shoes']) reg = 'running-shoes';
+    if (!reg && st.bag?.['canne']) reg = 'canne';
+    if (!reg && st.bag?.['velo']) reg = 'velo';
+    if (!reg) {
+      this.sound.sfx('bump');
+      await this.ui.say(["Aucun objet n'est enregistré !", "Ouvre ton Sac (touche I), choisis un objet et clique sur 'ENREG. [Y]' pour l'assigner à ce raccourci."]);
+      return;
+    }
+    if ((st.bag?.[reg] || 0) <= 0 && reg !== 'running-shoes') {
+      this.sound.sfx('bump');
+      await this.ui.say(`Tu n'as plus de ${itemName(reg)} dans ton sac.`);
+      return;
+    }
+
+    if (reg === 'canne') {
+      const p = this.player, m = this.mapObj, [dx, dy] = DIRS[p.dir];
+      const fx = p.x + dx, fy = p.y + dy;
+      if (m.get(fx, fy) === T.WATER && (m.outdoor || m.surf) && !p.surf) {
+        await this.pecher(fx, fy);
+        return;
+      }
+      this.sound.sfx('bump');
+      await this.ui.say("Il n'y a pas d'eau praticable juste devant toi pour pêcher !");
+      return;
+    }
+
+    if (reg === 'running-shoes') {
+      this.toggleAutoRun();
+      return;
+    }
+
+    if (reg === 'escape-rope') {
+      if (this.mapObj.floor === 'cave' && st.lastOutdoor) {
+        this.take(reg);
+        await this.ui.say(`${st.name} utilise la Corde Sortie !`);
+        await this.warp({ map: 'monde', x: st.lastOutdoor.x, y: st.lastOutdoor.y, dir: 'down' }, 'exit'); this.busy = true;
+        return;
+      }
+      this.sound.sfx('bump');
+      await this.ui.say("Ce n'est pas le moment d'utiliser ça !");
+      return;
+    }
+
+    if (reg === 'repel' || reg === 'super-repel' || reg === 'max-repel') {
+      const it = ITEMS[reg];
+      this.take(reg);
+      this.sound.sfx('item');
+      st.repel = Math.max(st.repel || 0, it.repel || 100); st.lastRepel = reg;
+      await this.ui.say(`${st.name} utilise un ${itemName(reg)} ! Les créatures sauvages s'éloignent.`);
+      this.save(true);
+      return;
+    }
+
+    if (reg === 'velo') {
+      await this.toggleVelo();
+      return;
+    }
+
+    if (reg === 'sifflet-celeste') {
+      if (this.player.surf || !this.mapObj.outdoor) {
+        this.sound.sfx('bump');
+        await this.ui.say("On ne peut pas s'envoler d'ici.");
+        return;
+      }
+      await this.fly();
+      return;
+    }
+
+    if (reg === 'town-map') {
+      await mapScreen(this);
+      return;
+    }
+
+    // Generic fallback: open bag on item
+    await this.fieldBag();
+  }
+
   toggleAutoRun() {
     // Cycle : Désactivé -> Course Rapide (1.7×) -> Turbo (2.5×) -> Désactivé
     if (!this.autoRun) {
@@ -888,14 +1061,17 @@ export class Game {
     if (!this.state) return;
     if (k === 'hud') { this.hud?.toggle(); return; }
     if (k === 'autorun') { if (!this.busy && !this.bv.alive) this.toggleAutoRun(); return; }
+    if (k === 'chat') { if (!this.busy && !this.bv.alive) this.openChat(); return; }
+    if (k === 'ball') { if (!this.busy && !this.bv.alive) await this.useRegisteredItem(); return; }
     if (this.busy || !this.state || this.player.move) return;
     if (k === 'a') await this.interact();
     else if (k === 'b' || k === 'menu') await this.startMenu();
-    else if (k === 'map') { this.busy = true; try { await mapScreen(this); } finally { this.busy = false; } }
+    else if (k === 'bag') { this.busy = true; try { if (await this.fieldBag()) return; } finally { this.busy = false; } }
+    else if (k === 'map') { this.busy = true; await mapScreen(this); this.busy = false; }
     else if (k === 'velo') { this.busy = true; try { await this.toggleVelo(); } finally { this.busy = false; } }
-    else if (k === 'quests') { this.busy = true; try { await questsScreen(this); } finally { this.busy = false; } }
-    else if (k === 'trophies') { this.busy = true; try { await trophiesScreen(this); } finally { this.busy = false; } }
-    else if (k === 'friends') { this.busy = true; try { await friendsScreen(this); } finally { this.busy = false; } }
+    else if (k === 'quests') { this.busy = true; await questsScreen(this); this.busy = false; }
+    else if (k === 'trophies') { this.busy = true; await trophiesScreen(this); this.busy = false; }
+    else if (k === 'friends') { this.busy = true; await friendsScreen(this); this.busy = false; }
     else if (k === 'hud') this.hud?.toggle();
   }
   async interact() {
@@ -917,6 +1093,9 @@ export class Game {
         const L = (this.legends || []).find((q) => (q.x === fx && q.y === fy) || (q.x === fx + dx && q.y === fy + dy && walkable(t)));
         if (L) await this.legendBattle(L);
         else if (it) await this.pickItem(it);
+        else if (o?.type === 'baies') await cueillir(this, o);
+        else if (o?.type === 'fouille') await fouiller(this, o);
+        else if (m.etat && ((o?.type === 'reg' && o.actionne) || o?.type === 'remise')) await actionnerArene(this, o);
         else if (o?.use) await o.use(this.api(), o, fx, fy);
         else if (o?.type === 'pc') await pcScreen(this);
         else if (o?.type === 'naturepc') await naturePcScreen(this);
@@ -930,7 +1109,7 @@ export class Game {
         else if (t === T.SMASH) await this.fieldObstacle('eclate', fx, fy, 'Ce rocher est plein de fissures. Il pourrait être brisé.');
         else if (t === T.BOULDER && m.bloc) await this.ui.say(['Un gros bloc de pollen, tout collant.', 'Impossible de le pousser à la main... Un bon courant d\'air ferait l\'affaire !']);
         else if (t === T.BOULDER) await this.useForce();
-        else if (t === T.WATER && (m.outdoor || m.surf) && !p.surf) await this.trySurf(fx, fy);
+        else if (t === T.WATER && (m.outdoor || m.surf) && !p.surf) await this.tryWaterInteraction(fx, fy);
       }
     } finally { this.busy = false; }
   }
@@ -941,6 +1120,7 @@ export class Game {
     try {
       if (d.trainer) {
         if (!st.flags['T:' + n.id]) await this.trainerBattle(n, false);
+        else if (revanchePossible(this, n)) await revanche(this, n);
         else {
           await this.ui.say(d.trainer.after || 'Quel combat !', {
             speaker: d.trainer.cls ? `${d.trainer.cls} ${d.trainer.name}` : d.trainer.name,
@@ -954,7 +1134,7 @@ export class Game {
       else if (d.role === 'relearner') await moveRelearnerScreen(this);
       else if (d.talk) await d.talk(this.api(), n);
       else if (d.script) await this.script(d.script, n);
-      else if (d.text) await this.ui.say(d.text, {
+      else if (d.text) await this.ui.say(/:h\d+$/.test(n.id) && Math.random() < 0.4 ? ragot(this) : d.text, {
         speaker: d.name || n.name || (d.who ? d.who : null),
         face: d.sprite || n.sprite
       });
@@ -1105,7 +1285,8 @@ export class Game {
   }
 
   animateSurfSplash(x, y) {
-    const pt = this.view.tileToScreen ? this.view.tileToScreen(x, y, 0) : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    if (typeof document === 'undefined') return;
+    const pt = this.view.tileToScreen ? this.view.tileToScreen(x, y, 0) : { x: (typeof window !== 'undefined' ? window.innerWidth : 800) / 2, y: (typeof window !== 'undefined' ? window.innerHeight : 600) / 2 };
     const fx = document.createElement('div');
     fx.className = 'field-surf-splash';
     fx.style.left = `${pt.x}px`;
@@ -1380,11 +1561,8 @@ export class Game {
 
   /* ================= menu principal ================= */
   async startMenu() {
-    // un écran qui échoue ne laisse jamais le joueur figé (busy resterait vrai)
-    try { await this.menuPrincipal(); } finally { this.busy = false; }
-  }
-  async menuPrincipal() {
     this.busy = true;
+    let openChatAfter = false;
     const st = this.state;
     const opts = [];
     if (st.flags.dex) opts.push(['Pokédex', 'dex']);
@@ -1394,13 +1572,14 @@ export class Game {
     if (this.canField('vol')) opts.push(['Vol', 'fly']);
     opts.push(['Quêtes', 'quests']);
     opts.push(['Trophées', 'trophies']);
+    opts.push(['Émotes & Chat', 'chat']);
     if (st.domaine) opts.push([this.mapObj.id === 'domaine' ? 'Revenir' : 'Domaine', 'domaine']);
     const friendsMgr = getFriendsManager(this);
     const others = Math.max(0, friendsMgr.getOnlineCount() - 1);
     opts.push([others ? `Amis (${others} en ligne)` : 'Amis', 'friends']);
     opts.push(['Carte de Dresseur', 'card'], ['Carte', 'map'], ['Code de sauvegarde', 'code'], ['Options', 'opt'], ['Fermer', 'close']);
     // une petite icône devant chaque entrée (celles du HUD et du sac)
-    const ICO = { dex: ASSETS.item('dex'), party: 'img/hud/team.png', pc: 'img/hud/save.png', bag: 'img/hud/bag.png', quests: 'img/hud/quest.png', trophies: 'img/hud/trophy.png', friends: 'img/hud/friends.png', card: ASSETS.item('wallet'), map: 'img/hud/map.png', code: ASSETS.item('notebook'), domaine: ASSETS.item('gift'), fly: ASSETS.item('sifflet-celeste') };
+    const ICO = { dex: ASSETS.item('dex'), party: 'img/hud/team.png', pc: 'img/hud/save.png', bag: 'img/hud/bag.png', quests: 'img/hud/quest.png', trophies: 'img/hud/trophy.png', friends: 'img/hud/friends.png', card: ASSETS.item('wallet'), map: 'img/hud/map.png', code: ASSETS.item('notebook'), domaine: ASSETS.item('gift'), fly: ASSETS.item('sifflet-celeste'), chat: 'img/hud/chat.png' };
     const itemHtml = ([l, k]) => `<i class="sm-ico">${ICO[k] ? `<img src="${ICO[k]}" alt="">` : ''}</i>${esc(l)}`;
     let idx = Math.min(this._menuIdx || 0, opts.length - 1);
     for (;;) {
@@ -1418,6 +1597,7 @@ export class Game {
       else if (k === 'map') await mapScreen(this);
       else if (k === 'quests') await questsScreen(this);
       else if (k === 'trophies') await trophiesScreen(this);
+      else if (k === 'chat') { openChatAfter = true; break; }
       else if (k === 'domaine') { this.busy = false; if (await allerDomaine(this)) break; this.busy = true; }
       else if (k === 'opt') await optionsScreen(this);
       else if (k === 'code') {
@@ -1440,6 +1620,7 @@ export class Game {
       }
     }
     this.busy = false;
+    if (openChatAfter) this.openChat();
   }
   /** le sprite du joueur : sa tenue composée s'il en a une, sinon le dresseur ou la dresseuse de base */
   recordPvpResult(foeName, result) {
@@ -1551,6 +1732,16 @@ export class Game {
       const r = await bagScreen(this, {}); if (!r) return false;
       const it = ITEMS[r.item], st = this.state;
       if (it.ball) { await this.ui.say('Ce n\'est pas le moment d\'utiliser ça !'); continue; }
+      if (r.item === 'canne') {
+        const p = this.player, m = this.mapObj, [dx, dy] = DIRS[p.dir];
+        const fx = p.x + dx, fy = p.y + dy;
+        if (m.get(fx, fy) === T.WATER && (m.outdoor || m.surf) && !p.surf) {
+          await this.pecher(fx, fy);
+          return true;
+        }
+        await this.ui.say('Place-toi face à l\'eau depuis la rive pour lancer ta ligne !');
+        continue;
+      }
       if (r.item === 'town-map') { await mapScreen(this); continue; }
       if (r.item === 'velo') { if (await this.toggleVelo()) return true; continue; }
       if (it.ct) { await this.utiliserCT(r.item); continue; }
@@ -1729,6 +1920,7 @@ export class Game {
     this.musicLock = false;
     if (res === 'win') {
       st.flags['T:' + n.id] = true;
+      noteCombat(this, n);
       if (d.leader != null) await this.badgeScene(d.leader, tr.name);
       if (typeof d.onWin === 'function') await d.onWin(this.api(), n); else if (d.onWin) await this.script(d.onWin, n);
       if (d.beatenPos) { await this.npcWalk(n, 'right', d.beatenPos[0] - n.x); n.dir = 'down'; n.home = [n.x, n.y]; }
@@ -1929,6 +2121,7 @@ export class Game {
     const result = await this.bv.run(battle, { bg, night: m.outdoor && (h >= 20 || h < 5.5), weather: BATTLE_WEATHERS.includes(weather) ? weather : 'none', curtain });
     // argent
     if (result === 'win' && battle.prizeMoney) st.money += battle.prizeMoney;
+    try { this.checkTrophies?.(true); } catch (e) {}
     if (result === 'caught') {
       const mon = foeMons[0]; mon.ot = st.name; mon.met = this.locationName();
       const isNew = !st.dex.caught.includes(mon.sp);
@@ -2198,8 +2391,39 @@ export class Game {
     if (name === 'apparence') return this.apparence();
     if (name === 'architecte') return architecte(this);
     if (name === 'resident') return resident(this, n);
+    if (name === 'faune') return parlerFaune(this, n);
+    if (name === 'colporteur') return colporteur(this, n);
+    if (name === 'marche') return marche(this, n);
+    if (name === 'echange') return echange(this, n);
+    if (name === 'relais') return relais(this, n);
+    if (name === 'concours') return concours(this, n);
+    if (name === 'loterie') return loterie(this, n);
+    if (name === 'musicien') return musicien(this, n);
     if (name === 'mom') {
       if (!st.flags.starter) { await ui.say([`Ah, ${st.name}, tu es enfin réveillé${st.gender === 'f' ? 'e' : ''} !`, 'Le Professeur Saule est passé ce matin. Il t\'attend à son laboratoire, juste au sud-est.', 'Théo y est déjà, bien sûr... Allez, file !'], { speaker: 'Maman' }); return; }
+      if (!st.flags.momGift) {
+        st.flags.momGift = true;
+        const starterMon = st.party[0];
+        const sName = starterMon ? monName(starterMon) : 'compagnon';
+        await ui.say([
+          `Oh, ${st.name} ! Quel magnifique ${sName} !`,
+          'Le Professeur Saule a vu juste, vous formez déjà une superbe équipe.',
+          'Avant que tu ne partes explorer la région, tiens ! Ton père et moi t\'avions préparé ceci.'
+        ], { speaker: 'Maman' });
+        this.sound.sfx('item');
+        this.give('running-shoes');
+        await ui.say(`${st.name} reçoit les Chaussures de Course !`);
+        await ui.say([
+          'Enfile-les vite ! Tu peux courir en maintenant la touche Maj, ou appuyer sur R (ou sur le bouton du Pokégear) pour activer la course continue.',
+          'Prends aussi ces quelques baies pour requinquer ton équipe en cas de coup dur sur la route.'
+        ], { speaker: 'Maman' });
+        this.sound.sfx('item');
+        st.bag['oran-berry'] = (st.bag['oran-berry'] || 0) + 3;
+        await ui.say(`${st.name} reçoit 3 Baies Oran !`);
+        await ui.say('Fais bien attention à toi sur la Route 1. Reviens me voir quand tu auras besoin de repos !', { speaker: 'Maman' });
+        this.save(true);
+        return;
+      }
       await ui.say(`${st.name} ! Tu as l'air épuisé${st.gender === 'f' ? 'e' : ''}. Repose-toi un peu.`, { keep: true, speaker: 'Maman' });
       this.sound.sfx('heal'); await wait(2000);
       for (const m of st.party) healFull(m);
@@ -2300,26 +2524,120 @@ export class Game {
     }
   }
 
-  async chooseStarter(sp, cap) {
+    promptStarterChoice(C, picks, ORIG) {
+    return new Promise((resolve) => {
+      const typeLabel = TYPE_FR[C.type] || C.type;
+      const wrap = el('div', 'starter-select-modal');
+      wrap.innerHTML = `
+        <div class="starter-select-box">
+          <div class="st-header">
+            <span class="st-title">Capsule ${esc(typeLabel)}</span>
+            <span class="st-sub">Cliquez sur une créature ou utilisez les flèches + Entrée</span>
+          </div>
+          <div class="starter-cards">
+            ${picks.map((p, idx) => {
+              const S = SPECIES[p] || {};
+              const tagsHtml = (S.t || []).map((t) => typeTag(t)).join('');
+              return `
+                <div class="st-card ${idx === 0 ? 'on' : ''}" data-idx="${idx}">
+                  <span class="st-origin-badge">${esc(ORIG[idx] || '')}</span>
+                  <div class="st-sprite-wrap">
+                    <img class="st-sprite" src="${ASSETS.front(p)}" alt="${esc(S.n || '')}">
+                  </div>
+                  <div class="st-mon-name">${esc(S.n || '')}</div>
+                  <div class="st-types">${tagsHtml}</div>
+                  <button type="button" class="st-pick-btn">Choisir</button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          <div class="st-footer">
+            <button type="button" class="st-cancel-btn">Refermer la capsule ✕</button>
+          </div>
+        </div>
+      `;
+      this.ui.root.appendChild(wrap);
+
+      let cur = 0;
+      const cards = Array.from(wrap.querySelectorAll('.st-card'));
+      const setCur = (idx, playCry = false) => {
+        cur = (idx + picks.length) % picks.length;
+        cards.forEach((c, k) => c.classList.toggle('on', k === cur));
+        if (playCry && picks[cur]) {
+          try { this.sound.cry(ASSETS.cry(picks[cur])); } catch (e) {}
+        }
+      };
+
+      let done = false;
+      const finish = (val) => {
+        if (done) return;
+        done = true;
+        pop();
+        wrap.remove();
+        resolve(val);
+      };
+
+      cards.forEach((card) => {
+        const idx = +card.dataset.idx;
+        card.addEventListener('mouseenter', () => {
+          if (cur !== idx) setCur(idx, true);
+        });
+        card.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.sound.sfx('select');
+          finish(idx);
+        });
+      });
+
+      wrap.querySelector('.st-cancel-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.sound.sfx('cancel');
+        finish(null);
+      });
+
+      const pop = this.ui.input.push((k) => {
+        if (k === 'left' || k === 'up') {
+          this.sound.sfx('blip');
+          setCur(cur - 1, true);
+        } else if (k === 'right' || k === 'down') {
+          this.sound.sfx('blip');
+          setCur(cur + 1, true);
+        } else if (k === 'a') {
+          this.sound.sfx('select');
+          finish(cur);
+        } else if (k === 'b') {
+          this.sound.sfx('cancel');
+          finish(null);
+        }
+      });
+
+      try { this.sound.cry(ASSETS.cry(picks[0])); } catch (e) {}
+    });
+  }
+
+async chooseStarter(sp, cap) {
     const st = this.state, ui = this.ui;
     if (st.flags.starter) { await ui.say('C\'est une capsule vide.'); return; }
     // on n'ouvre pas les capsules du professeur sans lui avoir parlé
     if (!st.flags.metProf) { await ui.say('Il y a une créature dans cette capsule... Mieux vaut d\'abord parler au Professeur Saule.'); return; }
-    // la capsule d'un type : deux partenaires au choix
+    // la capsule d'un type : deux ou trois partenaires au choix
     const C = STARTER_CHOICES[cap ?? Math.max(0, STARTERS.indexOf(sp))], picks = C.lines.map((l) => l[0]);
     const ORIG = picks.length === 3 ? ['Odyssée', 'Kanto', 'Johto'] : ['Kanto', 'Johto'];
-    const pic = el('div', 'box starter-pic starter-trio', picks.map((p, k) => `<figure data-k="${k}"><img src="${ASSETS.front(p)}" alt=""><figcaption>${esc(SPECIES[p].n)}<small>${ORIG[k]}</small></figcaption></figure>`).join(''));
-    ui.root.appendChild(pic);
-    const mark = (k) => pic.querySelectorAll('figure').forEach((f, j) => f.classList.toggle('on', j === k));
-    mark(0);
-    await ui.say(`Une capsule de type ${TYPE_FR[C.type]}. ${picks.length === 3 ? 'Trois' : 'Deux'} créatures te regardent...`, { keep: true, speaker: 'Prof. Saule' });
-    const k = await ui.list({ title: `Capsule ${TYPE_FR[C.type]}`, items: picks.map((p, j) => ({ label: SPECIES[p].n, right: ORIG[j] })).concat([{ label: 'Refermer' }]), cls: 'shop', cancel: picks.length, onMove: (j) => { if (j < picks.length) { mark(j); this.sound.cry(ASSETS.cry(picks[j])); } } });
-    if (k < 0 || k >= picks.length) { pic.remove(); ui.closeDialog(); return; }
-    sp = picks[k]; mark(k);
+
+    while (true) {
+      const chosenIdx = await this.promptStarterChoice(C, picks, ORIG);
+      if (chosenIdx == null || chosenIdx < 0 || chosenIdx >= picks.length) {
+        ui.closeDialog();
+        return;
+      }
+      sp = picks[chosenIdx];
+      const S = SPECIES[sp];
+      const typeStr = S.t.map((t) => TYPE_FR[t] || t).join('/');
+      const ok = await ui.yesNo(`Tu veux ${S.n}, la créature de type ${typeStr} ?`, { speaker: 'Prof. Saule' });
+      if (!ok) continue;
+      break;
+    }
     const S = SPECIES[sp];
-    const ok = await ui.yesNo(`Tu veux ${S.n}, la créature de type ${TYPE_FR[S.t[0]]} ?`, { speaker: 'Prof. Saule' });
-    pic.remove();
-    if (!ok) return;
     const mon = createMon(sp, 5, { ot: st.name, met: 'Bourg-Aube', shiny: false });
     st.party.push(mon); st.flags.starter = sp; this.markCaught(sp);
     this.sound.sfx('caught');
@@ -2333,7 +2651,8 @@ export class Game {
     await ui.say(['Alors je prends celle-là !', `${SPECIES[rs].n} ! Il a une tête de gagnant, comme moi.`], { speaker: RIVAL_NAME });
     if (rival) rival.dir = 'left';
     await ui.say(['Hé, ' + st.name + ' ! On a nos créatures, alors...', 'On se fait un petit combat ? Allez !'], { speaker: RIVAL_NAME });
-    const res = await this.runBattle({ trainer: { cls: 'Rival', name: RIVAL_NAME, prize: 30, bs: 'theo', ai: 'normal', friendly: true, lose: 'Quoi ?! J\'aurais dû choisir l\'autre !' }, party: [createMon(rs, 5, { ot: RIVAL_NAME })], music: 'rival', rival: true, noWhiteout: true });   // premier combat : à armes égales (même niveau, IA simple)
+    const rivalMon = createMon(rs, 5, { ot: RIVAL_NAME, iv: [10, 10, 10, 10, 10, 10], moves: SPECIES[rs].ls.filter(([l]) => l <= 1).map(([, id]) => id) });
+    const res = await this.runBattle({ trainer: { cls: 'Rival', name: RIVAL_NAME, prize: 30, bs: 'theo', ai: 'normal', friendly: true, lose: 'Quoi ?! J\'aurais dû choisir l\'autre !' }, party: [rivalMon], music: 'rival', rival: true, noWhiteout: true });   // premier combat : à armes égales (même niveau, IA simple)
     for (const m of st.party) healFull(m);
     st.flags.rival1 = true;
     await ui.say(res === 'win' ? 'Pfff... Bon, c\'était juste un échauffement !' : 'Ha ha ! Je suis trop fort ! Mais t\'inquiète, tu t\'améliores déjà.', { speaker: RIVAL_NAME });
@@ -2396,7 +2715,7 @@ export class Game {
       this.busy = false; return true;
     };
     // Théo t'attend sur la Route 2 une fois ton premier badge en poche (sa réplique et son équipe vont avec)
-    if (name === 'rival2' && st.badges[0]) return rivalFight('rival2', (R) => [[1010, 11], [1013, 11], [R[0], 13]], 'Grr... Tu as eu de la chance !', [`${st.name} ! Tu as déjà ton premier badge ?`, 'Moi aussi, évidemment. Voyons qui a le plus progressé !'], ['Je vais m\'entraîner dans le Bois Murmure.', 'La prochaine fois, je ne perdrai pas !']);
+    if (name === 'rival2' && st.badges[0]) return rivalFight('rival2', (R) => [[1010, 9], [1013, 9], [R[0], 11]], 'Grr... Tu as eu de la chance !', [`${st.name} ! Tu as déjà ton premier badge ?`, 'Moi aussi, évidemment. Voyons qui a le plus progressé !'], ['Je vais m\'entraîner dans le Bois Murmure.', 'La prochaine fois, je ne perdrai pas !']);
     if (name === 'rival3') return rivalFight('rival3', (R) => [[1011, 27], [1034, 26], [1021, 26], [R[1], 29]], 'Encore ?! Tes créatures sont devenues sacrément fortes...', ['Tiens, tiens... Le grand voyageur !', 'Floralia, c\'est ma ville porte-bonheur. Prépare-toi !'], ['Flora t\'attend à l\'Arène. Moi, je file vers l\'est.', 'On se retrouvera tout en haut, à la Ligue !']);
     if (name === 'rival4') return rivalFight('rival4', (R) => [[1012, 36], [1035, 35], [1022, 36], [1019, 36], [R[2], 39]], 'Toi et tes créatures, vous êtes vraiment synchronisés...', [`${st.name} ! Tu vas sur les îles, toi aussi ?`, 'On dit que Drakos a battu tous ceux qui ont osé le défier, sauf Célestine.', 'Avant que tu y ailles, montre-moi si tu es prêt !'], ['Bon. Tu es prêt. Fonce !', 'Moi, je vais m\'entraîner sur la route 10. On se revoit avant la Ligue.']);
     // second rival : l'autre enfant, petit-fils / petite-fille du professeur, recrue des Gardes d'Écaille

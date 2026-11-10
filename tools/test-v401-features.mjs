@@ -6,6 +6,7 @@
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 
 // Setup minimal browser environment mocks for node
 globalThis.location = new URL('http://localhost:3000/index.html');
@@ -56,11 +57,18 @@ globalThis.document = {
 
 console.log('Testing Odyssée v4.01 Features (Animations, Météo & Panthéon)...');
 
+const resolvePath = (p) => {
+  if (fs.existsSync(p)) return p;
+  if (fs.existsSync(path.join('arcadia', p))) return path.join('arcadia', p);
+  if (fs.existsSync(path.join('..', p))) return path.join('..', p);
+  return p;
+};
+
 // ============================================================================
 // 1. Test Feature 1: Advanced Major Move Animations (BattleView)
 // ============================================================================
 {
-  const bvSrc = fs.readFileSync('odyssee/js/ui/battleView.js', 'utf8');
+  const bvSrc = fs.readFileSync(resolvePath('odyssee/js/ui/battleView.js'), 'utf8');
 
   // Verify all 8 methods exist
   const requiredMethods = [
@@ -101,7 +109,7 @@ console.log('Testing Odyssée v4.01 Features (Animations, Météo & Panthéon)..
 // 2. Test Feature 2: Dynamic World Map Weather (WeatherSystem)
 // ============================================================================
 {
-  const weatherSrc = fs.readFileSync('odyssee/js/render/weather3d.js', 'utf8');
+  const weatherSrc = fs.readFileSync(resolvePath('odyssee/js/render/weather3d.js'), 'utf8');
   assert.ok(weatherSrc.includes('class WeatherSystem'), 'weather3d.js must declare WeatherSystem');
   assert.ok(weatherSrc.includes('setWeather(w)'), 'WeatherSystem must implement setWeather');
   assert.ok(weatherSrc.includes('update(dt,'), 'WeatherSystem must implement update');
@@ -110,14 +118,14 @@ console.log('Testing Odyssée v4.01 Features (Animations, Météo & Panthéon)..
   assert.ok(weatherSrc.includes("this.current === 'sandstorm'"), 'WeatherSystem must handle sandstorm physics');
 
   // Verify integration in world3d.js
-  const worldSrc = fs.readFileSync('odyssee/js/render/world3d.js', 'utf8');
+  const worldSrc = fs.readFileSync(resolvePath('odyssee/js/render/world3d.js'), 'utf8');
   assert.ok(worldSrc.includes("import { WeatherSystem } from './weather3d.js'"), 'world3d.js must import WeatherSystem');
   assert.ok(worldSrc.includes('this.weather = new WeatherSystem'), 'world3d.js must instantiate WeatherSystem');
   assert.ok(worldSrc.includes('this.weather?.update'), 'world3d.js must update WeatherSystem in main loop');
   assert.ok(worldSrc.includes('setWeather(w) { this.weather?.setWeather(w); }'), 'world3d.js must expose setWeather');
 
   // Verify integration in game.js
-  const gameSrc = fs.readFileSync('odyssee/js/game.js', 'utf8');
+  const gameSrc = fs.readFileSync(resolvePath('odyssee/js/game.js'), 'utf8');
   assert.ok(gameSrc.includes('this.view?.setWeather(this.getMapWeather())'), 'game.js updateZone must set weather from map');
 
   console.log('✔ Dynamic World Map Weather system code and integration verified 100%');
@@ -178,7 +186,7 @@ console.log('Testing Odyssée v4.01 Features (Animations, Météo & Panthéon)..
   assert.ok(pDom.innerHTML.includes('Dracaufeu'), 'Must render winning Pokémon name');
 
   // Verify ending() in game.js records to st.hof
-  const gameSrc = fs.readFileSync('odyssee/js/game.js', 'utf8');
+  const gameSrc = fs.readFileSync(resolvePath('odyssee/js/game.js'), 'utf8');
   assert.ok(gameSrc.includes('st.hof.push(entry)'), 'game.js ending must persist entry into st.hof');
   assert.ok(gameSrc.includes('await hofScreen(this, entry)'), 'game.js ending must trigger ceremonial hofScreen');
 

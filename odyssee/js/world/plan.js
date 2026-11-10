@@ -18,9 +18,9 @@ export const BLOC = 24, COLS = 50, ROWS = 58, LARGEUR = COLS * BLOC, HAUTEUR = R
 
 /** les villes (lettre de la ville dans region.js / sud.js) */
 export const VILLES = {
-  A: { bx: 1, by: 22, bw: 4, bh: 3, cx: 28, cy: 24, theme: 'aube', devise: 'Là où chaque aventure commence.', quartiers: { maisons: 4, parc: 1, place: 0, marche: 1, jardins: 2, ferme: 2 },
+  A: { bx: 1, by: 22, bw: 4, bh: 3, cx: 28, cy: 24, theme: 'aube', devise: 'Là où chaque aventure commence.', toits: ['red', 'orange'], arbres: ['cerisier', 'pommier'], rue: 2, quartiers: { maisons: 4, parc: 1, place: 0, marche: 1, jardins: 2, ferme: 2 },
     sorties: [{ dir: 'n', k: 42, vers: 'r1' }, { dir: 'e', k: 34, vers: 'r10', garde: 'garde10' }] },
-  B: { bx: 1, by: 13, bw: 7, bh: 6, cx: 57, cy: 50, theme: 'sylve', devise: 'La ville où murmurent les feuilles.', arbres: ['erable', 'cerisier', 'erable'], quartiers: { maisons: 8, parc: 2, place: 1, marche: 1, jardins: 2 },
+  B: { bx: 1, by: 13, bw: 7, bh: 6, cx: 57, cy: 50, theme: 'sylve', devise: 'La ville où murmurent les feuilles.', arbres: ['pin', 'erable'], toits: ['green', 'teal', 'brown'], rue: 6, quartiers: { maisons: 4, parc: 1, place: 1, marche: 1, jardins: 1 },
     sorties: [{ dir: 'n', k: 60, vers: 'r2', garde: 'garde' }, { dir: 's', k: 42, vers: 'r1' }] },
   C: { bx: 3, by: 2, bw: 6, bh: 4, cx: 42, cy: 12, theme: 'pierre', devise: 'Une ville taillée dans la montagne.', quartiers: { maisons: 6, parc: 1, place: 1, marche: 1, jardins: 0 },
     sorties: [{ dir: 's', k: 100, vers: 'bois' }, { dir: 'e', k: 40, vers: 'r3' }, { dir: 'n', k: 86, vers: 'mine' }] },

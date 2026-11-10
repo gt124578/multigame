@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Fief Maudit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Alegreya+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="fief.css">
+</head>
+<body>
+<div id="stage"></div>
+
+<div id="loading">
+  <div class="crest"><svg viewBox="0 0 64 72" aria-hidden="true"><path d="M32 3 58 12v22c0 17-11 28-26 35C17 62 6 51 6 34V12Z" fill="#3a2614" stroke="#d9b36a" stroke-width="3"/><path d="M20 46 32 20l12 26M24 38h16" fill="none" stroke="#e8c27a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  <h1>Fief Maudit</h1>
+  <p id="loadTxt">La brume se lève sur la vallée…</p>
+  <div class="bar"><i id="loadBar"></i></div>
+</div>
+
+<div id="hud" hidden>
+  <div class="vig"></div>
+  <div class="tl">
+    <div class="day" id="dayChip"><i class="ico sun" id="dayIco"></i><span id="day">Jour 1</span><small id="clock"></small></div>
+    <ul class="stock">
+      <li id="sBois" title="Bois"><i class="ico wood"></i><b>0</b></li>
+      <li id="sPoutre" class="off" title="Poutres"><i class="ico beam"></i><b>0</b></li>
+      <li id="sVivres" class="off" title="Vivres"><i class="ico food"></i><b>0</b></li>
+    </ul>
+  </div>
+  <div class="vitals">
+    <div class="hpbar" id="hpBar"><i></i><span id="hpTxt">100</span></div>
+    <div class="foodbar" id="foodBar" title="Faim : mange à l'entrepôt (E)"><i class="ico food"></i><b><i></i></b></div>
+    <div class="abil" id="abil" title="Capacité du métier (F)"><kbd>F</kbd><b id="abName"></b><i id="abCd"></i></div>
+    <div class="wallbar" id="wallBar" hidden><small>Entrepôt</small><i><b></b></i></div>
+  </div>
+  <div class="banner" id="banner" hidden></div>
+  <div class="bossbar" id="bossBar" hidden><small>Chevalier noir</small><i><b></b></i></div>
+  <div class="downbox" id="downBox" hidden><b>À terre</b><span id="downTxt"></span><i class="ring"><i id="downRing"></i></i></div>
+  <div class="goal" id="goal"><small>Objectif</small><b id="goalTxt"></b><span id="goalHint"></span></div>
+  <div class="prompt" id="prompt" hidden><kbd id="pKey">E</kbd><span id="pTxt"></span><i class="hp" id="pHp" hidden><i></i></i></div>
+  <div class="carry" id="carry" hidden><i class="ico wood"></i><span>Tu portes une bûche</span></div>
+  <div class="toast" id="toast"></div>
+  <div class="lockhint" id="lockHint" hidden>Clique pour reprendre la main</div>
+  <div class="tr"><button class="icon" id="btnSet" title="Réglages : son, graphismes, souris" aria-label="Réglages">⚙</button><button class="icon" id="btnMenu" title="Menu (Échap)" aria-label="Menu">☰</button></div>
+  <div class="stick" id="stick" hidden><i></i></div>
+  <div class="tbtns">
+    <button data-a="jump" aria-label="Sauter">Saut</button>
+    <button data-a="use" aria-label="Utiliser">E</button>
+    <button data-a="ability" id="tAbility" aria-label="Capacité du métier">F</button>
+    <button data-a="fire" class="big" aria-label="Frapper">Hache</button>
+  </div>
+</div>
+
+<div id="screen" class="screen" hidden></div>
+
+<script src="../shared/bridge.js"></script>
+<script src="../shared/volume.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

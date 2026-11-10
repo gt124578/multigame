@@ -20,6 +20,31 @@ export function installSocial(game) {
   game.link = link;
   const tags = el('div', 'peer-tags'); game.ui.root.appendChild(tags);
   const tagEls = new Map();
+  const bubbles = new Map(); // id -> { el, until, targetId }
+  game.clearSpeechBubbles = () => { for (const b of bubbles.values()) b.el?.remove(); bubbles.clear(); };
+
+  game.showSpeechBubble = (targetId, text, emote) => {
+    let b = bubbles.get(targetId);
+    if (!b) {
+      const bEl = el('div', 'speech-bubble');
+      tags.appendChild(bEl);
+      b = { el: bEl, until: 0, targetId };
+      bubbles.set(targetId, b);
+    }
+    const name = targetId === 'me' ? (game.state?.name || 'Moi') : (link.nameOf(targetId) || 'Dresseur');
+    b.el.innerHTML = `
+      <div class="bubble-sender">${esc(name)}</div>
+      <div class="bubble-body">
+        ${emote ? `<span class="bubble-emote">${esc(emote)}</span>` : ''}
+        ${text ? `<span class="bubble-text">${esc(text)}</span>` : ''}
+      </div>
+      <div class="bubble-tail"></div>
+    `;
+    b.el.classList.remove('fade');
+    b.el.style.display = '';
+    b.until = performance.now() + 4500;
+    try { (game.sound || game.ui?.sound)?.sfx?.('blip'); } catch (e) {}
+  };
 
   link.me = () => {
     if (!game.state || !game.player || !game.mapObj) return null;
@@ -32,6 +57,12 @@ export function installSocial(game) {
     };
   };
   link.onRequest = (from, m) => onRequest(game, from, m);
+  link.onChat = (from, m) => {
+    if (!m) return;
+    const text = typeof m.text === 'string' ? m.text.slice(0, 40) : '';
+    const emote = typeof m.emote === 'string' ? m.emote.slice(0, 8) : '';
+    if (text || emote) game.showSpeechBubble(from, text, emote);
+  };
   // fiche demandée par un autre joueur : réponse automatique, sans interrompre la partie
   link.onCard = () => (game.state ? trainerCard(game.state) : null);
   game.talkToPeer = (peer) => talkToPeer(game, peer);
@@ -73,6 +104,8 @@ export function installSocial(game) {
   game.drawTags = (show = true) => {
     tags.style.display = show ? '' : 'none';
     if (!show) return;
+    const v = game.view, mapId = game.mapObj?.id;
+    if (!v || !mapId) return;
     const live = new Set();
     for (const o of link.others.values()) {
       if (o.map !== game.mapObj.id) continue;
@@ -92,6 +125,31 @@ export function installSocial(game) {
       t.style.transform = `translate(${Math.round(pos.left)}px, ${Math.round(pos.top)}px) translate(-50%, -100%)`;
     }
     for (const [id, t] of tagEls) if (!live.has(id)) { t.remove(); tagEls.delete(id); }
+
+    // Positionnement des bulles de dialogue flottantes
+    const now = performance.now();
+    for (const [targetId, b] of bubbles) {
+      if (now > b.until) {
+        b.el.classList.add('fade');
+        if (now > b.until + 500) { b.el.remove(); bubbles.delete(targetId); continue; }
+      }
+      let x, y;
+      if (targetId === 'me') {
+        const p = game.player;
+        if (!p) continue;
+        x = p.move ? p.move.tx : p.x;
+        y = p.move ? p.move.ty : p.y;
+      } else {
+        const o = link.others.get(String(targetId));
+        if (!o || o.map !== mapId) { b.el.style.display = 'none'; continue; }
+        x = o.dx;
+        y = o.dy;
+      }
+      const bPos = v.screenPos(x, y, 52);
+      if (!bPos) { b.el.style.display = 'none'; continue; }
+      b.el.style.display = '';
+      b.el.style.transform = `translate(${Math.round(bPos.left)}px, ${Math.round(bPos.top)}px) translate(-50%, -100%)`;
+    }
   };
 
   /** un autre joueur sur la case visée ? */

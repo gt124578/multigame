@@ -1,31 +1,40 @@
 // The Backrooms (Level 1) - L'habillage de l'entrepôt : rayonnages à palettes (échelles bleues percées, lisses orange,
 // croisillons, planchers grillagés), marchandises sur palettes (cartons, films étirables, fûts, sacs de ciment, bacs),
-// tuyaux et gaines au plafond, réglettes suspendues, lignes peintes au sol, flaques, piliers balisés et numérotés,
-// panneaux d'allée. Tout est dessiné dans le code (textures au canvas, palettes en planches de kart/tex/, Poly Haven CC0)
-// et tiré d'une graine propre à la carte : chacun voit le même entrepôt.
+// plafond à caissons, tuyaux, gaines de ventilation et grilles, réglettes suspendues, lignes peintes au sol, flaques,
+// piliers balisés et numérotés, panneaux d'allée ; aux murs, postes d'incendie, coffrets électriques, caméras, horloges et
+// quais condamnés. Dessiné dans le code (textures au canvas, palettes en planches de kart/tex/) ou tiré des modèles
+// Poly Haven (CC0) de backrooms/models/, et tiré d'une graine propre à la carte : chacun voit le même entrepôt.
 import * as THREE from '../../shared/vendor/three/three.module.min.js';
 import { mergeGeometries } from '../../shared/vendor/three/BufferGeometryUtils.js';
 import { CELL_SIZE, T } from '../engine/map.js';
+import { loadKit } from './kit.js';
 
 const KART_TEX = new URL('../../kart/tex/', import.meta.url).href;
 const C = CELL_SIZE;
 
+// toiles deux fois plus fines que leur dessin (comme les petites textures du Level 0) : cartons, étiquettes, fûts,
+// pochoirs et panneaux restent nets de près
 function canvas(w, h = w) {
   const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  return [c, c.getContext('2d')];
+  c.width = w * 2;
+  c.height = h * 2;
+  const ctx = c.getContext('2d');
+  ctx.setTransform(2, 0, 0, 2, 0, 0);
+  return [c, ctx];
 }
 
 function tex(c) {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.anisotropy = 4;
+  t.anisotropy = 8;
   return t;
 }
 
 function grain(ctx, w, h, amount, rnd) {
+  // sur toute la toile (dessinée à l'échelle 2)
+  w = ctx.canvas.width;
+  h = ctx.canvas.height;
   const d = ctx.getImageData(0, 0, w, h);
   for (let i = 0; i < d.data.length; i += 4) {
     const n = (rnd() - 0.5) * amount;
@@ -357,22 +366,6 @@ function makeTextures(rnd) {
     out.stain = new THREE.CanvasTexture(cv);
   }
 
-  // Tôle galvanisée des gaines, avec la bride au bout de chaque tronçon
-  {
-    const [cv, ctx] = canvas(128);
-    ctx.fillStyle = '#8b9094';
-    ctx.fillRect(0, 0, 128, 128);
-    grain(ctx, 128, 128, 22, rnd);
-    for (let i = 0; i < 20; i++) {
-      ctx.fillStyle = `rgba(255,255,255,${rnd() * 0.12})`;
-      ctx.fillRect(rnd() * 128, rnd() * 128, 30 + rnd() * 60, 2 + rnd() * 6);
-    }
-    ctx.fillStyle = 'rgba(30,32,34,0.6)';
-    ctx.fillRect(0, 0, 4, 128);
-    ctx.fillRect(124, 0, 4, 128);
-    out.duct = tex(cv);
-  }
-
   // Bois des palettes : la photo des planches de kart/tex/, éclaircie (canvas en attendant)
   {
     const [cv, ctx] = canvas(256);
@@ -391,7 +384,115 @@ function makeTextures(rnd) {
     };
     img.src = KART_TEX + 'planks.jpg';
   }
+
+  // Repères de zone peints au pochoir sur les murs (« ZONE » et une lettre-chiffre, de A1 à D4) : 16 sur une planche
+  // 4 × 4, peinture blanche un peu passée, écaillée
+  {
+    const [cv, ctx] = canvas(1024, 512);
+    ctx.clearRect(0, 0, 1024, 512);
+    for (let k = 0; k < 16; k++) {
+      const ox = (k % 4) * 256;
+      const oy = Math.floor(k / 4) * 128;
+      stencil(ctx, 'ZONE', ox + 128, oy + 26, 24, 'rgba(232,230,220,0.82)', rnd);
+      stencil(ctx, `${'ABCD'[k >> 2]}${(k & 3) + 1}`, ox + 128, oy + 80, 76, 'rgba(232,230,220,0.88)', rnd);
+    }
+    out.zones = tex(cv);
+  }
+
+  // Poste d'extincteur : le panneau rouge carré au pictogramme blanc (planche de gauche) et le fond peint en rouge
+  // derrière l'appareil, cerné de blanc (planche de droite)
+  {
+    const [cv, ctx] = canvas(256, 128);
+    ctx.fillStyle = '#b3201a';
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(6, 6, 116, 116);
+    ctx.fillStyle = '#f4f1ea';
+    // l'extincteur : le corps, l'épaule, la tête, le tuyau
+    ctx.beginPath();
+    ctx.roundRect(46, 42, 30, 62, 8);
+    ctx.fill();
+    ctx.fillRect(54, 30, 14, 14);
+    ctx.fillRect(48, 26, 30, 6);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#f4f1ea';
+    ctx.beginPath();
+    ctx.moveTo(76, 30);
+    ctx.quadraticCurveTo(96, 34, 92, 70);
+    ctx.stroke();
+    // la flamme, à droite
+    ctx.beginPath();
+    ctx.moveTo(98, 104);
+    ctx.quadraticCurveTo(84, 92, 96, 76);
+    ctx.quadraticCurveTo(98, 88, 104, 84);
+    ctx.quadraticCurveTo(116, 96, 98, 104);
+    ctx.fill();
+    // le fond rouge du poste : un aplat cerné d'un filet blanc, la peinture un peu usée
+    ctx.fillStyle = '#a61d17';
+    ctx.fillRect(128, 0, 128, 128);
+    ctx.strokeStyle = 'rgba(240,236,228,0.85)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(131, 2, 122, 124);
+    for (let i = 0; i < 90; i++) {
+      ctx.fillStyle = `rgba(${rnd() < 0.5 ? '40,10,8' : '220,120,110'},${rnd() * 0.18})`;
+      ctx.fillRect(128 + rnd() * 128, rnd() * 128, 1 + rnd() * 6, 1 + rnd() * 3);
+    }
+    out.fire = tex(cv);
+  }
+
+  // Siphon de sol : une grille de fonte carrée dans son cadre, un peu de rouille au fond des fentes
+  {
+    const [cv, ctx] = canvas(128);
+    ctx.fillStyle = '#3c3e3f';
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = '#56595b';
+    ctx.fillRect(8, 8, 112, 112);
+    for (let i = 0; i < 9; i++) {
+      ctx.fillStyle = '#0d0e0e';
+      ctx.fillRect(18 + i * 11, 18, 5, 92);
+      ctx.fillStyle = 'rgba(110,62,30,0.35)';
+      ctx.fillRect(18 + i * 11, 96, 5, 14);
+    }
+    grain(ctx, 128, 128, 24, rnd);
+    out.drain = tex(cv);
+  }
+
+  // Numéros d'allée peints au sol, à l'entrée de chaque allée (les mêmes que les panneaux suspendus) : 16, en jaune
+  {
+    const [cv, ctx] = canvas(512);
+    ctx.clearRect(0, 0, 512, 512);
+    for (let k = 0; k < 16; k++) {
+      const x = (k % 4) * 128 + 64;
+      const y = Math.floor(k / 4) * 128 + 64;
+      stencil(ctx, String(k + 1).padStart(2, '0'), x, y + 4, 78, 'rgba(222,178,40,0.85)', rnd);
+    }
+    out.floorNum = tex(cv);
+  }
+
+  // Tôle laquée blanche des capots de réglettes, salie de poussière
+  {
+    const [cv, ctx] = canvas(64);
+    ctx.fillStyle = '#d9dcd8';
+    ctx.fillRect(0, 0, 64, 64);
+    grain(ctx, 64, 64, 14, rnd);
+    out.lacquer = tex(cv);
+  }
   return out;
+}
+
+// les UV d'une boîte calées sur le monde : unit mètres par répétition de la texture, sur chaque face
+function boxUV(geo, unit) {
+  const p = geo.attributes.position;
+  const n = geo.attributes.normal;
+  const uv = geo.attributes.uv;
+  for (let i = 0; i < p.count; i++) {
+    const ax = Math.abs(n.getX(i));
+    const ay = Math.abs(n.getY(i));
+    const [u, v] = ax > 0.5 ? [p.getZ(i), p.getY(i)] : ay > 0.5 ? [p.getX(i), p.getZ(i)] : [p.getX(i), p.getY(i)];
+    uv.setXY(i, u / unit, v / unit);
+  }
+  return geo;
 }
 
 // Palette Europe (1,2 m × 1 m × 14 cm) : 3 semelles, 9 dés, planches du dessus et du dessous, en un seul maillage
@@ -411,11 +512,12 @@ function palletGeometry() {
   return mergeGeometries(parts);
 }
 
-export function buildWarehouse({ map, group, baked, CEIL }) {
+export function buildWarehouse({ map, group, baked, CEIL, textures }) {
   const W = map.W;
   const H = map.H;
   const grid = map.grid;
   const at = (x, z) => (x < 0 || z < 0 || x >= W || z >= H ? T.WALL : grid[z * W + x]);
+  const solid = (x, z) => at(x, z) === T.WALL || at(x, z) === T.EXIT;
   let s = 918273 + Math.round(map.spawn.x * 31 + map.spawn.z * 17);
   const rnd = () => {
     s = (s + 0x6d2b79f5) >>> 0;
@@ -426,6 +528,7 @@ export function buildWarehouse({ map, group, baked, CEIL }) {
   };
   const tx = makeTextures(rnd);
   const lambert = (o) => baked(new THREE.MeshLambertMaterial(o));
+  const CH = 4 * C; // un morceau d'entrepôt (10 m de côté) : l'unité du tri des objets à dessiner
 
   // Instances regroupées par maillage : on empile les matrices (et les teintes), on crée les InstancedMesh à la fin
   const bins = new Map();
@@ -433,10 +536,19 @@ export function buildWarehouse({ map, group, baked, CEIL }) {
     if (!bins.has(key)) bins.set(key, { geo, mat, m: [], c: [] });
     return bins.get(key);
   };
-  const tint = new THREE.Color();
   const push = (b, m, shade = 1) => {
     b.m.push(m);
     b.c.push(shade);
+  };
+  // les modèles Poly Haven (CC0, backrooms/models/) posés un par un : kit → morceau ('*' : tous) → matrices et teintes
+  // (l'ombre sous les rayonnages) ; ils sont chargés à la fin et rangés comme le reste par morceau d'entrepôt
+  const kits = new Map();
+  const kp = (kit, piece, m, shade = 1) => {
+    if (!kits.has(kit)) kits.set(kit, new Map());
+    const k = kits.get(kit);
+    if (!k.has(piece)) k.set(piece, { m: [], c: [] });
+    k.get(piece).m.push(m);
+    k.get(piece).c.push(shade);
   };
   const dummy = new THREE.Object3D();
   dummy.rotation.order = 'YXZ';
@@ -482,7 +594,7 @@ export function buildWarehouse({ map, group, baked, CEIL }) {
     const y0 = y + 0.144;
     const r = rnd();
     if (r < 0.08 || hb < 0.3) return; // palette vide
-    const kind = r < 0.42 ? 'carton' : r < 0.58 ? 'wrap' : r < 0.72 ? 'drum' : r < 0.86 ? 'sack' : 'tote';
+    const kind = r < 0.35 ? 'carton' : r < 0.42 ? 'model' : r < 0.58 ? 'wrap' : r < 0.72 ? 'drum' : r < 0.86 ? 'sack' : 'tote';
     if (kind === 'carton' || kind === 'wrap') {
       const sizes = [[0.38, 0.3, 0.32], [0.57, 0.4, 0.48], [0.39, 0.36, 0.49], [0.58, 0.28, 0.32]];
       const [bx, by, bz] = sizes[Math.floor(rnd() * sizes.length)];
@@ -501,14 +613,46 @@ export function buildWarehouse({ map, group, baked, CEIL }) {
         }
       }
       if (kind === 'wrap') push(wrapB, L(lx, y0 + (ny * by) / 2, lz, nx * bx + 0.03, ny * by + 0.02, nz * bz + 0.03), shade);
+    } else if (kind === 'model') {
+      // des modèles Poly Haven : caisses de bois clouées, grands bacs de plastique, sacs de terreau (détaillés : on en
+      // met peu, ailleurs la palette reste vide)
+      const m = rnd();
+      if (m < 0.4 && hb > 0.5) {
+        const n = hb > 0.98 && rnd() < 0.6 ? 2 : 1;
+        for (let j = 0; j < n; j++) kp('wooden_crate_02', 'wooden_crate_02_crate', L(lx, y0 + j * 0.45, lz, 1, 1, 1, Math.PI / 2 + (rnd() - 0.5) * 0.05), shade);
+        if (rnd() < 0.7) kp('wooden_crate_02', 'wooden_crate_02_lid', L(lx, y0 + n * 0.45 + 0.03, lz, 1, 1, 1, Math.PI / 2 + (rnd() - 0.5) * 0.08), shade);
+      } else if (m < 0.7 && hb > 0.45) {
+        const n = hb > 0.9 && rnd() < 0.5 ? 2 : 1;
+        for (let j = 0; j < n; j++) kp('plastic_container', 'plastic_container', L(lx, y0 + j * 0.43, lz, 1, 1, 1, (rnd() - 0.5) * 0.06), shade);
+      } else if (m < 0.85) {
+        const n = rnd() < 0.5 ? 2 : 1;
+        for (let j = 0; j < n; j++) kp('compost_bags', 'compost_bags_floorstacked', L(lx + (rnd() - 0.5) * 0.06, y0 + j * 0.175, lz, 1, 1, 1, (rnd() - 0.5) * 0.12 + (j % 2) * Math.PI), shade);
+      }
     } else if (kind === 'drum') {
-      if (hb < 0.9) return load(lx, y, lz, 0, shade);
+      // des fûts : 76 à 88 cm de place sous la lisse, ils sont un peu plus petits qu'un fût de 200 l
+      if (hb < 0.6) return load(lx, y, lz, 0, shade);
+      if (rnd() < 0.1) {
+        // des fûts d'acier (Poly Haven, barrel_03)
+        const k = Math.min(0.8, (hb - 0.02) / 0.93);
+        for (const [dx, dz] of [[-0.3, -0.25], [0.3, -0.25], [-0.3, 0.25], [0.3, 0.25]]) if (rnd() > 0.15) kp('barrel_03', 'barrel_03', L(lx + dx, y0, lz + dz, 0.8, k, 0.8, rnd() * 6), shade);
+        return;
+      }
       const v = drumB[Math.floor(rnd() * 4)];
+      const dh = Math.min(0.88, hb - 0.02);
       for (const [dx, dz] of [[-0.3, -0.25], [0.3, -0.25], [-0.3, 0.25], [0.3, 0.25]]) {
         if (rnd() < 0.15) continue;
-        push(v, L(lx + dx, y0 + 0.44, lz + dz, 0.56, 0.88, 0.56, rnd() * 6), shade * (0.8 + rnd() * 0.25));
+        push(v, L(lx + dx, y0 + dh / 2, lz + dz, 0.56, dh, 0.56, rnd() * 6), shade * (0.8 + rnd() * 0.25));
       }
     } else if (kind === 'sack') {
+      if (rnd() < 0.08) {
+        // des sacs de ciment (Poly Haven, cement_bag), croisés d'un lit à l'autre
+        const n = Math.min(5, Math.floor((hb * (0.5 + rnd() * 0.5)) / 0.135));
+        for (let j = 0; j < n; j++) {
+          const cross = j % 2 === 1;
+          for (const o of [-0.25, 0.25]) kp('cement_bag', 'cement_bag', L(lx + (cross ? 0 : o * 1.1), y0 + j * 0.135, lz + (cross ? o : 0), 1.05, 0.75, 1.3, (cross ? Math.PI / 2 : 0) + (rnd() - 0.5) * 0.08), shade * (0.85 + rnd() * 0.2));
+        }
+        return;
+      }
       const n = Math.min(7, Math.floor((hb * (0.5 + rnd() * 0.5)) / 0.13));
       for (let j = 0; j < n; j++) {
         const cross = j % 2 === 1;
@@ -632,6 +776,10 @@ export function buildWarehouse({ map, group, baked, CEIL }) {
   const signB = [];
   for (let k = 0; k < 16; k++) signB.push(bin('sign' + k, atlasGeo(new THREE.BoxGeometry(1, 1, 1), (k % 2) / 2, 1 - (Math.floor(k / 2) + 1) / 8, 0.5, 0.125), signMat));
   const rodB = bin('rod', new THREE.BoxGeometry(0.015, 1, 0.015), lambert({ color: '#2a2c2e' }));
+  const decal = (o) => lambert({ transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, ...o });
+  const numMat = decal({ map: tx.floorNum });
+  const numB = [];
+  for (let k = 0; k < 16; k++) numB.push(bin('num' + k, atlasGeo(new THREE.PlaneGeometry(1, 1), (k % 4) / 4, 0.75 - Math.floor(k / 4) / 4, 0.25, 0.25), numMat));
   let aisleN = 0;
   for (let z = 1; z < H - 1; z++) {
     for (let x = 1; x < W - 1; x++) {
@@ -646,6 +794,12 @@ export function buildWarehouse({ map, group, baked, CEIL }) {
         const px = (x + 0.5) * C + ax * (C / 2);
         const pz = (z + 0.5) * C + az * (C / 2);
         const face = ax ? 0 : Math.PI / 2; // la pancarte barre l'entrée de l'allée
+        // son numéro, peint au sol à l'entrée, lisible en y entrant
+        dummy.position.set(px, 0.005, pz);
+        dummy.rotation.set(-Math.PI / 2, ax ? Math.PI : -Math.PI / 2, 0);
+        dummy.scale.set(0.95, 0.95, 1);
+        dummy.updateMatrix();
+        push(numB[aisleN % 16], dummy.matrix.clone());
         const sb = signB[aisleN++ % 16];
         for (const flip of [0, Math.PI]) {
           dummy.position.set(px - az * (C / 2 - 0.3), CEIL - 1.05, pz - ax * (C / 2 - 0.3));
@@ -665,84 +819,499 @@ export function buildWarehouse({ map, group, baked, CEIL }) {
     }
   }
 
-  // --- Réglettes suspendues : carter de tôle et deux chaînettes au-dessus de chaque tube ---
-  const housingB = bin('housing', new THREE.BoxGeometry(1.7, 0.07, 0.24), lambert({ color: '#595e60' }));
-  const chainB = bin('chain', new THREE.BoxGeometry(0.012, 1, 0.012), lambert({ color: '#3a3c3e' }));
+  // --- Les murs : une gaine électrique grise court tout du long à 3 m (colliers, boîtes de dérivation), des repères de
+  // zone peints au pochoir, des postes d'extincteur (fond rouge, panneau, l'appareil au pied). Sur les murs seulement,
+  // pas sur les piliers isolés ; jamais sur la façade d'un ascenseur
+  const lifts = new Set([map.exit && map.exit.gz * W + map.exit.gx, map.arrival && map.arrival.gz * W + map.arrival.gx]);
+  const EC = 'modular_electric_cables'; // (Poly Haven, CC0) : goulotte, attaches, boîtes de dérivation
+  const zoneMat = decal({ map: tx.zones });
+  const zoneB = [];
+  for (let k = 0; k < 16; k++) zoneB.push(bin('zone' + k, atlasGeo(new THREE.PlaneGeometry(1, 1), (k % 4) / 4, 0.75 - Math.floor(k / 4) / 4, 0.25, 0.25), zoneMat));
+  const fireMat = decal({ map: tx.fire });
+  const fireSignB = bin('fireSign', atlasGeo(new THREE.BoxGeometry(1, 1, 1), 0, 0, 0.5, 1), lambert({ map: tx.fire }));
+  const firePanelB = bin('firePanel', atlasGeo(new THREE.PlaneGeometry(1, 1), 0.5, 0, 0.5, 1), fireMat);
+  const stations = [];
+  const shutters = [];
+  const boxes = [];
+  const cams = [];
+  const clocks = [];
+  const far = (list, x, z, d) => list.every((p) => Math.hypot(p[0] - x, p[1] - z) > d);
+  const CY = 3.05; // hauteur de la gaine
+  // posé contre le mur en (x, y, z), tourné de ry, à l'échelle (sx, sy, sz)
+  const wallAt = (x, y, z, ry, sx, sy, sz) => {
+    dummy.position.set(x, y, z);
+    dummy.rotation.set(0, ry, 0);
+    dummy.scale.set(sx, sy, sz);
+    dummy.updateMatrix();
+    return dummy.matrix.clone();
+  };
+  // poste d'extincteur au milieu de la face (fx, fz) d'un mur qui est en (+dx, +dz) : le fond rouge peint, le panneau
+  // au-dessus, l'appareil posé au pied ; alarm : le déclencheur manuel d'alarme incendie à côté, à hauteur de main
+  const station = (fx, fz, dx, dz, alarm) => {
+    const ry = Math.atan2(-dx, -dz);
+    stations.push([fx, fz]);
+    push(firePanelB, wallAt(fx - dx * 0.004, 0.82, fz - dz * 0.004, ry, 0.62, 1.26, 1));
+    push(fireSignB, wallAt(fx - dx * 0.008, 1.78, fz - dz * 0.008, ry, 0.32, 0.32, 0.012));
+    kp('korean_fire_extinguisher_01', '*', new THREE.Matrix4().makeTranslation(fx - dx * 0.17, 0, fz - dz * 0.17).multiply(new THREE.Matrix4().makeRotationY(ry)));
+    if (alarm) kp('fire_alarm', '*', wallAt(fx - dx * 0.002 + dz * 0.58, 1.45, fz - dz * 0.002 + dx * 0.58, ry, 1.25, 1.25, 1.25));
+  };
+  // les déclencheurs d'alarme du jeu (map.alarms, les mêmes chez tout le monde) et les caméras de surveillance qui
+  // alimentent les écrans du poste de garde (map.cams)
+  for (const a of map.alarms || []) station(a.x, a.z, -a.nx, -a.nz, true);
+  for (const c of map.cams || []) {
+    cams.push([c.x, c.z]);
+    kp('security_camera_01', '*', wallAt(c.x, c.y - 0.2, c.z, c.yaw + Math.PI, 1.1, 1.1, 1.1));
+  }
+  const gameCams = !!map.cams;
+  for (let z = 1; z < H - 1; z++) {
+    for (let x = 1; x < W - 1; x++) {
+      if (at(x, z) !== T.FLOOR) continue;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const wx = x + dx;
+        const wz = z + dz;
+        if (at(wx, wz) !== T.WALL || lifts.has(wz * W + wx)) continue;
+        // un mur, pas un pilier : il se prolonge d'un côté ou de l'autre
+        if (!solid(wx + dz, wz + dx) && !solid(wx - dz, wz - dx)) continue;
+        const fx = (x + 0.5) * C + dx * (C / 2); // le milieu de la face
+        const fz = (z + 0.5) * C + dz * (C / 2);
+        const ry = Math.atan2(-dx, -dz); // ce qui est posé dessus regarde la pièce
+        const tx0 = dz; // le long du mur
+        const tz0 = dx;
+        // la gaine électrique contre le mur : quatre longueurs de goulotte par case (le morceau du kit est dressé, couché
+        // ici le long du mur), une attache à chaque raccord, de temps en temps une boîte de dérivation
+        const ax0 = -dz; // le sens du morceau couché (x local tourné de ry)
+        const az0 = dx;
+        for (let i = 0; i < 4; i++) {
+          const o = -C / 2 + i * (C / 4);
+          dummy.position.set(fx - dx * 0.003 + ax0 * o, CY, fz - dz * 0.003 + az0 * o);
+          dummy.rotation.set(0, ry, -Math.PI / 2);
+          dummy.scale.set(1.3, (C / 4) / 0.607, 1.3);
+          dummy.updateMatrix();
+          kp(EC, 'cable_straight_long', dummy.matrix.clone());
+          dummy.scale.set(1.3, 1.3, 1.3);
+          dummy.updateMatrix();
+          kp(EC, 'cable_mount', dummy.matrix.clone());
+        }
+        if (rnd() < 0.16) {
+          const o = (rnd() - 0.5) * 1.2;
+          kp(EC, o > 0 ? 'cable_box_4way' : 'cable_box_double', wallAt(fx - dx * 0.003 + ax0 * o, CY - 0.13, fz - dz * 0.003 + az0 * o, ry, 1.3, 1.3, 1.3));
+        }
+        const r = rnd();
+        if (r < 0.07 && stations.every((p) => Math.hypot(p[0] - fx, p[1] - fz) > 14) && far(cams, fx, fz, 2)) {
+          // un poste d'extincteur sans alarme (les alarmes sont celles du jeu)
+          station(fx, fz, dx, dz, false);
+        } else if (r < 0.105 && (wx === 0 || wz === 0 || wx === W - 1 || wz === H - 1) && far(shutters, fx, fz, 20) && far(stations, fx, fz, 4)) {
+          // un quai de chargement condamné sur le mur d'enceinte : le rideau métallique baissé, son caisson au-dessus
+          shutters.push([fx, fz]);
+          kp('rollershutter_door', rnd() < 0.3 ? 'rollershutter_door_graffiti' : 'rollershutter_door', wallAt(fx - dx * 0.006, 0, fz - dz * 0.006, ry, 2.15, 1.12, 1));
+        } else if (r < 0.125 && far(boxes, fx, fz, 16) && far(stations, fx, fz, 4) && far(shutters, fx, fz, 4) && far(cams, fx, fz, 2)) {
+          // un coffret électrique, sa porte entrouverte
+          boxes.push([fx, fz]);
+          kp('power_box_01', '*', wallAt(fx - dx * 0.05 + tx0 * 0.3, 1.5, fz - dz * 0.05 + tz0 * 0.3, ry, 1, 1, 1));
+        } else if (!gameCams && r < 0.133 && cams.length < 8 && far(cams, fx, fz, 24)) {
+          // une caméra de surveillance, sous la gaine, qui plonge vers l'allée
+          cams.push([fx, fz]);
+          kp('security_camera_01', '*', wallAt(fx - dx * 0.3, 2.62, fz - dz * 0.3, ry, 1.1, 1.1, 1.1));
+        } else if (r < 0.138 && clocks.length < 3 && far(clocks, fx, fz, 30) && far(stations, fx, fz, 4)) {
+          // une horloge arrêtée
+          clocks.push([fx, fz]);
+          kp('wall_clock', '*', wallAt(fx, 2.55, fz, ry, 1.3, 1.3, 1.3));
+        } else if (r > 0.86) {
+          // repère de zone : le quart de l'entrepôt (A à D) et son quart à lui (1 à 4)
+          const qx = x < W / 2 ? 0 : 1;
+          const qz = z < H / 2 ? 0 : 1;
+          const sx = (x % (W / 2)) < W / 4 ? 0 : 1;
+          const sz = (z % (H / 2)) < H / 4 ? 0 : 1;
+          push(zoneB[(qx + qz * 2) * 4 + sx + sz * 2], wallAt(fx - dx * 0.006, 2.45, fz - dz * 0.006, ry, 1.15, 0.58, 1));
+        }
+      }
+    }
+  }
+
+  // --- Siphons de sol dans les grandes allées (une grille de fonte, à plat) ---
+  const drainB = bin('drain', new THREE.PlaneGeometry(0.42, 0.42), decal({ map: tx.drain, transparent: false }));
+  for (let z = 2; z < H - 2; z++) {
+    for (let x = 2; x < W - 2; x++) {
+      if (at(x, z) !== T.FLOOR) continue;
+      let open = true;
+      for (let dz = -1; dz <= 1 && open; dz++) for (let dx = -1; dx <= 1; dx++) if (at(x + dx, z + dz) !== T.FLOOR) open = false;
+      if (!open || rnd() > 0.025) continue;
+      dummy.position.set((x + 0.5) * C, 0.004, (z + 0.5) * C);
+      dummy.rotation.set(-Math.PI / 2, Math.floor(rnd() * 4) * (Math.PI / 2), 0);
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix();
+      push(drainB, dummy.matrix.clone());
+    }
+  }
+
+  // --- Réglettes suspendues : un capot de tôle laquée blanche en auge au-dessus des deux tubes (dessus, deux flancs
+  // évasés, deux embouts, les douilles), pendu à deux chaînettes. Les tubes eux-mêmes sont dans scene.js (ils
+  // s'allument, grésillent, meurent)
+  const TY = CEIL - 0.45; // l'axe des tubes
+  const capGeo = (() => {
+    const parts = [];
+    const box = (sx, sy, sz, x, y, z, rx = 0) => {
+      const g = new THREE.BoxGeometry(sx, sy, sz);
+      if (rx) g.rotateX(rx);
+      g.translate(x, y, z);
+      parts.push(g);
+    };
+    box(1.62, 0.012, 0.15, 0, 0.05, 0);
+    for (const sz of [-1, 1]) box(1.62, 0.075, 0.006, 0, 0.012, sz * 0.09, -sz * 0.5);
+    for (const sx of [-1, 1]) {
+      box(0.012, 0.07, 0.17, sx * 0.81, 0.016, 0);
+      for (const z of [-0.045, 0.045]) box(0.03, 0.03, 0.036, sx * 0.765, 0.002, z); // douilles
+    }
+    return mergeGeometries(parts);
+  })();
+  const housingB = bin('housing', capGeo, lambert({ map: tx.lacquer }));
+  const chainB = bin('chain', new THREE.BoxGeometry(0.01, 1, 0.01), lambert({ color: '#3a3c3e' }));
+  const chainLen = CEIL - (TY + 0.056);
   for (const l of map.lights) {
     dummy.rotation.set(0, 0, 0);
-    dummy.position.set(l.x, CEIL - 0.39, l.z);
+    dummy.position.set(l.x, TY, l.z);
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
     push(housingB, dummy.matrix.clone());
-    for (const o of [-0.65, 0.65]) {
-      dummy.position.set(l.x + o, CEIL - 0.18, l.z);
-      dummy.scale.set(1, 0.36, 1);
+    for (const o of [-0.6, 0.6]) {
+      dummy.position.set(l.x + o, CEIL - chainLen / 2, l.z);
+      dummy.scale.set(1, chainLen, 1);
       dummy.updateMatrix();
       push(chainB, dummy.matrix.clone());
     }
   }
 
-  // --- Réseaux au plafond : tuyaux le long de x (eau grise, sprinklers rouges, gaz vert), gaines le long de z ---
+  // --- Plafond à caissons : la dalle porte sur des poutres de béton coulées avec elle. Les principales (40 cm de
+  // retombée) courent le long de z toutes les 3 cases, les secondaires (30 cm) le long de x toutes les 2 cases : les
+  // réglettes pendent au milieu des caissons, les gaines passent dessous, les tuyaux les traversent dans leurs fourreaux
+  const concrete = textures ? textures.ceiling.clone() : null;
+  if (concrete) {
+    concrete.needsUpdate = true;
+    concrete.repeat.set(1, 1);
+    textures.ready.then(() => {
+      concrete.needsUpdate = true;
+    });
+  }
+  // (le dessous et les flancs des poutres reçoivent la lueur qui monte des réglettes voisines)
+  const beamMat = baked(new THREE.MeshLambertMaterial({ map: concrete, color: '#f2f2ee' }), { gloss: 1 });
+  const BD1 = 0.4;
+  const BD2 = 0.3;
+  const beamZ = bin('beamZ', boxUV(new THREE.BoxGeometry(0.42, BD1, C), C), beamMat);
+  const beamX = bin('beamX', boxUV(new THREE.BoxGeometry(C, BD2, 0.32), C), beamMat);
+  const put = (b, x, y, z) => {
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.position.set(x, y, z);
+    dummy.updateMatrix();
+    push(b, dummy.matrix.clone());
+  };
+  for (let gx = 3; gx < W - 1; gx += 3) for (let gz = 1; gz < H - 1; gz++) if (!(solid(gx - 1, gz) && solid(gx, gz))) put(beamZ, gx * C, CEIL - BD1 / 2, (gz + 0.5) * C);
+  for (let gz = 2; gz < H - 1; gz += 2) for (let gx = 1; gx < W - 1; gx++) if (!(solid(gx, gz - 1) && solid(gx, gz))) put(beamX, (gx + 0.5) * C, CEIL - BD2 / 2, gz * C);
+
+  // --- Réseaux au plafond : un faisceau de tuyaux le long de x (l'eau en acier galvanisé, les sprinklers peints en
+  // rouge, le gaz peint en vert), tout en modèles Poly Haven (kit « modular_pipes », CC0) : tronçons bout à bout, un
+  // manchon à chaque raccord, un collier par case et sa tige filetée jusqu'à la dalle (pas au droit d'une poutre), une
+  // vanne sur la conduite des sprinklers. Ils traversent les poutres principales dans leurs fourreaux ; les gaines
+  // passent dessous
   const len = W * C;
+  const MP = 'modular_pipes';
+  const HALF = Math.PI / 2;
+  // r : le diamètre en dixièmes de mètre (celui du kit : 10 cm) ; v : la peinture
   const pipeDefs = [
-    { r: 0.075, dz: 0, dy: 0.28, col: '#6e7477' },
-    { r: 0.05, dz: 0.32, dy: 0.22, col: '#8e2219' },
-    { r: 0.095, dz: 0.66, dy: 0.32, col: '#4b5e47' },
+    { r: 1.5, dz: 0, dy: 0.28, v: '' },
+    { r: 1.0, dz: 0.32, dy: 0.22, v: 'red' },
+    { r: 1.9, dz: 0.66, dy: 0.3, v: 'green' },
   ];
-  const strapB = bin('strap', new THREE.BoxGeometry(1, 0.02, 0.05), lambert({ color: '#3a3c3e' }));
+  // une pièce posée (rotations dans l'ordre y, x, z)
+  const km = (x, y, z, ry, sx, sy, sz, rx = 0, rz = 0) => {
+    dummy.position.set(x, y, z);
+    dummy.rotation.set(rx, ry, rz);
+    dummy.scale.set(sx, sy, sz);
+    dummy.updateMatrix();
+    return dummy.matrix.clone();
+  };
+  const underBeam = (x) => Math.abs(x - Math.round(x / (3 * C)) * 3 * C) < 0.4;
+  const pipeZ = []; // le milieu de chaque faisceau de tuyaux
   for (let gz = 4 + Math.floor(rnd() * 3); gz < H - 2; gz += 9 + Math.floor(rnd() * 4)) {
     const z0 = gz * C + 0.4;
+    pipeZ.push(z0 + 0.38);
     for (const p of pipeDefs) {
-      const b = bin('pipe' + p.col, new THREE.CylinderGeometry(p.r, p.r, 1, 10), lambert({ color: p.col }));
-      dummy.position.set(len / 2, CEIL - p.dy, z0 + p.dz);
-      dummy.rotation.set(0, 0, Math.PI / 2);
-      dummy.scale.set(1, len, 1);
-      dummy.updateMatrix();
-      push(b, dummy.matrix.clone());
+      const sfx = p.v ? '@' + p.v : '';
+      const y = CEIL - p.dy;
+      const z = z0 + p.dz;
+      // le tuyau (le morceau du kit est dressé selon y, de 0 à 2 m : couché le long de x), étiré pour tomber juste
+      const n = Math.ceil(len / 2.4);
+      const seg = len / n;
+      for (let i = 0; i < n; i++) {
+        kp(MP, 'pipe_200cm_metal' + sfx, km(i * seg, y, z, 0, p.r, seg / 2, p.r, 0, -HALF));
+        if (i > 0 && !underBeam(i * seg)) kp(MP, 'pipe_chamber_small_metal' + sfx, km(i * seg - 0.1, y, z, 0, p.r, 1, p.r, 0, -HALF));
+      }
+      // les colliers, un par case, décalés d'un tuyau à l'autre
+      for (let x = C * (0.3 + p.dz); x < len - 0.2; x += C) {
+        if (underBeam(x)) continue;
+        const top = y + 0.1 * p.r;
+        kp(MP, 'pipe_support_metal', km(x, top, z, HALF, p.r, p.r, p.r, HALF));
+        kp(MP, 'pipe_support_extension_long_metal', km(x, CEIL, z, HALF, 0.8, 0.8, (CEIL - top) / 0.3, HALF));
+      }
     }
-    // colliers : une tige et une barre sous les tuyaux, tous les 2,5 m
-    for (let x = C / 2; x < len; x += C) {
-      dummy.rotation.set(0, 0, 0);
-      dummy.position.set(x, CEIL - 0.4, z0 + 0.33);
-      dummy.scale.set(1, 1, 18);
-      dummy.updateMatrix();
-      push(strapB, dummy.matrix.clone());
-      for (const o of [-0.12, 0.8]) {
-        dummy.position.set(x, CEIL - 0.2, z0 + o);
-        dummy.scale.set(1, 0.4, 1);
-        dummy.updateMatrix();
-        push(rodB, dummy.matrix.clone());
+    // la vanne des sprinklers (son volant tourné vers le bas), quelque part sur la longueur
+    let xv = len * (0.25 + rnd() * 0.5);
+    if (underBeam(xv)) xv += 1.2;
+    kp(MP, 'pipe_valve_small_1_metal@red', km(xv, CEIL - pipeDefs[1].dy, z0 + pipeDefs[1].dz, HALF, 1, 1, 1, HALF));
+  }
+  // --- Ventilation (modèles Poly Haven, CC0) : des gaines principales de tôle nervurée le long de z, pendues à des
+  // étriers tous les 1,8 m, des grilles sur leurs flancs ; des branches rondes en partent le long de x (un adaptateur
+  // sur le flanc, des colliers, une bouche au bout) ; des grilles de reprise d'air dans la dalle, entre les poutres.
+  // Tout passe sous les tuyaux et les poutres, au-dessus des rayonnages (3,40 m), et jamais près des ascenseurs
+  const mat4 = (x, y, z, ry = 0, sx = 1, sy = 1, sz = 1, rx = 0) => {
+    dummy.position.set(x, y, z);
+    dummy.rotation.set(rx, ry, 0);
+    dummy.scale.set(sx, sy, sz);
+    dummy.updateMatrix();
+    return dummy.matrix.clone();
+  };
+  const RK = 'modular_airduct_rectangular_01';
+  const CK = 'modular_airduct_circular_01';
+  const DY = CEIL - 0.62; // l'axe des gaines
+  const DS = 0.78; // la gaine du modèle (51 cm) ramenée à 40 cm de haut
+  const SEG = 1.8;
+  const liftCells = [map.exit, map.arrival, map.elevator].filter(Boolean);
+  const nearLift = (x, z) => liftCells.some((c) => Math.abs(Math.floor(x / C) - c.gx) <= 1 && Math.abs(Math.floor(z / C) - c.gz) <= 1);
+  const nearBeamX = (z) => Math.abs(z - Math.round(z / (2 * C)) * 2 * C) < 0.3;
+  const nearBeamZ = (x) => Math.abs(x - Math.round(x / (3 * C)) * 3 * C) < 0.35;
+  const trunks = [];
+  // (les troncs viennent de la carte : l'entité s'y glisse ; jamais dans une colonne de réglettes : la gaine passerait
+  // au travers de leur capot)
+  const trunkX = map.ducts ? map.ducts.trunks : [];
+  if (!map.ducts) for (let gx = 6 + Math.floor(rnd() * 4); gx < W - 3; gx += 13 + Math.floor(rnd() * 5)) trunkX.push((gx % 3 === 1 ? gx + 1 : gx) * C + 1.2);
+  for (const x0 of trunkX) {
+    trunks.push(x0);
+    let n = 0;
+    for (let z = C; z + SEG <= (H - 1) * C + 0.01; z += SEG, n++) {
+      if (nearLift(x0, z) || nearLift(x0, z + SEG)) continue;
+      kp(RK, RK + '_tripple_01', mat4(x0, DY, z, 0, 1, DS, 1));
+      // l'étrier sous la gaine et ses deux tiges jusqu'à la dalle (pas au droit d'une poutre)
+      if (z > C + 0.1 && !nearBeamX(z)) {
+        const yb = DY - 0.26 * DS - 0.03;
+        kp(RK, RK + '_brace_01', mat4(x0, yb, z));
+        kp(RK, RK + '_brace_wire_01', mat4(x0, (yb + CEIL) / 2, z, 0, 1, (CEIL - yb) / 1.1, 1));
+      }
+      // une grille sur un flanc, un tronçon sur trois, d'un côté puis de l'autre
+      if (n % 3 === 1) {
+        const sd = n % 6 === 1 ? 1 : -1;
+        kp(RK, RK + (rnd() < 0.5 ? '_vent_01' : '_vent_02'), mat4(x0 + sd * 0.3, DY, z + SEG / 2, sd * Math.PI / 2, 0.85, 0.85, 1));
       }
     }
   }
-  const ductB = bin('duct', new THREE.BoxGeometry(0.7, 0.45, 1.2), lambert({ map: tx.duct }));
-  for (let gx = 6 + Math.floor(rnd() * 4); gx < W - 3; gx += 13 + Math.floor(rnd() * 5)) {
-    const x0 = gx * C + 1.2;
-    for (let z = 0.6; z < H * C; z += 1.2) {
-      dummy.rotation.set(0, 0, 0);
-      dummy.position.set(x0, CEIL - 0.6, z);
-      dummy.scale.set(1, 1, 1);
-      dummy.updateMatrix();
-      push(ductB, dummy.matrix.clone());
+  // les branches rondes, le long de x, au milieu des rangées de caissons sans réglettes, loin des faisceaux de tuyaux
+  for (const x0 of trunks) {
+    for (let gz = 2; gz < H - 3; gz += 2) {
+      const z = (gz + 0.5) * C;
+      if (rnd() > 0.32 || !pipeZ.every((pz) => Math.abs(pz - z) > 1.6)) continue;
+      const sd = rnd() < 0.5 ? 1 : -1;
+      const xs = x0 + sd * (0.33 + 0.32);
+      const want = 5 + Math.floor(rnd() * 5);
+      let n = 0;
+      while (n < want) {
+        const xe = xs + sd * 1.42 * (n + 1);
+        const cx2 = Math.floor(xe / C);
+        if (solid(cx2, gz) || nearLift(xe, z) || trunks.some((t) => t !== x0 && Math.abs(t - xe) < 1.2)) break;
+        n++;
+      }
+      if (n < 2 || nearLift(x0, z)) continue;
+      kp(CK, 'modular_airduct_rectangular_converter', mat4(x0 + sd * 0.33, DY, z, sd * Math.PI / 2));
+      for (let i = 0; i < n; i++) {
+        const xa = xs + sd * 1.42 * i;
+        kp(CK, 'modular_airduct_circular_triple', mat4(xa, DY, z, sd * Math.PI / 2));
+        const xb = xa + sd * 0.71;
+        if (!nearBeamZ(xb)) {
+          kp(CK, 'modular_airduct_circular_brace', mat4(xb, DY, z, sd * Math.PI / 2));
+          kp(CK, 'modular_airduct_circular_brace_extention_wires', mat4(xb, DY + 0.49, z, sd * Math.PI / 2, 1, (CEIL - DY - 0.49) / 0.6, 1));
+        }
+      }
+      kp(CK, 'modular_airduct_circular_fan', mat4(xs + sd * 1.42 * n, DY, z, sd * Math.PI / 2, 0.75, 0.75, 1));
+    }
+  }
+  // les grilles de reprise dans la dalle : au fond des caissons, à l'écart des réglettes, des tuyaux et des gaines
+  for (let kx = 0; kx * 3 * C < W * C; kx++) {
+    for (let kz = 0; kz * 2 * C < H * C; kz++) {
+      for (const sd of [-1, 1]) {
+        if (rnd() > 0.22) continue;
+        const xg = kx * 3 * C + 1.5 * C + sd * 2.3;
+        const zg = kz * 2 * C + C - 0.9;
+        const cxg = Math.floor(xg / C);
+        const czg = Math.floor(zg / C);
+        if (at(cxg, czg) === T.WALL || at(cxg, czg) === T.EXIT || nearLift(xg, zg)) continue;
+        if (!pipeZ.every((pz) => Math.abs(pz - zg) > 0.9) || !trunks.every((t) => Math.abs(t - xg) > 0.7)) continue;
+        kp(RK, RK + (rnd() < 0.5 ? '_vent_01' : '_vent_02'), mat4(xg, CEIL - 0.004, zg, rnd() < 0.5 ? 0 : Math.PI / 2, 1.25, 1.25, 1, Math.PI / 2));
+      }
     }
   }
 
-  // --- Création des maillages ---
-  for (const b of bins.values()) {
-    if (!b.m.length) continue;
-    const inst = new THREE.InstancedMesh(b.geo, b.mat, b.m.length);
-    b.m.forEach((m, i) => {
-      inst.setMatrixAt(i, m);
-      if (b.c[i] !== 1) inst.setColorAt(i, tint.setScalar(b.c[i]));
-      else if (inst.instanceColor) inst.setColorAt(i, tint.setScalar(1));
-    });
-    if (b.c.some((v) => v !== 1)) {
-      // les premières teintes à 1 ont été sautées avant que instanceColor n'existe
-      b.m.forEach((_, i) => inst.setColorAt(i, tint.setScalar(b.c[i])));
-      inst.instanceColor.needsUpdate = true;
+  // --- Création des maillages, triés par morceau d'entrepôt (CH × CH m) ---
+  // Des dizaines de milliers d'objets (près de 7 000 palettes de 250 triangles) : à chaque image, on ne dessine que les
+  // morceaux que la caméra peut voir (ou le caméscope d'un coéquipier en médaillon), en deçà de son plan lointain. Chaque
+  // morceau tient dans la sphère de la boîte qui contient tous ses objets : ceux qu'on saute ne changeraient pas un pixel
+  const NX = Math.ceil((W * C) / CH);
+  const NZ = Math.ceil((H * C) / CH);
+  const NCH = NX * NZ;
+  const lo = new Float32Array(NCH * 3).fill(Infinity);
+  const hi = new Float32Array(NCH * 3).fill(-Infinity);
+  const sc = new Float32Array(NCH * 4).fill(-1); // la sphère de chaque morceau (rayon négatif : morceau vide)
+  const bb = new THREE.Box3();
+  const sets = [];
+  let nVis = -1;
+  // un ensemble d'objets du même maillage (list : leurs matrices ; shades : leurs teintes, ou null), rangés par morceau ;
+  // near : dessinés seulement dans les morceaux à moins de NEAR m (les modèles détaillés : plus loin, le brouillard en
+  // laisse moins d'un millième, rien qu'un pixel puisse montrer)
+  const addSet = (geo, mat, list, shades, near = false) => {
+    const n = list.length;
+    if (!n) return;
+    if (!geo.boundingBox) geo.computeBoundingBox();
+    const key = new Int32Array(n);
+    for (let i = 0; i < n; i++) {
+      const e = list[i].elements;
+      const k = Math.min(NX - 1, Math.max(0, Math.floor(e[12] / CH))) + NX * Math.min(NZ - 1, Math.max(0, Math.floor(e[14] / CH)));
+      key[i] = k;
+      bb.copy(geo.boundingBox).applyMatrix4(list[i]);
+      lo[k * 3] = Math.min(lo[k * 3], bb.min.x);
+      lo[k * 3 + 1] = Math.min(lo[k * 3 + 1], bb.min.y);
+      lo[k * 3 + 2] = Math.min(lo[k * 3 + 2], bb.min.z);
+      hi[k * 3] = Math.max(hi[k * 3], bb.max.x);
+      hi[k * 3 + 1] = Math.max(hi[k * 3 + 1], bb.max.y);
+      hi[k * 3 + 2] = Math.max(hi[k * 3 + 2], bb.max.z);
+      for (let a = 0; a < 3; a++) sc[k * 4 + a] = (lo[k * 3 + a] + hi[k * 3 + a]) / 2;
+      sc[k * 4 + 3] = 0.5 * Math.hypot(hi[k * 3] - lo[k * 3], hi[k * 3 + 1] - lo[k * 3 + 1], hi[k * 3 + 2] - lo[k * 3 + 2]) + 0.05;
     }
+    const order = Array.from({ length: n }, (_, i) => i).sort((a, c) => key[a] - key[c] || a - c);
+    const mats = new Float32Array(n * 16);
+    const cols = shades && shades.some((v) => v !== 1) ? new Float32Array(n * 3) : null;
+    const start = new Int32Array(NCH + 1); // les objets du morceau k : de start[k] à start[k + 1]
+    order.forEach((i, j) => {
+      list[i].toArray(mats, j * 16);
+      if (cols) cols.fill(shades[i], j * 3, j * 3 + 3);
+      start[key[i] + 1]++;
+    });
+    for (let k = 0; k < NCH; k++) start[k + 1] += start[k];
+    const inst = new THREE.InstancedMesh(geo, mat, n);
+    inst.instanceMatrix.array.set(mats);
     inst.instanceMatrix.needsUpdate = true;
+    if (cols) inst.instanceColor = new THREE.InstancedBufferAttribute(cols.slice(), 3);
     inst.frustumCulled = false;
     group.add(inst);
-  }
+    sets.push({ inst, mats, cols, start, near });
+    nVis = -1; // (un ensemble arrivé après coup : la prochaine image refait le tri)
+  };
+  for (const b of bins.values()) addSet(b.geo, b.mat, b.m, b.c);
+  // les modèles posés un par un (Poly Haven, CC0), une fois chargés : une matière de la scène par matière du modèle
+  const kitMats = new Map();
+  // les variantes « morceau@peinture » : la même photo de métal, teintée
+  const TINT = { red: [0.85, 0.17, 0.12], green: [0.42, 0.6, 0.36] };
+  const kitMat = (src, variant = '') => {
+    const key = src.uuid + '@' + variant;
+    if (!kitMats.has(key)) {
+      const color = src.color ? src.color.clone().multiplyScalar(0.85) : new THREE.Color('#888888');
+      if (TINT[variant]) color.multiply(new THREE.Color(...TINT[variant]));
+      kitMats.set(
+        key,
+        baked(
+          new THREE.MeshLambertMaterial({
+            map: src.map || null,
+            color,
+            alphaTest: src.alphaTest || (src.transparent || src.alphaMap ? 0.5 : 0),
+            alphaMap: src.alphaMap || null,
+            side: src.side,
+          }),
+        ),
+      );
+    }
+    return kitMats.get(key);
+  };
+  for (const [name, places] of kits)
+    loadKit(name).then((pieces) => {
+      for (const [piece, list] of places) {
+        const [pname, variant = ''] = piece.split('@');
+        for (const [pn, parts] of pieces) {
+          if (pname !== '*' && pn !== pname) continue;
+          for (const part of parts) addSet(part.geo, kitMat(part.mat, variant), list.m.map((m) => m.clone().multiply(part.m)), list.c, true);
+        }
+      }
+    });
+  const NEAR = 50; // (brouillard exp² de densité 0,058, selon la profondeur de vue : à 50 m, il reste 0,02 % de l'objet)
+  const vis = new Int32Array(NCH);
+  const visN = new Int32Array(NCH); // ceux d'entre eux qui sont à moins de NEAR m
+  let nNear = -1;
+  const sph = new THREE.Sphere();
+  // n morceaux visibles (vis), dont nn proches (visN) : on recopie leurs objets au début des tampons, et on n'envoie que
+  // cette partie
+  const fill = (n, nn) => {
+    for (const S of sets) {
+      const am = S.inst.instanceMatrix.array;
+      const ac = S.cols && S.inst.instanceColor.array;
+      const L = S.near ? visN : vis;
+      const m = S.near ? nn : n;
+      let o = 0;
+      for (let j = 0; j < m; j++) {
+        const a = S.start[L[j]];
+        const b = S.start[L[j] + 1];
+        if (b === a) continue;
+        am.set(S.mats.subarray(a * 16, b * 16), o * 16);
+        if (ac) ac.set(S.cols.subarray(a * 3, b * 3), o * 3);
+        o += b - a;
+      }
+      S.inst.count = o;
+      S.inst.instanceMatrix.clearUpdateRanges();
+      S.inst.instanceMatrix.addUpdateRange(0, o * 16);
+      S.inst.instanceMatrix.needsUpdate = true;
+      if (ac) {
+        S.inst.instanceColor.clearUpdateRanges();
+        S.inst.instanceColor.addUpdateRange(0, o * 3);
+        S.inst.instanceColor.needsUpdate = true;
+      }
+    }
+  };
+  const api = {
+    off: false, // (?debug : tout dessiner, pour comparer l'image avec et sans le tri)
+    // V : le point de vue (voir cullFor dans scene.js) ; here : la caméra est à cet étage ; insetHere : celle du médaillon
+    cull(V, here = true, insetHere = false) {
+      const gy = group.position.y;
+      let n = 0;
+      let nn = 0;
+      let ch = false;
+      for (let k = 0; k < NCH; k++) {
+        const r = sc[k * 4 + 3];
+        if (r < 0) continue;
+        const x = sc[k * 4];
+        const y = gy + sc[k * 4 + 1];
+        const z = sc[k * 4 + 2];
+        let ok = api.off;
+        if (!ok && here && (x - V.cam.x) * V.fwd.x + (y - V.cam.y) * V.fwd.y + (z - V.cam.z) * V.fwd.z - r <= V.R) {
+          sph.center.set(x, y, z);
+          sph.radius = r;
+          ok = V.fr.intersectsSphere(sph);
+        }
+        if (!ok && V.inset && insetHere) {
+          sph.center.set(x, y, z);
+          sph.radius = r;
+          ok = V.ifr.intersectsSphere(sph);
+        }
+        if (!ok) continue;
+        if (vis[n] !== k) ch = true;
+        vis[n++] = k;
+        // proche : la sphère du morceau entame les NEAR premiers mètres de profondeur de la caméra (c'est la profondeur,
+        // pas la distance, qui règle le brouillard), ou le médaillon la voit
+        const dc = (x - V.cam.x) * V.fwd.x + (y - V.cam.y) * V.fwd.y + (z - V.cam.z) * V.fwd.z - r;
+        if (api.off || dc <= NEAR || (V.inset && insetHere && V.ifr.intersectsSphere(sph.set(sph.center.set(x, y, z), r)))) {
+          if (visN[nn] !== k) ch = true;
+          visN[nn++] = k;
+        }
+      }
+      if (n !== nVis || nn !== nNear) ch = true;
+      if (!ch) return;
+      nVis = n;
+      nNear = nn;
+      fill(n, nn);
+    },
+  };
+  return api;
 }

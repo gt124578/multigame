@@ -32,6 +32,8 @@ img { image-rendering: pixelated; }
   text-shadow: calc(var(--px) * 1) calc(var(--px) * 1) 0 #000;
   line-height: 1.35;
   box-sizing: border-box;
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 /* Le fond et le biseau sont sur ::before pour que .dlg-name (top: -12px) et .dlg-face ne soient JAMAIS coupés par le clip-path */
@@ -153,10 +155,10 @@ img { image-rendering: pixelated; }
 }
 
 /* ---------- listes ---------- */
-.list { position: absolute; z-index: 36; padding: calc(var(--px) * 5) calc(var(--px) * 6); text-shadow: var(--px) var(--px) 0 var(--shadow); max-height: 80vh; overflow: hidden; display: flex; flex-direction: column; }
+.list { position: absolute; z-index: 36; padding: calc(var(--px) * 5) calc(var(--px) * 6); text-shadow: var(--px) var(--px) 0 var(--shadow); max-height: 80vh; overflow: hidden; display: flex; flex-direction: column; pointer-events: auto; }
 .list-title { font-weight: 600; color: #fff; background: #3a5888; margin: calc(var(--px) * -2) calc(var(--px) * -3) calc(var(--px) * 3); padding: 0 calc(var(--px) * 5); border-radius: calc(var(--px) * 2); text-shadow: none; }
 .list-items { overflow: hidden; }
-.list-row { display: flex; align-items: center; gap: calc(var(--px) * 3); padding: calc(var(--px) * 0.5) calc(var(--px) * 2); border-radius: calc(var(--px) * 2); white-space: nowrap; }
+.list-row { display: flex; align-items: center; gap: calc(var(--px) * 3); padding: calc(var(--px) * 0.5) calc(var(--px) * 2); border-radius: calc(var(--px) * 2); white-space: nowrap; cursor: pointer; }
 .list-row .cur { visibility: hidden; color: #e04040; width: calc(var(--px) * 7); font-size: .8em; text-shadow: none; }
 .list-row.on .cur { visibility: visible; }
 .list-row.on { background: rgba(88, 136, 208, .15); }

@@ -423,3 +423,42 @@
   color: #b0c4e8;
   text-align: center;
 }
+
+/* Barre de tri automatique de boîte */
+.pc-sort-bar {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--px) * 1.5);
+  background: rgba(12, 16, 24, 0.7);
+  border: calc(var(--px) * 0.8) solid rgba(255, 255, 255, 0.1);
+  border-radius: calc(var(--px) * 2.5);
+  padding: calc(var(--px) * 1) calc(var(--px) * 2);
+}
+.pc-sort-lbl {
+  font-size: calc(var(--px) * 5);
+  font-weight: 700;
+  color: #9bb2d8;
+  margin-right: calc(var(--px) * 1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.pc-sort-btn {
+  background: #1a2234;
+  border: calc(var(--px) * 0.8) solid #364868;
+  color: #cedcf4;
+  font-size: calc(var(--px) * 4.8);
+  font-weight: 700;
+  padding: calc(var(--px) * 0.8) calc(var(--px) * 2);
+  border-radius: calc(var(--px) * 1.5);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.pc-sort-btn:hover {
+  background: #2b3a58;
+  border-color: #ffd858;
+  color: #ffd858;
+  transform: translateY(calc(var(--px) * -0.5));
+}
+.pc-sort-btn:active {
+  transform: translateY(0);
+}

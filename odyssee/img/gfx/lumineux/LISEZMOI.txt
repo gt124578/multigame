@@ -1,0 +1,9 @@
+Pack de sol « Pokémon Lumineux » (Odyssée → Options → Graphismes → Sol du dehors)
+
+Tuiles de 16 x 16 px découpées par tools/odyssee-pack-sol.py dans la planche « Bright » :
+  Team Aqua's Asset Repo / Tilesets / Other Tilesets / Voluptuas Collected Tilesets / 1.png
+  https://github.com/TeamAquasHideout/Team-Aquas-Asset-Repo
+
+Crédits : art de Flurmimon, adaptation de la planche par Bivurnum.
+Les tuiles sont recolorées ou retournées par le script (sol de cendre, sol de grotte, sous-bois, eau décalée pour l'animation).
+Usage : projet de fans sans but lucratif ; les artistes restent propriétaires de leurs créations.
