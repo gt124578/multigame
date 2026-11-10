@@ -1380,7 +1380,7 @@ function texteSelection(valeursAffichees = true) {
 }
 /** Texte tabulé venu d'Excel, de LibreOffice ou d'une page : lignes et colonnes, sans les lignes et colonnes vides de la fin. */
 function lireTexteTabule(texte) {
-  const t = texte.replace(/\r\n?/g, '\n');
+  const t = texte.replace(/\r\n?|[\u2028\u2029]/g, '\n');
   // Champs entre guillemets (retours à la ligne dans une cellule) seulement si les guillemets vont par paires
   let lignes = (t.match(/"/g) || []).length % 2 === 0 && /(^|[\t\n])"/.test(t) ? analyserCsv(t, '\t') : t.split('\n').map((l) => l.split('\t'));
   while (lignes.length && lignes[lignes.length - 1].every((v) => v === '')) lignes.pop();
@@ -2850,8 +2850,8 @@ function rendreAide() {
 <li><b>Analyse</b> (menu ⋯) : <b>Valeur cible</b> ; <b>Solveur</b> (maximiser, minimiser ou atteindre une valeur en changeant des cellules, avec contraintes ≤ ≥ = entier binaire ; exact pour les modèles linéaires) ; <b>Table de données</b> à une ou deux entrées, recalculée quand le modèle change.</li>
 <li><b>Finance et comptabilité</b> : formats <b>Comptabilité</b>, milliers (k€), millions (M€) et négatifs entre parenthèses dans la liste des formats ; <b>Plan</b> (⋯ › Plan, ou clic droit › Données › Grouper) : boutons + / − à côté des en-têtes et niveaux 1, 2, 3 dans le coin ; <b>Sous-totaux…</b> (clic droit › Données) : un total à chaque changement de valeur d'une colonne, avec le plan prêt à replier ; <b>Gestionnaire de scénarios</b> et <b>Utilitaire d'analyse</b> (⋯ › Analyse : statistiques descriptives, histogramme, régression, corrélation, moyenne mobile, tests t et F, ANOVA…) ; <b>Fenêtre espion</b> et <b>Calcul itératif</b> (⋯ › Formules) pour les modèles qui se citent eux-mêmes ; graphique <b>Cascade</b> ; <b>champs calculés</b> dans les tableaux croisés. Modèles (Nouveau ▾ › Finance et actuariat) : emprunt, rentabilité d'un projet, compte de résultat, table de mortalité, Chain Ladder.</li>
 <li><b>Enregistrer ▾</b> : Enregistrer sous, Télécharger une copie et <b>Enregistrement automatique</b> (à cocher ; avec Chrome ou Edge sur ordinateur, le fichier est réécrit quelques secondes après chaque modification, ↻ devant « Enregistrer »). Fermer la page avec des modifications non enregistrées (<b>*</b> après le nom) demande confirmation.</li>
-<li><b>Coller d'un PDF</b> : un texte sans tabulations (PDF, page web, Word) se colle dans une colonne, puis le bouton <b>Séparer en colonnes…</b> du message (ou Données › Convertir en colonnes) le répartit : espaces multiples (colonnes alignées d'un PDF), espace, tabulation, point-virgule, virgule ou autre, avec aperçu ; « 1 234,56 » reste un nombre, « (2 000) » devient -2000 ; les nombres écrits à l'anglaise (1.375, 4.75%) passent à la virgule ; <b>Nombre de colonnes au plus</b> garde ensemble le début d'une ligne (« POLAND 4.75% 4/17 » puis les chiffres). Une cellule qui contient plusieurs lignes est d'abord répartie sur plusieurs rangées. <b>Collage spécial</b> (<code>Ctrl+Alt+V</code>) d'un texte copié hors de Sprezz ouvre directement ce choix.</li>
-<li><b>Rechercher / Remplacer</b> (<code>Ctrl+F</code> / <code>Ctrl+H</code>) : avec plusieurs cellules choisies, ne cherche et ne remplace que dans elles (Où : les cellules choisies, cette feuille, tout le classeur), par exemple « . » par « , ».</li>
+<li><b>Coller d'un PDF</b> : un texte sans tabulations (PDF, page web, Word) se colle dans une colonne, puis le bouton <b>Séparer en colonnes…</b> du message (ou Données › Convertir en colonnes) le répartit : espaces multiples (colonnes alignées d'un PDF), espace, tabulation, point-virgule, virgule ou autre, avec aperçu ; « 1 234,56 » reste un nombre, « (2 000) » devient -2000 ; les nombres écrits à l'anglaise (1.375, 4.75%) passent à la virgule ; <b>Nombre de colonnes au plus</b> garde ensemble le début d'une ligne (« POLAND 4.75% 4/17 » puis les chiffres). Une cellule qui contient plusieurs lignes est d'abord répartie sur plusieurs rangées ; un tableau de PDF arrivé sur une seule ligne (fréquent sur iPad) est coupé avant chaque mot qui revient (« POLAND ») ou tous les N morceaux. <b>Collage spécial</b> (<code>Ctrl+Alt+V</code>) d'un texte copié hors de Sprezz ouvre directement ce choix.</li>
+<li><b>Rechercher / Remplacer</b> (bouton <b>🔍 Remplacer</b> de la barre d'outils, clic droit › Rechercher et remplacer…, <code>Ctrl+F</code> / <code>Ctrl+H</code>) : avec plusieurs cellules choisies, ne cherche et ne remplace que dans elles (Où : les cellules choisies, cette feuille, tout le classeur), par exemple « . » par « , ».</li>
 <li><b>Formule matricielle</b> (<code>Ctrl+Maj+Entrée</code> sur une plage choisie) : la formule va dans la première cellule et son résultat remplit la plage, comme les formules matricielles d'Excel (ex. <code>=PRODUITMAT(PRODUITMAT(C15:L24;C3:L12);C15:L24)</code> sur 10 × 10). <code>Ctrl+Entrée</code>, lui, recopie la formule dans chaque cellule : un résultat de plusieurs cellules y donne #SPILL!. La raison d'un #SPILL! ou d'un #CYCLE! s'affiche en bas et en survolant la cellule.</li>
 <li><b>Barre de formule</b> : ce qui s'y écrit apparaît en direct dans la cellule.</li>
 <li><b>Références en couleur</b> : pendant la saisie d'une formule, chaque référence (<code>B2</code>, <code>C2:D5</code>…) est écrite de la couleur du cadre qui l'entoure sur la grille ; la même référence garde la même couleur.</li>
@@ -3190,7 +3190,7 @@ function menuCellules(s) {
   return [
     ['Couper', () => copier(true), 'Ctrl+X'], ['Copier', () => copier(false), 'Ctrl+C'], ['Coller', () => coller(), 'Ctrl+V'],
     ['Collage spécial', [['Valeurs', () => collerValeurs()], ['Collage spécial…', () => collageSpecialUI(), 'Ctrl+Alt+V']]],
-    ['Rechercher…', () => uiD.ouvrirRecherche(false), 'Ctrl+F'], null,
+    ['Rechercher et remplacer…', () => uiD.ouvrirRecherche(true), 'Ctrl+H'], null,
     ['Insérer', [['Insérer ' + pl(nl, 'ligne'), () => lignesColonnes(true, 'r')], ['Insérer ' + pl(nc, 'colonne'), () => lignesColonnes(true, 'c')], ['Insérer des cellules…', () => uiB.cellules(true), 'Ctrl++']]],
     ['Supprimer', [['Supprimer ' + pl(nl, 'ligne'), () => lignesColonnes(false, 'r')], ['Supprimer ' + pl(nc, 'colonne'), () => lignesColonnes(false, 'c')], ['Supprimer des cellules…', () => uiB.cellules(false), 'Ctrl+-']]],
     ['Effacer', [['Le contenu', () => effacer(false), 'Suppr'], ['Les formats', () => effacerFormats()], ['Tout', () => effacer(true)], ...(cel.note ? [['La note', () => { memoriser(); delete cel.note; classeur.modifie(); sauvegarderLocal(); rendre(); }]] : [])]], null,
@@ -3740,7 +3740,7 @@ $('fleche-liste').addEventListener('click', (e) => { e.stopPropagation(); uiD.va
 $('btn-somme-menu').addEventListener('click', () => uiD.menuSomme(...sousBouton('btn-somme')));
 $('btn-trier').addEventListener('click', () => uiD.menuTri(...sousBouton('btn-trier')));
 $('btn-filtrer').addEventListener('click', () => uiD.basculerFiltre());
-$('btn-rechercher').addEventListener('click', () => uiD.ouvrirRecherche(false));
+$('btn-rechercher').addEventListener('click', () => uiD.ouvrirRecherche(true));
 $('btn-tcd').addEventListener('click', () => uiT.ouvrir());
 $('btn-mfc').addEventListener('click', () => uiD.menuMfc(...sousBouton('btn-mfc')));
 $('btn-figer').addEventListener('click', () => uiD.menuFiger(...sousBouton('btn-figer')));
@@ -3761,7 +3761,7 @@ conteneur.addEventListener('wheel', (e) => {
 // Menu « … » : tout ce qui n'a pas de bouton, rangé comme les onglets d'Excel
 function menuPlus() {
   return [
-    ['Rechercher…', () => uiD.ouvrirRecherche(false), 'Ctrl+F'], ['Remplacer…', () => uiD.ouvrirRecherche(true), 'Ctrl+H'],
+    ['Rechercher et remplacer…', () => uiD.ouvrirRecherche(true), 'Ctrl+H'],
     ['Format de cellule…', () => uiB.formatCellule(), 'Ctrl+1'], ['Collage spécial…', () => collageSpecialUI(), 'Ctrl+Alt+V'], ['Atteindre…', () => uiB.atteindre(), 'Ctrl+G'], null,
     ['Insérer', [['Tableau…', () => mettreEnTableau(), 'Ctrl+L'], ['Graphique', () => uiG.insererDirect(), 'Alt+F1'],
       ['Sparklines', [['Courbe…', () => uiB.sparklines('ligne')], ['Histogramme…', () => uiB.sparklines('colonne')], ['Gain / perte…', () => uiB.sparklines('gainperte')]]], ['Image…', () => $('fichier-image').click()], ['Zone de texte', () => insererForme('texte')], ['Forme', FORMES.filter(([k]) => k !== 'texte').map(([k, n, ic]) => [ic + '  ' + n, () => insererForme(k)])], ['Lien hypertexte…', () => uiB.lien(), 'Ctrl+K'], ['Note…', () => uiB.note(), 'Maj+F2']]],

@@ -769,6 +769,32 @@ export function decouperLigne(ligne, opts = {}) {
   if (opts.anglais) res = res.map((x) => (/^[-+(]?\d{1,3}(,\d{3})*(\.\d+)?%?\)?$/.test(x) || /^[-+(]?\d+\.\d+%?\)?$/.test(x) ? x.replace(/,/g, ' ').replace('.', ',') : x));
   return res;
 }
+/**
+ * Coupe un texte en lignes : retours à la ligne (y compris ceux de l'iPad, \u2028), et, pour un texte d'un PDF arrivé
+ * sur une seule ligne, avant chaque mot donné (« POLAND ») ou tous les N morceaux séparés par des espaces.
+ */
+export function lignesDuTexte(texte, { avantMot = '', tousLes = 0 } = {}) {
+  let t = String(texte).replace(/\r\n?|[\u2028\u2029\u0085]/g, '\n').replace(/\n+$/, '');
+  if (avantMot && avantMot.trim()) {
+    const m = avantMot.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    t = t.replace(/\n/g, ' ').replace(new RegExp('\\s*(?=(^|\\s)' + m + '(\\s|$))', 'g'), '\n').replace(/^\n+/, '');
+    return t.split('\n').map((x) => x.trim()).filter(Boolean);
+  } else if (tousLes > 0) {
+    const mots = t.split(/\s+/).filter(Boolean), l = [];
+    for (let i = 0; i < mots.length; i += tousLes) l.push(mots.slice(i, i + tousLes).join(' '));
+    return l;
+  }
+  return t.split('\n');
+}
+/** Un texte d'un PDF arrivé sur une seule ligne dont le premier mot revient (« POLAND … POLAND … ») : ce mot, sinon ''. */
+export function motQuiRevient(texte) {
+  const t = String(texte).trim();
+  if (/[\n\r\u2028\u2029]/.test(t)) return '';
+  const premier = (/^(\S+)/.exec(t) || [])[1];
+  if (!premier || premier.length < 2 || /^[\d.,%/-]+$/.test(premier)) return '';
+  const n = t.split(/\s+/).filter((x) => x === premier).length;
+  return n >= 3 ? premier : '';
+}
 /** Le texte d'une ligne écrit avec des points décimaux (1.375 ; 4.75%) et pas de virgule décimale. */
 export function nombresAnglais(lignes) {
   const l = lignes.slice(0, 50).join(' ');

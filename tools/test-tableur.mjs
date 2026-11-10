@@ -1310,6 +1310,12 @@ test('texte collé d\'un PDF : séparateurs devinés, espaces multiples, millier
   egal(decouperLigne('"a;b";c;;d', { seps: [';'], regrouper: false }), ['a;b', 'c', '', 'd']);
   egal(decouperLigne('POLAND 4.75% 4/17 1.375 1.55% 25/04/2017 1.45 4.75', { seps: ['espace'], maxColonnes: 6, anglais: true }), ['POLAND 4.75% 4/17', '1,375', '1,55%', '25/04/2017', '1,45', '4,75']);
   egal(decouperLigne('Total 1,234.56 (2,000.5)', { seps: ['espace'], anglais: true }), ['Total', '1 234,56', '(2 000,5)']);
+  const { lignesDuTexte, motQuiRevient } = await import('../tableur/js/donnees.js');
+  const uneLigne = 'POLAND 4.75% 4/17 1.375 POLAND 5.25% 10/17 1.863 POLAND 2% 04/21 5.04';
+  egal(motQuiRevient(uneLigne), 'POLAND');
+  egal(lignesDuTexte(uneLigne, { avantMot: 'POLAND' }), ['POLAND 4.75% 4/17 1.375', 'POLAND 5.25% 10/17 1.863', 'POLAND 2% 04/21 5.04']);
+  egal(lignesDuTexte(uneLigne, { tousLes: 4 }).length, 3);
+  egal(lignesDuTexte('a\u2028b\r\nc\rd'), ['a', 'b', 'c', 'd']);
   const c = Classeur.nouveau();
   lignes.forEach((l, r) => c.saisir(0, r, 0, l));
   convertirEnColonnes(c, 0, { r1: 0, c1: 0, r2: 2, c2: 0 }, ['espaces2'], { regrouper: true, milliers: true });
