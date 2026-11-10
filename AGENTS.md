@@ -261,6 +261,9 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   case, avec Centre, Boutique, Arène, entrées de grottes et sorties vers les lieux voisins (nom caché tant qu'on n'y est
   pas allé). Résumé d'un Pokémon, onglet des attaques : A (ou clic) prend une attaque, A la pose à la place d'une autre.
   En combat, le curseur des attaques part du haut à gauche, puis revient sur la dernière choisie par ce Pokémon.
+  Équipe : glisser un Pokémon sur un autre (souris, pavé tactile, doigt) échange leurs places, dans le HUD et l'écran
+  Équipe hors combat (`glisserPourRanger` de `ui/glisser.js`). HUD réduit et plus transparent ; taille au choix dans
+  Options → Taille du HUD (`TAILLES` de `ui/hud.js`, variable CSS `--hud-k`). La carte ne dit plus combien de villes compte la région.
   Rencontre sauvage sous Repousse : le Pokémon est tiré avant toute animation (`tirageSauvage`), un Pokémon qui fuit
   ne fige plus le dresseur.
   Interface : un écran plein cadre par fichier dans `odyssee/js/ui/screens/` (`map.js`, `card.js`, `pc.js`, `friends.js`…),

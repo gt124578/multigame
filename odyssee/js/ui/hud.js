@@ -12,8 +12,11 @@ import { getPvpSummary, getZoneCatchStats } from '../core/trophies.js';
 import { getTrackedQuest } from '../core/questsData.js';
 import { itemName } from '../core/items.js';
 import { SPECIES } from '../data/species.js';
+import { glisserPourRanger } from './glisser.js';
 
 const gender = (m) => (m.gender === 'm' ? '<span class="g m">♂</span>' : m.gender === 'f' ? '<span class="g f">♀</span>' : '');
+
+const TAILLES = [['Petit', 0.62], ['Moyen', 0.78], ['Grand', 1]];
 
 export class Hud {
   constructor(game) {
@@ -28,12 +31,23 @@ export class Hud {
     this._sig = '';
 
     this.root = el('div', 'hud' + (this.collapsed ? ' collapsed' : ''));
+    try { this.taille = Math.max(0, Math.min(TAILLES.length - 1, +(localStorage.getItem('odyssee-hud-taille') ?? 1))); } catch (e) { this.taille = 1; }
+    if (!Number.isFinite(this.taille)) this.taille = 1;
+    this.root.style.setProperty('--hud-k', TAILLES[this.taille][1]);
     this.partyEl = el('div', 'hud-party');
     this.gearEl = el('div', 'hud-gear');
     this.root.append(this.partyEl, this.gearEl);
     game.ui.root.appendChild(this.root);
 
     this.bindEvents();
+  }
+
+  /** taille du HUD (Options) : petit, moyen (par défaut) ou grand */
+  tailleNom() { return TAILLES[this.taille][0]; }
+  changerTaille(d) {
+    this.taille = (this.taille + d + TAILLES.length) % TAILLES.length;
+    try { localStorage.setItem('odyssee-hud-taille', String(this.taille)); } catch (e) {}
+    this.root.style.setProperty('--hud-k', TAILLES[this.taille][1]);
   }
 
   /** retire complètement (ou réaffiche) la barre Habitat DexNav ; réglable aussi dans Options */
@@ -58,6 +72,17 @@ export class Hud {
   }
 
   bindEvents() {
+    // glisser un Pokémon sur un autre : ils échangent leurs places
+    glisserPourRanger(this.partyEl, {
+      item: '.hud-slot', actif: () => this.canInteract(),
+      debut: () => { this.glisse = true; this.swapFrom = -1; },
+      fin: () => { this.glisse = false; },
+      echange: (a, b) => {
+        const party = this.game.state.party; if (!party[a] || !party[b]) return;
+        [party[a], party[b]] = [party[b], party[a]];
+        this.game.sound.sfx('select'); this.game.save(true); this.update(true);
+      },
+    });
     this.partyEl.addEventListener('click', async (e) => {
       const slot = e.target.closest('.hud-slot');
       if (!slot || !this.canInteract()) return;
@@ -200,6 +225,7 @@ export class Hud {
       .map((m) => `${m.uid}:${m.sp}:${m.nick || ''}:${m.lvl}:${m.hp}:${m.stats[0]}:${m.exp}:${m.status || ''}:${m.shadow ? 1 : 0}:${m.shiny ? 1 : 0}`)
       .join('|');
     const sig = `${this.collapsed ? 1 : 0};${g.autoRun ? 1 : 0}:${g.runSpeed ?? 1};${this.swapFrom};${loc};${zoneCatchKey};${st.money};${badgesKey};${trUnlocked};${st.trackedQuest || ''}:${tracked?.notes?.length || 0};${onlineCount};${partyKey}`;
+    if (this.glisse) return;   // pas de redessin pendant qu'on glisse un Pokémon
     if (!force && sig === this._sig) return;
     this._sig = sig;
 

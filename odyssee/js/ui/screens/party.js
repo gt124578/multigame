@@ -2,6 +2,7 @@
 import { el, esc } from '../ui.js';
 import { SPECIES } from '../../data/species.js';
 import { MOVES } from '../../data/moves.js';
+import { glisserPourRanger } from '../glisser.js';
 import { getAbility } from '../../data/abilities.js';
 import { monName, expProgress, STAT_NAMES, levelCap, natureName, natureEffect } from '../../core/mon.js';
 import { LEADERS } from '../../world/region.js';
@@ -61,7 +62,18 @@ export function partyScreen(game, o = {}) {
     foot.append(help, cancel);
     s.appendChild(foot);
 
-    let i = Math.min(o.start || 0, Math.max(0, party.length - 1)), swapFrom = -1, busy = false;
+    let i = Math.min(o.start || 0, Math.max(0, party.length - 1)), swapFrom = -1, busy = false, glisse = false;
+    // hors combat : glisser un Pokémon sur un autre (souris, pavé tactile, doigt) échange leurs places
+    if (o.mode === 'menu' || !o.mode) glisserPourRanger(layout, {
+      item: '.pslot-lead-card, .pslot-sub', actif: () => !busy,
+      debut: () => { glisse = true; swapFrom = -1; },
+      fin: () => { glisse = false; },
+      echange: (a, b) => {
+        if (!party[a] || !party[b]) return;
+        [party[a], party[b]] = [party[b], party[a]];
+        i = b; ui.sound.sfx('select'); game.save?.(true); draw();
+      },
+    });
 
     const triggerSlot = async (idx) => {
       if (busy) return;
@@ -175,7 +187,7 @@ export function partyScreen(game, o = {}) {
               </div>
               ${why ? `<div class="pwhy">${esc(why)}</div>` : ''}
             </div>`;
-          c.addEventListener('mouseenter', () => { if (!busy && i !== 0) { i = 0; ui.sound.sfx('blip'); draw(); } });
+          c.addEventListener('mouseenter', () => { if (!busy && !glisse && i !== 0) { i = 0; ui.sound.sfx('blip'); draw(); } });
           c.addEventListener('click', (e) => { e.stopPropagation(); triggerSlot(0); });
           colLead.appendChild(c);
         } else {
@@ -217,7 +229,7 @@ export function partyScreen(game, o = {}) {
                 <div class="pexp-track"><u style="width:${expPct}%"></u></div>
               </div>
             </div>`;
-          c.addEventListener('mouseenter', () => { if (!busy && i !== k) { i = k; ui.sound.sfx('blip'); draw(); } });
+          c.addEventListener('mouseenter', () => { if (!busy && !glisse && i !== k) { i = k; ui.sound.sfx('blip'); draw(); } });
           c.addEventListener('click', (e) => { e.stopPropagation(); triggerSlot(k); });
           colSubs.appendChild(c);
         }
@@ -239,7 +251,7 @@ export function partyScreen(game, o = {}) {
       cancel.classList.toggle('on', i === party.length);
       help.textContent = swapFrom >= 0
         ? `Échanger la place de ${monName(party[swapFrom])} avec quel Pokémon ?`
-        : o.prompt || 'Sélectionne un Pokémon (Clic ou Entrée · Échap pour quitter).';
+        : o.prompt || (o.mode === 'menu' || !o.mode ? 'Clic ou Entrée : choisir · Glisser un Pokémon sur un autre : échanger leurs places · Échap : quitter' : 'Sélectionne un Pokémon (Clic ou Entrée · Échap pour quitter).');
     };
 
     cancel.addEventListener('mouseenter', () => {

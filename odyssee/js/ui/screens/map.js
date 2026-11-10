@@ -413,7 +413,7 @@ export function mapScreen(game) {
           <div class="map-cgear-icon"></div>
           <div class="map-hdr-titles">
             <span class="map-hdr-main">CARTE DE LA RÉGION D'ODYSSÉE</span>
-            <span class="map-hdr-sub">${visited.size} / ${allTowns.length} villes découvertes</span>
+            <span class="map-hdr-sub">${visited.size} ${visited.size > 1 ? 'villes découvertes' : 'ville découverte'}</span>
           </div>
         </div>
         <div class="map-hdr-right">
