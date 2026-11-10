@@ -634,3 +634,17 @@
 .map-route-catch-badge.complete {
   color: #86efac;
 }
+
+/* onglets Région / Ici (carte locale) */
+.map-onglets { display: flex; margin-right: calc(var(--px) * 2); border: calc(var(--px) * 1) solid #000; box-shadow: 0 0 0 calc(var(--px) * 0.6) #00e0ff55; }
+.map-onglet {
+  background: linear-gradient(180deg, #13263e 0%, #0a1626 100%); color: #8fb3d6; border: 0; cursor: pointer;
+  font-weight: 800; font-size: calc(var(--px) * 3.8); padding: calc(var(--px) * 1) calc(var(--px) * 3);
+}
+.map-onglet + .map-onglet { border-left: calc(var(--px) * 0.6) solid #000; }
+.map-onglet.on { background: linear-gradient(180deg, #00b8e0 0%, #0077a8 100%); color: #fff; text-shadow: 0 calc(var(--px) * 0.5) 0 #003a55; }
+.map-onglet:not(.on):hover { filter: brightness(1.3); }
+/* carte locale : ni repères de villes, ni réticule, ni boutons de la carte de la région */
+.mode-locale .map-pin, .mode-locale .map-pin-name, .mode-locale .map-cur { display: none; }
+.mode-locale [data-act="toggle-view"], .mode-locale [data-act="me"], .mode-locale .map-nav-btn, .mode-locale .map-legend { visibility: hidden; }
+.mode-locale .map-wrap { cursor: default; }

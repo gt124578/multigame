@@ -235,6 +235,10 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   `sin` / `cos` de `mapgen.js`) ni de `sort(() => r() - 0.5)` (prendre `melanger`) dans `world/`.
   Décor ajouté hors planches (`odyssee/js/data/decor-plus.js`) : `python3 tools/odyssee-automne.py` (arbres d'automne),
   `tools/odyssee-mine.py` (étais, wagonnets…), `tools/odyssee-desert.py` (cactus).
+  Barrières de bois : `python3 tools/pixelforge/barrieres.py` (pixel art écrit par le code, `--apercu` pour une scène d'essai)
+  → `odyssee/img/nature/barriere*.png` ; une pièce = une case de large, pieds au bas de la case (ce qu'on voit est ce qui
+  bloque), colonnes nord-sud alignées sur le coin de leur rangée (`BARR_POT`, `coteBarriere` de `world3d.js`). Sur les
+  routes (fin de `buildWorld`, `region.js`) : une seule rive barrée, tronçons de 2 à 4 cases séparés d'une ouverture.
   Métropole : Bourse (`odyssee/js/core/bourse.js`, pricers et entretien de Pierre) et Casino (`odyssee/js/core/casino.js` ;
   Texas Hold'em, abattage sur 7 cartes, pots annexes et ordinateurs dans `odyssee/js/core/holdem.js`), comptoir dans `odyssee/js/ui/metropole.js`,
   une table dessinée par jeu dans `odyssee/js/ui/casino/` (scène en pixel art 400 × 240 et police 5 × 7 : `odyssee/js/ui/pixel.js`) :
@@ -250,6 +254,15 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   qui vend aussi les gemmes ; 12 gemmes cachées sur les routes de la fin. Dresseurs : `trainer.megaSp` (n° d'espèce ou 'ace').
   Méga imaginées par des fans (24, n° 20001 et plus) : `odyssee/js/data/megasFans.js` et `odyssee/img/megas/` (origine dans `LISEZMOI.txt`) ;
   quand l'espèce a déjà une Méga officielle, la version des fans porte le signe Δ et sa propre gemme. Toutes les gemmes se vendent chez le Pr Orme.
+  Carte : onglets « Région » et « Ici » (touche Tab). Ce qu'on n'a pas parcouru dort sous un brouillard opaque
+  (`brouillard`, `seenMask`, `caseVue` de `ui/screens/map.js`) : blocs de 8 cases de la région dans `state.explored`,
+  blocs de 4 cases des grottes et cartes annexes dans `state.explores[id]` (`explore` / `exploreLocal` de `game.js`).
+  Carte locale (`ui/screens/carteLocale.js`) : la zone où l'on est (toutes ses parties) ou la grotte entière, case par
+  case, avec Centre, Boutique, Arène, entrées de grottes et sorties vers les lieux voisins (nom caché tant qu'on n'y est
+  pas allé). Résumé d'un Pokémon, onglet des attaques : A (ou clic) prend une attaque, A la pose à la place d'une autre.
+  En combat, le curseur des attaques part du haut à gauche, puis revient sur la dernière choisie par ce Pokémon.
+  Rencontre sauvage sous Repousse : le Pokémon est tiré avant toute animation (`tirageSauvage`), un Pokémon qui fuit
+  ne fige plus le dresseur.
   Interface : un écran plein cadre par fichier dans `odyssee/js/ui/screens/` (`map.js`, `card.js`, `pc.js`, `friends.js`…),
   outils communs et fermeture d'écran (`closer`) dans `screens/common.js` ; `ui/screens.js` ne fait que tout réexporter (importer depuis lui).
   Styles découpés de même dans `odyssee/css/NN-ecran.css`, chargés dans l'ordre par `index.html` (l'ordre compte : un fichier

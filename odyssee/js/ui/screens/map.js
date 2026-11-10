@@ -19,6 +19,7 @@ import { ASSETS } from '../../assets.js';
 import { SPRITES } from '../../data/sprites.js';
 import { T, walkable } from '../../world/tiles.js';
 import { TYPE_FR, screen, closer } from './common.js';
+import { preparerLocale, dessinerLocale, vueLocale } from './carteLocale.js';
 
 /* ================= CARTE DE LA RÉGION ================= */
 // La carte se dévoile au fil du voyage : seules les zones parcourues sont dessinées, le reste n'est qu'une étendue
@@ -273,30 +274,84 @@ function drawRegion(game, cv, v) {
   };
   for (const t of Object.values(game.world.towns)) town(t);
 
-  // Voile radar B2W2 : les zones explorées sont découpées et 100% nettes et vives,
-  // les zones inexplorées restent sous un élégant filtre radar semi-transparent C-Gear
-  const seen = game.state.explored || [], C = 8, cw = Math.ceil(W.w / C), ch = Math.ceil(W.h / C);
-  // le masque ne change que quand on explore : on le garde tant que la liste n'a pas bougé
-  let FM = game._fogMask;
+  // brouillard : ce qu'on n'a pas encore parcouru reste caché (rien n'y paraît, ni relief, ni route, ni ville) ;
+  // la carte se dévoile autour de chaque pas, avec un bord adouci
+  brouillard(ctx, cv, seenMask(game, 'monde'), 8, v);
+}
+
+/** masque des blocs explorés d'une carte (un pixel par bloc), gardé tant que la liste n'a pas bougé */
+export function seenMask(game, id) {
+  const st = game.state, m = game.world.maps[id], monde = id === 'monde';
+  const B = monde ? 8 : BLOC_LOCAL, seen = (monde ? st.explored : st.explores?.[id]) || [];
+  const cw = Math.ceil(m.w / B), ch = Math.ceil(m.h / B);
+  game._fogMasks ||= {};
+  let FM = game._fogMasks[id];
   if (!FM || FM.n !== seen.length || FM.cw !== cw) {
     const mask = document.createElement('canvas'); mask.width = cw; mask.height = ch;
     const mx = mask.getContext('2d'), md = mx.createImageData(cw, ch);
     for (const i of seen) if (i >= 0 && i < cw * ch) md.data[i * 4 + 3] = 255;
     mx.putImageData(md, 0, 0);
-    FM = game._fogMask = { mask, n: seen.length, cw, fog: FM?.fog || document.createElement('canvas') };
+    FM = game._fogMasks[id] = { mask, n: seen.length, cw, ch, set: new Set(seen), fog: FM?.fog || document.createElement('canvas') };
   }
-  const mask = FM.mask, fog = FM.fog;
+  return FM;
+}
+/** blocs de cases des cartes autres que la région (grottes, îles) : plus petits, ces cartes sont petites */
+export const BLOC_LOCAL = 4;
+
+/** motif du brouillard (nuages sombres et quadrillage radar du C-Gear), raccordable sur lui-même */
+let motifBrume = null;
+function brumeMotif() {
+  if (motifBrume) return motifBrume;
+  const N = 256, c = document.createElement('canvas'); c.width = c.height = N;
+  const x2 = c.getContext('2d'), im = x2.createImageData(N, N), D = im.data;
+  const h = (x, y, p) => { x = ((x % p) + p) % p; y = ((y % p) + p) % p; let n = x * 374761393 + y * 668265263; n = (n ^ (n >> 13)) * 1274126177; return ((n ^ (n >> 16)) & 1023) / 1023; };
+  const vn = (x, y, s) => { const p = N / s, gx = x / s, gy = y / s, x0 = Math.floor(gx), y0 = Math.floor(gy), fx = gx - x0, fy = gy - y0;
+    const a = h(x0, y0, p), b = h(x0 + 1, y0, p), cc = h(x0, y0 + 1, p), d = h(x0 + 1, y0 + 1, p), u = fx * fx * (3 - 2 * fx), w = fy * fy * (3 - 2 * fy);
+    return a + (b - a) * u + (cc - a) * w + (a - b - cc + d) * u * w; };
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const n = vn(x, y, 64) * 0.55 + vn(x, y, 32) * 0.3 + vn(x, y, 8) * 0.15;
+    const k = Math.max(0, Math.min(1, (n - 0.3) * 1.6)), o = (y * N + x) * 4;
+    let r = 14 + 26 * k, g = 24 + 34 * k, b = 40 + 46 * k;
+    if (x % 32 === 0 || y % 32 === 0) { r += 6; g += 16; b += 22; }   // quadrillage radar
+    D[o] = r; D[o + 1] = g; D[o + 2] = b; D[o + 3] = 255;
+  }
+  x2.putImageData(im, 0, 0);
+  return (motifBrume = c);
+}
+
+/** recouvre le cadre v (en cases) d'un brouillard opaque, sauf les blocs explorés de FM (blocs de B cases) */
+export function brouillard(ctx, cv, FM, B, v) {
+  const sx = cv.width / v.w, sy = cv.height / v.h, X = (x) => (x - v.x) * sx, Y = (y) => (y - v.y) * sy;
+  const fog = FM.fog;
   if (fog.width !== cv.width || fog.height !== cv.height) { fog.width = cv.width; fog.height = cv.height; }
   const fx = fog.getContext('2d');
   fx.globalCompositeOperation = 'source-over'; fx.clearRect(0, 0, fog.width, fog.height);
-  fx.fillStyle = 'rgba(14, 26, 44, 0.62)';
-  fx.fillRect(0, 0, fog.width, fog.height);
+  // le motif suit la carte (il ne glisse pas quand on la déplace) et garde la même taille à l'écran
+  const pat = fx.createPattern(brumeMotif(), 'repeat');
+  pat.setTransform(new DOMMatrix([1, 0, 0, 1, X(0) % 256, Y(0) % 256]));
+  fx.fillStyle = pat; fx.fillRect(0, 0, fog.width, fog.height);
+  const r = Math.max(2, B * sx * 0.35);
+  // lueur au bord de l'inconnu : le brouillard s'éclaire là où il touche ce qu'on connaît
+  fx.globalAlpha = 0.5; fx.filter = `blur(${r * 2.2}px) brightness(0) invert(1) sepia(1) hue-rotate(150deg) saturate(3)`;
+  fx.globalCompositeOperation = 'source-atop';
+  fx.drawImage(FM.mask, X(0), Y(0), FM.cw * B * sx, FM.ch * B * sy);
+  fx.globalAlpha = 1;
+  // découpe des blocs explorés : bord flou, mais l'intérieur bien net
   fx.globalCompositeOperation = 'destination-out';
   fx.imageSmoothingEnabled = true;
-  fx.filter = `blur(${Math.max(2, sx * 3.2)}px)`;
-  fx.drawImage(mask, X(0), Y(0), cw * C * sx, ch * C * sy);
-  fx.filter = 'none'; fx.globalCompositeOperation = 'source-over';
+  fx.filter = `blur(${r}px)`;
+  for (let k = 0; k < 2; k++) fx.drawImage(FM.mask, X(0), Y(0), FM.cw * B * sx, FM.ch * B * sy);
+  fx.filter = 'none';
+  fx.globalCompositeOperation = 'source-over';
   ctx.drawImage(fog, 0, 0);
+}
+
+/** la case (x, y) d'une carte a-t-elle été vue ? */
+export function caseVue(game, id, x, y) {
+  const m = game.world.maps[id]; if (!m) return false;
+  const B = id === 'monde' ? 8 : BLOC_LOCAL, FM = seenMask(game, id);
+  if (x < 0 || y < 0 || x >= m.w || y >= m.h) return false;
+  return FM.set.has(Math.floor(y / B) * FM.cw + Math.floor(x / B));
 }
 
 /** recadre une vue mémorisée au ratio voulu, autour de son centre */
@@ -375,6 +430,10 @@ export function mapScreen(game) {
           <span class="map-gps-loc">${esc(here)}</span>
         </div>
         <div class="map-gps-right">
+          <div class="map-onglets" role="tablist" title="Changer de carte (Tab)">
+            <button type="button" class="map-onglet" data-act="mode" data-mode="region">🌍 Région</button>
+            <button type="button" class="map-onglet" data-act="mode" data-mode="locale">📍 Ici</button>
+          </div>
           <button type="button" class="map-ctrl-btn" data-act="me" title="Centrer la carte sur ma position (Espace / Entrée)">⌖ Ma position</button>
           <button type="button" class="map-ctrl-btn" data-act="toggle-view" title="Basculer entre vue zoomée et vue de la région">🗺️ Toute la région</button>
         </div>
@@ -431,19 +490,30 @@ export function mapScreen(game) {
         c.height = h;
       }
     };
+    // carte locale (le lieu où l'on est, case par case) : préparée au premier passage sur l'onglet
+    let locale = game.mapObj?.floor === 'cave' ? true : st.mapMode === 'locale', L = null, viewL = null;
     const place = (node, x, y) => {
+      const view0 = view; { const view = locale && node === me ? viewL : view0;
       node.style.left = ((x - view.x) / view.w * 100) + '%';
       node.style.top = ((y - view.y) / view.h * 100) + '%';
       // nom de ville près d'un bord : ancré de ce côté pour ne pas être coupé
       if (node.classList?.contains?.('map-pin-name') && node.style.setProperty) {
         const px = (x - view.x) / view.w;
         node.style.setProperty('--ax', px < 0.1 ? '-8%' : px > 0.9 ? '-92%' : '-50%');
-      }
+      } }
     };
     const pinsAt = [];
+    let me = null;
     const draw = () => {
       if (!s.isConnected) return;
       fit();
+      if (locale) {
+        L ||= preparerLocale(game);
+        viewL = vueLocale(L, aspectNow());
+        dessinerLocale(game, c, L, viewL);
+        if (me) place(me, L.p.x + 0.5, L.p.y + 0.5);
+        return;
+      }
       drawRegion(game, c, view);
       for (const [node, x, y] of pinsAt) place(node, x, y);
     };
@@ -462,7 +532,7 @@ export function mapScreen(game) {
     st.mapView = target;
 
     // Balise Joueur "VOUS ÊTES ICI" interactive avec double halo radar
-    const me = el('div', 'map-me');
+    me = el('div', 'map-me');
     me.innerHTML = `
       <div class="map-me-radar-outer"></div>
       <div class="map-me-radar"></div>
@@ -512,7 +582,30 @@ export function mapScreen(game) {
     const curAt = [cur, p.x, p.y]; pinsAt.push(curAt);
 
     let k = 0;
+    const titre = s.querySelector('.map-hdr-main');
+    const showLocale = () => {
+      L ||= preparerLocale(game);
+      whereEl.textContent = L.nom;
+      tagEl.textContent = L.grotte ? 'Grotte' : L.ville ? 'Ville' : L.id === 'monde' ? 'Route' : 'Lieu';
+      tagEl.className = 'map-tag ' + (L.ville ? 'town' : 'here');
+      // part du lieu déjà parcourue
+      const FM = seenMask(game, L.id), B = L.id === 'monde' ? 8 : BLOC_LOCAL;
+      let n = 0, vus = 0;
+      for (let by = Math.floor(L.y0 / B); by <= Math.floor(L.y1 / B); by++) for (let bx = Math.floor(L.x0 / B); bx <= Math.floor(L.x1 / B); bx++) { n++; if (FM.set.has(by * FM.cw + bx)) vus++; }
+      const zKey = L.zone ? findZoneSpawnKey(L.zone) : null, zCatch = zKey ? getZoneCatchStats(st, zKey) : null;
+      subEl.innerHTML = `Carte locale · <b>${Math.round(vus / Math.max(1, n) * 100)} %</b> exploré` + (zCatch ? ` <span class="map-route-catch-badge${zCatch.complete ? ' complete' : ''}">· 🐾 Pokédex Zone : <b>${zCatch.caught} / ${zCatch.total}</b> capturés${zCatch.complete ? ' ★' : ''}</span>` : '');
+    };
+    const setMode = (loc, son = true) => {
+      locale = loc; st.mapMode = loc ? 'locale' : 'region';
+      s.classList.toggle('mode-locale', loc);
+      s.querySelectorAll('.map-onglet').forEach((b) => b.classList.toggle('on', (b.dataset.mode === 'locale') === loc));
+      titre.textContent = loc ? `CARTE LOCALE — ${(L ||= preparerLocale(game)).nom.toUpperCase()}` : 'CARTE DE LA RÉGION D\'ODYSSÉE';
+      if (son) ui.sound.sfx('blip');
+      if (loc) showLocale(); else show();
+      draw();
+    };
     const show = () => {
+      if (locale) return showLocale();
       const q = spots[k];
       curAt[1] = q.x; curAt[2] = q.y; place(cur, q.x, q.y);
       whereEl.textContent = q.name;
@@ -532,10 +625,11 @@ export function mapScreen(game) {
         subEl.innerHTML = `${esc(q.sub || '')} <span class="map-sub-dist">· ${distLabel(q.x - p.x, q.y - p.y)}</span>${catchBadge}`;
       }
     };
-    show();
+    setMode(locale, false);
 
     // Clic n'importe où sur la carte : Waypoint GPS interactif
     c.addEventListener('click', (e) => {
+      if (locale) return;
       const rect = c.getBoundingClientRect();
       const clickX = (e.clientX - rect.left) / rect.width;
       const clickY = (e.clientY - rect.top) / rect.height;
@@ -556,13 +650,14 @@ export function mapScreen(game) {
       } else {
         ui.sound.sfx('select');
         curAt[1] = worldX; curAt[2] = worldY; place(cur, worldX, worldY);
-        const clickZone = world.zoneAt?.(worldX, worldY);
+        const vue = caseVue(game, 'monde', worldX, worldY);
+        const clickZone = vue ? W.zoneAt?.(worldX, worldY) : null;
         const clickKey = findZoneSpawnKey(clickZone);
-        const clickCatch = clickKey ? getZoneCatchStats(st, clickKey) : null;
+        const clickCatch = vue && clickKey ? getZoneCatchStats(st, clickKey) : null;
         const clickCatchHtml = clickCatch
           ? ` <span class="map-route-catch-badge${clickCatch.complete ? ' complete' : ''}">· 🐾 Pokédex Zone : <b>${clickCatch.caught} / ${clickCatch.total}</b> capturés${clickCatch.complete ? ' ★' : ''}</span>`
           : '';
-        whereEl.textContent = clickZone?.name || 'Repère';
+        whereEl.textContent = vue ? clickZone?.name || 'Repère' : 'Zone inexplorée';
         tagEl.textContent = '';
         tagEl.className = 'map-tag waypoint';
         subEl.innerHTML = `Repère temporaire posé sur la carte <span class="map-sub-dist">· ${distLabel(worldX - p.x, worldY - p.y)}</span>${clickCatchHtml}`;
@@ -602,6 +697,7 @@ export function mapScreen(game) {
     s.querySelector('[data-act="close"]')?.addEventListener('click', close);
     s.querySelector('[data-act="me"]')?.addEventListener('click', centerOnPlayer);
     s.querySelector('[data-act="toggle-view"]')?.addEventListener('click', toggleView);
+    s.querySelectorAll('[data-act="mode"]').forEach((b) => b.addEventListener('click', () => { if ((b.dataset.mode === 'locale') !== locale) setMode(!locale); }));
     s.querySelector('[data-act="prev"]')?.addEventListener('click', () => {
       k = (k + spots.length - 1) % spots.length;
       ui.sound.sfx('blip');
@@ -614,6 +710,8 @@ export function mapScreen(game) {
     });
 
     const pop = ui.input.push((key) => {
+      if (key === 'menu') { setMode(!locale); return; }   // Tab : carte locale ⇄ carte de la région
+      if (locale) { if (key === 'b' || key === 'map') close(); return; }
       if (key === 'left' || key === 'up') { k = (k + spots.length - 1) % spots.length; ui.sound.sfx('blip'); show(); return; }
       if (key === 'right' || key === 'down') { k = (k + 1) % spots.length; ui.sound.sfx('blip'); show(); return; }
       // Espace / Entrée (« a ») : recentrer sur le joueur, sans jamais fermer

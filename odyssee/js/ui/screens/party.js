@@ -428,6 +428,16 @@ export function summaryScreen(game, list, idx) {
   return new Promise((resolve) => {
     const s = screen(ui, 'sum-scr');
     let page = 0;
+    // ranger les attaques (onglet « Attaques connues », hors combat) : curseur sur une attaque, A la prend, A la pose à
+    // la place de celle visée (les deux s'échangent) ; à la souris, un clic prend, un second clic échange
+    const ordreOk = !game.bv?.alive;
+    let curMv = -1, pris = -1;
+    const sortirOrdre = () => { curMv = -1; pris = -1; };
+    const echanger = (a, b) => {
+      const mv = list[idx].moves; if (a === b || !mv[a] || !mv[b]) return;
+      [mv[a], mv[b]] = [mv[b], mv[a]];
+      ui.sound.sfx('select');
+    };
     const closeIdx = closer(ui, s, () => pop, resolve);
     const close = () => closeIdx(idx);
     const draw = () => {
@@ -460,13 +470,14 @@ export function summaryScreen(game, list, idx) {
         body = `<table class="kv stats sum-kv sum-stats"><tr class="sth"><td></td><td>Stat</td><td></td><td>IV</td><td>EV</td></tr>${STAT_NAMES.map((n, k) => `<tr><td class="${ne && ne[0] === k ? 'nat-up' : ne && ne[1] === k ? 'nat-down' : ''}">${n}${ne && ne[0] === k ? ' ▲' : ne && ne[1] === k ? ' ▼' : ''}</td><td><b>${k === 0 ? `${m.hp} / ${m.stats[0]}` : m.stats[k]}</b></td><td><i class="sbar"><u style="width:${Math.min(100, S.b[k] / 1.5)}%"></u></i></td><td class="iv${m.iv[k] === 31 ? ' max' : ''}">${m.iv[k]}</td><td class="evv">${ev[k]}</td></tr>`).join('')}</table>
           <div class="sum-natline">Nature <b>${esc(natureName(m.nat ?? 0))}</b> · EV ${evTot} / 510 · Les EV s'ajoutent aux stats au niveau suivant ou au Centre.</div>`;
       } else {
-        body = `<div class="moves">${m.moves.map((mv) => {
+        body = `<div class="moves${curMv >= 0 ? ' ordre' : ''}">${m.moves.map((mv, k) => {
           const M = MOVES[mv.id];
-          return `<div class="mv" style="--tc:${TYPE_COL[M.t]}">
+          return `<div class="mv${k === curMv ? ' cur' : ''}${k === pris ? ' pris' : ''}" data-mv="${k}" style="--tc:${TYPE_COL[M.t]}">
             <div class="mv-top"><span class="mvn">${esc(M.n)}</span>${typeTag(M.t)}<span class="mvpp">PP <b>${mv.pp}</b>/${M.pp}</span></div>
             <div class="mvd">${M.c === 'status' ? 'Catégorie : Statut' : `Puissance : ${M.p || '—'}`} · Précision : ${M.a ?? '—'}%</div>
           </div>`;
-        }).join('')}</div>`;
+        }).join('')}</div>${ordreOk && m.moves.length > 1 ? `<div class="mv-ordre-aide">${curMv < 0 ? 'A ou clic : ranger les attaques'
+          : pris < 0 ? '▲ ▼ choisir l\'attaque · A la prendre · B terminer' : `▲ ▼ choisir sa nouvelle place · A échanger avec elle · B reposer`}</div>` : ''}`;
       }
       s.innerHTML = `
         <div class="scr-bar">
@@ -499,22 +510,31 @@ export function summaryScreen(game, list, idx) {
             <div class="sum-content">${body}</div>
           </div>
         </div>
-        <div class="sum-help">◀ ▶ Changer d'onglet · ▲ ▼ Changer de Pokémon · Clic ou Échap pour fermer</div>`;
+        <div class="sum-help">${curMv >= 0 ? 'Ranger les attaques · ◀ ▶ Changer d\'onglet' : '◀ ▶ Changer d\'onglet · ▲ ▼ Changer de Pokémon · Clic ou Échap pour fermer'}</div>`;
 
+      if (ordreOk) s.querySelectorAll('[data-mv]').forEach((el) => {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const k = +el.dataset.mv;
+          if (pris >= 0) { echanger(pris, k); pris = -1; curMv = k; }
+          else { curMv = pris = k; ui.sound.sfx('blip'); }
+          draw();
+        });
+      });
       s.querySelectorAll('[data-tab]').forEach((btn) => {
         btn.addEventListener('click', () => {
-          page = +btn.dataset.tab;
+          page = +btn.dataset.tab; sortirOrdre();
           ui.sound.sfx('blip');
           draw();
         });
       });
       s.querySelector('[data-act="prev"]')?.addEventListener('click', () => {
-        idx = (idx - 1 + list.length) % list.length;
+        idx = (idx - 1 + list.length) % list.length; sortirOrdre();
         ui.sound.sfx('blip');
         draw();
       });
       s.querySelector('[data-act="next"]')?.addEventListener('click', () => {
-        idx = (idx + 1) % list.length;
+        idx = (idx + 1) % list.length; sortirOrdre();
         ui.sound.sfx('blip');
         draw();
       });
@@ -522,6 +542,16 @@ export function summaryScreen(game, list, idx) {
     };
     draw();
     const pop = ui.input.push((k) => {
+      // rangement des attaques en cours
+      if (curMv >= 0 && page === 2) {
+        const n = list[idx].moves.length;
+        if (k === 'up' || k === 'down') { curMv = (curMv + (k === 'up' ? n - 1 : 1)) % n; ui.sound.sfx('blip'); draw(); return; }
+        if (k === 'a') { if (pris < 0) { pris = curMv; ui.sound.sfx('blip'); } else { echanger(pris, curMv); pris = -1; } draw(); return; }
+        if (k === 'b') { if (pris >= 0) pris = -1; else curMv = -1; ui.sound.sfx('cancel'); draw(); return; }
+        sortirOrdre();
+      }
+      if (k === 'a' && page === 2 && ordreOk && list[idx].moves.length > 1) { curMv = 0; pris = -1; ui.sound.sfx('blip'); draw(); return; }
+      if (k === 'up' || k === 'down') sortirOrdre();
       if (k === 'left') { page = (page + 2) % 3; ui.sound.sfx('blip'); draw(); }
       else if (k === 'right') { page = (page + 1) % 3; ui.sound.sfx('blip'); draw(); }
       else if (k === 'up') { idx = (idx - 1 + list.length) % list.length; ui.sound.sfx('blip'); draw(); }

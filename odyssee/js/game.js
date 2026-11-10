@@ -188,7 +188,7 @@ export class Game {
     return {
       v: 2, name, gender, id: Math.floor(Math.random() * 65536), money: 3000, badges: Array(BADGES.length).fill(false), flags: {},
       party: [], box: [], bag: { potion: 1 }, dex: { seen: [], caught: [], seenCount: {} }, time: 0, visited: ['aube'], repel: 0,
-      cleared: {}, surf: false, explored: [], journal: {},
+      cleared: {}, surf: false, explored: [], explores: {}, journal: {},
       pvp: { totalWins: 0, totalLosses: 0, totalDraws: 0, currentStreak: 0, bestStreak: 0, players: {}, trophies: {} },
       lastCenter: { map: 'aube:maison', x: 4, y: 5, dir: 'up' }, ...this.world.start, carte: CARTE_VERSION,
     };
@@ -203,7 +203,7 @@ export class Game {
   }
   load(from) {
     const s = from ? JSON.parse(JSON.stringify(from)) : JSON.parse(localStorage.getItem(SAVE_KEY));
-    s.cleared ||= {}; s.explored ||= [];
+    s.cleared ||= {}; s.explored ||= []; s.explores ||= {};
     s.dex ||= { seen: [], caught: [], seenCount: {} };
     s.dex.seenCount ||= {};
     let maxUid = 0; for (const m of s.party.concat(s.box)) maxUid = Math.max(maxUid, m.uid || 0);
@@ -418,7 +418,7 @@ export class Game {
 
   /** la carte se découvre en marchant : blocs de 8 × 8 cases autour du joueur (et toute ville visitée) */
   explore() {
-    if (this.mapObj.id !== 'monde') return;
+    if (this.mapObj.id !== 'monde') return this.exploreLocal();
     const st = this.state, W = this.mapObj, B = 8, cw = Math.ceil(W.w / B), p = this.player;
     this._seen ||= new Set(st.explored);
     const add = (i) => { if (!this._seen.has(i)) { this._seen.add(i); st.explored.push(i); } };
@@ -426,6 +426,19 @@ export class Game {
     for (let y = Math.floor((p.y - R) / B); y <= Math.floor((p.y + R) / B); y++) for (let x = Math.floor((p.x - R) / B); x <= Math.floor((p.x + R) / B); x++) if (x >= 0 && y >= 0 && x < cw && y * B < W.h) add(y * cw + x);
     const t = this.zone?.town && Object.values(this.world.towns).find((q) => q.id === this.zone.town);
     if (t) for (let y = Math.floor(t.y / B); y <= Math.floor((t.y + t.h) / B); y++) for (let x = Math.floor(t.x / B); x <= Math.floor((t.x + t.w) / B); x++) add(y * cw + x);
+  }
+  /** grottes et autres lieux du dehors : leur carte locale se découvre aussi en marchant (blocs de 4 × 4 cases) */
+  exploreLocal() {
+    const m = this.mapObj; if (!m || !(m.floor === 'cave' || m.outdoor)) return;
+    const st = this.state, B = 4, cw = Math.ceil(m.w / B), p = this.player, R = m.floor === 'cave' ? 5 : 8;
+    st.explores ||= {};
+    const L = st.explores[m.id] ||= [];
+    this._seenL ||= {};
+    const S = this._seenL[m.id] && this._seenL[m.id].L === L ? this._seenL[m.id] : (this._seenL[m.id] = { L, set: new Set(L) });
+    for (let y = Math.floor((p.y - R) / B); y <= Math.floor((p.y + R) / B); y++) for (let x = Math.floor((p.x - R) / B); x <= Math.floor((p.x + R) / B); x++) {
+      if (x < 0 || y < 0 || x >= cw || y * B >= m.h) continue;
+      const i = y * cw + x; if (!S.set.has(i)) { S.set.add(i); L.push(i); }
+    }
   }
   updateZone() {
     const m = this.mapObj, p = this.player;
@@ -637,6 +650,11 @@ export class Game {
       if (n.bang) { const b = v.actor('bang:' + n.id, { kind: 'bang' }); b.mesh.position.set(nx + 0.5, 34 * HPX + v.hAt(nx + 0.5, ny + 0.55), ny + 0.56); }
       else if (v.actors.has('bang:' + n.id)) v.removeActor('bang:' + n.id);
     }
+    // éditeur de carte : caméra libre, sans dresseur ni compagnon
+    if (this.camLibre) {
+      px = this.camLibre.x; py = this.camLibre.y;
+      for (const k of ['player', 'follower', 'velo', 'wake']) { const x = v.actors.get(k); if (x) { x.mesh.visible = false; if (x.shadow) x.shadow.visible = false; } }
+    }
     v.update(dt, px, py);
     v.render();
   }
@@ -747,9 +765,11 @@ export class Game {
     if (enc && (isGrassEnc(t) || (!m.outdoor && t === T.CAVE))) {
       const rate = isGrassEnc(t) ? (t === T.DARKTALL ? 0.12 : 0.1) : 0.065;
       if (Math.random() < rate) {
+        // le Pokémon est tiré d'abord : si un Repousse le fait fuir, le pas continue sans aucun arrêt
+        const tir = this.tirageSauvage(enc); if (!tir) return;
         // dans les grottes, il arrive qu'un Pokémon tombe du plafond
         if (!m.outdoor && t === T.CAVE && Math.random() < 0.3) await this.vie?.embuscade();
-        await this.wildBattle(enc);
+        await this.wildBattle(enc, { tirage: tir });
       }
     }
   }
@@ -1854,7 +1874,8 @@ export class Game {
     return curtain;
   }
 
-  async wildBattle(enc, o = {}) {
+  /** tire le Pokémon sauvage d'une rencontre (espèce, niveau) ; null si un Repousse le fait fuir (ou équipe K.O.) */
+  tirageSauvage(enc, o = {}) {
     let pool = enc;
     const h = this.hour();
     const isNight = h >= 20 || h < 6;
@@ -1868,8 +1889,14 @@ export class Game {
     let e = pool[0];
     if (!o.fixed) { const tot = pool.reduce((a, x) => a + x[3], 0); let r = Math.random() * tot; for (const x of pool) { r -= x[3]; if (r <= 0) { e = x; break; } } }
     const lvl = e[1] + Math.floor(Math.random() * (e[2] - e[1] + 1));
-    const lead = this.lead(); if (!lead) return;
-    if (!o.fixed && this.state.repel > 0 && lead.lvl >= lvl) return;
+    const lead = this.lead(); if (!lead) return null;
+    if (!o.fixed && this.state.repel > 0 && lead.lvl >= lvl) return null;
+    return { e, lvl };
+  }
+
+  async wildBattle(enc, o = {}) {
+    const tir = o.tirage || this.tirageSauvage(enc, o); if (!tir) return;
+    const { e, lvl } = tir;
     this.busy = true;
     const wild = createMon(o.fixed ? e[0] : SAUVAGE(e[0]), lvl, { met: this.locationName() });
     const res = await this.runBattle({ wild, music: o.music });

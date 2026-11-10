@@ -413,6 +413,7 @@ export class BattleView {
   /* ---------------- lancement ---------------- */
   async run(battle, o = {}) {
     this.battle = battle; this.kind = o.bg || 'grass'; this.alive = true;
+    this.lastMove = 0; this.lastMoveMon = null;   // chaque combat commence sur l'attaque du haut à gauche
     this.seenInBattle = new Set();
     this.W = Math.max(256, Math.min(420, Math.round(BH * innerWidth / innerHeight)));
     this.bg = this.makeBg(this.kind, o.night);
@@ -904,7 +905,8 @@ export class BattleView {
         </div>`;
       this.cmd.classList.add('on', 'moves');
       this.root.classList.add('cmdon', 'moves-open');
-      let i = this.lastMove || 0; if (!m.moves[i]) i = 0;
+      // le curseur revient sur la dernière attaque choisie par ce même Pokémon, sinon sur celle du haut à gauche
+      let i = this.lastMoveMon === m ? this.lastMove || 0 : 0; if (!m.moves[i]) i = 0;
       const btns = [...this.cmd.querySelectorAll('.mbtn')];
       const backBtn = this.cmd.querySelector('.mv-back-btn');
       const descName = this.cmd.querySelector('.mv-desc-name');
@@ -975,7 +977,7 @@ export class BattleView {
         this.cmd.classList.remove('on', 'moves');
         this.root.classList.remove('cmdon', 'moves-open');
         if (idx >= 0) {
-          this.lastMove = idx;
+          this.lastMove = idx; this.lastMoveMon = m;
           this.sound.sfx('select');
         } else {
           this.sound.sfx('cancel');

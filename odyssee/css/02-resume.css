@@ -161,3 +161,8 @@
 .mv-top { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--px) * 3); }
 .mvn { font-weight: 700; flex: 1; } .mvpp { font-size: .85em; color: #ffe068; }
 .mvd { font-size: calc(var(--px) * 5.6); color: #9cb4d4; }
+/* ranger les attaques : curseur jaune, attaque prise décalée et en pointillés */
+.moves .mv[data-mv] { cursor: pointer; transition: transform .08s; }
+.moves .mv.cur { outline: calc(var(--px) * 1) solid #ffe068; outline-offset: calc(var(--px) * 0.5); }
+.moves .mv.pris { transform: translateX(calc(var(--px) * -3)); border-style: dashed; border-left-style: solid; background: #24364e; }
+.mv-ordre-aide { margin-top: calc(var(--px) * 3); font-size: calc(var(--px) * 5.6); color: #ffe068; text-align: center; text-shadow: var(--px) var(--px) 0 #080c12; }
