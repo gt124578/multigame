@@ -439,6 +439,16 @@ class Geo {
     return g;
   }
 }
+/** barrière nord-sud : bord gauche du poteau dans la case (pixels de la planche), comme les poteaux
+ *  des rangées de tools/pixelforge/barrieres.py (32 par case) ; une colonne s'aligne sur le coin de la rangée qu'elle rejoint */
+const BARR_POT = { g: 0, d: 27, c: 13 };
+function coteBarriere(m, x, y) {
+  for (const s of [-1, 1]) for (let k = 1, yy = y + s; k < 40 && m.get(x, yy) === T.FENCE; k++, yy += s) {
+    const a = m.get(x + 1, yy) === T.FENCE, b = m.get(x - 1, yy) === T.FENCE;
+    if (a || b) return a && !b ? 'g' : b && !a ? 'd' : 'c';
+  }
+  return 'c';
+}
 /** sprite vertical, pieds en (cx, cz) */
 function billboard(G, cx, cz, w, h, r, y0 = 0, flip = false, shade = 1) {
   const u0 = flip ? r.u1 : r.u0, u1 = flip ? r.u0 : r.u1;
@@ -1044,8 +1054,22 @@ export class WorldView {
         }
       } else if (t === T.FENCE) {
         // barrière : de face (rangée horizontale) ou vue dans l'axe (colonne nord-sud, le long d'un chemin vertical)
-        const vert = S.fence_v && m.get(x - 1, y) !== T.FENCE && m.get(x + 1, y) !== T.FENCE && (m.get(x, y - 1) === T.FENCE || m.get(x, y + 1) === T.FENCE || m.get(x - 1, y) === T.PATH || m.get(x + 1, y) === T.PATH);
-        const r = vert ? (m.get(x, y - 1) === T.FENCE ? S.fence_v : S.fence_v0 || S.fence_v) : S.fence; billboard(P, x + 0.5, y + (vert ? 0.75 : 0.6), SW(r), SH(r), r);
+        const vert = (S.barriere_v || S.fence_v) && m.get(x - 1, y) !== T.FENCE && m.get(x + 1, y) !== T.FENCE && (m.get(x, y - 1) === T.FENCE || m.get(x, y + 1) === T.FENCE || m.get(x - 1, y) === T.PATH || m.get(x + 1, y) === T.PATH);
+        if (S.barriere) {
+          // barrières de PixelForge (tools/pixelforge/barrieres.py) : chaque pièce tient dans la case qu'elle bloque,
+          // pieds des poteaux au bas de la case ; une ombre au sol en marque l'emprise
+          if (vert) {
+            const r = m.get(x, y - 1) === T.FENCE ? S.barriere_v : S.barriere_v0, px = BARR_POT[coteBarriere(m, x, y)];
+            billboard(P, x + px / 32 + SW(r) / 2, y + 0.94, SW(r), SH(r), r);
+            this.ombreSol(Sh, x + px / 32 - 0.08, y + 0.8, x + px / 32 + 0.24, y + 1.0);
+          } else {
+            const r = m.get(x + 1, y) === T.FENCE ? S.barriere : S.barriere_fin;
+            billboard(P, x + 0.5, y + 0.94, SW(r), SH(r), r);
+            this.ombreSol(Sh, x - 0.02, y + 0.8, x + 1.02, y + 1.0, 0.015, 'bande');
+          }
+        } else {
+          const r = vert ? (m.get(x, y - 1) === T.FENCE ? S.fence_v : S.fence_v0 || S.fence_v) : S.fence; billboard(P, x + 0.5, y + (vert ? 0.75 : 0.6), SW(r), SH(r), r);
+        }
       }
       else if (t === T.ROCK) { const r = S.rock; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r); this.ombreSol(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85); }
       else if (t === T.BUSH) { const r = S[this.arbresUnis ? 'bush' : variante(S, 'bush', x, y)]; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r, 0, !this.arbresUnis && miroir(x, y), this.arbresUnis ? 1 : teinte(x, y)); }

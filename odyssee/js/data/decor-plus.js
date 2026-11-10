@@ -7,5 +7,7 @@ export const DECOR_PLUS = {
   // désert de la route 16 (tools/odyssee-desert.py)
   cactus: ['nature', 2], cactus2: ['nature', 2],
   // Tour Cendrée (tools/odyssee-cendree.py)
+  // barrières de bois dessinées au pixel (tools/pixelforge/barrieres.py)
+  barriere: ['nature', 2], barriere_fin: ['nature', 2], barriere_v: ['nature', 2], barriere_v0: ['nature', 2],
   souche_brulee: ['nature', 2], pilier_brule: ['nature', 2], poutre_brulee: ['nature', 2], gravats: ['nature', 2],
 };

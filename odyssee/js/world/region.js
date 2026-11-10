@@ -1628,8 +1628,16 @@ function fenceRoutes(W, legends = []) {
       if (t === T.FENCE && sensBarr.get((x + i) + ',' + (y + j)) !== sens) { gene = true; break; }
     }
     if (gene) { run = 0; continue; }
+    // une seule rive barrée : jamais de couloir fermé des deux côtés du chemin (on ne pouvait plus quitter le sentier)
+    { const s = W.get(x, y - 1) === T.PATH ? -1 : 1; let yy = y + s; while (W.get(x, yy) === T.PATH) yy += s;
+      if (W.get(x, yy) === T.FENCE || W.get(x - 1, yy) === T.FENCE || W.get(x + 1, yy) === T.FENCE) { run = 0; continue; } }
+    // des tronçons courts (4 cases au plus), avec une ouverture entre deux
+    if (run < 0) { run++; continue; }
+    if (run >= 4) { run = -2; continue; }
     W.set(x, y, T.FENCE); sensBarr.set(x + ',' + y, sens); run++;
   }
+  // un bout de barrière d'une seule case ne barre rien et se lit mal : on le retire
+  for (const k of sensBarr.keys()) { const [x, y] = k.split(',').map(Number); if (W.get(x - 1, y) !== T.FENCE && W.get(x + 1, y) !== T.FENCE) W.set(x, y, T.GRASS); }
 }
 
 function caveTrainers(m, list, seed) {
