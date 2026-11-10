@@ -9,7 +9,7 @@ import { hacherMotDePasse, verifierShaMotDePasse, DROITS } from './page-xlsx.js'
 import { executerMacro, analyserVBA, ErreurVBA, InterpreteurVBA, creerUDF } from './vba.js';
 import { listerProcedures, procedureALaLigne, insererMacro, supprimerProcedure, ajouterAuProjet, nomVBAValide, renommerProcedure, renommerModuleProjet, fonctionsDuProjet } from './projetvba.js';
 import { installerGraphiques } from './ui-graphiques.js';
-import { styleConditionnel, validationDe, valeurValide, iconeSVG } from './donnees.js';
+import { styleConditionnel, validationDe, valeurValide, iconeSVG, decouperLigne, devinerSeparateurs } from './donnees.js';
 import { installerDonnees } from './ui-donnees.js';
 import { installerTCD } from './ui-tcd.js';
 import { installerDialogues } from './ui-dialogues.js';
@@ -1413,19 +1413,27 @@ async function coller(texteSysteme) {
       try { lecture = navigator.clipboard.readText(); texte = await Promise.race([lecture, new Promise((ok) => setTimeout(() => ok(undefined), 500))]); }
       catch { texte = null; }
       if (texte === undefined) {
-        // Le navigateur demande l'autorisation (ou montre sa bulle « Coller ») : sans copie interne, on colle dès qu'il répond
+        // Le navigateur demande l'autorisation (ou montre sa bulle « Coller » sur iPad) : on colle dès qu'il répond,
+        // en attendant la copie interne s'il y en a une ; si le texte reçu est autre (copié d'un PDF, d'une page…), il la remplace
         texte = null;
+        const sel = JSON.stringify(selection);
         if (!pressePapier) {
-          const sel = JSON.stringify(selection);
           toast('Autorisez l\'accès au presse-papiers, ou collez avec Ctrl+V');
           lecture.then((t) => { if (t && JSON.stringify(selection) === sel) coller(t); }, () => {});
           return;
         }
+        const interne = pressePapier;
+        lecture.then((t) => {
+          if (!t || pressePapier !== interne || t === interne.texte || t.replace(/\r/g, '') === interne.texte) return;
+          if (classeur.version !== versionApresCollage) return; // on a fait autre chose depuis
+          annuler(); selection = JSON.parse(sel); coller(t);
+        }, () => {});
       }
       if (texte == null && !pressePapier) { toast('Le navigateur ne laisse pas lire le presse-papiers ici : collez avec Ctrl+V (au doigt : appui long dans la barre de formule › Coller)'); return; }
     }
   }
   const dest = selectionNormalisee();
+  let texteExterne = null;
   if (feuilleProtegee()) {
     // Taille de ce qui est collé : la cible doit être entièrement déverrouillée
     const lignes = texte ? lireTexteTabule(texte) : null;
@@ -1468,6 +1476,7 @@ async function coller(texteSysteme) {
     selection = { r1: dest.r1, c1: dest.c1, r2: dest.r1 + nl * repL - 1, c2: dest.c1 + nc * repC - 1 };
     if (pressePapier) pressePapier.colle = true;
   } else if (texte != null && texte !== '') {
+    texteExterne = texte;
     const lignes = lireTexteTabule(texte);
     if (!lignes.length) return;
     // Une ligne ou une colonne copiée, collée sur une plage plus grande qui en est un multiple : répétée, comme dans Excel
@@ -1478,8 +1487,27 @@ async function coller(texteSysteme) {
     selection = { r1: dest.r1, c1: dest.c1, r2: dest.r1 + nl * repL - 1, c2: dest.c1 + nc * repC - 1 };
   }
   curseur = { r: dest.r1, c: dest.c1 };
+  versionApresCollage = classeur.version;
   sauvegarderLocal();
   rendre();
+  // Texte venu d'ailleurs (PDF, page, traitement de texte) sans tabulations : tout est dans une colonne ; on propose de séparer
+  if (texteExterne && !/\t/.test(texteExterne)) {
+    const lignes = texteExterne.replace(/\r/g, '').replace(/\n+$/, '').split('\n');
+    const seps = devinerSeparateurs(lignes);
+    if (seps[0] !== 'tab' && lignes.some((l) => decouperLigne(l, { seps, milliers: true }).length > 1)) {
+      const zone = { ...selection };
+      toastAction('Collé dans une seule colonne.', 'Séparer en colonnes…', () => { selection = { r1: zone.r1, c1: zone.c1, r2: zone.r2, c2: zone.c1 }; curseur = { r: zone.r1, c: zone.c1 }; rendre(); uiB.colonnes(); });
+    }
+  }
+}
+let versionApresCollage = -1;
+/** Collage spécial (Ctrl+Alt+V) : pour un texte copié hors de Sprezz (PDF…), le choix des colonnes ; sinon les options d'Excel. */
+async function collageSpecialUI() {
+  let texte = null;
+  try { texte = await Promise.race([navigator.clipboard.readText(), new Promise((ok) => setTimeout(() => ok(null), pressePapier ? 600 : 8000))]); } catch { texte = null; }
+  if (texte && (!pressePapier || (texte !== pressePapier.texte && texte.replace(/\r/g, '') !== pressePapier.texte))) return uiB.collerTexte(texte);
+  if (pressePapier) return uiB.collageSpecial();
+  toast('Copiez d\'abord quelque chose ; un texte copié d\'un PDF se colle avec Ctrl+V puis « Séparer en colonnes… »', true);
 }
 function recopier(sens) { // Ctrl+D / Ctrl+R : recopie la première ligne/colonne de la sélection
   const s = selectionNormalisee();
@@ -1689,6 +1717,15 @@ let toastTimer;
 function toast(msg, erreur = false) {
   const t = $('toast'); t.textContent = msg; t.className = erreur ? 'erreur' : ''; t.hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, erreur ? 6000 : 2500);
+}
+/** Message avec un bouton (« Séparer en colonnes… » après un collage), plus long à disparaître. */
+function toastAction(msg, libelle, action) {
+  const t = $('toast'); t.textContent = msg + ' '; t.className = 'avec-action'; t.hidden = false;
+  const b = document.createElement('button'); b.textContent = libelle;
+  b.addEventListener('mousedown', (e) => e.preventDefault());
+  b.addEventListener('click', () => { t.hidden = true; action(); });
+  t.appendChild(b);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 9000);
 }
 
 // ---------------------------------------------------------------------------
@@ -2813,6 +2850,7 @@ function rendreAide() {
 <li><b>Analyse</b> (menu ⋯) : <b>Valeur cible</b> ; <b>Solveur</b> (maximiser, minimiser ou atteindre une valeur en changeant des cellules, avec contraintes ≤ ≥ = entier binaire ; exact pour les modèles linéaires) ; <b>Table de données</b> à une ou deux entrées, recalculée quand le modèle change.</li>
 <li><b>Finance et comptabilité</b> : formats <b>Comptabilité</b>, milliers (k€), millions (M€) et négatifs entre parenthèses dans la liste des formats ; <b>Plan</b> (⋯ › Plan, ou clic droit › Données › Grouper) : boutons + / − à côté des en-têtes et niveaux 1, 2, 3 dans le coin ; <b>Sous-totaux…</b> (clic droit › Données) : un total à chaque changement de valeur d'une colonne, avec le plan prêt à replier ; <b>Gestionnaire de scénarios</b> et <b>Utilitaire d'analyse</b> (⋯ › Analyse : statistiques descriptives, histogramme, régression, corrélation, moyenne mobile, tests t et F, ANOVA…) ; <b>Fenêtre espion</b> et <b>Calcul itératif</b> (⋯ › Formules) pour les modèles qui se citent eux-mêmes ; graphique <b>Cascade</b> ; <b>champs calculés</b> dans les tableaux croisés. Modèles (Nouveau ▾ › Finance et actuariat) : emprunt, rentabilité d'un projet, compte de résultat, table de mortalité, Chain Ladder.</li>
 <li><b>Enregistrer ▾</b> : Enregistrer sous, Télécharger une copie et <b>Enregistrement automatique</b> (à cocher ; avec Chrome ou Edge sur ordinateur, le fichier est réécrit quelques secondes après chaque modification, ↻ devant « Enregistrer »). Fermer la page avec des modifications non enregistrées (<b>*</b> après le nom) demande confirmation.</li>
+<li><b>Coller d'un PDF</b> : un texte sans tabulations (PDF, page web, Word) se colle dans une colonne, puis le bouton <b>Séparer en colonnes…</b> du message (ou Données › Convertir en colonnes) le répartit : espaces multiples (colonnes alignées d'un PDF), espace, tabulation, point-virgule, virgule ou autre, avec aperçu ; « 1 234,56 » reste un nombre, « (2 000) » devient -2000. <b>Collage spécial</b> (<code>Ctrl+Alt+V</code>) d'un texte copié hors de Sprezz ouvre directement ce choix.</li>
 <li><b>Formule matricielle</b> (<code>Ctrl+Maj+Entrée</code> sur une plage choisie) : la formule va dans la première cellule et son résultat remplit la plage, comme les formules matricielles d'Excel (ex. <code>=PRODUITMAT(PRODUITMAT(C15:L24;C3:L12);C15:L24)</code> sur 10 × 10). <code>Ctrl+Entrée</code>, lui, recopie la formule dans chaque cellule : un résultat de plusieurs cellules y donne #SPILL!. La raison d'un #SPILL! ou d'un #CYCLE! s'affiche en bas et en survolant la cellule.</li>
 <li><b>Barre de formule</b> : ce qui s'y écrit apparaît en direct dans la cellule.</li>
 <li><b>Références en couleur</b> : pendant la saisie d'une formule, chaque référence (<code>B2</code>, <code>C2:D5</code>…) est écrite de la couleur du cadre qui l'entoure sur la grille ; la même référence garde la même couleur.</li>
@@ -3150,7 +3188,7 @@ function menuCellules(s) {
   const fusion = feuille().fusions.some((m) => m.r1 === s.r1 && m.c1 === s.c1);
   return [
     ['Couper', () => copier(true), 'Ctrl+X'], ['Copier', () => copier(false), 'Ctrl+C'], ['Coller', () => coller(), 'Ctrl+V'],
-    ['Collage spécial', [['Valeurs', () => collerValeurs()], ['Collage spécial…', () => uiB.collageSpecial(), 'Ctrl+Alt+V']]],
+    ['Collage spécial', [['Valeurs', () => collerValeurs()], ['Collage spécial…', () => collageSpecialUI(), 'Ctrl+Alt+V']]],
     ['Rechercher…', () => uiD.ouvrirRecherche(false), 'Ctrl+F'], null,
     ['Insérer', [['Insérer ' + pl(nl, 'ligne'), () => lignesColonnes(true, 'r')], ['Insérer ' + pl(nc, 'colonne'), () => lignesColonnes(true, 'c')], ['Insérer des cellules…', () => uiB.cellules(true), 'Ctrl++']]],
     ['Supprimer', [['Supprimer ' + pl(nl, 'ligne'), () => lignesColonnes(false, 'r')], ['Supprimer ' + pl(nc, 'colonne'), () => lignesColonnes(false, 'c')], ['Supprimer des cellules…', () => uiB.cellules(false), 'Ctrl+-']]],
@@ -3319,7 +3357,7 @@ function selectionRegion() { const s = selectionNormalisee(); if (s.r1 === s.r2 
 function raccourciExcel(e) {
   const ctrl = e.ctrlKey || e.metaKey, k = e.key, code = e.code;
   const fait = (fn) => { e.preventDefault(); fn(); return true; };
-  if (ctrl && e.altKey && (k === 'v' || k === 'V')) return fait(() => uiB.collageSpecial());
+  if (ctrl && e.altKey && (k === 'v' || k === 'V')) return fait(() => collageSpecialUI());
   if (ctrl && e.altKey && (code === 'Equal' || code === 'NumpadAdd' || k === '=' || k === '+')) return fait(() => zoomPas(1));
   if (ctrl && e.altKey && (code === 'Minus' || code === 'NumpadSubtract' || k === '-' || k === '6')) return fait(() => zoomPas(-1));
   if (ctrl && !e.altKey && (k === '+' || code === 'NumpadAdd' || (code === 'Equal' && e.shiftKey))) return fait(() => uiB.cellules(true));
@@ -3723,7 +3761,7 @@ conteneur.addEventListener('wheel', (e) => {
 function menuPlus() {
   return [
     ['Rechercher…', () => uiD.ouvrirRecherche(false), 'Ctrl+F'], ['Remplacer…', () => uiD.ouvrirRecherche(true), 'Ctrl+H'],
-    ['Format de cellule…', () => uiB.formatCellule(), 'Ctrl+1'], ['Collage spécial…', () => uiB.collageSpecial(), 'Ctrl+Alt+V'], ['Atteindre…', () => uiB.atteindre(), 'Ctrl+G'], null,
+    ['Format de cellule…', () => uiB.formatCellule(), 'Ctrl+1'], ['Collage spécial…', () => collageSpecialUI(), 'Ctrl+Alt+V'], ['Atteindre…', () => uiB.atteindre(), 'Ctrl+G'], null,
     ['Insérer', [['Tableau…', () => mettreEnTableau(), 'Ctrl+L'], ['Graphique', () => uiG.insererDirect(), 'Alt+F1'],
       ['Sparklines', [['Courbe…', () => uiB.sparklines('ligne')], ['Histogramme…', () => uiB.sparklines('colonne')], ['Gain / perte…', () => uiB.sparklines('gainperte')]]], ['Image…', () => $('fichier-image').click()], ['Zone de texte', () => insererForme('texte')], ['Forme', FORMES.filter(([k]) => k !== 'texte').map(([k, n, ic]) => [ic + '  ' + n, () => insererForme(k)])], ['Lien hypertexte…', () => uiB.lien(), 'Ctrl+K'], ['Note…', () => uiB.note(), 'Maj+F2']]],
     ['Données', [['Remplissage instantané', () => uiA.remplissage(), 'Ctrl+E'], ['Supprimer les doublons…', () => uiB.doublons()], ['Convertir en colonnes…', () => uiB.colonnes()], ['Validation des données…', () => uiD.validation.ouvrir()], null,

@@ -628,3 +628,13 @@ textarea.colore { -webkit-text-fill-color: transparent; }
 textarea.colore::selection { -webkit-text-fill-color: transparent; }
 /* Aperçu dans la cellule de ce qui s'écrit dans la barre de formule */
 #editeur.apercu { pointer-events: none; }
+/* Message avec bouton (Séparer en colonnes…) */
+#toast.avec-action { display: flex; align-items: center; gap: 10px; }
+#toast.avec-action button { background: #fff; color: #111827; border: 0; border-radius: 4px; padding: 4px 10px; font: inherit; font-weight: 600; cursor: pointer; }
+/* Convertir en colonnes / coller du texte : séparateurs et aperçu */
+.dc-seps { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0; }
+.dc-apercu { margin-top: 8px; max-height: 190px; overflow: auto; border: 1px solid var(--bord); border-radius: 4px; }
+.dc-apercu table { border-collapse: collapse; font-size: 12px; }
+.dc-apercu td { border: 1px solid var(--bord); padding: 2px 6px; white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.dc-apercu tr:first-child td { background: rgba(31, 122, 77, .08); }
+.dc-apercu .aide-petite { margin: 4px 6px; }

@@ -1299,6 +1299,21 @@ test('vba : tableau typé rempli par une fonction (Dim t() As Double : t = f(pla
   egal([v.code, /Deuxieme, ligne \d+ de Package/.test(v.message)], ['#VALUE!', true]);
 });
 
+test('texte collé d\'un PDF : séparateurs devinés, espaces multiples, milliers, négatifs entre parenthèses', async () => {
+  const { decouperLigne, devinerSeparateurs, convertirEnColonnes } = await import('../tableur/js/donnees.js');
+  const lignes = ['Titre  Rendement  Montant', 'Action A  6,5%  1 234,56', 'Action B  5,5%  (2 000)'];
+  egal(devinerSeparateurs(lignes), ['espaces2']);
+  egal(devinerSeparateurs(['a\tb', 'c\td']), ['tab']);
+  egal(devinerSeparateurs(['a;b;c', 'd;e;f']), [';']);
+  egal(decouperLigne(lignes[1], { seps: ['espaces2'], milliers: true }), ['Action A', '6,5%', '1 234,56']);
+  egal(decouperLigne('A 12 1 234 567,89 5', { seps: ['espace'], milliers: true }), ['A', '12', '1 234 567,89', '5']);
+  egal(decouperLigne('"a;b";c;;d', { seps: [';'], regrouper: false }), ['a;b', 'c', '', 'd']);
+  const c = Classeur.nouveau();
+  lignes.forEach((l, r) => c.saisir(0, r, 0, l));
+  convertirEnColonnes(c, 0, { r1: 0, c1: 0, r2: 2, c2: 0 }, ['espaces2'], { regrouper: true, milliers: true });
+  egal([c.valeur(0, 1, 0), c.valeur(0, 1, 1), c.texte(0, 1, 1), c.valeur(0, 1, 2), c.texte(0, 1, 2), c.valeur(0, 2, 2), c.texte(0, 2, 2)], ['Action A', 0.065, '6,5%', 1234.56, '1 234,56', -2000, '(2 000)']);
+});
+
 test('matrices : PRODUITMAT imbriqués et TRANSPOSE (variance d\'un portefeuille), #SPILL! et #CYCLE! expliqués', () => {
   const c = Classeur.nouveau();
   [[0.04, 0.01], [0.01, 0.09]].forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v).replace('.', ','))));

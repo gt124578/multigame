@@ -750,17 +750,76 @@ export function supprimerDoublons(classeur, fi, p, colonnes, { entete = true } =
 }
 
 /** Convertit une colonne de textes en plusieurs colonnes (séparateur ; , tabulation, espace ou autre). Renvoie le nombre de colonnes. */
-export function convertirEnColonnes(classeur, fi, p, separateur = ';', { regrouper = false } = {}) {
+/**
+ * Découpe une ligne de texte en morceaux (Convertir en colonnes, texte collé d'un PDF ou d'une page).
+ * seps : liste parmi 'tab', 'espace', ';', ',', ou tout autre caractère ; regrouper : plusieurs séparateurs
+ * qui se suivent n'en font qu'un ; milliers : « 1 234 567,89 » reste un seul nombre quand on coupe aux espaces ;
+ * guillemets : "un texte; avec séparateur" reste entier.
+ */
+export function decouperLigne(ligne, { seps = ['tab'], regrouper = true, milliers = false, guillemets = true } = {}) {
+  const S = new Set(seps.map((x) => (x === 'tab' ? '\t' : x === 'espace' ? ' ' : x === 'espaces2' ? '\u0001' : x)));
+  if (S.has(' ')) { S.add('\u00a0'); S.add('\u202f'); } // espaces insécables des PDF
+  let t = String(ligne).replace(/\r$/, '');
+  // « Espaces multiples » : les colonnes d'un PDF sont alignées par plusieurs espaces, un nom peut en contenir un seul
+  if (S.has('\u0001')) t = t.replace(/[ \u00a0\u202f]{2,}/g, '\u0001');
+  const morceaux = [];
+  let cour = '', dansGuill = false, aGuill = false;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (guillemets && ch === '"' && (cour === '' || dansGuill)) {
+      if (dansGuill && t[i + 1] === '"') { cour += '"'; i++; continue; }
+      dansGuill = !dansGuill; aGuill = true; continue;
+    }
+    if (!dansGuill && S.has(ch)) { morceaux.push({ v: cour, g: aGuill }); cour = ''; aGuill = false; continue; }
+    cour += ch;
+  }
+  morceaux.push({ v: cour, g: aGuill });
+  let out = morceaux.map((m) => (m.g ? m.v : m.v.trim()));
+  if (regrouper) {
+    // Séparateurs qui se suivent (et espaces en début ou fin de ligne) : pas de colonne vide
+    out = out.filter((m, i) => m !== '' || morceaux[i].g);
+  }
+  if (milliers && (S.has(' ') || S.has('\u0001'))) {
+    // « 1 234 567,89 » : un groupe de 1 à 3 chiffres suivi de groupes de 3 chiffres (le dernier peut porter les décimales)
+    const fus = [];
+    for (let i = 0; i < out.length; i++) {
+      let x = out[i];
+      if (/^[-+(]?\d{1,3}$/.test(x)) {
+        let j = i + 1;
+        while (j < out.length && /^\d{3}([.,]\d+)?\)?%?$/.test(out[j])) { x += ' ' + out[j]; j++; if (!/^\d{3}$/.test(out[j - 1])) break; }
+        i = j - 1;
+      }
+      fus.push(x);
+    }
+    out = fus;
+  }
+  return out;
+}
+/** Séparateurs probables d'un texte collé : tabulation, puis point-virgule, puis espaces (texte d'un PDF). */
+export function devinerSeparateurs(lignes) {
+  const l = lignes.filter((x) => x.trim() !== '').slice(0, 50);
+  if (!l.length) return ['tab'];
+  const part = (re) => l.filter((x) => re.test(x)).length / l.length;
+  if (part(/\t/) >= 0.5) return ['tab'];
+  if (part(/;/) >= 0.6) return [';'];
+  if (part(/\S[ \u00a0\u202f]{2,}\S/) >= 0.6) return ['espaces2'];
+  if (part(/\S[ \u00a0\u202f]+\S/) >= 0.5) return ['espace'];
+  if (part(/,/) >= 0.8 && !l.some((x) => /\d,\d/.test(x))) return [','];
+  return ['tab'];
+}
+export function convertirEnColonnes(classeur, fi, p, separateur = ';', options = {}) {
   const f = classeur.feuilles[fi];
-  const sep = separateur === 'tab' ? '\t' : separateur === 'espace' ? ' ' : separateur;
+  const seps = Array.isArray(separateur) ? separateur : [separateur];
+  const opts = { regrouper: false, ...options, seps };
   let max = 1;
   for (let r = p.r1; r <= p.r2; r++) {
     const cel = f.get(r, p.c1);
-    if (!cel || cel.f != null || typeof cel.v !== 'string') continue;
-    let morceaux = cel.v.split(sep);
-    if (regrouper) morceaux = morceaux.filter((x) => x !== '');
+    if (!cel || cel.f != null || cel.v == null) continue;
+    const texte = typeof cel.v === 'string' ? cel.v : String(cel.v);
+    if (typeof cel.v !== 'string') continue;
+    const morceaux = decouperLigne(texte, opts);
     max = Math.max(max, morceaux.length);
-    morceaux.forEach((m, k) => classeur.saisir(fi, r, p.c1 + k, m.trim()));
+    morceaux.forEach((m, k) => classeur.saisir(fi, r, p.c1 + k, m));
   }
   return max;
 }

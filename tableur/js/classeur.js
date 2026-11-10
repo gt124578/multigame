@@ -473,14 +473,21 @@ export class Classeur {
     if (t.startsWith('=') && t.length > 1) cel.f = t;
     else if (t.startsWith("'")) cel.v = t.slice(1);
     else {
-      const u = t.trim();
+      let u = t.trim().replace(/\u00a0/g, ' ');
       let m;
+      // « (1 234,56) » : négatif à la manière des comptables, comme Excel
+      const negParen = /^\((\d[\d \u202f]*([.,]\d+)?)\)$/.exec(u);
+      if (negParen) u = '-' + negParen[1];
       if (/^(VRAI|TRUE)$/i.test(u)) cel.v = true;
       else if (/^(FAUX|FALSE)$/i.test(u)) cel.v = false;
       else if (/^[-+]?(\d{1,3}([ \u202f]\d{3})*|\d+)([.,]\d+)?$/.test(u) && !/^[-+]?0\d/.test(u)) {
         cel.v = parseFloat(u.replace(/[ \u202f]/g, '').replace(',', '.'));
+        // Écrit avec des espaces de milliers (« 1 234,56 ») : le format les garde, comme Excel
+        const dec = (/[.,](\d+)$/.exec(u) || [, ''])[1].length, base = '#,##0' + (dec ? '.' + '0'.repeat(dec) : '');
+        if (negParen && !cel.z) cel.z = base + ';(' + base + ')';
+        else if (/\d[ \u202f]\d{3}/.test(u) && !cel.z) cel.z = base;
       } else if (/^[-+]?(\d+[.,]?\d*|[.,]\d+)[eE][-+]?\d+$/.test(u)) cel.v = parseFloat(u.replace(',', '.'));
-      else if (/^[-+]?(\d+[.,]?\d*|[.,]\d+)\s?%$/.test(u)) { cel.v = parseFloat(u.replace(',', '.')) / 100; if (!cel.z || !cel.z.includes('%')) cel.z = '0%'; }
+      else if (/^[-+]?(\d+[.,]?\d*|[.,]\d+)\s?%$/.test(u)) { cel.v = parseFloat(u.replace(',', '.')) / 100; if (!cel.z || !cel.z.includes('%')) { const d = (/[.,](\d+)\s?%$/.exec(u) || [, ''])[1].length; cel.z = '0' + (d ? '.' + '0'.repeat(d) : '') + '%'; } }
       else if ((m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})$/.exec(u))) {
         let an = +m[3]; if (an < 100) an += an < 30 ? 2000 : 1900;
         const d = new Date(Date.UTC(an, +m[2] - 1, +m[1]));

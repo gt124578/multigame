@@ -80,6 +80,9 @@ Essai local : `node tools/serve.mjs 8000` puis http://localhost:8000/tableur/
   remplit la plage ; la raison d'un `#SPILL!` (cellule qui bloque) ou d'un `#CYCLE!` s'affiche. La barre de formule écrit
   en direct dans la cellule. Sur tablette, la barre d'outils passe à la ligne (tout reste visible) ; double appui sur la
   poignée de recopie = double-clic d'Excel.
+- **Coller d'un PDF** : texte sans tabulations collé dans une colonne puis « Séparer en colonnes… » (espaces multiples,
+  espace, tabulation, `;`, `,`, autre ; aperçu ; nombres « 1 234,56 » gardés entiers, « (2 000) » négatif) ; Collage spécial
+  d'un texte venu d'ailleurs ouvre ce choix.
 - **Presse-papiers** : copier-coller avec Excel, LibreOffice et les pages web dans les deux sens (texte tabulé, cellules
   sur plusieurs lignes entre guillemets), sans demande d'autorisation au clavier.
 - **Saisie des formules** : proposition des fonctions (françaises et anglaises) et des noms définis pendant la frappe,
