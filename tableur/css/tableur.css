@@ -265,7 +265,7 @@ input[type=color] { width: 30px; height: 26px; padding: 1px 2px; border: 1px sol
 #panneau-graphique .vide { color: var(--sourd); }
 .graph-apercu { border: 1px solid var(--bord); border-radius: 6px; overflow: hidden; background: var(--papier); flex-shrink: 0; display: none; }
 @media (pointer: coarse), (max-width: 820px) { .graph-apercu { display: block; position: sticky; top: -8px; z-index: 2; box-shadow: 0 4px 10px rgba(0,0,0,.08); } }
-.graph-apercu svg { display: block; width: 100%; height: auto; }
+.graph-apercu svg { display: block; width: 100%; height: auto; max-height: 34vh; margin: 0 auto; }
 #panneau-graphique details { border-bottom: 1px solid #f1f5f9; padding: 4px 0 6px; }
 #panneau-graphique summary { font-weight: 600; cursor: pointer; padding: 3px 0; }
 #panneau-graphique label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; font-size: 12px; color: var(--texte-2); }

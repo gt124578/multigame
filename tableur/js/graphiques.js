@@ -9,6 +9,7 @@
 //   quadrillage, quadrillageX, yMin, yMax, formatY, marqueurs, lisse, epaisseur, palette, police, fond
 //   tendances { i: { type: lineaire|exponentielle|logarithmique|polynomiale|puissance|moyenne, ordre, periode, equation, r2 } }
 //   secondaire { i: true } : série tracée sur l'axe de droite (en courbe)
+//   logY, logX (échelle logarithmique), inverseY, inverseX (ordre inversé), xMin, xMax (nuage), xyInverses (nuage : X et Y échangés)
 //
 // Les données : une matrice de valeurs déjà calculées. La première ligne donne les noms des séries si ce
 // sont des textes, la première colonne les catégories (ou les X d'un nuage de points).
@@ -222,6 +223,8 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
   const couleur = (i) => g.couleurs[i] || palette[i % palette.length];
   const d = preparerDonnees(matrice, g.type, g.enLignes);
   d.series.forEach((s, i) => { if (g.noms[i]) s.nom = g.noms[i]; });
+  // Nuage : abscisses et ordonnées échangées (la première série devient l'axe horizontal)
+  if (d.nuage && g.xyInverses && d.series.length) { const xs = d.xs; d.xs = d.series[0].valeurs; d.series = [{ ...d.series[0], valeurs: xs }]; }
   const fmtVal = (v, cent) => (cent ? formater(v, '0%') : g.formatY ? formater(v, g.formatY) : formatAuto(v));
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="${police}">`;
   svg += `<rect width="${W}" height="${H}" fill="${g.fond || '#ffffff'}"/>`;
@@ -312,19 +315,42 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
   if (min > max) { min = min2; max = max2; }
   const nuage = d.nuage;
   let ex = null;
+  const bornesLog = (vals, a, b) => {
+    const pos = vals.filter((v) => v !== null && v > 0);
+    const lo = a != null && a !== '' && +a > 0 ? +a : pos.length ? Math.min(...pos) : 1, hi = b != null && b !== '' && +b > 0 ? +b : pos.length ? Math.max(...pos) : 10;
+    let mn = Math.floor(Math.log10(lo) + 1e-9), mx = Math.ceil(Math.log10(hi) - 1e-9);
+    if (mx <= mn) mx = mn + 1;
+    return { min: mn, max: mx, pas: 1, log: true };
+  };
   if (nuage) {
     const xs = d.xs.filter((x) => x !== null);
-    ex = echelle(Math.min(...xs), Math.max(...xs), false);
-    if (Math.min(...xs) >= 0 && ex.min < 0) ex.min = 0;
+    if (g.logX) ex = bornesLog(xs, g.xMin, g.xMax);
+    else {
+      ex = echelle(g.xMin != null && g.xMin !== '' ? +g.xMin : Math.min(...xs), g.xMax != null && g.xMax !== '' ? +g.xMax : Math.max(...xs), false);
+      if (Math.min(...xs) >= 0 && ex.min < 0) ex.min = 0;
+      if (g.xMin != null && g.xMin !== '') ex.min = +g.xMin;
+      if (g.xMax != null && g.xMax !== '') ex.max = +g.xMax;
+      if (ex.max <= ex.min) ex.max = ex.min + 1;
+    }
   }
   const lignesSeules = g.type === 'lignes' || nuage;
-  const ey = echelle(g.yMin != null && g.yMin !== '' ? +g.yMin : min, g.yMax != null && g.yMax !== '' ? +g.yMax : max, !lignesSeules || min <= 0);
-  if (g.yMin != null && g.yMin !== '') ey.min = +g.yMin;
-  if (g.yMax != null && g.yMax !== '') ey.max = +g.yMax;
-  if (cent) { ey.min = Math.min(0, ey.min); ey.max = 1; ey.pas = 0.2; }
-  if (ey.max <= ey.min) ey.max = ey.min + 1;
+  // Échelle logarithmique : bornes en puissances de 10 (les valeurs nulles ou négatives sont posées sur l'axe)
+  const logY = !!g.logY && !cent && !cascade;
+  let ey;
+  if (logY) {
+    const vals = []; piles.forEach((l, k) => { if (!sec(k)) l.forEach((b) => { if (b) vals.push(b[1]); }); });
+    ey = bornesLog(vals, g.yMin, g.yMax);
+  } else {
+    ey = echelle(g.yMin != null && g.yMin !== '' ? +g.yMin : min, g.yMax != null && g.yMax !== '' ? +g.yMax : max, !lignesSeules || min <= 0);
+    if (g.yMin != null && g.yMin !== '') ey.min = +g.yMin;
+    if (g.yMax != null && g.yMax !== '') ey.max = +g.yMax;
+    if (cent) { ey.min = Math.min(0, ey.min); ey.max = 1; ey.pas = 0.2; }
+    if (ey.max <= ey.min) ey.max = ey.min + 1;
+  }
   // Marges pour les graduations et titres d'axes
-  const etiquettesVal = []; for (let v = ey.min; v <= ey.max + ey.pas * 1e-6; v += ey.pas) etiquettesVal.push(+v.toPrecision(12));
+  const etiquettesVal = [];
+  if (logY) { for (let k = ey.min; k <= ey.max; k++) etiquettesVal.push(+(10 ** k).toPrecision(12)); }
+  else for (let v = ey.min; v <= ey.max + ey.pas * 1e-6; v += ey.pas) etiquettesVal.push(+v.toPrecision(12));
   const largeurGrad = mini ? 0 : Math.max(...etiquettesVal.map((v) => fmtVal(v, cent).length)) * police * 0.58 + 6;
   const ey2 = aSecondaire && !horizontal ? echelle(min2, max2, min2 <= 0 || g.type !== 'lignes') : null;
   const etiquettesVal2 = []; if (ey2) for (let v = ey2.min; v <= ey2.max + ey2.pas * 1e-6; v += ey2.pas) etiquettesVal2.push(+v.toPrecision(12));
@@ -338,22 +364,27 @@ export function rendreGraphiqueSVG(specBrute, matrice, largeur = 420, hauteur = 
   if (g.titreX && !mini && !horizontal) svg += texte(zone.x + zone.w / 2, H - bas + police + 2, g.titreX, 'data-zone="titreX" text-anchor="middle" fill="#374151"' + (edition ? ' style="cursor:text"' : ''));
   if (g.titreY && !mini && horizontal) svg += texte(zone.x + zone.w / 2, H - bas + police + 2, g.titreY, 'data-zone="titreY" text-anchor="middle" fill="#374151"' + (edition ? ' style="cursor:text"' : ''));
   // Conversions valeur → pixel
-  const pv = (v) => (horizontal ? zone.x + ((v - ey.min) / (ey.max - ey.min)) * zone.w : zone.y + zone.h - ((v - ey.min) / (ey.max - ey.min)) * zone.h);
-  const pc = (i) => (horizontal ? zone.y + ((i + 0.5) / nbCat) * zone.h : zone.x + ((i + 0.5) / nbCat) * zone.w);
-  const px = (x) => zone.x + ((x - ex.min) / (ex.max - ex.min)) * zone.w;
+  const enLog = (v, e) => (v > 0 ? Math.log10(v) : e.min);
+  const ry = (v) => { let r = ((logY ? enLog(v, ey) : v) - ey.min) / (ey.max - ey.min); if (g.inverseY) r = 1 - r; return r; };
+  const pv = (v) => (horizontal ? zone.x + ry(v) * zone.w : zone.y + zone.h - ry(v) * zone.h);
+  const ic = (i) => (g.inverseX && !nuage ? nbCat - 1 - i : i);
+  const pc = (i) => (horizontal ? zone.y + ((ic(i) + 0.5) / nbCat) * zone.h : zone.x + ((ic(i) + 0.5) / nbCat) * zone.w);
+  const px = (x) => { let r = ((ex.log ? enLog(x, ex) : x) - ex.min) / (ex.max - ex.min); if (g.inverseX) r = 1 - r; return zone.x + r * zone.w; };
   const pv2 = ey2 ? (v) => zone.y + zone.h - ((v - ey2.min) / (ey2.max - ey2.min)) * zone.h : pv;
   if (ey2 && !mini) for (const v of etiquettesVal2) svg += texte(zone.x + zone.w + 4, pv2(v) + police * 0.35, formatAuto(v), 'text-anchor="start" fill="#6b7280"');
   // Quadrillage et graduations de valeurs
   const grad = mini ? 'none' : '#6b7280';
   for (const v of etiquettesVal) {
     const p = pv(v);
-    const trait = Math.abs(v) < 1e-12 ? '#9ca3af' : '#e5e7eb';
-    if (g.quadrillage || Math.abs(v) < 1e-12) svg += horizontal ? `<line x1="${p}" y1="${zone.y}" x2="${p}" y2="${zone.y + zone.h}" stroke="${trait}"/>` : `<line x1="${zone.x}" y1="${p}" x2="${zone.x + zone.w}" y2="${p}" stroke="${trait}"/>`;
+    const zeroLigne = !logY && Math.abs(v) < 1e-12;
+    const trait = zeroLigne ? '#9ca3af' : '#e5e7eb';
+    if (g.quadrillage || zeroLigne) svg += horizontal ? `<line x1="${p}" y1="${zone.y}" x2="${p}" y2="${zone.y + zone.h}" stroke="${trait}"/>` : `<line x1="${zone.x}" y1="${p}" x2="${zone.x + zone.w}" y2="${p}" stroke="${trait}"/>`;
     if (!mini) svg += horizontal ? texte(p, zone.y + zone.h + police + 3, fmtVal(v, cent), `text-anchor="middle" fill="${grad}"`) : texte(zone.x - 4, p + police * 0.35, fmtVal(v, cent), `text-anchor="end" fill="${grad}"`);
   }
   // Graduations de catégories / X
   if (nuage) {
-    for (let v = ex.min; v <= ex.max + ex.pas * 1e-6; v += ex.pas) {
+    for (let w = ex.min; w <= ex.max + ex.pas * 1e-6; w += ex.pas) {
+      const v = ex.log ? 10 ** w : w;
       const x = px(v);
       if (g.quadrillageX) svg += `<line x1="${x}" y1="${zone.y}" x2="${x}" y2="${zone.y + zone.h}" stroke="#f3f4f6"/>`;
       if (!mini) svg += texte(x, zone.y + zone.h + police + 3, formatAuto(+v.toPrecision(12)), `text-anchor="middle" fill="${grad}"`);

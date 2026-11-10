@@ -135,23 +135,32 @@ export function installerGraphiques(api) {
       <details open><summary>Données</summary>
         <label>Plage <input id="gp-plage" value="${ech(g.plage)}" spellcheck="false"></label>
         <button id="gp-plage-sel" class="petit" title="Prendre la sélection de la feuille">← sélection</button>
-        <label class="case"><input type="checkbox" id="gp-lignes"${g.enLignes ? ' checked' : ''}> Séries en lignes</label>
+        <label class="case"><input type="checkbox" id="gp-lignes"${g.enLignes ? ' checked' : ''}> Séries en lignes (intervertir lignes et colonnes)</label>
       </details>
       <details open><summary>Titres</summary>
         <label>Titre <input id="gp-titre" value="${ech(g.titre || '')}" placeholder="(aucun)"></label>
-        ${axes ? `<label>Axe horizontal <input id="gp-titreX" value="${ech(g.titreX || '')}" placeholder="(aucun)"></label>
-        <label>Axe vertical <input id="gp-titreY" value="${ech(g.titreY || '')}" placeholder="(aucun)"></label>` : ''}
+        ${axes ? `<label>${g.type === 'barres' ? 'Axe des catégories (vertical)' : 'Abscisse — axe horizontal (X)'} <input id="gp-titreX" value="${ech(g.titreX || '')}" placeholder="(aucun titre)"></label>
+        <label>${g.type === 'barres' ? 'Axe des valeurs (horizontal)' : 'Ordonnée — axe vertical (Y)'} <input id="gp-titreY" value="${ech(g.titreY || '')}" placeholder="(aucun titre)"></label>
+        ${['nuage', 'colonnes', 'barres'].includes(g.type) ? `<button id="gp-inverser" class="petit" title="${g.type === 'nuage' ? 'Échanger X et Y (et leurs titres)' : 'Histogramme ↔ barres horizontales'}">⇄ Intervertir abscisse et ordonnée</button>` : ''}` : ''}
       </details>
       <details open><summary>Légende et étiquettes</summary>
         <label>Légende <select id="gp-legende">${opt([['droite', 'À droite'], ['bas', 'En bas'], ['haut', 'En haut'], ['gauche', 'À gauche'], ['aucune', 'Aucune']], g.legende)}</select></label>
         <label>Étiquettes <select id="gp-etiquettes">${opt(circulaire ? [['aucune', 'Pourcentage (défaut)'], ['valeur', 'Valeur'], ['categorie', 'Catégorie']] : [['aucune', 'Aucune'], ['valeur', 'Valeur'], ['pourcentage', 'Pourcentage'], ['categorie', 'Catégorie']], g.etiquettes)}</select></label>
       </details>
-      ${axes ? `<details${g.yMin != null || g.yMax != null || g.formatY ? ' open' : ''}><summary>Axe des valeurs</summary>
+      ${axes ? `<details open><summary>${g.type === 'barres' ? 'Axe des valeurs (horizontal)' : 'Axe vertical (Y)'}</summary>
         <div class="graph-ligne"><label>Minimum <input id="gp-ymin" type="number" step="any" value="${g.yMin ?? ''}" placeholder="auto"></label>
         <label>Maximum <input id="gp-ymax" type="number" step="any" value="${g.yMax ?? ''}" placeholder="auto"></label></div>
+        <div class="graph-ligne"><label>Échelle <select id="gp-logy">${opt([['', 'Linéaire'], ['log', 'Logarithmique']], g.logY ? 'log' : '')}</select></label>
+        <label class="case"><input type="checkbox" id="gp-invy"${g.inverseY ? ' checked' : ''}> Ordre inversé</label></div>
         <label>Format <select id="gp-format">${opt(FORMATS.some(([f]) => f === (g.formatY || '')) ? FORMATS : [...FORMATS, [g.formatY, g.formatY]], g.formatY || '')}</select></label>
         <label class="case"><input type="checkbox" id="gp-quad"${g.quadrillage ? ' checked' : ''}> Quadrillage horizontal</label>
         <label class="case"><input type="checkbox" id="gp-quadx"${g.quadrillageX ? ' checked' : ''}> Quadrillage vertical</label>
+      </details>
+      <details open><summary>${g.type === 'barres' ? 'Axe des catégories (vertical)' : 'Axe horizontal (X)'}</summary>
+        ${g.type === 'nuage' ? `<div class="graph-ligne"><label>Minimum <input id="gp-xmin" type="number" step="any" value="${g.xMin ?? ''}" placeholder="auto"></label>
+        <label>Maximum <input id="gp-xmax" type="number" step="any" value="${g.xMax ?? ''}" placeholder="auto"></label></div>
+        <div class="graph-ligne"><label>Échelle <select id="gp-logx">${opt([['', 'Linéaire'], ['log', 'Logarithmique']], g.logX ? 'log' : '')}</select></label>` : '<div class="graph-ligne">'}
+        <label class="case"><input type="checkbox" id="gp-invx"${g.inverseX ? ' checked' : ''}> Ordre inversé${g.type === 'nuage' ? '' : ' (dernière catégorie en premier)'}</label></div>
       </details>` : ''}
       <details open><summary>Style</summary>
         <div class="graph-palettes">${Object.entries(PALETTES).map(([k, p]) => `<button data-palette="${k}" class="${k === g.palette ? 'choisi' : ''}" title="${ech(NOMS_PALETTES[k])}">${p.slice(0, 5).map((c) => `<i style="background:${c}"></i>`).join('')}</button>`).join('')}</div>
@@ -190,8 +199,10 @@ export function installerGraphiques(api) {
     const g = courant;
     const zone = document.getElementById('graph-apercu');
     if (!g || !zone) return;
-    const l = Math.max(220, zone.clientWidth || 300);
-    zone.innerHTML = rendreGraphiqueSVG(g, api.donnees(api.feuille(), g.plage), l, Math.round(l * Math.min(0.75, g.h / g.w)));
+    // Panneau plein écran (tablette, téléphone) : l'aperçu reste assez bas pour laisser voir les réglages
+    const l = Math.max(220, Math.min(zone.clientWidth || 300, 560));
+    const h = Math.min(Math.round(l * Math.min(0.75, g.h / g.w)), Math.round(innerHeight * 0.32), 320);
+    zone.innerHTML = rendreGraphiqueSVG(g, api.donnees(api.feuille(), g.plage), l, h);
   }
 
   function changer(f, reconstruire = false) {
@@ -209,6 +220,11 @@ export function installerGraphiques(api) {
     else if (b.dataset.palette) changer((g) => { g.palette = b.dataset.palette; g.couleurs = {}; }, true);
     else if (b.dataset.raz !== undefined) changer((g) => { delete g.couleurs[b.dataset.raz]; }, true);
     else if (b.id === 'gp-plage-sel') { const s = api.selection(); changer((g) => { g.plage = api.adresse(s.r1, s.c1) + ':' + api.adresse(s.r2, s.c2); g.noms = {}; g.couleurs = {}; }, true); }
+    else if (b.id === 'gp-inverser') changer((g) => {
+      // Nuage : X et Y échangés ; histogramme ↔ barres horizontales ; les titres suivent
+      if (g.type === 'nuage') g.xyInverses = !g.xyInverses; else g.type = g.type === 'barres' ? 'colonnes' : 'barres';
+      if (g.type === 'nuage') { const t = g.titreX; g.titreX = g.titreY; g.titreY = t; const a = [g.xMin, g.xMax, g.logX]; [g.xMin, g.xMax, g.logX] = [g.yMin, g.yMax, g.logY]; [g.yMin, g.yMax, g.logY] = a; }
+    }, true);
     else if (b.id === 'gp-png') exporter(courant, 'png');
     else if (b.id === 'gp-svg') exporter(courant, 'svg');
     else if (b.id === 'gp-dupliquer') { const copie = JSON.parse(JSON.stringify(courant)); copie.id = 'g' + Date.now().toString(36); copie.x += 24; copie.y += 24; api.feuille().graphiques.push(copie); courant = copie; api.activer(copie.id); api.sauvegarder(); api.rendre(); construirePanneau(); }
@@ -224,6 +240,8 @@ export function installerGraphiques(api) {
       case 'gp-titreY': return changer((g) => { g.titreY = val; });
       case 'gp-ymin': return changer((g) => { g.yMin = num(val); });
       case 'gp-ymax': return changer((g) => { g.yMax = num(val); });
+      case 'gp-xmin': return changer((g) => { g.xMin = num(val); });
+      case 'gp-xmax': return changer((g) => { g.xMax = num(val); });
       case 'gp-police': return changer((g) => { g.police = Math.max(7, Math.min(24, +val || 11)); });
       case 'gp-epaisseur': return changer((g) => { g.epaisseur = Math.max(0.5, Math.min(8, +val || 2)); });
       case 'gp-fond': return changer((g) => { g.fond = val; });
@@ -238,6 +256,10 @@ export function installerGraphiques(api) {
     switch (t.id) {
       case 'gp-plage': if (api.plageValide(t.value)) changer((g) => { g.plage = t.value.toUpperCase().replace(/\s/g, ''); g.noms = {}; g.couleurs = {}; }, true); else { api.toast('Plage invalide (ex. A1:C12)', true); t.value = courant.plage; } return;
       case 'gp-lignes': return changer((g) => { g.enLignes = t.checked; g.noms = {}; g.couleurs = {}; }, true);
+      case 'gp-logy': return changer((g) => { g.logY = t.value === 'log'; });
+      case 'gp-logx': return changer((g) => { g.logX = t.value === 'log'; });
+      case 'gp-invy': return changer((g) => { g.inverseY = t.checked; });
+      case 'gp-invx': return changer((g) => { g.inverseX = t.checked; });
       case 'gp-legende': return changer((g) => { g.legende = t.value; g.legendeForcee = t.value !== 'aucune'; });
       case 'gp-etiquettes': return changer((g) => { g.etiquettes = t.value; });
       case 'gp-format': return changer((g) => { g.formatY = t.value; });

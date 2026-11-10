@@ -118,8 +118,10 @@ function serieXml(g, ref, s, k, couleur, genre) {
   }
   const cats = ref.d.categories;
   if (genre === 'nuage') {
-    if (ref.xRef) x += '<c:xVal><c:numRef><c:f>' + ech(ref.xRef) + '</c:f>' + numCache(ref.d.xs) + '</c:numRef></c:xVal>';
-    x += '<c:yVal><c:numRef><c:f>' + ech(s.valRef) + '</c:f>' + numCache(s.valeurs) + '</c:numRef></c:yVal><c:smooth val="' + (g.variante === 'lisse' ? 1 : 0) + '"/>';
+    // X et Y échangés dans Sprezz : la série devient l'axe X (une seule série)
+    const [xr, xv, yr, yv] = g.xyInverses && ref.xRef ? [s.valRef, s.valeurs, ref.xRef, ref.d.xs] : [ref.xRef, ref.d.xs, s.valRef, s.valeurs];
+    if (xr) x += '<c:xVal><c:numRef><c:f>' + ech(xr) + '</c:f>' + numCache(xv) + '</c:numRef></c:xVal>';
+    x += '<c:yVal><c:numRef><c:f>' + ech(yr) + '</c:f>' + numCache(yv) + '</c:numRef></c:yVal><c:smooth val="' + (g.variante === 'lisse' ? 1 : 0) + '"/>';
   } else {
     if (ref.catRef) x += '<c:cat><c:strRef><c:f>' + ech(ref.catRef) + '</c:f>' + strCache(cats) + '</c:strRef></c:cat>';
     x += '<c:val><c:numRef><c:f>' + ech(s.valRef) + '</c:f>' + numCache(s.valeurs) + '</c:numRef></c:val>';
@@ -130,11 +132,11 @@ function serieXml(g, ref, s, k, couleur, genre) {
 
 function axesXml(g, idCat, idVal, { horizontal = false, nuage = false } = {}) {
   const pos = horizontal ? ['l', 'b'] : ['b', 'l'];
-  const echelle = '<c:scaling><c:orientation val="minMax"/>' + (g.yMax !== undefined && g.yMax !== '' && g.yMax !== null ? '<c:max val="' + +g.yMax + '"/>' : '') + (g.yMin !== undefined && g.yMin !== '' && g.yMin !== null ? '<c:min val="' + +g.yMin + '"/>' : '') + '</c:scaling>';
+  const echelle = '<c:scaling>' + (g.logY ? '<c:logBase val="10"/>' : '') + '<c:orientation val="' + (g.inverseY ? 'maxMin' : 'minMax') + '"/>' + (g.yMax !== undefined && g.yMax !== '' && g.yMax !== null ? '<c:max val="' + +g.yMax + '"/>' : '') + (g.yMin !== undefined && g.yMin !== '' && g.yMin !== null ? '<c:min val="' + +g.yMin + '"/>' : '') + '</c:scaling>';
   const graduations = '<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>';
   const premier = nuage
-    ? '<c:valAx><c:axId val="' + idCat + '"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/>' + (g.quadrillageX ? '<c:majorGridlines/>' : '') + titreXml(g.titreX) + '<c:numFmt formatCode="General" sourceLinked="1"/>' + graduations + '<c:crossAx val="' + idVal + '"/><c:crosses val="autoZero"/><c:crossBetween val="midCat"/></c:valAx>'
-    : '<c:catAx><c:axId val="' + idCat + '"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="' + pos[0] + '"/>' + (g.quadrillageX ? '<c:majorGridlines/>' : '') + titreXml(g.titreX) + '<c:numFmt formatCode="General" sourceLinked="1"/>' + graduations + '<c:crossAx val="' + idVal + '"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>';
+    ? '<c:valAx><c:axId val="' + idCat + '"/><c:scaling>' + (g.logX ? '<c:logBase val="10"/>' : '') + '<c:orientation val="' + (g.inverseX ? 'maxMin' : 'minMax') + '"/>' + (g.xMax != null && g.xMax !== '' ? '<c:max val="' + +g.xMax + '"/>' : '') + (g.xMin != null && g.xMin !== '' ? '<c:min val="' + +g.xMin + '"/>' : '') + '</c:scaling><c:delete val="0"/><c:axPos val="b"/>' + (g.quadrillageX ? '<c:majorGridlines/>' : '') + titreXml(g.titreX) + '<c:numFmt formatCode="General" sourceLinked="1"/>' + graduations + '<c:crossAx val="' + idVal + '"/><c:crosses val="autoZero"/><c:crossBetween val="midCat"/></c:valAx>'
+    : '<c:catAx><c:axId val="' + idCat + '"/><c:scaling><c:orientation val="' + (g.inverseX ? 'maxMin' : 'minMax') + '"/></c:scaling><c:delete val="0"/><c:axPos val="' + pos[0] + '"/>' + (g.quadrillageX ? '<c:majorGridlines/>' : '') + titreXml(g.titreX) + '<c:numFmt formatCode="General" sourceLinked="1"/>' + graduations + '<c:crossAx val="' + idVal + '"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>';
   return premier + '<c:valAx><c:axId val="' + idVal + '"/>' + echelle + '<c:delete val="0"/><c:axPos val="' + (nuage ? 'l' : pos[1]) + '"/>' + (g.quadrillage !== false ? '<c:majorGridlines><c:spPr><a:ln w="6350"><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill></a:ln></c:spPr></c:majorGridlines>' : '')
     + titreXml(g.titreY) + '<c:numFmt formatCode="' + ech(g.formatY || 'General') + '" sourceLinked="' + (g.formatY ? 0 : 1) + '"/>' + graduations + '<c:crossAx val="' + idCat + '"/><c:crosses val="autoZero"/><c:crossBetween val="' + (nuage ? 'midCat' : 'between') + '"/></c:valAx>';
 }
@@ -396,11 +398,17 @@ export function specDepuisChartXml(xml, nomFeuille) {
     const enBarre = presents.filter((x) => /^bar/.test(x.t)).reduce((n, x) => n + [...x.m[1].matchAll(/<c:ser>/g)].length, 0);
     if (enBarre > 1 || enLigne.every((i) => g.secondaire[i])) { g.type = 'colonnes'; g.variante = 'groupe'; }
   }
-  if (axeCat) { const ti = /<c:title>([\s\S]*?)<\/c:title>/.exec(axeCat[2]); if (ti) g.titreX = texteDe(ti[1]); if (/<c:majorGridlines/.test(axeCat[2])) g.quadrillageX = true; }
+  if (axeCat) {
+    const ti = /<c:title>([\s\S]*?)<\/c:title>/.exec(axeCat[2]); if (ti) g.titreX = texteDe(ti[1]); if (/<c:majorGridlines/.test(axeCat[2])) g.quadrillageX = true;
+    if (/<c:orientation val="maxMin"/.test(axeCat[2])) g.inverseX = true;
+    if (g.type === 'nuage') { if (/<c:logBase/.test(axeCat[2])) g.logX = true; const mx = val(axeCat[2], 'max'), mn = val(axeCat[2], 'min'); if (mx !== null) g.xMax = +mx; if (mn !== null) g.xMin = +mn; }
+  }
   if (axeVal && axeVal !== axeCat) {
     const ti = /<c:title>([\s\S]*?)<\/c:title>/.exec(axeVal[2]); if (ti) g.titreY = texteDe(ti[1]);
     g.quadrillage = /<c:majorGridlines/.test(axeVal[2]);
     const mx = val(axeVal[2], 'max'), mn = val(axeVal[2], 'min'); if (mx !== null) g.yMax = +mx; if (mn !== null) g.yMin = +mn;
+    if (/<c:logBase/.test(axeVal[2])) g.logY = true;
+    if (/<c:orientation val="maxMin"/.test(axeVal[2])) g.inverseY = true;
     const nf = /<c:numFmt formatCode="([^"]*)" sourceLinked="0"/.exec(axeVal[2]); if (nf && nf[1] !== 'General') g.formatY = entites(nf[1]);
   }
   const leg = /<c:legend>([\s\S]*?)<\/c:legend>/.exec(xml);

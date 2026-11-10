@@ -995,6 +995,30 @@ test('xlsx : graphiques écrits au format d\'Excel et relus', () => {
   egal(e.feuilles[1].graphiques.length, 1);
 });
 
+test('graphiques : échelle logarithmique, ordre inversé, abscisse et ordonnée échangées (et xlsx)', () => {
+  const m = [['x', 'y'], [1, 10], [2, 100], [3, 1000], [4, 5]];
+  const svg = rendreGraphiqueSVG({ type: 'nuage', plage: 'A1:B5', logY: true, titreX: 'Âge', titreY: 'Montant' }, m, 400, 260);
+  const grads = [...svg.matchAll(/text-anchor="end" fill="#6b7280">([^<]+)</g)].map((x) => x[1]);
+  egal(grads.map((x) => x.replace(/\s/g, '')), ['1', '10', '100', '1000']);
+  // Ordre inversé : la plus grande valeur en haut d'un histogramme renversé = en bas
+  const h = (spec) => { const s2 = rendreGraphiqueSVG({ type: 'colonnes', plage: 'A1:B3', ...spec }, [['c', 'v'], ['a', 1], ['b', 2]], 300, 200); return [...s2.matchAll(/<rect x="[\d.]+" y="([\d.]+)" width="[\d.]+" height="([\d.]+)" fill="#2563eb"/g)].map((x) => [+x[1], +x[2]]); };
+  const droit = h({}), inverse = h({ inverseY: true });
+  egal(droit[1][0] < droit[0][0] && inverse[1][0] === inverse[0][0], true);
+  // Nuage : X et Y échangés
+  const p0 = (spec) => [...rendreGraphiqueSVG({ type: 'nuage', plage: 'A1:B4', ...spec }, [['x', 'y'], [1, 300], [2, 100], [3, 200]], 300, 200).matchAll(/<circle cx="([\d.]+)" cy="([\d.]+)"/g)].map((x) => [+x[1], +x[2]]);
+  const a = p0({}), b = p0({ xyInverses: true });
+  egal(a.length === 3 && b.length === 3 && JSON.stringify(a) !== JSON.stringify(b), true);
+  // Relu depuis le xlsx
+  const c = Classeur.nouveau();
+  m.forEach((l, r) => l.forEach((v, k) => c.saisir(0, r, k, String(v))));
+  c.feuilles[0].graphiques.push({ id: 'g1', type: 'nuage', plage: 'A1:B5', x: 0, y: 0, w: 300, h: 200, logY: true, logX: true, inverseX: true, xMin: 1, xMax: 10, titreX: 'Âge', titreY: 'Montant' });
+  const octets = ecrireClasseur(XLSX, c);
+  const cfb = XLSX.CFB.read(octets, { type: 'array' });
+  const xml = new TextDecoder().decode(cfb.FileIndex[cfb.FullPaths.findIndex((p) => /charts\/chart1\.xml$/.test(p))].content);
+  const g = graphiquesXlsx.specDepuisChartXml(xml, 'Feuil1');
+  egal([g.logY, g.logX, g.inverseX, g.xMin, g.xMax, g.titreX, g.titreY], [true, true, true, 1, 10, 'Âge', 'Montant']);
+});
+
 test('xlsx : graphiques d\'un fichier écrit par un autre logiciel (espaces de noms par défaut)', () => {
   const e = lireClasseur(XLSX, new Uint8Array(fs.readFileSync(new URL('./donnees-tableur/graphiques-openpyxl.xlsx', import.meta.url))), 'o.xlsx');
   const g = e.feuilles[0].graphiques;
