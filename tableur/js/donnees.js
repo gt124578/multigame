@@ -756,7 +756,25 @@ export function supprimerDoublons(classeur, fi, p, colonnes, { entete = true } =
  * qui se suivent n'en font qu'un ; milliers : « 1 234 567,89 » reste un seul nombre quand on coupe aux espaces ;
  * guillemets : "un texte; avec séparateur" reste entier.
  */
-export function decouperLigne(ligne, { seps = ['tab'], regrouper = true, milliers = false, guillemets = true } = {}) {
+export function decouperLigne(ligne, opts = {}) {
+  const out = decouperBrut(ligne, opts);
+  let res = out;
+  // Au plus N colonnes : le surplus reste ensemble dans la première (« POLAND 4.75% 4/17 » puis les chiffres)
+  const n = +opts.maxColonnes || 0;
+  if (n > 0 && out.length > n) {
+    const joint = opts.seps && opts.seps.length === 1 ? ({ tab: '\t', espace: ' ', espaces2: '  ' }[opts.seps[0]] ?? opts.seps[0]) : ' ';
+    res = [out.slice(0, out.length - n + 1).join(joint), ...out.slice(out.length - n + 1)];
+  }
+  // Nombres écrits à l'anglaise (1,234.56 ; 4.75%) : virgule décimale à la française, comme si on les avait tapés ici
+  if (opts.anglais) res = res.map((x) => (/^[-+(]?\d{1,3}(,\d{3})*(\.\d+)?%?\)?$/.test(x) || /^[-+(]?\d+\.\d+%?\)?$/.test(x) ? x.replace(/,/g, ' ').replace('.', ',') : x));
+  return res;
+}
+/** Le texte d'une ligne écrit avec des points décimaux (1.375 ; 4.75%) et pas de virgule décimale. */
+export function nombresAnglais(lignes) {
+  const l = lignes.slice(0, 50).join(' ');
+  return /(^|\s)[-+(]?\d+\.\d+%?(?=\s|$)/.test(l) && !/(^|\s)[-+(]?\d+,\d{1,2}%?(?=\s|$)/.test(l);
+}
+function decouperBrut(ligne, { seps = ['tab'], regrouper = true, milliers = false, guillemets = true } = {}) {
   const S = new Set(seps.map((x) => (x === 'tab' ? '\t' : x === 'espace' ? ' ' : x === 'espaces2' ? '\u0001' : x)));
   if (S.has(' ')) { S.add('\u00a0'); S.add('\u202f'); } // espaces insécables des PDF
   let t = String(ligne).replace(/\r$/, '');

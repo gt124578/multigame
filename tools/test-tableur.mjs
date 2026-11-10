@@ -1308,6 +1308,8 @@ test('texte collé d\'un PDF : séparateurs devinés, espaces multiples, millier
   egal(decouperLigne(lignes[1], { seps: ['espaces2'], milliers: true }), ['Action A', '6,5%', '1 234,56']);
   egal(decouperLigne('A 12 1 234 567,89 5', { seps: ['espace'], milliers: true }), ['A', '12', '1 234 567,89', '5']);
   egal(decouperLigne('"a;b";c;;d', { seps: [';'], regrouper: false }), ['a;b', 'c', '', 'd']);
+  egal(decouperLigne('POLAND 4.75% 4/17 1.375 1.55% 25/04/2017 1.45 4.75', { seps: ['espace'], maxColonnes: 6, anglais: true }), ['POLAND 4.75% 4/17', '1,375', '1,55%', '25/04/2017', '1,45', '4,75']);
+  egal(decouperLigne('Total 1,234.56 (2,000.5)', { seps: ['espace'], anglais: true }), ['Total', '1 234,56', '(2 000,5)']);
   const c = Classeur.nouveau();
   lignes.forEach((l, r) => c.saisir(0, r, 0, l));
   convertirEnColonnes(c, 0, { r1: 0, c1: 0, r2: 2, c2: 0 }, ['espaces2'], { regrouper: true, milliers: true });

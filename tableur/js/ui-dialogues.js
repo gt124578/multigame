@@ -4,7 +4,7 @@
 
 import { formater, colVersLettres, adresse, parsePlage } from './formules.js';
 import { STYLES_TABLEAU, apercuStyle } from './tableaux.js';
-import { collerSpecial, decalerCellules, supprimerDoublons, convertirEnColonnes, zoneContigue, aUnEntete, decouperLigne, devinerSeparateurs } from './donnees.js';
+import { collerSpecial, decalerCellules, supprimerDoublons, convertirEnColonnes, zoneContigue, aUnEntete, decouperLigne, devinerSeparateurs, nombresAnglais } from './donnees.js';
 
 const ech = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const opt = (liste, val) => liste.map(([k, t]) => `<option value="${ech(k)}"${String(val ?? '') === String(k) ? ' selected' : ''}>${ech(t)}</option>`).join('');
@@ -331,19 +331,22 @@ export function installerDialogues(api) {
       <label class="case"><input type="checkbox" id="dc-autre-oui"> Autre : <input id="dc-autre" maxlength="3" style="width:48px"></label></div>
       <label class="case"><input type="checkbox" id="dc-reg" checked> Séparateurs qui se suivent = un seul (colonnes alignées par des espaces, comme dans un PDF)</label>
       <label class="case"><input type="checkbox" id="dc-mil"${seps.includes('espace') || seps.includes('espaces2') ? ' checked' : ''}> Garder entiers les nombres écrits « 1 234,56 »</label>
+      <label class="case"><input type="checkbox" id="dc-ang"${nombresAnglais(lignes) ? ' checked' : ''}> Nombres écrits à l'anglaise (1.375 ; 1,234.56) : passer à la virgule</label>
+      <div class="dc-max"><label>Nombre de colonnes au plus <input type="number" id="dc-max" min="0" max="999" placeholder="tout" style="width:64px"></label><span class="aide-petite">le surplus reste ensemble dans la première colonne (un nom qui contient des espaces)</span></div>
       <div class="dc-apercu" id="dc-apercu"></div>`;
   }
   function optionsDecoupe() {
     const seps = [...fond.querySelectorAll('.dc-sep:checked')].map((x) => x.value);
     if ($('dc-autre-oui').checked && $('dc-autre').value) seps.push($('dc-autre').value);
-    return { seps: seps.length ? seps : ['tab'], regrouper: $('dc-reg').checked, milliers: $('dc-mil').checked };
+    return { seps: seps.length ? seps : ['tab'], regrouper: $('dc-reg').checked, milliers: $('dc-mil').checked, anglais: $('dc-ang').checked, maxColonnes: +$('dc-max').value || 0 };
   }
   function brancherDecoupe(lignes) {
     const maj = () => {
       const o = optionsDecoupe(), l = lignes.slice(0, 6).map((x) => decouperLigne(x, o)), n = Math.max(1, ...l.map((x) => x.length));
       $('dc-apercu').innerHTML = `<table>${l.map((x) => `<tr>${Array.from({ length: Math.min(n, 12) }, (_, k) => `<td>${ech(x[k] ?? '')}</td>`).join('')}</tr>`).join('')}</table><p class="aide-petite">${n} colonne${n > 1 ? 's' : ''}${lignes.length > 6 ? ' · aperçu des 6 premières lignes sur ' + lignes.length : ''}</p>`;
     };
-    fond.querySelectorAll('.dc-sep, #dc-autre-oui, #dc-reg, #dc-mil').forEach((x) => x.addEventListener('change', maj));
+    fond.querySelectorAll('.dc-sep, #dc-autre-oui, #dc-reg, #dc-mil, #dc-ang').forEach((x) => x.addEventListener('change', maj));
+    $('dc-max').addEventListener('input', maj);
     $('dc-autre').addEventListener('input', () => { $('dc-autre-oui').checked = !!$('dc-autre').value; maj(); });
     maj();
   }
@@ -353,6 +356,10 @@ export function installerDialogues(api) {
     const f = api.feuille(), lignes = [];
     for (let r = s.r1; r <= Math.min(s.r2, s.r1 + 5000); r++) { const c = f.get(r, s.c1); if (c && typeof c.v === 'string' && c.f == null) lignes.push(c.v); }
     if (!lignes.length) return api.toast('Rien à découper : choisissez une colonne de textes', true);
+    // Une seule cellule qui contient plusieurs lignes (texte collé pendant la saisie) : une ligne par rangée, puis les colonnes
+    if (s.r1 === s.r2 && /\n/.test(lignes[0])) {
+      return collerTexte(lignes[0], { r1: s.r1, c1: s.c1, vider: true });
+    }
     ouvrir('Convertir en colonnes', `<p class="aide-petite">Découpe chaque texte de ${adresse(s.r1, s.c1)}:${adresse(s.r2, s.c1)} ; les morceaux vont dans les colonnes à droite.</p>${htmlDecoupe(lignes)}`, () => {
       const o = optionsDecoupe();
       api.memoriser();
@@ -362,13 +369,14 @@ export function installerDialogues(api) {
     brancherDecoupe(lignes);
   }
   /** Collage spécial d'un texte venu d'ailleurs (PDF, page, traitement de texte) : découpé en colonnes au choix. */
-  function collerTexte(texte) {
+  function collerTexte(texte, ou = null) {
     const lignes = String(texte).replace(/\r\n?/g, '\n').replace(/\n+$/, '').split('\n');
     ouvrir('Coller du texte', `<p class="aide-petite">${lignes.length} ligne${lignes.length > 1 ? 's' : ''} copiée${lignes.length > 1 ? 's' : ''} hors de Sprezz : comment les répartir en colonnes ?</p>${htmlDecoupe(lignes)}`, () => {
       const o = optionsDecoupe();
-      const cur = api.selection();
+      const cur = ou || api.selection();
       api.memoriser();
       const C = api.classeur(), fi = api.fi();
+      if (ou && ou.vider) C.saisir(fi, cur.r1, cur.c1, '');
       let n = 1;
       lignes.forEach((l, i) => { const m = decouperLigne(l, o); n = Math.max(n, m.length); m.forEach((v, k) => C.saisir(fi, cur.r1 + i, cur.c1 + k, v)); });
       api.selectionner({ r1: cur.r1, c1: cur.c1, r2: cur.r1 + lignes.length - 1, c2: cur.c1 + n - 1 }, { r: cur.r1, c: cur.c1 });

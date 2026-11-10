@@ -178,8 +178,13 @@ export function installerDonnees(api) {
   // Rechercher / remplacer
   // ---------------------------------------------------------------------------
   const rech = { texte: '', par: '', casse: false, entier: false, dans: 'valeurs', feuilles: 'active', resultats: [], i: -1 };
-  function optionsRech() { return { casse: rech.casse, entier: rech.entier, dans: rech.dans, feuilles: rech.feuilles, fi: api.fi() }; }
+  function optionsRech() {
+    const sel = rech.feuilles === 'selection' ? api.selectionBornee() : null;
+    return { casse: rech.casse, entier: rech.entier, dans: rech.dans, feuilles: sel ? 'active' : rech.feuilles, fi: api.fi(), plage: sel || undefined };
+  }
   function construireRech(remplacerAussi = false) {
+    // Comme Excel : plusieurs cellules choisies, la recherche (et le remplacement) se limite à elles
+    { const b = api.selectionBornee(); if (b.r1 !== b.r2 || b.c1 !== b.c2) rech.feuilles = 'selection'; else if (rech.feuilles === 'selection') rech.feuilles = 'active'; }
     const panneau = $('panneau-rechercher');
     panneau.innerHTML = `
       <div class="outil">
@@ -188,7 +193,7 @@ export function installerDonnees(api) {
         <label class="case"><input type="checkbox" id="rr-casse"${rech.casse ? ' checked' : ''}> Respecter la casse</label>
         <label class="case"><input type="checkbox" id="rr-entier"${rech.entier ? ' checked' : ''}> Cellule entière</label>
         <label>Dans <select id="rr-dans"><option value="valeurs"${rech.dans === 'valeurs' ? ' selected' : ''}>les valeurs</option><option value="formules"${rech.dans === 'formules' ? ' selected' : ''}>les formules</option></select></label>
-        <label>Où <select id="rr-ou"><option value="active"${rech.feuilles === 'active' ? ' selected' : ''}>cette feuille</option><option value="toutes"${rech.feuilles === 'toutes' ? ' selected' : ''}>tout le classeur</option></select></label>
+        <label>Où <select id="rr-ou"><option value="selection"${rech.feuilles === 'selection' ? ' selected' : ''}>les cellules choisies</option><option value="active"${rech.feuilles === 'active' ? ' selected' : ''}>cette feuille</option><option value="toutes"${rech.feuilles === 'toutes' ? ' selected' : ''}>tout le classeur</option></select></label>
         <div class="outil-actions">
           <button id="rr-prec" title="Précédent (Maj+Entrée)">◀</button><button id="rr-suiv" class="principal" title="Suivant (Entrée)">Suivant ▶</button><button id="rr-tous">Tout rechercher</button>
         </div>

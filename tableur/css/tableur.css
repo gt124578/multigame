@@ -638,3 +638,5 @@ textarea.colore::selection { -webkit-text-fill-color: transparent; }
 .dc-apercu td { border: 1px solid var(--bord); padding: 2px 6px; white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
 .dc-apercu tr:first-child td { background: rgba(31, 122, 77, .08); }
 .dc-apercu .aide-petite { margin: 4px 6px; }
+.dc-max { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0; }
+.dc-max label { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
