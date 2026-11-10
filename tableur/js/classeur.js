@@ -554,6 +554,9 @@ export class Classeur {
   copier(f, src, dest, couper = false) {
     const feuille = typeof f === 'number' ? this.feuilles[f] : f;
     const dr = dest.r - src.r1, dc = dest.c - src.c1;
+    // Déplacer (couper) : les formules qui citent le bloc le suivent, comme dans Excel
+    let changes = [];
+    if (couper) { const i = this.feuilles.indexOf(feuille); if (i >= 0) changes = this.suivreDeplacement(i, src, i, dr, dc); }
     const bloc = [];
     for (let r = src.r1; r <= src.r2; r++) for (let c = src.c1; c <= src.c2; c++) {
       const cel = feuille.get(r, c);
@@ -565,6 +568,33 @@ export class Classeur {
     for (const b of bloc) feuille.set(b.r, b.c, b.cel);
     feuille.recalculerZone();
     this.modifie();
+    return changes;
+  }
+
+  /**
+   * Couper-coller ou déplacement du bloc S de la feuille fiSrc de (dr, dc) vers la feuille fiDest : dans tout le classeur,
+   * les références entièrement dans S le suivent (relatives comme absolues), celles vers les cellules écrasées deviennent #REF!.
+   * Les formules du bloc lui-même gardent leurs références vers l'extérieur. Noms définis et plages des graphiques suivent aussi.
+   * Renvoie les cellules modifiées [feuille, ligne, colonne, ancienne cellule] pour pouvoir annuler.
+   */
+  suivreDeplacement(fiSrc, S, fiDest, dr, dc) {
+    const changes = [];
+    if (!dr && !dc && fiSrc === fiDest) return changes;
+    const srcNom = this.feuilles[fiSrc].nom, destNom = this.feuilles[fiDest].nom;
+    const o = { srcNom, destNom, S, D: { r1: S.r1 + dr, c1: S.c1 + dc, r2: S.r2 + dr, c2: S.c2 + dc }, dr, dc };
+    const dans = (r, c) => r >= S.r1 && r <= S.r2 && c >= S.c1 && c <= S.c2;
+    this.feuilles.forEach((f, i) => f.chaque((r, c, cel) => {
+      if (typeof cel.f !== 'string' || !cel.f.startsWith('=')) return;
+      const bouge = i === fiSrc && dans(r, c);
+      const nf = deplacerReferences(cel.f, bouge ? srcNom : f.nom, bouge ? destNom : f.nom, o);
+      if (nf !== cel.f) { changes.push([i, r, c, { ...cel }]); cel.f = nf; }
+    }));
+    for (const d of this.noms.values()) { const x = deplacerReferences('=' + d.ref, null, null, o).slice(1); if (!x.includes('#REF!')) d.ref = x; }
+    for (const f of this.feuilles) {
+      for (const d of f.noms.values()) { const x = deplacerReferences('=' + d.ref, f.nom, f.nom, o).slice(1); if (!x.includes('#REF!')) d.ref = x; }
+      for (const g of f.graphiques || []) if (g.plage) { const x = deplacerReferences('=' + g.plage, f.nom, f.nom, o).slice(1); if (!x.includes('#REF!')) g.plage = x; }
+    }
+    return changes;
   }
 
   insererLignes(f, r, n = 1) { this.decalerLignesColonnes(f, 'r', r, n); }
@@ -711,6 +741,35 @@ function ajusterReferences(formule, memeFeuille, nomFeuille, classeur, axe, idx,
       if (out.some((x) => x === null)) return (pref || '') + '#REF!';
       // Une plage dont les deux bouts se croisent après suppression → #REF!
       return (pref || '') + out.join(':');
+    });
+  }).join('');
+}
+
+// Réécrit les références d'une formule après le déplacement d'un bloc (voir suivreDeplacement).
+// ctx : feuille où la formule était écrite (références sans « Feuille! ») ; nouveauCtx : feuille où elle se trouve après.
+function deplacerReferences(formule, ctx, nouveauCtx, o) {
+  const re = /(?<![\w.])((?:'(?:[^']|'')+'|[A-Za-z_][\w.]*)!)?(\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?|\$?[A-Za-z]{1,3}:\$?[A-Za-z]{1,3}|\$?\d+:\$?\d+)(?![\w(])/g;
+  const meme = (a, b) => a != null && b != null && a.toLowerCase() === b.toLowerCase();
+  const citer = (nom) => (/^[A-Za-z_][\w.]*$/.test(nom) && !/^[A-Za-z]{1,3}\d+$/.test(nom) ? nom : "'" + nom.replace(/'/g, "''") + "'") + '!';
+  const morceaux = formule.split(/("(?:[^"]|"")*"|\[(?:[^[\]]|\[(?:[^[\]]|\[[^[\]]*\])*\])*\])/);
+  return morceaux.map((m, i) => {
+    if (i % 2 === 1) return m;
+    return m.replace(re, (tout, pref, ref) => {
+      const nom = pref ? pref.slice(0, -1).replace(/^'|'$/g, '').replace(/''/g, "'") : ctx;
+      if (nom == null) return tout;
+      let texte = ref, nouveauNom = nom;
+      const parts = ref.split(':').map((p) => /^(\$?)([A-Za-z]{1,3})(\$?)(\d+)$/.exec(p));
+      if (parts.every(Boolean)) {
+        const rs = parts.map((p) => +p[4] - 1), cs = parts.map((p) => lettresVersColLocal(p[2]));
+        const x = { r1: Math.min(...rs), r2: Math.max(...rs), c1: Math.min(...cs), c2: Math.max(...cs) };
+        const contenu = (z) => x.r1 >= z.r1 && x.r2 <= z.r2 && x.c1 >= z.c1 && x.c2 <= z.c2;
+        if (meme(nom, o.srcNom) && contenu(o.S)) {
+          texte = parts.map((p) => p[1] + colVersLettres(lettresVersColLocal(p[2]) + o.dc) + p[3] + (+p[4] + o.dr)).join(':');
+          nouveauNom = o.destNom;
+        } else if (meme(nom, o.destNom) && contenu(o.D)) return '#REF!';
+      }
+      if (pref) return (meme(nouveauNom, nom) ? pref : citer(nouveauNom)) + texte;
+      return meme(nouveauNom, nouveauCtx) ? texte : citer(nouveauNom) + texte;
     });
   }).join('');
 }

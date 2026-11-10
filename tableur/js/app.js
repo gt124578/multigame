@@ -1096,8 +1096,26 @@ function restaurer(s) {
   if (s.extra) for (const k of PROPRIETES_FEUILLE) f[k] = s.extra[k] === undefined ? (k === 'tableaux' ? [] : undefined) : s.extra[k];
   classeur.noms = s.noms; classeur.active = s.fi; classeur.modifie();
 }
-function annuler() { if (!historique.length) return; futur.push(instantane()); restaurer(historique.pop()); rendre(); sauvegarderLocal(); }
-function retablir() { if (!futur.length) return; historique.push(instantane()); restaurer(futur.pop()); rendre(); sauvegarderLocal(); }
+// Cellules d'autres feuilles touchées par l'action (déplacement : formules qui suivent) : [feuille, ligne, colonne, cellule]
+function restaurerAutres(s) {
+  if (!s.autres) return null;
+  const actuel = [];
+  for (let k = s.autres.length - 1; k >= 0; k--) {
+    const [i, r, c, cel] = s.autres[k], f = classeur.feuilles[i]; if (!f) continue;
+    const x = f.get(r, c); actuel.unshift([i, r, c, x ? { ...x } : null]);
+    f.set(r, c, cel ? { ...cel } : null);
+  }
+  for (const f of classeur.feuilles) f.recalculerZone();
+  return actuel;
+}
+function noterAutres(changes) {
+  const h = historique[historique.length - 1];
+  if (!h || !changes || !changes.length) return;
+  const autres = changes.filter(([i]) => i !== h.fi);
+  if (autres.length) h.autres = (h.autres || []).concat(autres);
+}
+function annuler() { if (!historique.length) return; const s = historique.pop(), cur = instantane(); restaurer(s); const a = restaurerAutres(s); if (a) cur.autres = a; futur.push(cur); classeur.modifie(); rendre(); sauvegarderLocal(); }
+function retablir() { if (!futur.length) return; const s = futur.pop(), cur = instantane(); restaurer(s); const a = restaurerAutres(s); if (a) cur.autres = a; historique.push(cur); classeur.modifie(); rendre(); sauvegarderLocal(); }
 
 // ---------------------------------------------------------------------------
 // Édition
@@ -1444,8 +1462,8 @@ async function coller(texteSysteme) {
   if (pressePapier && (texte == null || texte === '' || !pressePapier.systeme || texte === pressePapier.texte || texte.replace(/\r/g, '') === pressePapier.texte)) {
     const src = pressePapier;
     const nl = src.r2 - src.r1 + 1, nc = src.c2 - src.c1 + 1;
-    const repL = dest.r2 - dest.r1 + 1 >= nl && (dest.r2 - dest.r1 + 1) % nl === 0 ? (dest.r2 - dest.r1 + 1) / nl : 1;
-    const repC = dest.c2 - dest.c1 + 1 >= nc && (dest.c2 - dest.c1 + 1) % nc === 0 ? (dest.c2 - dest.c1 + 1) / nc : 1;
+    const repL = src.couper ? 1 : dest.r2 - dest.r1 + 1 >= nl && (dest.r2 - dest.r1 + 1) % nl === 0 ? (dest.r2 - dest.r1 + 1) / nl : 1;
+    const repC = src.couper ? 1 : dest.c2 - dest.c1 + 1 >= nc && (dest.c2 - dest.c1 + 1) % nc === 0 ? (dest.c2 - dest.c1 + 1) / nc : 1;
     const srcF = src.feuille, srcC = src.classeur, srcFi = srcC.feuilles.indexOf(srcF);
     const autre = srcC !== classeur;   // copie d'un classeur vers un autre
     const bloc = [];
@@ -1455,7 +1473,16 @@ async function coller(texteSysteme) {
       const v = autre && cel && cel.f != null && srcFi >= 0 ? srcC.valeur(srcFi, r, c) : undefined;
       bloc.push({ dr: r - src.r1, dc: c - src.c1, cel: cel ? { ...cel, s: cel.s ? { ...cel.s, bordures: cel.s.bordures ? { ...cel.s.bordures } : undefined } : undefined } : null, v });
     }
-    if (src.couper) { if (srcFi >= 0) srcC.effacer(srcFi, src.r1, src.c1, src.r2, src.c2, true); pressePapier = null; if (autre) { srcC.modifie(); } }
+    if (src.couper) {
+      // Dans le même classeur, les formules qui citent les cellules coupées les suivent (comme Excel) ; la source vide se note pour Annuler
+      if (!autre && srcFi >= 0) {
+        noterAutres(classeur.suivreDeplacement(srcFi, src, fi(), dest.r1 - src.r1, dest.c1 - src.c1));
+        bloc.length = 0;
+        for (let r = src.r1; r <= src.r2; r++) for (let c = src.c1; c <= src.c2; c++) { const cel = srcF.get(r, c); bloc.push({ dr: r - src.r1, dc: c - src.c1, cel: cel ? { ...cel, s: cel.s ? { ...cel.s, bordures: cel.s.bordures ? { ...cel.s.bordures } : undefined } : undefined } : null }); }
+        if (srcFi !== fi()) { const av = []; for (let r = src.r1; r <= src.r2; r++) for (let c = src.c1; c <= src.c2; c++) { const x = srcF.get(r, c); if (x) av.push([srcFi, r, c, { ...x }]); } noterAutres(av); }
+      }
+      if (srcFi >= 0) srcC.effacer(srcFi, src.r1, src.c1, src.r2, src.c2, true); pressePapier = null; if (autre) { srcC.modifie(); }
+    }
     const aVerifier = [];
     for (let i = 0; i < repL; i++) for (let j = 0; j < repC; j++) for (const b of bloc) {
       const r = dest.r1 + i * nl + b.dr, c = dest.c1 + j * nc + b.dc;
@@ -2832,7 +2859,7 @@ function rendreAide() {
 <li>Formules : <code>=SOMME(A1:A10)</code>, <code>=SI(B2&gt;0;"oui";"non")</code>, <code>=VPM(taux/12;n;-capital)</code>, <code>=LOI.NORMALE.STANDARD.N(1,96)</code>, <code>=RECHERCHEV(x;Table;2;FAUX)</code>… Noms anglais et français acceptés, séparateurs <code>;</code> ou <code>,</code>, virgule ou point décimal.</li>
 <li>Autres feuilles : <code>=Hypothèses!B2</code>, <code>='Ma feuille'!A1:A9</code>. Noms définis : zone à gauche de la barre de formule.</li>
 <li>Pendant la saisie d'une formule, cliquez ou glissez sur la grille pour insérer une référence.</li>
-<li>Copier / couper / coller (<code>Ctrl+C/X/V</code>) décale les références relatives, comme dans Excel : <code>=lx(A10)</code> collée une colonne à droite devient <code>=lx(B10)</code> ; pour garder la colonne, écrivez <code>=lx($A10)</code> (<code>F4</code> ajoute les <code>$</code>). Une plage copiée dans Excel ou LibreOffice se colle directement ici, et inversement. Poignée en bas à droite : recopie et séries. <code>Ctrl+D</code> recopie vers le bas, <code>Ctrl+R</code> vers la droite.</li>
+<li>Copier / couper / coller (<code>Ctrl+C/X/V</code>) décale les références relatives, comme dans Excel : <code>=lx(A10)</code> collée une colonne à droite devient <code>=lx(B10)</code> ; pour garder la colonne, écrivez <code>=lx($A10)</code> (<code>F4</code> ajoute les <code>$</code>). Couper-coller (ou glisser la bordure de la sélection) déplace le bloc : ses formules ne changent pas, et toutes celles du classeur qui le citaient le suivent (<code>=B1+1</code> devient <code>=I10+1</code> si B1 part en I10). Une plage copiée dans Excel ou LibreOffice se colle directement ici, et inversement. Poignée en bas à droite : recopie et séries. <code>Ctrl+D</code> recopie vers le bas, <code>Ctrl+R</code> vers la droite.</li>
 <li><b>Au doigt</b> (téléphone, tablette) : un appui sélectionne une cellule, un second appui la modifie (le clavier s'ouvre) ; glisser depuis la sélection l'étend, glisser ailleurs fait défiler ; un appui long ouvre le menu (copier, coller, insérer…) sur les cellules, les onglets, les boutons et les graphiques. Le bouton ☰ à gauche de la barre de formule masque les outils (masqués d'office en paysage). ↶ ↷ : annuler, rétablir.</li>
 <li><code>Ctrl+Z</code> / <code>Ctrl+Y</code> annuler / rétablir. <code>Ctrl+flèches</code> saute au bord d'un bloc. Clic droit : menu.</li>
 <li>Formats : <code>Ctrl+B/I/U</code>, couleurs, alignement, menu <b>Bordures</b>, formats de nombre, boutons de décimales : tout est lu et écrit dans le <code>.xlsx</code>.</li>
@@ -3154,7 +3181,7 @@ function surBordSelection(e) {
 function deplacerCellules(src, cible, copie) {
   memoriser();
   const s2 = { r1: src.r1, c1: src.c1, r2: Math.min(src.r2, Math.max(feuille().zone.r2, src.r1)), c2: Math.min(src.c2, Math.max(feuille().zone.c2, src.c1)) };
-  classeur.copier(fi(), s2, cible, !copie);
+  noterAutres(classeur.copier(fi(), s2, cible, !copie));
   // Les fusions déplacées suivent
   if (!copie) for (const m of feuille().fusions) if (m.r1 >= src.r1 && m.r2 <= src.r2 && m.c1 >= src.c1 && m.c2 <= src.c2) { m.r1 += cible.r - src.r1; m.r2 += cible.r - src.r1; m.c1 += cible.c - src.c1; m.c2 += cible.c - src.c1; }
   selection = { r1: cible.r, c1: cible.c, r2: cible.r + src.r2 - src.r1, c2: cible.c + src.c2 - src.c1 }; curseur = { r: cible.r, c: cible.c + (curseur.c - src.c1) };

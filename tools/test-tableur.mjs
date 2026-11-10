@@ -1635,5 +1635,20 @@ test('tableau croisé : champs calculés ; graphique en cascade', () => {
   egal([svg.includes('#70ad47'), svg.includes('#e8463a'), svg.includes('#4472c4')], [true, true, true]);
 });
 
+test('déplacer un bloc : les références le suivent (couper-coller, glisser la bordure)', () => {
+  const c = Classeur.nouveau(); c.ajouterFeuille('Données 2');
+  c.saisir(0, 0, 0, '2'); c.saisir(0, 1, 0, '3'); c.saisir(0, 0, 1, '=A1*10'); c.saisir(0, 1, 1, '=A2*$A$1+C9');
+  c.saisir(0, 0, 4, '=B1+1'); c.saisir(0, 0, 5, '=SOMME(A1:B2)+SOMME(A1:A5)'); c.saisir(0, 0, 6, '="A1"&A1'); c.saisir(1, 0, 0, '=Feuil1!B2*2'); c.saisir(0, 9, 9, '=H10');
+  c.copier(0, { r1: 0, c1: 0, r2: 1, c2: 1 }, { r: 9, c: 7 }, true);
+  egal([c.saisie(0, 9, 8), c.saisie(0, 10, 8), c.saisie(0, 0, 4), c.saisie(0, 0, 5), c.saisie(0, 0, 6), c.saisie(1, 0, 0), c.saisie(0, 9, 9)],
+    ['=H10*10', '=H11*$H$10+C9', '=I10+1', '=SOMME(H10:I11)+SOMME(A1:A5)', '="A1"&H10', '=Feuil1!I11*2', '=#REF!']);
+  egal(c.valeur(0, 0, 4), 21);
+  // Vers une autre feuille : les références restées dehors prennent le nom de la feuille d'origine
+  const d = Classeur.nouveau(); d.ajouterFeuille('Données 2');
+  d.saisir(0, 0, 0, '4'); d.saisir(0, 0, 1, '=A1+C1'); d.saisir(0, 0, 3, '=B1*2');
+  d.suivreDeplacement(0, { r1: 0, c1: 0, r2: 0, c2: 1 }, 1, 2, 0);
+  egal([d.saisie(0, 0, 1), d.saisie(0, 0, 3)], ["=A3+Feuil1!C1", "='Données 2'!B3*2"]);
+});
+
 console.log(ko ? `${ok} tests réussis, ${ko} en échec` : `✔ ${ok} tests réussis`);
 process.exit(ko ? 1 : 0);
