@@ -87,3 +87,11 @@
 .ed-ghost canvas, .ed-ghost img { width: 3.4em; height: 3.4em; image-rendering: pixelated; object-fit: contain; }
 .ed-ghost.dessus { opacity: 0.55; transform: translate(-50%, -110%); }
 .ed-svg .pris { fill: rgba(255, 70, 70, 0.28) !important; stroke: #ff5a5a !important; }
+/* taille du pinceau, calque des hauteurs, récents */
+.ed-rayon { display: inline-flex; align-items: center; gap: 0.3em; color: #cfe0f8; }
+.ed-rayon input { width: 6em; accent-color: #ffe058; }
+.ed-rayon b { min-width: 1.4em; text-align: center; color: #fff; }
+.ed-calque { position: fixed; pointer-events: none; z-index: 38; }
+.ed-vide { display: block; padding: 0.4em 0.6em; color: #8aa0bf; white-space: normal; }
+.ed-reglages input[type=checkbox] { vertical-align: middle; }
+.ed-reglages label.ed-coche { flex-direction: row; align-items: center; gap: 0.4em; }

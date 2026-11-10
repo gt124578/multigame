@@ -8,8 +8,14 @@
 // coller dans odyssee/js/world/retouches.js pour qu'elle fasse partie du jeu de tout le monde.
 //
 // Souris : clic gauche = outil · glisser un objet = le déplacer · clic droit (ou molette enfoncée, ou Espace) + glisser =
-// se déplacer · clic droit = pipette · molette = zoom. Clavier : flèches / ZQSD se déplacer, V sélection, P pinceau,
-// E gomme, I pipette, Ctrl+C / X / V, Suppr, Ctrl+Z / Ctrl+Y, Échap annule, Tab replie la palette.
+// se déplacer · clic droit sans bouger, Ctrl + clic ou Alt + clic = pipette (prend ce qu'il y a sur la case : bâtiment,
+// décor, habitant, objet, panneau, sinon le terrain et sa hauteur) · Maj + clic au pinceau = trait droit depuis le dernier
+// point · molette = zoom. Clavier : flèches / ZQSD se déplacer, V sélection, P pinceau, E gomme, I pipette, G remplissage,
+// R relief, [ et ] taille du pinceau, N hauteurs affichées, 1 à 9 éléments récents, Ctrl+C / X / V, Suppr,
+// Ctrl+Z / Ctrl+Y, Échap annule, Tab replie la palette.
+//
+// Relief (labo/terrasse.js) : élever, abaisser, aplanir ou lisser le sol au pinceau rond ; les parois (roche ou talus
+// d'herbe) et les marches des chemins se refont toutes seules autour.
 import * as THREE from 'three';
 import { T } from '../world/tiles.js';
 import { SPRITES } from '../data/sprites.js';
@@ -21,8 +27,9 @@ import { EMPRISES } from '../render/batiments3d.js';
 import { el, esc } from '../ui/ui.js';
 import { ITEMS, itemName } from '../core/items.js';
 import { ASSETS } from '../assets.js';
+import { terrasser, ciblesRelief, disque, H_MAX } from './terrasse.js';
 
-const LOCAL_KEY = 'odyssee-retouches', PALETTE_KEY = 'odyssee-editeur-palette';
+const LOCAL_KEY = 'odyssee-retouches', PALETTE_KEY = 'odyssee-editeur-palette', RECENTS_KEY = 'odyssee-editeur-recents', OUTILS_KEY = 'odyssee-editeur-reglages';
 const NOM_T = Object.fromEntries(Object.entries(T).map(([k, v]) => [v, k]));
 const key = (x, y) => x + ',' + y;
 
@@ -55,7 +62,8 @@ const BATIMENTS = [
   ['tower', 'Étal', { w: 2, d: 2, h: 2, door: -1, modele: 'etal' }],
 ].map(([kind, nom, o], i) => { const B = { ...BUILDINGS[kind], ...Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) }; return { id: 'b' + i, kind, nom, o: Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)), w: B.w, d: B.d }; });
 const TOITS = ['red', 'blue', 'green', 'brown', 'gray', 'teal', 'purple', 'orange', 'gold'];
-const CATS = [['sol', 'Terrain'], ['relief', 'Relief'], ['bat', 'Bâtiments'], ['decor', 'Décor'], ['pnj', 'Habitants'], ['objet', 'Objets'], ['panneau', 'Panneau']];
+const RELIEFS = [['monter', 'Élever', '⬆'], ['baisser', 'Abaisser', '⬇'], ['aplanir', 'Aplanir', '▬'], ['lisser', 'Lisser', '〰']];
+const CATS = [['recents', 'Récents'], ['sol', 'Terrain'], ['relief', 'Relief'], ['bat', 'Bâtiments'], ['decor', 'Décor'], ['pnj', 'Habitants'], ['objet', 'Objets'], ['panneau', 'Panneau']];
 
 /* ---------------------------------------------- vignettes des bâtiments (modèles 3D, rendus une fois) ---------------- */
 let RV = null;
@@ -93,10 +101,16 @@ export class Editeur {
     this.choix = { cat: 'sol', v: T.PATH };
     this.reglages = { dir: 'down', text: 'Bonjour !', roof: 'red', name: 'Maison', qty: 1, panneau: 'NOUVEAU LIEU\nUne petite phrase.', niv: 1 };
     this.cursor = null; this.zoom = 1.6; this.cam = { x: 0, y: 0 };
+    // taille du pinceau (terrain, relief), réglages du relief, éléments récents, hauteurs affichées
+    this.outilsR = { rayon: 1, bord: 'roche', niveau: 1, auto: true, marches: true, hauteurs: false };
+    try { Object.assign(this.outilsR, JSON.parse(localStorage.getItem(OUTILS_KEY) || '{}')); } catch (e) { /* rien */ }
+    try { this.recents = JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]'); } catch (e) { this.recents = []; }
+    this.dernier = null;   // dernière case peinte (Maj + clic : trait droit)
     this.sel = null; this.presse = null; this.coller = false; this.objSel = null;
     this.histo = []; this.refaireL = [];
     this.touches = new Set();
-    try { this.paletteOuverte = JSON.parse(localStorage.getItem(PALETTE_KEY) || '{"on":true,"cats":["sol","bat"]}'); } catch (e) { this.paletteOuverte = { on: true, cats: ['sol', 'bat'] }; }
+    try { this.paletteOuverte = JSON.parse(localStorage.getItem(PALETTE_KEY) || '{"on":true,"cats":["recents","sol","relief","bat"]}'); } catch (e) { this.paletteOuverte = { on: true, cats: ['recents', 'sol', 'relief', 'bat'] }; }
+    if (!this.paletteOuverte.cats.includes('recents') && !this.paletteOuverte.vuRecents) { this.paletteOuverte.cats.unshift('recents', 'relief'); this.paletteOuverte.vuRecents = 1; }
     this.ray = new THREE.Raycaster(); this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   }
   /* ---------------- retouches gardées dans le navigateur ---------------- */
@@ -123,6 +137,7 @@ export class Editeur {
     this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); this.svg.setAttribute('class', 'ed-svg');
     for (const k of ['sel', 'cur', 'fantome']) { const p = document.createElementNS('http://www.w3.org/2000/svg', 'polygon'); p.setAttribute('class', 'ed-' + k); this.svg.appendChild(p); this['p' + k] = p; }
     g.ui.root.appendChild(this.svg);
+    this.calque = el('canvas', 'ed-calque'); g.ui.root.appendChild(this.calque);
     this.dessiner();
     const cv = g.view.renderer.domElement; this.cv = cv;
     this.ev = {
@@ -146,7 +161,7 @@ export class Editeur {
     removeEventListener('pointermove', this.ev.move); cv.removeEventListener('pointerdown', this.ev.down); removeEventListener('pointerup', this.ev.up);
     cv.removeEventListener('wheel', this.ev.wheel); cv.removeEventListener('contextmenu', this.ev.ctx);
     removeEventListener('keydown', this.ev.key, true); removeEventListener('keyup', this.ev.keyup, true);
-    this.root?.remove(); this.svg?.remove(); this.ghost?.remove();
+    this.root?.remove(); this.svg?.remove(); this.ghost?.remove(); this.calque?.remove();
     if (g.hud?.root) g.hud.root.style.visibility = '';
     for (const q of ['.labo-bar', '.keybar']) document.querySelector(q)?.style.removeProperty('display');
     v.sansFondu = false;
@@ -185,7 +200,8 @@ export class Editeur {
     if (k.has('ArrowUp') || k.has('KeyW')) this.cam.y -= n;
     if (k.has('ArrowDown') || k.has('KeyS')) this.cam.y += n;
     const m = this.m; this.cam.x = Math.max(-4, Math.min(m.w + 4, this.cam.x)); this.cam.y = Math.max(-4, Math.min(m.h + 4, this.cam.y));
-    this.dessinerSvg();
+    this.dessinerSvg(); this.dessinerHauteurs();
+    if (this.aFaire && performance.now() - this.aFaire.t > 60) this.vider();
   }
 
   /* ---------------- souris ---------------- */
@@ -211,15 +227,28 @@ export class Editeur {
     const c = this.caseDe(e); if (!c) return;
     this.cv.setPointerCapture?.(e.pointerId);
     // se déplacer : molette enfoncée, clic droit, Espace ou outil Main
+    // Ctrl + clic droit : pipette tout de suite
+    if (e.button === 2 && (e.ctrlKey || e.metaKey || e.altKey)) { e.preventDefault(); this.pipette(c); return; }
     if (e.button === 1 || e.button === 2 || this.touches.has('Space') || this.outil === 'main') {
       const p = this.sol(e); this.drag = { type: 'pan', p0: p, x0: e.clientX, y0: e.clientY, droit: e.button === 2 }; e.preventDefault(); return;
     }
     if (e.button !== 0) return;
+    // pipette : Ctrl + clic, Alt + clic (sur Mac, Ctrl + clic est aussi le clic droit)
+    if (e.ctrlKey || e.metaKey || e.altKey) { this.pipette(c); return; }
     if (this.coller) { this.collerEn(c.x, c.y); if (!e.shiftKey) this.finColler(); return; }
     if (this.outil === 'pipette') { this.pipette(c); return; }
     if (this.outil === 'gomme') { this.gommer(c); this.drag = { type: 'gomme' }; return; }
+    if (this.outil === 'remplir') { this.remplirZone(c); return; }
     if (this.outil === 'pinceau') {
-      if (this.choix.cat === 'sol' || this.choix.cat === 'relief') { this.debutGroupe(); this.drag = { type: 'peinture', vu: new Set() }; this.peindre(c); }
+      if (this.choix.cat === 'sol' || this.choix.cat === 'relief') {
+        this.debutGroupe();
+        // relief : Maj fait l'inverse (abaisser au lieu d'élever) ; terrain : Maj + clic trace un trait droit
+        const R = this.outilsR, relief = this.choix.cat === 'relief', mode = relief && e.shiftKey ? ({ monter: 'baisser', baisser: 'monter' }[this.choix.v] || this.choix.v) : this.choix.v;
+        this.drag = { type: 'peinture', vu: new Set(), base: new Map(), mode, niveau: R.auto && this.choix.v === 'aplanir' ? this.m.height(c.x, c.y) : R.niveau, der: null };
+        // Maj + clic : trait droit depuis la dernière case peinte
+        if (!relief && e.shiftKey && this.dernier && this.dernier.map === this.m.id) this.trait(this.dernier, c);
+        else this.peindre(c);
+      }
       else this.poser(this.choix, c);
       return;
     }
@@ -240,7 +269,7 @@ export class Editeur {
     if (e.target !== this.cv && !D) { this.cursor = null; return; }
     const c = this.caseDe(e); if (!c) return;
     this.cursor = c; this.majInfo();
-    if (D?.type === 'peinture') this.peindre(c);
+    if (D?.type === 'peinture') { if (D.der && Math.abs(D.der.x - c.x) + Math.abs(D.der.y - c.y) > 1) this.trait(D.der, c); else this.peindre(c); }
     else if (D?.type === 'gomme') this.gommer(c);
     else if (D?.type === 'rect') { const a = D.c0; this.sel = { x: Math.min(a.x, c.x), y: Math.min(a.y, c.y), w: Math.abs(a.x - c.x) + 1, h: Math.abs(a.y - c.y) + 1 }; }
     else if (D?.type === 'objet' && Math.hypot(e.clientX - D.x0, e.clientY - D.y0) > 5) D.bouge = true;
@@ -250,7 +279,7 @@ export class Editeur {
     if (!D) return;
     if (D.type === 'palette') { this.lacherPalette(e, D); return; }
     if (D.type === 'pan') { if (D.droit && !D.bouge) { const c = this.caseDe(e); if (this.coller) this.finColler(); else if (c) this.pipette(c); } return; }
-    if (D.type === 'peinture') { this.finGroupe(); return; }
+    if (D.type === 'peinture') { this.vider(); this.finGroupe(); if (D.der) this.dernier = { ...D.der, map: this.m.id }; return; }
     if (D.type === 'rect') { if (this.sel && this.sel.w * this.sel.h <= 1 && !e.shiftKey) this.sel = null; this.majInfo(); this.majBarre(); return; }
     if (D.type === 'objet' && D.bouge && this.cursor) {
       const o = D.o, nx = this.cursor.x - D.dx, ny = this.cursor.y - D.dy;
@@ -277,17 +306,21 @@ export class Editeur {
     if (c === 'Escape') { stop(); if (this.coller) this.finColler(); else if (this.sel || this.objSel) { this.sel = null; this.objSel = null; this.majInfo(); this.majBarre(); } return; }
     if (c === 'Tab') { stop(); this.replier(); return; }
     if (ctrl) return;
-    const outils = { KeyV: 'select', KeyP: 'pinceau', KeyE: 'gomme', KeyI: 'pipette', KeyH: 'main' };
+    const outils = { KeyV: 'select', KeyP: 'pinceau', KeyE: 'gomme', KeyI: 'pipette', KeyH: 'main', KeyG: 'remplir' };
     if (outils[c]) { stop(); this.setOutil(outils[c]); return; }
-    if (c === 'Equal' || c === 'NumpadAdd') { stop(); this.setZoom(this.zoom / 1.2); return; }
-    if (c === 'Minus' || c === 'Digit6' || c === 'NumpadSubtract') { stop(); this.setZoom(this.zoom * 1.2); return; }
+    if (c === 'KeyR') { stop(); this.choisir({ cat: 'relief', v: this.choix.cat === 'relief' ? this.choix.v : 'monter' }); return; }
+    if (c === 'BracketLeft' || c === 'BracketRight' || c === 'Comma' || c === 'Period') { stop(); this.setRayon(this.outilsR.rayon + (c === 'BracketRight' || c === 'Period' ? 1 : -1)); return; }
+    if (c === 'KeyN') { stop(); this.outilsR.hauteurs = !this.outilsR.hauteurs; this.gardeOutils(); this.majBarre(); return; }
+    if (c === 'Equal' || c === 'NumpadAdd' || e.key === '+' || e.key === '=') { stop(); this.setZoom(this.zoom / 1.2); return; }
+    if (c === 'Minus' || c === 'NumpadSubtract' || e.key === '-') { stop(); this.setZoom(this.zoom * 1.2); return; }
+    if (/^Digit[1-9]$/.test(c)) { const it = this.recents[+c.slice(5) - 1]; if (it) { stop(); this.choisir(it); } return; }
     if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space'].includes(c)) stop();
   }
 
   /* ---------------- interface ---------------- */
   dessiner() {
     const g = this.game, cartes = Object.values(g.world.maps).filter((m) => !/^domaine/.test(m.id)).sort((a, b) => (a.id === 'monde' ? -1 : b.id === 'monde' ? 1 : (a.name || a.id).localeCompare(b.name || b.id)));
-    const outils = [['select', '⬚', 'Sélection (V) : attraper et déplacer, ou tracer un rectangle'], ['pinceau', '🖌', 'Pinceau (P) : poser l\'élément choisi'], ['gomme', '🧽', 'Gomme (E) : retirer ce qui est posé'], ['pipette', '💧', 'Pipette (I) : prendre le terrain'], ['main', '✋', 'Main (H) : se déplacer']];
+    const outils = [['select', '⬚', 'Sélection (V) : attraper et déplacer, ou tracer un rectangle'], ['pinceau', '🖌', 'Pinceau (P) : poser l\'élément choisi (Maj + clic : trait droit)'], ['remplir', '🪣', 'Remplissage (G) : le terrain choisi dans toute la zone pareille autour de la case'], ['gomme', '🧽', 'Gomme (E) : retirer ce qui est posé'], ['pipette', '💧', 'Pipette (I, ou Ctrl / Alt + clic, ou clic droit) : prendre ce qu\'il y a sur la case'], ['main', '✋', 'Main (H) : se déplacer']];
     this.root.innerHTML = `
       <div class="ed-barre">
         <button type="button" data-quit title="Quitter l'éditeur">◀ ${this.seul ? 'Menu' : 'Jeu'}</button>
@@ -301,6 +334,9 @@ export class Editeur {
         <button type="button" data-act="effacer" title="Effacer la sélection ou l'objet choisi (Suppr)">🗑</button>
         <span class="ed-sep"></span>
         <button type="button" data-act="annuler" title="Annuler (Ctrl+Z)">↶</button><button type="button" data-act="refaire" title="Rétablir (Ctrl+Y)">↷</button>
+        <span class="ed-sep"></span>
+        <label class="ed-rayon" title="Taille du pinceau : terrain et relief ( [ et ] )">◯ <input type="range" min="1" max="15" data-rayon><b data-rayon-n></b></label>
+        <button type="button" data-act="hauteurs" title="Afficher les hauteurs de chaque case (N)">⛰</button>
         <span class="ed-sep"></span>
         <button type="button" data-act="zoom-" title="Voir de plus haut">−</button><span class="ed-zoom" data-zoom></span><button type="button" data-act="zoom+" title="Voir de plus près">+</button>
         <span class="ed-grow"></span>
@@ -320,10 +356,12 @@ export class Editeur {
     R.querySelector('[data-carte]').onchange = (e) => this.changerCarte(e.target.value);
     R.querySelectorAll('[data-outil]').forEach((b) => (b.onclick = () => this.setOutil(b.dataset.outil)));
     const acts = { copier: () => this.copier(), couper: () => this.couper(), coller: () => this.debutColler(), effacer: () => this.effacer(), annuler: () => this.annuler(), refaire: () => this.refaire(),
+      hauteurs: () => { this.outilsR.hauteurs = !this.outilsR.hauteurs; this.gardeOutils(); this.majBarre(); },
       'zoom-': () => this.setZoom(this.zoom * 1.25), 'zoom+': () => this.setZoom(this.zoom / 1.25), exporter: () => this.exporter(),
       raz: () => { if (confirm('Effacer toutes les retouches de ce navigateur ? (la carte revient comme au départ au prochain lancement)')) { this.edits = {}; this.saveLocal(); this.histo = []; this.refaireL = []; this.majBarre(); this.game.ui.toast('Retouches effacées : relance le labo pour revoir la carte d\'origine'); } } };
     R.querySelectorAll('[data-act]').forEach((b) => (b.onclick = () => acts[b.dataset.act]()));
     R.querySelector('[data-replier]').onclick = () => this.replier();
+    const ry = R.querySelector('[data-rayon]'); ry.value = this.outilsR.rayon; ry.oninput = () => this.setRayon(+ry.value);
     R.querySelector('[data-deplier]').onclick = () => this.replier();
     R.querySelectorAll('details[data-cat]').forEach((d) => d.addEventListener('toggle', () => {
       const k = d.dataset.cat, L = this.paletteOuverte.cats.filter((q) => q !== k); if (d.open) { L.push(k); this.remplir(k); }
@@ -351,7 +389,8 @@ export class Editeur {
     const v = this.game.view, S = v.S, chars = v.charsCanvas;
     const items = [];
     if (cat === 'sol') for (const [t, n, c] of SOLS) items.push({ v: t, nom: n, ico: `<i class="ed-pastille" style="background:${c}"></i>` });
-    if (cat === 'relief') for (let h = 0; h <= 6; h++) items.push({ v: h, nom: h ? `Hauteur ${h}` : 'Au niveau 0', ico: `<b class="ed-niv">${h}</b>` });
+    if (cat === 'relief') for (const [k, n, i] of RELIEFS) items.push({ v: k, nom: n, ico: `<b class="ed-niv">${i}</b>` });
+    if (cat === 'recents') { this.majRecents(G); return; }
     if (cat === 'bat') for (const B of BATIMENTS) items.push({ v: B.id, nom: `${B.nom} (${B.w}×${B.d})`, ico: '<canvas data-bat></canvas>' });
     if (cat === 'decor') {
       const props = [...new Set([...Object.keys(SPRITES.nature || {}), ...Object.keys(SPRITES.mobilier || {}), ...Object.keys(SPRITES.deco || {})])].filter((k) => !/front|tuft|bang|itemball/.test(k)).sort();
@@ -363,7 +402,7 @@ export class Editeur {
     G.innerHTML = items.map((it) => `<button type="button" data-v="${esc(String(it.v))}" title="${esc(it.nom)}">${it.ico}<span>${esc(it.nom)}</span></button>`).join('');
     const vign = [];
     for (const b of G.querySelectorAll('[data-v]')) {
-      const val = cat === 'sol' || cat === 'relief' ? +b.dataset.v : b.dataset.v;
+      const val = cat === 'sol' ? +b.dataset.v : b.dataset.v;
       b.addEventListener('pointerdown', (e) => this.prendrePalette(e, { cat, v: val }, b));
       const cv = b.querySelector('canvas'); if (!cv) continue;
       const x = cv.getContext('2d'); x.imageSmoothingEnabled = false;
@@ -378,7 +417,9 @@ export class Editeur {
   }
   majPalette() {
     for (const b of this.root.querySelectorAll('.ed-grille [data-v]')) {
-      const cat = b.closest('[data-grille]').dataset.grille, val = cat === 'sol' || cat === 'relief' ? +b.dataset.v : b.dataset.v;
+      const cat = b.closest('[data-grille]').dataset.grille;
+      if (cat === 'recents') { b.classList.toggle('on', b.dataset.i === '0'); continue; }
+      const val = cat === 'sol' ? +b.dataset.v : b.dataset.v;
       b.classList.toggle('on', this.choix.cat === cat && this.choix.v === val);
     }
   }
@@ -393,7 +434,10 @@ export class Editeur {
     R.querySelector('[data-act="refaire"]').disabled = !this.refaireL.length;
     R.querySelector('[data-compte]').textContent = `${this.count()} retouche(s)`;
     R.querySelector('[data-zoom]').textContent = Math.round(100 / this.zoom) + ' %';
-    this.cv && (this.cv.style.cursor = this.coller ? 'copy' : { main: 'grab', pinceau: 'crosshair', gomme: 'not-allowed', pipette: 'crosshair' }[this.outil] || 'default');
+    R.querySelector('[data-rayon-n]').textContent = this.outilsR.rayon; R.querySelector('[data-rayon]').value = this.outilsR.rayon;
+    R.querySelector('[data-act="hauteurs"]').classList.toggle('on', !!this.outilsR.hauteurs);
+    if (this.calque) this.calque.style.display = this.outilsR.hauteurs ? '' : 'none';
+    this.cv && (this.cv.style.cursor = this.coller ? 'copy' : { main: 'grab', pinceau: 'crosshair', gomme: 'not-allowed', pipette: 'crosshair', remplir: 'cell' }[this.outil] || 'default');
   }
   majReglages() {
     const R = this.root?.querySelector('[data-reglages]'); if (!R) return;
@@ -403,15 +447,23 @@ export class Editeur {
     else if (c.cat === 'panneau') h = `<label>Texte du panneau<textarea data-f="panneau" rows="3">${esc(r.panneau)}</textarea></label>`;
     else if (c.cat === 'objet') h = `<label>Quantité <input data-f="qty" type="number" min="1" value="${r.qty}"></label>`;
     else if (c.cat === 'bat') h = `<label>Toit <select data-f="roof">${TOITS.map((k) => `<option${k === r.roof ? ' selected' : ''}>${k}</option>`).join('')}</select></label><label>Nom <input data-f="name" value="${esc(r.name)}"></label><small>On le pose par le milieu de sa façade ; on entre par la porte (un intérieur de maison est créé).</small>`;
-    else if (c.cat === 'relief') h = '<small>Hauteur de la case (talus d\'herbe). Une case plus haute que celle du sud a besoin d\'une paroi de talus dessous, et on change de niveau par une marche.</small>';
+    else if (c.cat === 'relief') {
+      const R2 = this.outilsR;
+      h = `<label>Bord <select data-o="bord"><option value="roche"${R2.bord === 'roche' ? ' selected' : ''}>Roche (falaise de pierre)</option><option value="herbe"${R2.bord === 'herbe' ? ' selected' : ''}>Talus d'herbe</option></select></label>
+        <label class="ed-coche"><input type="checkbox" data-o="marches"${R2.marches ? ' checked' : ''}> Marches là où un chemin descend</label>
+        ${c.v === 'aplanir' ? `<label class="ed-coche"><input type="checkbox" data-o="auto"${R2.auto ? ' checked' : ''}> Hauteur de la case cliquée</label><label>Sinon, niveau <input data-o="niveau" type="number" min="0" max="${H_MAX}" value="${R2.niveau}"></label>` : ''}
+        <small>Pinceau rond (taille : [ et ]). ${c.v === 'monter' || c.v === 'baisser' ? 'Un niveau par coup de pinceau ; Maj + clic fait l\'inverse. ' : ''}Sous un bord sud, la paroi (une case par niveau) se pose toute seule ; on passe d'un niveau à l'autre par une marche.</small>`;
+    }
+    else if (c.cat === 'sol') h = '<small>Pinceau rond (taille : [ et ]) · Maj + clic : trait droit · 🪣 (G) : remplir une zone.</small>';
     R.innerHTML = `<div class="ed-choix">Pinceau : <b>${esc(this.nomChoix())}</b></div>${h}`;
+    R.querySelectorAll('[data-o]').forEach((i) => { i.addEventListener('keydown', (e) => e.stopPropagation()); i.oninput = i.onchange = () => { const k = i.dataset.o; this.outilsR[k] = i.type === 'checkbox' ? i.checked : i.type === 'number' ? Math.max(0, Math.min(H_MAX, +i.value || 0)) : i.value; this.gardeOutils(); }; });
     R.querySelectorAll('[data-f]').forEach((i) => { i.addEventListener('keydown', (e) => e.stopPropagation()); i.oninput = i.onchange = () => { r[i.dataset.f] = i.type === 'number' ? Math.max(1, +i.value || 1) : i.value; }; });
   }
   nomChoix() {
     const c = this.choix;
     if (c.cat === 'sol') return SOLS.find((q) => q[0] === c.v)?.[1] || NOM_T[c.v] || '?';
-    if (c.cat === 'relief') return `Hauteur ${c.v}`;
-    if (c.cat === 'bat') return BATIMENTS.find((q) => q.id === c.v)?.nom || '?';
+    if (c.cat === 'relief') return `Relief : ${RELIEFS.find((q) => q[0] === c.v)?.[1] || c.v}`;
+    if (c.cat === 'bat') return this.batDe(c)?.nom || '?';
     if (c.cat === 'objet') return itemName(c.v);
     if (c.cat === 'panneau') return 'Panneau';
     return String(c.v);
@@ -427,7 +479,7 @@ export class Editeur {
     if (this.sel) h += ` · sélection <b>${this.sel.w} × ${this.sel.h}</b>`;
     if (this.objSel) h += ` · choisi : <b>${esc(this.nomObjet(this.objSel))}</b>`;
     if (this.coller) h += ' · <b>clic : coller ici</b> (Maj : coller plusieurs fois, Échap : arrêter)';
-    I.innerHTML = h + '<span class="ed-aide">glisser un objet : le déplacer · clic droit / Espace + glisser : se déplacer · molette : zoom · Tab : palette</span>';
+    I.innerHTML = h + '<span class="ed-aide">Ctrl / Alt + clic ou clic droit : pipette · Maj + clic : trait droit · [ ] : taille · clic droit / Espace + glisser : se déplacer · molette : zoom · Tab : palette</span>';
   }
   nomObjet(o) {
     if (o.type === 'bat') return `${o.o.name || o.o.label || o.o.modele || o.o.kind} (bâtiment ${o.o.w}×${o.o.d})`;
@@ -465,15 +517,17 @@ export class Editeur {
   }
   lacherPalette(e, D) {
     this.ghost?.remove(); this.ghost = null;
-    if (!D.bouge) { this.choix = D.item; this.outil = 'pinceau'; this.finColler(); this.majPalette(); this.majReglages(); this.majBarre(); return; }
+    if (!D.bouge) { this.choisir(D.item); return; }
     if (!this.surCarte(e)) return;
     const c = this.caseDe(e); if (!c) return;
-    this.choix = D.item; this.majPalette(); this.majReglages();
-    this.poser(D.item, c);
+    this.choisir(D.item, false);
+    if (D.item.cat === 'sol' || D.item.cat === 'relief') { this.debutGroupe(); this.drag = { type: 'peinture', vu: new Set(), base: new Map(), mode: D.item.v, niveau: this.outilsR.niveau }; this.peindre(c); this.vider(); this.finGroupe(); this.drag = null; }
+    else this.poser(D.item, c);
   }
   /** emprise de l'élément choisi (pour le curseur) et sa case de pose (bâtiment : par le milieu de sa façade) */
   emprise(item, c) {
-    if (item.cat === 'bat') { const B = BATIMENTS.find((q) => q.id === item.v); return { x: c.x - Math.floor(B.w / 2), y: c.y - B.d + 1, w: B.w, d: B.d }; }
+    if (item.cat === 'bat') { const B = this.batDe(item); return { x: c.x - Math.floor(B.w / 2), y: c.y - B.d + 1, w: B.w, d: B.d }; }
+    if ((item.cat === 'sol' || item.cat === 'relief') && this.outilsR.rayon > 1) { const r = this.outilsR.rayon - 1; return { x: c.x - r, y: c.y - r, w: 2 * r + 1, d: 2 * r + 1, rond: true }; }
     return { x: c.x, y: c.y, w: 1, d: 1 };
   }
   /** un bâtiment (autre que sauf) occupe-t-il ce rectangle ? */
@@ -483,30 +537,115 @@ export class Editeur {
     const r = this.reglages, m = this.m;
     if (item.cat === 'sol') return ['t', c.x, c.y, item.v];
     if (item.cat === 'relief') return ['h', c.x, c.y, item.v, item.v > 0 ? 1 : 0];
-    if (item.cat === 'decor') return ['p', item.v, c.x, c.y];
+    if (item.cat === 'decor') return item.o ? ['p', item.v, c.x, c.y, item.bloque ?? true, item.o] : ['p', item.v, c.x, c.y];
     if (item.cat === 'panneau') return ['s', c.x, c.y, r.panneau || '...'];
     if (item.cat === 'objet') return ['i', c.x, c.y, item.v, r.qty || 1];
     if (item.cat === 'pnj') return ['n', { id: `${m.id}:ed${Date.now().toString(36)}-${c.x}-${c.y}`, x: c.x, y: c.y, sprite: item.v, dir: r.dir || 'down', text: (r.text || 'Bonjour !').split('\n').filter(Boolean) }];
-    if (item.cat === 'bat') { const B = BATIMENTS.find((q) => q.id === item.v), e = this.emprise(item, c); return ['b', B.kind, e.x, e.y, r.roof || 'red', r.name || B.nom, B.o]; }
+    if (item.cat === 'bat') { const B = this.batDe(item), e = this.emprise(item, c); return ['b', B.kind, e.x, e.y, r.roof || 'red', r.name || B.nom, B.o]; }
     return null;
   }
   poser(item, c) {
     if (item.cat === 'bat' && this.occupe(this.emprise(item, c))) { this.game.ui.toast('Il y a déjà un bâtiment ici'); return; }
     const op = this.opPour(item, c); if (op) this.faire([op]);
   }
+  /** un coup de pinceau sur la case c (terrain ou relief, pinceau rond) */
   peindre(c) {
-    const D = this.drag, k = key(c.x, c.y); if (D.vu.has(k) || !this.m.in(c.x, c.y)) return; D.vu.add(k);
-    const op = this.opPour(this.choix, c);
-    if (op[0] === 't' && this.m.get(c.x, c.y) === op[3]) return;
-    this.ajouter([op]);
+    const D = this.drag; D.der = { x: c.x, y: c.y };
+    const cases = disque(c.x, c.y, this.outilsR.rayon).filter(([x, y]) => this.m.in(x, y));
+    if (this.choix.cat === 'relief') {
+      if (!this.m.outdoor) { if (!D.averti) { D.averti = true; this.game.ui.toast('Le relief se règle dehors (celui des grottes suit leur roche)'); } return; }
+      const neuves = cases.filter(([x, y]) => !D.vu.has(key(x, y))); if (!neuves.length && D.mode !== 'lisser') return;
+      for (const [x, y] of cases) D.vu.add(key(x, y));
+      const R = this.outilsR, cibles = ciblesRelief(this.m, D.mode === 'lisser' ? cases : neuves, D.mode, D.base, D.niveau);
+      const res = terrasser(this.m, cibles, { bord: R.bord, marches: R.marches });
+      if (res) this.ajouter([res.op], true);
+      return;
+    }
+    const ops = [];
+    for (const [x, y] of cases) {
+      const k = key(x, y); if (D.vu.has(k)) continue; D.vu.add(k);
+      const op = this.opPour(this.choix, { x, y });
+      if (op[0] === 't' && this.m.get(x, y) === op[3]) continue;
+      ops.push(op);
+    }
+    if (ops.length) this.ajouter(ops, true);
+  }
+  /** trait droit de a à b (pinceau), case par case */
+  trait(a, b) {
+    const n = Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+    for (let i = 0; i <= n; i++) { const t = n ? i / n : 0; this.peindre({ x: Math.round(a.x + (b.x - a.x) * t), y: Math.round(a.y + (b.y - a.y) * t) }); }
+  }
+  setRayon(r) { this.outilsR.rayon = Math.max(1, Math.min(15, Math.round(r) || 1)); this.gardeOutils(); this.majBarre(); }
+  gardeOutils() { try { localStorage.setItem(OUTILS_KEY, JSON.stringify(this.outilsR)); } catch (e) { /* plein */ } }
+  /** remplissage : le terrain choisi dans toute la zone pareille (même terrain, même hauteur) autour de la case */
+  remplirZone(c) {
+    const m = this.m, t0 = m.get(c.x, c.y), h0 = m.height(c.x, c.y);
+    if (this.choix.cat !== 'sol') { this.game.ui.toast('Le remplissage pose un terrain : choisis-en un dans la palette'); return; }
+    const v = this.choix.v; if (t0 === v) return;
+    const vu = new Set([key(c.x, c.y)]), pile = [[c.x, c.y]], cases = [];
+    while (pile.length && cases.length < 6000) {
+      const [x, y] = pile.pop(); cases.push([x, y]);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const a = x + dx, b = y + dy, k = key(a, b);
+        if (vu.has(k) || !m.in(a, b) || m.get(a, b) !== t0 || m.height(a, b) !== h0 || m.deco.some((d) => d.x === a && d.y === b)) continue;
+        vu.add(k); pile.push([a, b]);
+      }
+    }
+    let x0 = Infinity, y0 = Infinity, x1 = -1, y1 = -1;
+    for (const [x, y] of cases) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    const w = x1 - x0 + 1, h = y1 - y0 + 1, sols = new Array(w * h).fill(null);
+    for (const [x, y] of cases) sols[(y - y0) * w + (x - x0)] = v;
+    this.faire([['r', x0, y0, w, h, sols, null, null]], cases.length >= 6000 ? 'Zone très grande : remplie sur 6 000 cases' : `${cases.length} case(s) remplie(s)`);
   }
   gommer(c) {
     const o = this.objetEn(c.x, c.y); if (!o) return;
     this.faire([o.type === 'pnj' ? ['-n', o.o.id] : o.type === 'objet' ? ['-i', o.x, o.y] : o.type === 'decor' ? ['-p', o.x, o.y] : ['-b', o.x, o.y]]);
   }
+  /** pipette : prend ce qu'il y a sur la case (bâtiment, décor, panneau, habitant, objet), sinon le terrain ;
+   *  la hauteur de la case devient le niveau de l'outil Aplanir */
   pipette(c) {
-    const t = this.m.get(c.x, c.y); if (!SOLS.some((q) => q[0] === t)) { this.game.ui.toast(`${NOM_T[t] || '?'} : pas dans la palette`); return; }
-    this.choix = { cat: 'sol', v: t }; this.outil = 'pinceau'; this.majPalette(); this.majReglages(); this.majBarre();
+    const m = this.m, o = this.objetEn(c.x, c.y), r = this.reglages;
+    this.outilsR.niveau = m.height(c.x, c.y); this.gardeOutils();
+    if (o?.type === 'bat') {
+      const b = o.o, opts = { ...(b.o || {}), w: b.w, d: b.d, h: b.h, door: b.door };
+      if (b.modele) opts.modele = b.modele;
+      r.roof = b.roof || r.roof; r.name = b.name || r.name;
+      this.choisir({ cat: 'bat', v: 'copie', copie: { id: 'copie', kind: b.kind, nom: b.name || b.modele || b.kind, o: opts, w: b.w, d: b.d } });
+    } else if (o?.type === 'decor') {
+      const txt = m.signs.get(key(c.x, c.y));
+      if (txt != null) { r.panneau = txt; this.choisir({ cat: 'panneau', v: 'sign' }); }
+      else { const { k, x, y, ...opts } = o.o; this.choisir({ cat: 'decor', v: k, o: Object.keys(opts).length ? opts : undefined, bloque: m.get(c.x, c.y) === T.BLOCK }); }
+    } else if (o?.type === 'pnj') {
+      r.dir = o.o.dir || 'down'; r.text = (Array.isArray(o.o.text) ? o.o.text : [o.o.text || 'Bonjour !']).join('\n');
+      this.choisir({ cat: 'pnj', v: o.o.sprite });
+    } else if (o?.type === 'objet') {
+      r.qty = o.o.qty || 1; this.choisir({ cat: 'objet', v: o.o.item });
+    } else {
+      const t = m.get(c.x, c.y);
+      if (!SOLS.some((q) => q[0] === t)) { this.game.ui.toast(`${NOM_T[t] || '?'} : pas dans la palette (hauteur ${m.height(c.x, c.y)} retenue)`); return; }
+      this.choisir({ cat: 'sol', v: t });
+    }
+    this.game.ui.toast(`Pipette : ${this.nomChoix()}`);
+  }
+  /** choisit un élément comme pinceau (et le range dans les récents) */
+  choisir(item, outil = true) {
+    this.choix = item; if (outil) { this.outil = 'pinceau'; this.finColler(); }
+    const id = (q) => q.cat + ':' + q.v + (q.copie ? ':' + JSON.stringify(q.copie.o) : '') + (q.o ? ':' + JSON.stringify(q.o) : '');
+    this.recents = [item, ...this.recents.filter((q) => id(q) !== id(item))].slice(0, 9);
+    try { localStorage.setItem(RECENTS_KEY, JSON.stringify(this.recents)); } catch (e) { /* plein */ }
+    this.majRecents(); this.majPalette(); this.majReglages(); this.majBarre(); this.majInfo();
+  }
+  /** bâtiment de la palette, ou copié par la pipette */
+  batDe(item) { return item.copie || BATIMENTS.find((q) => q.id === item.v); }
+  /** rangée « Récents » de la palette (touches 1 à 9) */
+  majRecents(G = this.root?.querySelector('[data-grille="recents"]')) {
+    if (!G) return;
+    const nom = (q) => { const c0 = this.choix; this.choix = q; const n = this.nomChoix(); this.choix = c0; return n; };
+    const ico = (q) => q.cat === 'sol' ? `<i class="ed-pastille" style="background:${SOLS.find((z) => z[0] === q.v)?.[2] || '#888'}"></i>` : q.cat === 'relief' ? `<b class="ed-niv">${RELIEFS.find((z) => z[0] === q.v)?.[2] || '⛰'}</b>`
+      : q.cat === 'objet' ? `<img loading="lazy" src="${ASSETS.item(q.v)}" alt="">` : `<b class="ed-niv">${{ bat: '🏠', decor: '🌳', pnj: '🙂', panneau: '🪧' }[q.cat] || '?'}</b>`;
+    G.innerHTML = this.recents.length ? this.recents.map((q, i) => `<button type="button" data-i="${i}" title="${esc(nom(q))} (touche ${i + 1})">${ico(q)}<span>${i + 1}. ${esc(nom(q))}</span></button>`).join('')
+      : '<small class="ed-vide">Les éléments choisis (ou pris à la pipette) se rangent ici ; touches 1 à 9.</small>';
+    G.querySelectorAll('[data-i]').forEach((b) => b.addEventListener('pointerdown', (e) => { const q = this.recents[+b.dataset.i]; if (q) this.prendrePalette(e, q, b); }));
   }
 
   /* ---------------- copier, couper, coller, effacer ---------------- */
@@ -592,15 +731,19 @@ export class Editeur {
   /** applique des opérations comme une seule action (annulable d'un coup) */
   faire(ops, msg = null) { this.debutGroupe(); this.ajouter(ops); this.finGroupe(); if (msg) this.game.ui.toast(msg); }
   debutGroupe() { this.groupe = { map: this.m.id, ops: [], photos: [], avantBats: this.m.buildings.slice() }; }
-  ajouter(ops) {
+  ajouter(ops, differe = false) {
     const G = this.groupe, m = this.m; if (!G) return this.faire(ops);
     const rects = ops.flatMap((op) => this.zones(op));   // avant : un bâtiment déplacé n'est plus à son ancienne place après
     G.photos.push(this.photo(ops));
     applyOps(m, ops, this.game.world.maps);
     G.ops.push(...ops);
     (this.edits[m.id] ||= []).push(...ops);
-    this.rafraichir([...rects, ...ops.flatMap((op) => this.zones(op))]);
+    const tout = [...rects, ...ops.flatMap((op) => this.zones(op))];
+    // pendant un coup de pinceau, le sol se redessine par paquets (pas à chaque case)
+    if (differe) { this.aFaire ||= { t: performance.now(), rects: [] }; this.aFaire.rects.push(...tout); }
+    else this.rafraichir(tout);
   }
+  vider() { const A = this.aFaire; this.aFaire = null; if (A?.rects.length) this.rafraichir(A.rects); }
   finGroupe() {
     const G = this.groupe; this.groupe = null; if (!G || !G.ops.length) return;
     this.histo.push(G); if (this.histo.length > 60) this.histo.shift(); this.refaireL = [];
@@ -658,7 +801,14 @@ export class Editeur {
   dessinerSvg() {
     const g = this.game, cam = g.view.camera, r = this.cv.getBoundingClientRect(), v3 = new THREE.Vector3();
     const pt = (x, z) => { v3.set(x, 0, z).project(cam); return `${(r.left + (v3.x + 1) / 2 * r.width).toFixed(1)},${(r.top + (1 - v3.y) / 2 * r.height).toFixed(1)}`; };
-    const poly = (p, q) => p.setAttribute('points', q ? [pt(q.x, q.y), pt(q.x + q.w, q.y), pt(q.x + q.w, q.y + q.d), pt(q.x, q.y + q.d)].join(' ') : '');
+    const poly = (p, q) => {
+      if (q?.rond) {   // pinceau rond : le contour des cases du disque
+        const cx = q.x + q.w / 2, cy = q.y + q.d / 2, R = q.w / 2, P = [];
+        for (let a = 0; a < 40; a++) { const t = a / 40 * Math.PI * 2; P.push(pt(cx + Math.cos(t) * R, cy + Math.sin(t) * R)); }
+        p.setAttribute('points', P.join(' ')); return;
+      }
+      p.setAttribute('points', q ? [pt(q.x, q.y), pt(q.x + q.w, q.y), pt(q.x + q.w, q.y + q.d), pt(q.x, q.y + q.d)].join(' ') : '');
+    };
     cam.updateMatrixWorld();
     poly(this.psel, this.sel ? { x: this.sel.x, y: this.sel.y, w: this.sel.w, d: this.sel.h } : this.objSel ? { x: this.objSel.type === 'bat' ? this.objSel.x : this.objSel.o.x, y: this.objSel.type === 'bat' ? this.objSel.y : this.objSel.o.y, w: this.objSel.w, d: this.objSel.d } : null);
     const c = this.cursor, D = this.drag;
@@ -668,11 +818,40 @@ export class Editeur {
       else if (D?.type === 'palette' && D.bouge) fan = this.emprise(D.item, c);
       else if (this.coller && this.presse) fan = { x: c.x, y: c.y, w: this.presse.w, d: this.presse.h };
       else if (this.outil === 'pinceau') cur = this.emprise(this.choix, c);
+      else if (this.outil === 'remplir') cur = { x: c.x, y: c.y, w: 1, d: 1 };
       else if (D?.type !== 'pan') { const o = this.outil === 'select' || this.outil === 'gomme' ? this.objetEn(c.x, c.y) : null; cur = o ? { x: o.type === 'bat' ? o.x : o.o.x, y: o.type === 'bat' ? o.y : o.o.y, w: o.w, d: o.d } : { x: c.x, y: c.y, w: 1, d: 1 }; }
     }
     poly(this.pcur, cur); poly(this.pfantome, fan);
     const bat = D?.type === 'objet' ? (D.o.type === 'bat' ? D.o.o : undefined) : D?.type === 'palette' && D.item.cat === 'bat' ? null : this.outil === 'pinceau' && this.choix.cat === 'bat' ? null : undefined;
     const r0 = fan || cur; this.pfantome.classList.toggle('pris', !!(r0 && bat !== undefined && this.occupe(r0, bat))); this.pcur.classList.toggle('pris', !!(cur && bat === null && this.occupe(cur)));
     this.pcur.classList.toggle('gomme', this.outil === 'gomme');
+  }
+
+  /** calque des hauteurs (touche N) : le niveau de chaque case visible, teinté du bas (vert) vers le haut (brun puis blanc) */
+  dessinerHauteurs() {
+    const C = this.calque; if (!C || !this.outilsR.hauteurs) return;
+    const g = this.game, cam = g.view.camera, r = this.cv.getBoundingClientRect(), m = this.m;
+    const cle = `${this.cam.x.toFixed(2)},${this.cam.y.toFixed(2)},${this.zoom},${r.width},${r.height},${(this.edits[m.id] || []).length},${m.id},${this.histo.length}`;
+    if (cle === this._calqueCle) return; this._calqueCle = cle;
+    const dpr = devicePixelRatio || 1;
+    if (C.width !== Math.round(r.width * dpr) || C.height !== Math.round(r.height * dpr)) { C.width = Math.round(r.width * dpr); C.height = Math.round(r.height * dpr); }
+    Object.assign(C.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+    const x2 = C.getContext('2d'); x2.setTransform(dpr, 0, 0, dpr, 0, 0); x2.clearRect(0, 0, r.width, r.height);
+    cam.updateMatrixWorld();
+    const v3 = new THREE.Vector3(), pt = (x, z) => { v3.set(x, 0, z).project(cam); return [(v3.x + 1) / 2 * r.width, (1 - v3.y) / 2 * r.height]; };
+    const [ax, ay] = pt(0, 0), [bx] = pt(1, 0), [, cy] = pt(0, 1), taille = Math.abs(bx - ax);
+    const nx = Math.ceil(r.width / taille / 2) + 2, ny = Math.ceil(r.height / Math.abs(cy - ay) / 2) + 3;
+    const x0 = Math.floor(this.cam.x) - nx, x1 = Math.ceil(this.cam.x) + nx, y0 = Math.floor(this.cam.y) - ny, y1 = Math.ceil(this.cam.y) + ny;
+    const coul = (h) => h <= 0 ? null : `hsla(${Math.max(20, 120 - h * 14)}, ${h > 8 ? 15 : 55}%, ${Math.min(85, 38 + h * 4)}%, .38)`;
+    x2.font = `700 ${Math.max(8, Math.min(14, taille * 0.42))}px system-ui, sans-serif`; x2.textAlign = 'center'; x2.textBaseline = 'middle';
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      if (!m.in(x, y)) continue;
+      const h = m.height(x, y), [px, py] = pt(x, y), [qx, qy] = pt(x + 1, y + 1);
+      const c = coul(h); if (c) { x2.fillStyle = c; x2.fillRect(px, py, qx - px, qy - py); }
+      if (taille >= 14 && (h || m.get(x, y) === T.CLIFF)) {
+        x2.lineWidth = 3; x2.strokeStyle = 'rgba(0,0,0,.7)'; const txt = m.get(x, y) === T.CLIFF ? h + '▾' : String(h);
+        x2.strokeText(txt, (px + qx) / 2, (py + qy) / 2); x2.fillStyle = '#fff'; x2.fillText(txt, (px + qx) / 2, (py + qy) / 2);
+      }
+    }
   }
 }

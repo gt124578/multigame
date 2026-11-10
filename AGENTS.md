@@ -150,6 +150,14 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   Odyssée Test (`odyssee/test/`, jeu `odysseetest` du Hub) : le vrai jeu avec `window.ODYSSEE_TEST`, un labo pour choisir
   lieu et équipe (`odyssee/js/labo/labo.js`, rien n'est sauvegardé) et un éditeur de carte (`odyssee/js/labo/editeur.js` : bouton du menu du labo, vue de haut sans dresseur, ou touche B en jeu ; palette repliable à glisser sur la carte, sélection, copier / couper / coller, déplacer à la souris, annuler ; nouvelles retouches `mb`, `mp`, `mi`, `mn`, `-b`, `r`, `vide` dans `retouches.js`) ;
   ses retouches exportées se collent dans `odyssee/js/world/retouches.js`, appliquées à la fin de `buildWorld`.
+  Prise en main de l'éditeur : pipette universelle (Ctrl / Alt + clic, Ctrl + clic droit, clic droit sans bouger, touche I) qui prend
+  bâtiment (copie à l'identique), décor, panneau, habitant, objet ou terrain, et retient la hauteur de la case ; rangée « Récents »
+  (touches 1 à 9) ; pinceau rond pour le terrain et le relief (taille : curseur ou [ et ]) ; Maj + clic au pinceau : trait droit ;
+  remplissage (G) d'une zone de même terrain et même hauteur ; calque des hauteurs (N). Outil Relief (R ; `labo/terrasse.js`) :
+  élever, abaisser (ou Maj), aplanir (au niveau de la case cliquée ou à un niveau donné), lisser ; `terrasser()` refait les parois
+  sous les bords sud (une case `T.CLIFF` par niveau, roche ou talus d'herbe), garde arbres et rochers comme bord, pose des marches
+  là où un chemin descend, ne touche ni aux montagnes dessinées (`m.monts`, `m.ravins`) ni aux bâtiments, portes, ponts et eau,
+  et rend une seule retouche `['r', …]` par coup de pinceau.
   Schéma des cartes à dessiner par-dessus : `node tools/odyssee-schema.mjs [tout|monde|grottes|<carte>] [dossier]` (par défaut
   `/tmp/schema`) exporte pour le dehors et chaque grotte un schéma 1 pixel = 1 case (une couleur par type de case, `legende.png`
   / `legende.md`), sa version ×8 (grille, coordonnées, noms, PNJ), la carte des hauteurs en gris (32 + 16 × niveau, ravin = 0 ;
