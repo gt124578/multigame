@@ -114,10 +114,13 @@ function profondeurGrille(mat, b) {
   return mat;
 }
 const DECALS = new Set(['fleche', 'vent', 'courant', 'dalle', 'tp', 'socle', 'pollen', 'alveole', 'interrupteur', 'estrade', 'tapis']);
+const AVANCE_PERSO = 0.38;
 const WIDE_DECO = new Set(['healer', 'sofa', 'bench', 'startertable', 'fireplace', 'rug']);
 /** décor du dehors posé avec une ombre au sol (leur ombre violette, dessinée dans le sprite, a été retirée) */
 const OMBRE_DECO = new Set(['banc', 'parasol', 'tonneau', 'caisse', 'panneau_bois', 'borne', 'lanterne', 'stele']);
-function screenSprite(mat) {
+/** avance : le sprite est rangé comme s'il se tenait `avance` case plus au sud (personnages : leurs pieds passent devant
+ *  le perron, les marches et le socle du bâtiment qui dépassent sur leur case, sans changer l'ordre entre personnages) */
+function screenSprite(mat, avance = 0) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uRes = SPRITE_UNIFORMS.uRes; sh.uniforms.uEch = SPRITE_UNIFORMS.uEch;
     sh.vertexShader = sh.vertexShader
@@ -134,9 +137,10 @@ function screenSprite(mat) {
         // celui de gauche passe devant celui de droite (léger décalage selon la colonne, bien plus petit qu'une rangée).
         // Le décalage rapproche le sprite de la caméra : s'il l'éloignait, le sol passerait devant le bas du dessin (les pieds)
         float sBias = - ( 64.0 - mod( sA.x, 64.0 ) ) * 2.0e-6;
+        ${avance ? `vec4 sAv = projectionMatrix * viewMatrix * ( sW + vec4( 0.0, 0.0, ${avance.toFixed(3)}, 0.0 ) ); sPC.z = sAv.z / sAv.w * sPC.w;` : ''}
         gl_Position = vec4( ( sPx / uRes * 2.0 - 1.0 ) * sPC.w, sPC.z + sBias * sPC.w, sPC.w );`);
   };
-  mat.customProgramCacheKey = () => 'screenSprite';
+  mat.customProgramCacheKey = () => 'screenSprite' + avance;
   return mat;
 }
 /**
@@ -551,7 +555,7 @@ export class WorldView {
     const mk = (map, o = {}) => new THREE.MeshBasicMaterial({ map, vertexColors: true, ...o });
     this.mat = {
       ground: mk(this.texA), anim: mk(this.texN), sprite: screenSprite(mk(this.texS, { alphaTest: 0.5, side: THREE.DoubleSide })),
-      chars: screenSprite(new THREE.MeshBasicMaterial({ map: this.texC, alphaTest: 0.5, side: THREE.DoubleSide })),
+      chars: screenSprite(new THREE.MeshBasicMaterial({ map: this.texC, alphaTest: 0.5, side: THREE.DoubleSide }), AVANCE_PERSO),
       // sprites isolés (objets, bulle « ! », herbes qui bougent) : pas de couleurs de sommets
       actorSprite: screenSprite(new THREE.MeshBasicMaterial({ map: this.texS, alphaTest: 0.5, side: THREE.DoubleSide })),
       // sprite couché au sol (sillage du surf)
@@ -1765,7 +1769,7 @@ export class WorldView {
     const W = Math.round(img.width * scale) * WPX, H = Math.round(img.height * scale) * HPX;
     const geo = new THREE.PlaneGeometry(W, H); geo.translate(0, H / 2 - 3 * HPX * scale, 0);
     geo.setAttribute('anchor', new THREE.Float32BufferAttribute(new Array(12).fill(0), 3));
-    const mat = screenSprite(new THREE.MeshBasicMaterial({ map: t, alphaTest: 0.5, side: THREE.DoubleSide })); this.tinted.push(mat); mat.color.copy(this.tint);
+    const mat = screenSprite(new THREE.MeshBasicMaterial({ map: t, alphaTest: 0.5, side: THREE.DoubleSide }), AVANCE_PERSO); this.tinted.push(mat); mat.color.copy(this.tint);
     const mesh = new THREE.Mesh(geo, mat);
     const S = this.ombres.uv(1.6 * TILE_PX, 0.7 * TILE_PX), sg = new THREE.PlaneGeometry(1.6, 0.7); sg.rotateX(-Math.PI / 2);
     const uv = sg.attributes.uv; for (let i = 0; i < 4; i++) uv.setXY(i, i % 2 ? S[2] : S[0], i < 2 ? S[1] : S[3]);
@@ -1811,6 +1815,8 @@ export class WorldView {
   /** le dresseur par défaut d'un genre (recoloré aux couleurs de la tenue) */
   baseDe(genre) { const r = CHAR_ROWS[genre === 'f' ? 'player_f' : 'player_m']; return r == null ? null : { src: this.charsCanvas, sx: 0, sy: r * CHH }; }
   removeActor(id) { const a = this.actors.get(id); if (a) { a.dispose(); this.actors.delete(id); } }
+  /** taille d'un pixel du jeu à l'écran (pixels de la page) : ce qui se dessine par-dessus le décor s'y cale */
+  pixelJeu() { return this.renderer.domElement.clientHeight / SPRITE_UNIFORMS.uRes.value.y / SPRITE_UNIFORMS.uEch.value; }
   /** position à l'écran (pixels de la page) d'un point de la carte, à h pixels au-dessus du sol (noms des autres joueurs) */
   screenPos(x, y, h = 34) {
     const v = new THREE.Vector3(x + 0.5, h * HPX + this.hAt(x + 0.5, y + 0.55), y + 0.55).project(this.camera);

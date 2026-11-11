@@ -257,6 +257,13 @@ export function buildTown(W, maps, def) {
 }
 /** pose un bâtiment de ville (coordonnées relatives au coin de la ville def) avec son intérieur, ses habitants, sa boîte aux
  *  lettres ; renvoie le bâtiment posé */
+/** case libre la plus proche de (x, y) dans un intérieur : on y marche, personne n'y est, ni le tapis ni la case devant lui */
+function caseLibreDedans(m, x, y) {
+  const ok = (a, b) => m.in(a, b) && walkable(m.get(a, b)) && m.get(a, b) !== T.MAT && !(a === m.exitX && b === m.exitY - 1) && !m.npcs.some((q) => q.x === a && q.y === b);
+  if (ok(x, y)) return [x, y];
+  for (let r = 1; r < 6; r++) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) if (ok(x + dx * r, y + dy * r)) return [x + dx * r, y + dy * r];
+  return [x, y];
+}
 export function poserBatiment(W, maps, def, b) {
   const ox = def.x, oy = def.y;
   const B = W.building(b.kind, ox + b.x + (b.dx || 0), oy + b.y + (b.dy || 0), { roof: b.roof, style: b.style, label: b.label, name: b.name, w: b.w, d: b.d, h: b.h, door: b.door, kit: b.kit, flat: b.flat, door2: b.door2, blocs: b.blocs, libres: b.libres, porteY: b.porteY, modele: b.modele, opts: b.opts });
@@ -282,7 +289,9 @@ export function poserBatiment(W, maps, def, b) {
   if (inside.get(inside.exitX - 1, inside.exitY) === T.MAT) inside.warp(inside.exitX - 1, inside.exitY, inside.outside);
   W.warp(B.doorX, B.doorY, { map: id, x: inside.exitX, y: inside.exitY, dir: 'up' });
   if (B.door2X !== undefined) W.warp(B.door2X, B.doorY, { map: id, x: inside.exitX, y: inside.exitY, dir: 'up' });
-  for (const n of b.npcs || []) inside.npc({ id: `${id}:${n.id || n.x + '-' + n.y}`, ...n });
+  // un habitant demandé sur un meuble (table, canapé : la pièce a été meublée après coup) prend la case libre la plus
+  // proche ; son identifiant garde la case demandée (sauvegardes, quêtes)
+  for (const n of b.npcs || []) { const [nx, ny] = caseLibreDedans(inside, n.x, n.y); inside.npc({ id: `${id}:${n.id || n.x + '-' + n.y}`, ...n, x: nx, y: ny }); }
   if (b.setup) b.setup(inside);
   // chemin depuis la porte jusqu'à la route la plus proche
   // (seulement si elle y arrive tout droit : sinon le chemin buterait contre un mur, et relier() trace le bon)
@@ -1364,6 +1373,8 @@ export function buildWorld() {
   // rencontres par tronçons (world/rencontres.js)
   poserTroncons({ maps, routes });
   if (W.anciensObjets.length) throw new Error('anciens objets jamais posés : ' + W.anciensObjets.map((q) => q.join(' ')).join(', '));
+  // dernier filet : dans une maison, personne ne reste planté dans un meuble posé après lui (table, fossile, canapé)
+  for (const m of Object.values(maps)) if (!m.outdoor && m.floor === 'wood') for (const n of m.npcs) if (!walkable(m.get(n.x, n.y))) { const [x, y] = caseLibreDedans(m, n.x, n.y); n.x = x; n.y = y; }
   return { maps, towns, routes, legends, docks, quests, moved, start: { map: 'aube:maison', x: 4, y: 6, dir: 'up' }, carte: CARTE_VERSION };
 }
 

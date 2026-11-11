@@ -1540,7 +1540,18 @@ export function atelier(D) {
     G.add(at(cyl(0.45 * s, 0.22 * s, 0.35 * s, COL('#3a3230'), 12), x, y + 0.17 * s, z)); G.add(at(cyl(0.47 * s, 0.47 * s, 0.05, OR, 12), x, y + 0.35 * s, z));
     flamme(G, x, y + 0.3 * s, z, 1.8 * s); flamme(G, x + 0.2 * s, y + 0.3 * s, z + 0.1 * s, 1.1 * s); flamme(G, x - 0.2 * s, y + 0.3 * s, z - 0.05 * s, 1.2 * s);
   }
-  const marches = (G, x, z, w, n, hm, pm, mat, y0 = 0) => { for (let k = 0; k < n; k++) G.add(at(boite(w, hm * (n - k), pm, mat), x, y0 + hm * (n - k) / 2, z + k * pm + pm / 2)); };
+  // marches : le dessus et la contremarche recevaient la même lumière (l'escalier se lisait comme une dalle plate) ;
+  // la contremarche est assombrie, les joues un peu moins, et un nez de marche clair souligne chaque arête
+  const sombre = new Map();
+  const assombri = (mat, k) => { const c = mat.uuid + k; if (!sombre.has(c)) { const m = mat.clone(); m.color.multiplyScalar(k); sombre.set(c, m); } return sombre.get(c); };
+  const marches = (G, x, z, w, n, hm, pm, mat, y0 = 0) => {
+    const face = assombri(mat, 0.66), joue = assombri(mat, 0.82), nez = assombri(mat, 1.12);
+    for (let k = 0; k < n; k++) {
+      const h = hm * (n - k);
+      G.add(at(boite(w, h, pm, [joue, joue, mat, mat, face, mat]), x, y0 + h / 2, z + k * pm + pm / 2));
+      G.add(at(boite(w, 0.03, 0.04, nez), x, y0 + h - 0.012, z + k * pm + pm - 0.018));
+    }
+  };
   const lathe = (pts, mat, n = 32) => { const m = new THREE.Mesh(new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), n), mat); m.castShadow = m.receiveShadow = true; return m; };
   const extr = (pts, prof, mat) => { const sh = new THREE.Shape(); sh.moveTo(pts[0][0], pts[0][1]); for (const [a, b] of pts.slice(1)) sh.lineTo(a, b); sh.closePath(); const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: prof, bevelEnabled: false }), mat); m.castShadow = m.receiveShadow = true; return m; };
 

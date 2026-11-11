@@ -45,7 +45,7 @@ const BATTLE_WEATHERS = ['rain', 'sun', 'sandstorm', 'hail'];
 // v2 : nouvelle région (arènes dans un autre ordre, archipel, créatures originales) — les sauvegardes v1 ne sont pas reprises
 const SAVE_KEY = 'odyssee-save-v2';
 const SUIVEUR = 0.75;   // taille du Pokémon qui suit (1 = celle de son dessin)
-export const WALK = 0.20, SURF = 0.11, VELO = 0.042;
+export const WALK = 0.27, SURF = 0.11, VELO = 0.042;
 export const RUN_SPEEDS = [
   { id: 'norm', label: 'Normale (1×)', dur: 0.100 },
   { id: 'fast', label: 'Rapide (1.7×)', dur: 0.068 },
@@ -2078,6 +2078,9 @@ export class Game {
     const m = this.mapObj, z = this.zone;
     if (!m) return 'none';
     if (m.weather) return m.weather;
+    // sous un toit ou sous terre, il ne pleut pas : les maisons de Cendrelune (« cendre:… ») recevaient des cendres,
+    // celles de Marais-Noir de la pluie, parce que le nom de la ville est dans celui de la carte
+    if (!m.outdoor) return 'none';
     if (z?.weather) return z.weather;
     if (z?.theme === 'snow' || m.id?.includes('snow') || m.id?.includes('glace')) return 'hail';
     // zones volcaniques : pluie de cendres (sans effet en combat) qui alterne avec la tempête de sable

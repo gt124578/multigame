@@ -130,6 +130,7 @@ export class Vie {
   }
 }
 
+const WALK_GROTTE = new Set([T.CAVE, T.FLOOR, T.STAIRS, T.BRIDGE, T.PATH, T.SAND]);
 /** couche d'ambiance des grottes, dessinée par-dessus le décor (au-dessous des fenêtres du jeu) */
 class AmbianceGrotte {
   constructor(game) {
@@ -139,76 +140,100 @@ class AmbianceGrotte {
     if (host?.parentNode) host.insertAdjacentElement('afterend', c); else document.body.appendChild(c);
     this.gouttes = []; this.poussiere = []; this.cristaux = []; this.chauves = [];
     this.tGoutte = 1; this.tChauve = 6 + Math.random() * 8; this.dernier = null; this.tGronde = 25 + Math.random() * 30; this.cailloux = []; this.ombreFin = 0;
-    for (let i = 0; i < 40; i++) this.poussiere.push({ x: Math.random(), y: Math.random(), v: 0.004 + Math.random() * 0.01, ph: Math.random() * 6 });
-    for (let i = 0; i < 14; i++) this.cristaux.push({ x: Math.random(), y: Math.random() * 0.9, ph: Math.random() * 6, col: ['#9be7ff', '#c4a8ff', '#a8ffd8'][i % 3] });
+    for (let i = 0; i < 26; i++) this.poussiere.push({ x: Math.random(), y: Math.random(), v: 0.004 + Math.random() * 0.01, ph: Math.random() * 6 });
   }
   stop() { this.c.remove(); }
   ombre(ms) { this.ombreT0 = performance.now(); this.ombreFin = this.ombreT0 + ms; }
+  /** point de la carte (cases, h pixels du jeu au-dessus du sol) → pixel du jeu dans la couche, ou null hors de l'écran */
+  vers(wx, wy, h = 0) {
+    const q = this.game.view.screenPos(wx - 0.5, wy - 0.55, h); if (!q) return null;
+    return [Math.round((q.left - this.r.left) / this.gp), Math.round((q.top - this.r.top) / this.gp)];
+  }
   tick(dt) {
-    const g = this.game, c = this.c, W = c.clientWidth || innerWidth, H = c.clientHeight || innerHeight;
+    // la couche est dessinée en pixels du jeu (agrandie sans lissage, comme le décor) et ses points tiennent à la carte :
+    // un cristal brille sur une paroi, la poussière et les gouttes restent où elles sont quand on marche
+    const g = this.game, c = this.c, v = g.view, m = g.mapObj;
+    const gp = this.gp = Math.max(1, Math.round(v.pixelJeu?.() || 3)), r = this.r = c.getBoundingClientRect();
+    const W = Math.ceil((c.clientWidth || innerWidth) / gp), H = Math.ceil((c.clientHeight || innerHeight) / gp);
     if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
     const x = c.getContext('2d'); x.clearRect(0, 0, W, H);
     // pas d'ambiance par-dessus un combat ou un écran plein cadre
     if (g.bv?.alive || g.ui.root.querySelector('.screen')) return;
-    const t = performance.now() / 1000;
-    // cristaux : petites étoiles qui s'allument et s'éteignent
-    for (const k of this.cristaux) {
-      const a = Math.max(0, Math.sin(t * 1.3 + k.ph)) ** 6; if (a < 0.05) continue;
-      const cx = k.x * W, cy = k.y * H, r = 4 + a * 9;
-      x.globalAlpha = a * 0.5; x.fillStyle = k.col; x.beginPath(); x.arc(cx, cy, r * 0.6, 0, 7); x.fill();
-      x.globalAlpha = a; x.strokeStyle = '#ffffff'; x.lineWidth = 2;
-      x.beginPath(); x.moveTo(cx - r, cy); x.lineTo(cx + r, cy); x.moveTo(cx, cy - r); x.lineTo(cx, cy + r); x.stroke();
+    const t = performance.now() / 1000, p = g.player, px = p.x, py = p.y;
+    const hh = (a, b, s) => { let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(s | 0, 1442695041)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; };
+    const sol = (a, b) => m.in(a, b) && WALK_GROTTE.has(m.get(a, b));
+    // cristaux : une paroi sur vingt-cinq, au bord du sol, porte un éclat qui s'allume et s'éteint (croix de quelques pixels)
+    for (let b = py - 8; b <= py + 8; b++) for (let a = px - 13; a <= px + 13; a++) {
+      if (hh(a, b, 11) > 0.04 || !m.in(a, b) || sol(a, b) || !sol(a, b + 1)) continue;
+      const al = Math.max(0, Math.sin(t * 1.3 + hh(a, b, 5) * 6.28)) ** 6; if (al < 0.08) continue;
+      const q = this.vers(a + 0.2 + hh(a, b, 3) * 0.6, b + 0.95, 6 + hh(a, b, 4) * 10); if (!q) continue;
+      const rr = al > 0.7 ? 2 : 1;
+      x.globalAlpha = al; x.fillStyle = ['#9be7ff', '#c4a8ff', '#a8ffd8'][Math.floor(hh(a, b, 2) * 3)];
+      x.fillRect(q[0] - rr, q[1], 2 * rr + 1, 1); x.fillRect(q[0], q[1] - rr, 1, 2 * rr + 1);
+      x.fillStyle = '#ffffff'; x.fillRect(q[0], q[1], 1, 1);
     }
-    // poussière qui flotte dans la lumière
+    // poussière : un pixel clair qui monte lentement, au-dessus du sol seulement
     x.fillStyle = '#ffe9c4';
     for (const d of this.poussiere) {
-      d.y -= d.v * dt; d.x += Math.sin(t * 0.7 + d.ph) * 0.0006; if (d.y < -0.02) { d.y = 1.02; d.x = Math.random(); }
-      x.globalAlpha = 0.3 + 0.2 * Math.sin(t * 2 + d.ph); x.fillRect(d.x * W, d.y * H, 3, 3);
+      d.h = (d.h ?? d.y * 40) + d.v * 900 * dt; if (d.h > 44) { d.h = 0; d.x = Math.random(); d.y = Math.random(); }
+      const wx = px + 0.5 + ((d.x * 26 - px) % 26 + 26) % 26 - 13, wy = py + 0.5 + ((d.y * 18 - py) % 18 + 18) % 18 - 9;
+      if (!sol(Math.floor(wx), Math.floor(wy))) continue;
+      const q = this.vers(wx + Math.sin(t * 0.7 + d.ph) * 0.08, wy, d.h); if (!q) continue;
+      x.globalAlpha = (0.25 + 0.2 * Math.sin(t * 2 + d.ph)) * Math.min(1, d.h / 6, (44 - d.h) / 6); x.fillRect(q[0], q[1], 1, 1);
     }
-    // gouttes qui tombent du plafond, avec un petit plic
+    // gouttes qui tombent du plafond sur le sol, avec un petit plic
     this.tGoutte -= dt;
-    if (this.tGoutte <= 0) { this.tGoutte = 0.35 + Math.random() * 1.1; this.gouttes.push({ x: Math.random() * W, y: Math.random() * H * 0.3, v: 0, fin: H * (0.45 + Math.random() * 0.5), plic: 0 }); }
+    if (this.tGoutte <= 0) {
+      this.tGoutte = 0.5 + Math.random() * 1.4;
+      const a = px + Math.round((Math.random() * 2 - 1) * 10), b = py + Math.round((Math.random() * 2 - 1) * 6);
+      if (sol(a, b)) this.gouttes.push({ wx: a + 0.2 + Math.random() * 0.6, wy: b + 0.3 + Math.random() * 0.5, h: 150, v: 0, plic: 0 });
+    }
     x.fillStyle = '#9fd4ff';
     for (const d of this.gouttes) {
-      if (d.plic) { d.plic += dt; x.globalAlpha = Math.max(0, 0.6 - d.plic * 1.5); x.strokeStyle = '#9fd4ff'; x.lineWidth = 1;
-        x.beginPath(); x.ellipse(d.x, d.fin, 3 + d.plic * 22, 1 + d.plic * 6, 0, 0, 7); x.stroke(); continue; }
-      d.v += 900 * dt; d.y += d.v * dt;
-      x.globalAlpha = 0.85; x.fillRect(d.x, d.y - 8, 3, 10);
-      if (d.y >= d.fin) { d.plic = 0.001; if (Math.random() < 0.35) g.sound.sfx('goutte'); }
+      if (d.plic) {
+        d.plic += dt; const q = this.vers(d.wx, d.wy, 0); if (!q) continue;
+        const e = 1 + Math.floor(d.plic * 10);
+        x.globalAlpha = Math.max(0, 0.7 - d.plic * 1.75); x.fillRect(q[0] - e, q[1], 1, 1); x.fillRect(q[0] + e, q[1], 1, 1); if (e > 1) { x.fillRect(q[0] - e + 1, q[1] - 1, 1, 1); x.fillRect(q[0] + e - 1, q[1] - 1, 1, 1); }
+        continue;
+      }
+      d.v += 420 * dt; d.h -= d.v * dt;
+      const q = this.vers(d.wx, d.wy, Math.max(0, d.h));
+      if (q) { x.globalAlpha = 0.85; x.fillRect(q[0], q[1] - 3, 1, 3); }
+      if (d.h <= 0) { d.plic = 0.001; if (q && Math.random() < 0.35) g.sound.sfx('goutte'); }
     }
     this.gouttes = this.gouttes.filter((d) => !d.plic || d.plic < 0.4);
-    // chauves-souris : un vol dérangé de temps en temps (plus souvent quand on marche)
+    // chauves-souris : un vol dérangé de temps en temps (plus souvent quand on marche), silhouettes de quelques pixels
     this.tChauve -= dt * (g.player.move ? 1.6 : 1);
     if (this.tChauve <= 0) {
       this.tChauve = 9 + Math.random() * 12;
       const gauche = Math.random() < 0.5, y0 = H * (0.1 + Math.random() * 0.4);
-      for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) this.chauves.push({ x: gauche ? -30 - i * 40 : W + 30 + i * 40, y: y0 + (Math.random() - 0.5) * 80, vx: (gauche ? 1 : -1) * (260 + Math.random() * 120), ph: Math.random() * 6, s: 0.8 + Math.random() * 0.5 });
+      for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) this.chauves.push({ x: gauche ? -10 - i * 14 : W + 10 + i * 14, y: y0 + (Math.random() - 0.5) * 26, vx: (gauche ? 1 : -1) * (90 + Math.random() * 40), ph: Math.random() * 6 });
       g.sound.sfx('chauves');
     }
-    x.fillStyle = '#0a0612'; x.shadowColor = 'rgba(180,160,255,.35)'; x.shadowBlur = 6;
+    x.fillStyle = '#0a0612'; x.globalAlpha = 0.9;
     for (const b of this.chauves) {
-      b.x += b.vx * dt; b.y += Math.sin(t * 6 + b.ph) * 40 * dt;
-      const ail = Math.sin(t * 22 + b.ph) * 11 * b.s, s = 14 * b.s;
-      x.globalAlpha = 0.85; x.beginPath();
-      x.moveTo(b.x, b.y); x.quadraticCurveTo(b.x - s, b.y - ail - 3, b.x - s * 1.8, b.y - ail * 0.6); x.quadraticCurveTo(b.x - s * 0.8, b.y + 1, b.x, b.y + 3);
-      x.quadraticCurveTo(b.x + s * 0.8, b.y + 1, b.x + s * 1.8, b.y - ail * 0.6); x.quadraticCurveTo(b.x + s, b.y - ail - 3, b.x, b.y); x.fill();
+      b.x += b.vx * dt; b.y += Math.sin(t * 6 + b.ph) * 13 * dt;
+      const bx = Math.round(b.x), by = Math.round(b.y), haut = Math.sin(t * 22 + b.ph) > 0;
+      x.fillRect(bx - 1, by, 3, 2);
+      if (haut) { x.fillRect(bx - 4, by - 2, 3, 1); x.fillRect(bx + 2, by - 2, 3, 1); x.fillRect(bx - 5, by - 1, 4, 1); x.fillRect(bx + 2, by - 1, 4, 1); }
+      else { x.fillRect(bx - 5, by + 1, 4, 1); x.fillRect(bx + 2, by + 1, 4, 1); x.fillRect(bx - 4, by + 2, 2, 1); x.fillRect(bx + 3, by + 2, 2, 1); }
     }
-    x.shadowBlur = 0;
-    this.chauves = this.chauves.filter((b) => b.x > -400 && b.x < W + 400);
+    this.chauves = this.chauves.filter((b) => b.x > -130 && b.x < W + 130);
     // la roche gronde : l'écran tremble et des cailloux tombent du plafond
     this.tGronde -= dt;
     if (this.tGronde <= 0 && !g.busy) {
       this.tGronde = 35 + Math.random() * 40;
       g.view.shake = 0.35; g.sound.sfx('hitstrong');
-      for (let i = 0; i < 18; i++) this.cailloux.push({ x: Math.random() * W, y: -10 - Math.random() * 120, v: 100 + Math.random() * 200, s: 2 + Math.random() * 4 });
+      for (let i = 0; i < 18; i++) this.cailloux.push({ x: Math.random() * W, y: -4 - Math.random() * 40, v: 35 + Math.random() * 70, s: 1 + Math.floor(Math.random() * 2) });
     }
     x.fillStyle = '#6b6370';
-    for (const k of this.cailloux) { k.v += 800 * dt; k.y += k.v * dt; x.globalAlpha = 0.9; x.fillRect(k.x, k.y, k.s, k.s); }
-    this.cailloux = this.cailloux.filter((k) => k.y < H + 20);
-    // l'ombre d'un Pokémon qui va tomber du plafond, sur le joueur
+    for (const k of this.cailloux) { k.v += 270 * dt; k.y += k.v * dt; x.globalAlpha = 0.9; x.fillRect(Math.round(k.x), Math.round(k.y), k.s, k.s); }
+    this.cailloux = this.cailloux.filter((k) => k.y < H + 8);
+    // l'ombre d'un Pokémon qui va tomber du plafond, sur le joueur : une tache tramée qui grandit
     if (performance.now() < this.ombreFin) {
-      const u = (performance.now() - this.ombreT0) / (this.ombreFin - this.ombreT0), q = g.view.screenPos(g.player.x, g.player.y, 0);
-      if (q) { const r = c.getBoundingClientRect(); x.globalAlpha = 0.25 + u * 0.4; x.fillStyle = '#000'; x.beginPath(); x.ellipse(q.left - r.left, q.top - r.top, 6 + u * 22, 3 + u * 9, 0, 0, 7); x.fill(); }
+      const u = (performance.now() - this.ombreT0) / (this.ombreFin - this.ombreT0), q = this.vers(g.player.x + 0.5, g.player.y + 0.55, 0);
+      if (q) { const rx = Math.round(3 + u * 8), ry = Math.round(1 + u * 3); x.globalAlpha = 0.3 + u * 0.4; x.fillStyle = '#000';
+        for (let j = -ry; j <= ry; j++) { const l = Math.round(rx * Math.sqrt(1 - (j * j) / ((ry + 0.5) * (ry + 0.5)))); x.fillRect(q[0] - l, q[1] + j, 2 * l + 1, 1); } }
     }
     x.globalAlpha = 1;
   }
