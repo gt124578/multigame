@@ -24,6 +24,7 @@ export class Ombres {
     const m = new THREE.MeshBasicMaterial({ map: this.tex, vertexColors: true, transparent: true, depthWrite: false });
     // une seule couche d'ombre par pixel : la première posée marque le gabarit, les suivantes l'y respectent
     m.stencilWrite = true; m.stencilRef = 1; m.stencilFunc = THREE.NotEqualStencilFunc;
+    m.stencilFuncMask = 0x7f; m.stencilWriteMask = 0x7f;   // le bit 0x80 marque les bâtiments (silhouette du joueur, world3d.js)
     m.stencilZPass = THREE.ReplaceStencilOp; m.stencilFail = THREE.KeepStencilOp; m.stencilZFail = THREE.KeepStencilOp;
     return m;
   }

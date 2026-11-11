@@ -182,7 +182,7 @@ export class Editeur {
   setZoom(z) {
     const v = this.game.view; this.zoom = Math.max(0.6, Math.min(3, z)); v.zoom = this.zoom;
     v.rayon = Math.max(2, Math.ceil(1.3 * this.zoom + 0.7)); v.lastChunk = null;
-    SPRITE_UNIFORMS.uEch.value = this.zoom;   // personnages, arbres et décor rapetissent avec la vue
+    SPRITE_UNIFORMS.uEch.value = this.zoom / (v.kPx || 1);   // personnages, arbres et décor rapetissent avec la vue
     const s = new THREE.Vector2(); v.renderer.getSize(s); v.resize(s.x, s.y);
     const zl = this.root?.querySelector('[data-zoom]'); if (zl) zl.textContent = Math.round(100 / this.zoom) + ' %';
   }

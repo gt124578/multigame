@@ -106,7 +106,10 @@ export function geometriesModele(nom, o) {
           L.pos.push(pv.x, pv.y * ys, pv.z);
           nv.fromBufferAttribute(N, i).applyMatrix3(n3).normalize();
           const s = emis ? 1.15 : eclairage(nv);
-          L.col.push(s, s, s);
+          // rampe façon DS : les faces à l'ombre tirent vers le bleu-violet, les faces au soleil un peu vers le jaune
+          // (un gris qui assombrit seulement donne des volumes ternes)
+          if (emis) L.col.push(s, s, s);
+          else { const o = Math.max(0, 0.95 - s) / 0.35, c = Math.max(0, s - 0.95) / 0.13; L.col.push(s * (1 - 0.13 * o) * (1 + 0.03 * c), s * (1 - 0.07 * o) * (1 + 0.015 * c), s * (1 + 0.10 * o) * (1 - 0.05 * c)); }
           if (U) L.uv.push(U.getX(i), U.getY(i)); else L.uv.push(0, 0);
         }
       }

@@ -43,7 +43,9 @@ const SW = (r) => r.w * WPX / (r.d || 1), SH = (r) => r.h * HPX / (r.d || 1);
  * personnage devant un autre, sans jamais être déformé par la perspective, en haut comme en bas de l'écran.
  */
 // uEch : les sprites rapetissent quand l'éditeur de carte voit de plus haut (1 en jeu : pixel pour pixel)
-export const SPRITE_UNIFORMS = { uRes: { value: new THREE.Vector2(400, 240) }, uEch: { value: 1 } };
+// uPx : pixels d'écran par pixel du jeu (1 : rendu basse résolution agrandi ; k en rendu natif, où la géométrie est tracée
+// à la résolution de l'écran et où sprites, trames et particules gardent leurs gros pixels)
+export const SPRITE_UNIFORMS = { uRes: { value: new THREE.Vector2(400, 240) }, uEch: { value: 1 }, uPx: { value: 1 } };
 /**
  * Bâtiments : leur profondeur est celle de leur façade (comme un grand sprite posé sur sa rangée de devant). Un arbre
  * ou un personnage dont les pieds sont derrière la façade passe derrière toute la maison, toit compris ; devant la
@@ -54,32 +56,37 @@ export const SPRITE_UNIFORMS = { uRes: { value: new THREE.Vector2(400, 240) }, u
  *  ordonnée de 4 × 4, pixel du jeu par pixel du jeu, comme sur les consoles portables. uTrame : part gardée (1 : plein) */
 const TRAME_GLSL = `
       if ( uTrame < 0.999 ) {
-        ivec2 tp = ivec2( mod( floor( gl_FragCoord.xy ), 4.0 ) );
+        ivec2 tp = ivec2( mod( floor( gl_FragCoord.xy / uPxT ), 4.0 ) );
         int tb[16] = int[16]( 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 );
         if ( ( float( tb[ tp.y * 4 + tp.x ] ) + 0.5 ) / 16.0 > uTrame ) discard;
       }`;
 function trame(mat, sh) {
   mat.userData.uTrame ||= { value: 1 };
-  sh.uniforms.uTrame = mat.userData.uTrame;
+  sh.uniforms.uTrame = mat.userData.uTrame; sh.uniforms.uPxT = SPRITE_UNIFORMS.uPx;
   sh.fragmentShader = sh.fragmentShader
-    .replace('#include <common>', '#include <common>\nuniform float uTrame;')
+    .replace('#include <common>', '#include <common>\nuniform float uTrame;\nuniform float uPxT;')
     .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>' + TRAME_GLSL);
 }
-function frontDepth(mat, zFront) {
+/** pied : une ligne d'ombre au pied des murs (trois pixels du jeu), là où le bâtiment touche le sol — il est posé, pas collé */
+function frontDepth(mat, zFront, pied = false) {
   mat.userData.uTrame = { value: 1 };
   mat.onBeforeCompile = (sh) => {
     trame(mat, sh);
     sh.uniforms.uZFront = { value: zFront };
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uZFront;')
+      .replace('#include <common>', '#include <common>\nuniform float uZFront;\nvarying float vPiedB;')
       .replace('#include <project_vertex>', `
         vec4 fW = modelMatrix * vec4( transformed, 1.0 );
+        vPiedB = transformed.y;
         vec4 mvPosition = viewMatrix * fW;
         vec4 fC = projectionMatrix * mvPosition;
         vec4 fF = projectionMatrix * viewMatrix * vec4( fW.x, fW.y, max( fW.z, uZFront ), 1.0 );
         gl_Position = vec4( fC.xy * ( fF.w / fC.w ), fF.z, fF.w );`);
+    if (pied) sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vPiedB;')
+      .replace('#include <color_fragment>', '#include <color_fragment>\n  if ( vPiedB < 0.11 ) diffuseColor.rgb *= vec3( 0.66, 0.68, 0.80 ); else if ( vPiedB < 0.22 ) diffuseColor.rgb *= vec3( 0.86, 0.87, 0.93 );');
   };
-  mat.customProgramCacheKey = () => 'frontDepth';
+  mat.customProgramCacheKey = () => 'frontDepth' + (pied ? 'P' : '');
   return mat;
 }
 /** profondeur d'un bâtiment à parties ouvertes (terrasse, porche, galerie : `b.libres`) : chaque morceau prend la profondeur
@@ -115,6 +122,36 @@ function profondeurGrille(mat, b) {
 }
 const DECALS = new Set(['fleche', 'vent', 'courant', 'dalle', 'tp', 'socle', 'pollen', 'alveole', 'interrupteur', 'estrade', 'tapis']);
 const AVANCE_PERSO = 0.38;
+/** fondu des bâtiments (ancien comportement : le bâtiment s'efface en trame quand on passe derrière) : ?fondu=1 */
+const FONDU = /[?&]fondu=1\b/.test(globalThis.location?.search || '');
+const GABARIT_BATI = 0x80;
+/** un bâtiment marque le gabarit (stencil) là où il est dessiné : la silhouette du joueur ne se montre que sur lui */
+function marquerBatiment(mat) {
+  mat.stencilWrite = true; mat.stencilRef = GABARIT_BATI; mat.stencilFunc = THREE.AlwaysStencilFunc; mat.stencilWriteMask = GABARIT_BATI;
+  mat.stencilZPass = THREE.ReplaceStencilOp; mat.stencilFail = THREE.KeepStencilOp; mat.stencilZFail = THREE.KeepStencilOp;
+  return mat;
+}
+/** silhouette du joueur passé derrière un bâtiment : son sprite redessiné là où le bâtiment le cache (profondeur plus
+ *  grande que ce qui est à l'écran, gabarit du bâtiment), en aplat bleu nuit tramé un pixel sur deux. Le bâtiment reste
+ *  entier : on sait où l'on est sans que la maison devienne transparente. */
+function silhouette(mat) {
+  screenSprite(mat, AVANCE_PERSO);
+  const base = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh) => {
+    base(sh);
+    sh.uniforms.uPxS = SPRITE_UNIFORMS.uPx;
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uPxS;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        diffuseColor.rgb = vec3( 0.10, 0.13, 0.30 );
+        vec2 sT = floor( gl_FragCoord.xy / uPxS );
+        if ( mod( sT.x + sT.y, 2.0 ) < 0.5 ) discard;`);
+  };
+  mat.customProgramCacheKey = () => 'silhouette';
+  mat.depthFunc = THREE.GreaterDepth; mat.depthWrite = false;
+  mat.stencilWrite = true; mat.stencilRef = GABARIT_BATI; mat.stencilFunc = THREE.EqualStencilFunc; mat.stencilFuncMask = GABARIT_BATI; mat.stencilWriteMask = 0;
+  return mat;
+}
 const WIDE_DECO = new Set(['healer', 'sofa', 'bench', 'startertable', 'fireplace', 'rug']);
 /** décor du dehors posé avec une ombre au sol (leur ombre violette, dessinée dans le sprite, a été retirée) */
 const OMBRE_DECO = new Set(['banc', 'parasol', 'tonneau', 'caisse', 'panneau_bois', 'borne', 'lanterne', 'stele']);
@@ -558,6 +595,7 @@ export class WorldView {
       chars: screenSprite(new THREE.MeshBasicMaterial({ map: this.texC, alphaTest: 0.5, side: THREE.DoubleSide }), AVANCE_PERSO),
       // sprites isolés (objets, bulle « ! », herbes qui bougent) : pas de couleurs de sommets
       actorSprite: screenSprite(new THREE.MeshBasicMaterial({ map: this.texS, alphaTest: 0.5, side: THREE.DoubleSide })),
+      silhouette: silhouette(new THREE.MeshBasicMaterial({ map: this.texC, alphaTest: 0.5, side: THREE.DoubleSide })),
       // sprite couché au sol (sillage du surf)
       flatSprite: new THREE.MeshBasicMaterial({ map: this.texS, alphaTest: 0.5, side: THREE.DoubleSide }),
       // ombres au sol : dessinées à la densité de l'écran, une seule couche là où elles se croisent (ombres.js)
@@ -592,13 +630,16 @@ export class WorldView {
     try { this.weather = new WeatherSystem(this.scene, this.renderer.domElement, SPRITE_UNIFORMS); } catch (e) { this.weather = null; }
   }
 
-  resize(w, h) {
+  /** w × h : taille de l'image calculée ; k : pixels de cette image par pixel du jeu (1, ou l'agrandissement en rendu natif) */
+  resize(w, h, k) {
+    this.kPx = k ?? this.kPx ?? 1;
+    SPRITE_UNIFORMS.uPx.value = this.kPx; SPRITE_UNIFORMS.uEch.value = (this.zoom || 1) / this.kPx;
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
     // tuiles carrées à l'écran : la projection est resserrée en largeur (16 px de large comme de haut au centre)
     this.camera.projectionMatrix.elements[0] *= Math.sin(EL); this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
     SPRITE_UNIFORMS.uRes.value.set(w, h);
     // distance pour qu'une tuile fasse 16 pixels de haut à l'écran (rendu basse résolution)
-    this.dist = (Math.sin(EL) * h) / (2 * Math.tan(FOV * Math.PI / 360) * TILE_PX) * (this.zoom || 1);
+    this.dist = (Math.sin(EL) * h) / (2 * Math.tan(FOV * Math.PI / 360) * TILE_PX * this.kPx) * (this.zoom || 1);
   }
 
   /* ---------------- construction d'une carte ---------------- */
@@ -1597,7 +1638,7 @@ export class WorldView {
     const poser = (p, parent) => {
       const m0 = p.mat0;
       const mat0 = new THREE.MeshBasicMaterial({ map: m0.map || null, vertexColors: true, transparent: !!m0.transparent, opacity: m0.opacity ?? 1, side: m0.side, alphaTest: m0.alphaTest || 0 });
-      const mat = b.libres?.length && b.w * b.d <= GRILLE_MAX ? profondeurGrille(mat0, b) : frontDepth(mat0, zf);
+      const mat = marquerBatiment(b.libres?.length && b.w * b.d <= GRILLE_MAX ? profondeurGrille(mat0, b) : frontDepth(mat0, zf, parent === g));
       mat.userData.base = couleurBase(m0); mat.userData.ownTint = true; mat.userData.op0 = m0.transparent ? (m0.opacity ?? 1) : 1;
       const cle = m0.map?.userData?.cle || '';
       if (/^(verre|vr|vt|r#|rs|ev|ed)/.test(cle)) mat.userData.vitre = true;   // vitres : allumées la nuit
@@ -1620,7 +1661,7 @@ export class WorldView {
     const sh = new Geo();
     this.ombreSol(sh, 0 - 0.1, b.d - 0.3, b.w + 0.1, b.d + 0.3, 0.012, 'bande');
     const ombre = new THREE.Mesh(sh.build(), this.mat.shadow); ombre.scale.set(1 / sx, 1, 1 / sz); g.add(ombre);
-    g.userData.b = b; g.userData.modele = mod.nom;
+    g.userData.b = b; g.userData.modele = mod.nom; g.userData.gabarit = true;
     g.userData.ecran = empriseEcran(parts, mod, sx, sz);
     g.userData.fumees = parts.fumees; g.userData.fanaux = parts.fanaux;
     return g;
@@ -1662,6 +1703,7 @@ export class WorldView {
       const shadow = new THREE.Mesh(sg, this.mat.shadow); shadow.renderOrder = 1;
       a = { mesh, shadow, kind: o.kind || 'char', dispose: () => { geo.dispose(); sg.dispose(); this.root?.remove(mesh); this.root?.remove(shadow); } };
       this.root.add(mesh); if (o.kind !== 'bang') this.root.add(shadow);
+      if (id === 'player' && !FONDU) { const sil = new THREE.Mesh(geo, this.mat.silhouette); sil.renderOrder = 6; sil.frustumCulled = false; mesh.add(sil); }
       this.actors.set(id, a);
       if (o.kind === 'item') { const r = this.S.rects.itemball; this.setSpriteRect(a, r, r.w, r.h); }
       if (o.kind === 'bang') { const r = this.S.rects.bang; this.setSpriteRect(a, r, r.w, r.h); }
@@ -1858,7 +1900,7 @@ export class WorldView {
       // derrière le bâtiment (au nord de son emprise), il le cache dès que ses pieds passent sous le haut du modèle à
       // l'écran (faîte, cheminée, statue, flèche…) et qu'il est dans sa largeur réelle (galeries et débords compris)
       const e = g.userData.ecran, hb = g.userData.hb || 0;
-      const hid = !this.sansFondu && fy < b.y - 0.5 && (e
+      const hid = !this.sansFondu && (FONDU || !g.userData.gabarit) && fy < b.y - 0.5 && (e
         ? pied > b.y + e.zN - hb / tan + 0.15 && fx + 0.85 > b.x + e.x0 && fx + 0.15 < b.x + e.x1
         : fx > b.x - 1 && fx < b.x + b.w && fy > b.y - b.h - 1.2);   // sansFondu : éditeur de carte
       const t = hid ? 0.45 : 1;
@@ -1913,8 +1955,9 @@ export class WorldView {
       // de la caméra décale toute l'image d'un nombre entier de pixels, le sol ne « nage » pas en marchant
       // (?r3zoom=Z : vue Z fois plus large, pour regarder une montagne entière ; les sprites rapetissent d'autant)
       const z = this.r3zoom ??= Math.max(1, +(new URLSearchParams(globalThis.location?.search || '').get('r3zoom')) || 1);
-      if (z > 1) { SPRITE_UNIFORMS.uEch.value = z; this.rayon = Math.max(this.rayon || 2, Math.ceil(2 * z + 1)); }
-      const u = SPRITE_UNIFORMS.uRes.value, l = -u.x / 64 * z, t = u.y * Math.sin(EL) / 64 * z, n = 1, f = 4000;
+      const ze = z / (this.kPx || 1);
+      if (z > 1) { SPRITE_UNIFORMS.uEch.value = ze; this.rayon = Math.max(this.rayon || 2, Math.ceil(2 * z + 1)); }
+      const u = SPRITE_UNIFORMS.uRes.value, l = -u.x / 64 * ze, t = u.y * Math.sin(EL) / 64 * ze, n = 1, f = 4000;
       this.camera.projectionMatrix.set(2 / (2 * -l), 0, 0, 0, 0, 2 / (2 * t), 0, 0, 0, 0, -2 / (f - n), -(f + n) / (f - n), 0, 0, 0, 1);
       this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
       this._ortho = true;
