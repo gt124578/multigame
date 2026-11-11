@@ -25,3 +25,11 @@ node tools/pixelforge/solgen-apercu.mjs monde 1 12 3 2 0 /tmp/route1.png     # c
   (ombre verte retirée : le moteur ajoute la sienne).
 
 Prérequis Python : `pip install pillow numpy scipy`.
+
+## Personnages (essai)
+
+`persos.py` : dresseurs et habitants à la façon des jeux DS (cases de 32 × 32, gabarits en texte pour la tête et le corps,
+de face, de dos et de profil ; une fiche par personnage : coiffure, couleurs, sac, jupe ; contour teinté par la matière
+voisine). `python3 tools/pixelforge/persos.py out/ --jeu` écrit aussi `chars_essai.png`, la planche du jeu où six rangées
+sont remplacées (agrandies ×2), à servir à la place de `odyssee/img/chars.png` pour un essai. Rien n'est branché dans le jeu.
+
