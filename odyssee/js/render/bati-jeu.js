@@ -54,6 +54,14 @@ export function choisirModele(b, ctx = {}) {
   return null;
 }
 
+/** sol d'une terrasse (cases libres d'un modèle : terrasse d'auberge, cour, galerie) : plancher pour les maisons de bois,
+ *  dalles calmes ailleurs — le pavé de la rue, bruité, ne passe plus sous les tables */
+const BOIS_TERRASSE = new Set(['chalet', 'maisonThe', 'cabanePecheur', 'cabaneChasseur', 'pavillon']);
+export function materiauTerrasse(nom) {
+  const { TX, M } = atelierJeu();
+  return M({ map: BOIS_TERRASSE.has(nom) ? TX.planches('#9a7a54') : TX.dalles() });
+}
+
 /* ---------------- cuisson de l'éclairage et fusion ---------------- */
 const SOLEIL = new THREE.Vector3(-8, 14 / YS, 9).normalize();   // même soleil que la galerie (avant l'étirement vertical)
 const PALIERS = [0.6, 0.74, 0.88, 1.0];

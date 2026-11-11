@@ -16,7 +16,7 @@ import { Ambiance } from './ambiance.js';
 import { densifier } from './densite.js';
 import { styleInterieur } from './interieurs.js';
 import { teinteHeure, nuitHeure, VITRE_NUIT, Lumieres } from './lumieres.js';
-import { choisirModele, geometriesModele, couleurBase, EMPRISES } from './bati-jeu.js';
+import { choisirModele, geometriesModele, couleurBase, EMPRISES, materiauTerrasse } from './bati-jeu.js';
 import { variantesArbres, variante, miroir, teinte } from './arbres.js';
 import { dessinHerbe, imageHerbe, NIMAGES, MARGE as HERBE_M, HAUTEUR as HERBE_H } from './herbes.js';
 import { Relief3D, relief3dActif, matParoi, matFacettes, facettesActives, matPente, matsPente, LV as R3LV } from './relief3d.js';
@@ -54,17 +54,23 @@ export const SPRITE_UNIFORMS = { uRes: { value: new THREE.Vector2(400, 240) }, u
 /** fondu tramé d'un bâtiment (quand on passe derrière) : au lieu de le rendre transparent (on voyait alors à travers
  *  lui ses faces cachées, ses étages, l'intérieur de ses tours), une part de ses pixels s'efface selon une trame
  *  ordonnée de 4 × 4, pixel du jeu par pixel du jeu, comme sur les consoles portables. uTrame : part gardée (1 : plein) */
+// Lucarne : quand le joueur passe derrière un bâtiment, seul un rond autour de lui s'efface (bord tramé) ; le reste du
+// bâtiment ne change pas. uJoueurE : le milieu du joueur à l'écran, en pixels du jeu ; uLucarne : 0 avec ?fondu=1.
+export const LUCARNE = { uJoueurE: { value: new THREE.Vector2(-999, -999) }, uLucarne: { value: 1 } };
 const TRAME_GLSL = `
       if ( uTrame < 0.999 ) {
-        ivec2 tp = ivec2( mod( floor( gl_FragCoord.xy / uPxT ), 4.0 ) );
+        vec2 tq = floor( gl_FragCoord.xy / uPxT );
+        float tg = uTrame;
+        if ( uLucarne > 0.5 ) { vec2 td = ( tq + 0.5 - uJoueurE ) * vec2( 1.0, 0.82 ); tg = max( uTrame, smoothstep( 21.0, 37.0, length( td ) ) ); }
+        ivec2 tp = ivec2( mod( tq, 4.0 ) );
         int tb[16] = int[16]( 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 );
-        if ( ( float( tb[ tp.y * 4 + tp.x ] ) + 0.5 ) / 16.0 > uTrame ) discard;
+        if ( ( float( tb[ tp.y * 4 + tp.x ] ) + 0.5 ) / 16.0 > tg ) discard;
       }`;
 function trame(mat, sh) {
   mat.userData.uTrame ||= { value: 1 };
-  sh.uniforms.uTrame = mat.userData.uTrame; sh.uniforms.uPxT = SPRITE_UNIFORMS.uPx;
+  sh.uniforms.uTrame = mat.userData.uTrame; sh.uniforms.uPxT = SPRITE_UNIFORMS.uPx; sh.uniforms.uJoueurE = LUCARNE.uJoueurE; sh.uniforms.uLucarne = LUCARNE.uLucarne;
   sh.fragmentShader = sh.fragmentShader
-    .replace('#include <common>', '#include <common>\nuniform float uTrame;\nuniform float uPxT;')
+    .replace('#include <common>', '#include <common>\nuniform float uTrame;\nuniform float uPxT;\nuniform vec2 uJoueurE;\nuniform float uLucarne;')
     .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>' + TRAME_GLSL);
 }
 /** pied : une ligne d'ombre au pied des murs (trois pixels du jeu), là où le bâtiment touche le sol — il est posé, pas collé */
@@ -122,36 +128,8 @@ function profondeurGrille(mat, b) {
 }
 const DECALS = new Set(['fleche', 'vent', 'courant', 'dalle', 'tp', 'socle', 'pollen', 'alveole', 'interrupteur', 'estrade', 'tapis']);
 const AVANCE_PERSO = 0.38;
-/** fondu des bâtiments (ancien comportement : le bâtiment s'efface en trame quand on passe derrière) : ?fondu=1 */
+/** ?fondu=1 : ancien comportement, tout le bâtiment s'efface en trame quand on passe derrière (sinon : une lucarne) */
 const FONDU = /[?&]fondu=1\b/.test(globalThis.location?.search || '');
-const GABARIT_BATI = 0x80;
-/** un bâtiment marque le gabarit (stencil) là où il est dessiné : la silhouette du joueur ne se montre que sur lui */
-function marquerBatiment(mat) {
-  mat.stencilWrite = true; mat.stencilRef = GABARIT_BATI; mat.stencilFunc = THREE.AlwaysStencilFunc; mat.stencilWriteMask = GABARIT_BATI;
-  mat.stencilZPass = THREE.ReplaceStencilOp; mat.stencilFail = THREE.KeepStencilOp; mat.stencilZFail = THREE.KeepStencilOp;
-  return mat;
-}
-/** silhouette du joueur passé derrière un bâtiment : son sprite redessiné là où le bâtiment le cache (profondeur plus
- *  grande que ce qui est à l'écran, gabarit du bâtiment), en aplat bleu nuit tramé un pixel sur deux. Le bâtiment reste
- *  entier : on sait où l'on est sans que la maison devienne transparente. */
-function silhouette(mat) {
-  screenSprite(mat, AVANCE_PERSO);
-  const base = mat.onBeforeCompile;
-  mat.onBeforeCompile = (sh) => {
-    base(sh);
-    sh.uniforms.uPxS = SPRITE_UNIFORMS.uPx;
-    sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uPxS;')
-      .replace('#include <map_fragment>', `#include <map_fragment>
-        diffuseColor.rgb = vec3( 0.10, 0.13, 0.30 );
-        vec2 sT = floor( gl_FragCoord.xy / uPxS );
-        if ( mod( sT.x + sT.y, 2.0 ) < 0.5 ) discard;`);
-  };
-  mat.customProgramCacheKey = () => 'silhouette';
-  mat.depthFunc = THREE.GreaterDepth; mat.depthWrite = false;
-  mat.stencilWrite = true; mat.stencilRef = GABARIT_BATI; mat.stencilFunc = THREE.EqualStencilFunc; mat.stencilFuncMask = GABARIT_BATI; mat.stencilWriteMask = 0;
-  return mat;
-}
 const WIDE_DECO = new Set(['healer', 'sofa', 'bench', 'startertable', 'fireplace', 'rug']);
 /** décor du dehors posé avec une ombre au sol (leur ombre violette, dessinée dans le sprite, a été retirée) */
 const OMBRE_DECO = new Set(['banc', 'parasol', 'tonneau', 'caisse', 'panneau_bois', 'borne', 'lanterne', 'stele']);
@@ -595,7 +573,6 @@ export class WorldView {
       chars: screenSprite(new THREE.MeshBasicMaterial({ map: this.texC, alphaTest: 0.5, side: THREE.DoubleSide }), AVANCE_PERSO),
       // sprites isolés (objets, bulle « ! », herbes qui bougent) : pas de couleurs de sommets
       actorSprite: screenSprite(new THREE.MeshBasicMaterial({ map: this.texS, alphaTest: 0.5, side: THREE.DoubleSide })),
-      silhouette: silhouette(new THREE.MeshBasicMaterial({ map: this.texC, alphaTest: 0.5, side: THREE.DoubleSide })),
       // sprite couché au sol (sillage du surf)
       flatSprite: new THREE.MeshBasicMaterial({ map: this.texS, alphaTest: 0.5, side: THREE.DoubleSide }),
       // ombres au sol : dessinées à la densité de l'écran, une seule couche là où elles se croisent (ombres.js)
@@ -1638,7 +1615,7 @@ export class WorldView {
     const poser = (p, parent) => {
       const m0 = p.mat0;
       const mat0 = new THREE.MeshBasicMaterial({ map: m0.map || null, vertexColors: true, transparent: !!m0.transparent, opacity: m0.opacity ?? 1, side: m0.side, alphaTest: m0.alphaTest || 0 });
-      const mat = marquerBatiment(b.libres?.length && b.w * b.d <= GRILLE_MAX ? profondeurGrille(mat0, b) : frontDepth(mat0, zf, parent === g));
+      const mat = b.libres?.length && b.w * b.d <= GRILLE_MAX ? profondeurGrille(mat0, b) : frontDepth(mat0, zf, parent === g);
       mat.userData.base = couleurBase(m0); mat.userData.ownTint = true; mat.userData.op0 = m0.transparent ? (m0.opacity ?? 1) : 1;
       const cle = m0.map?.userData?.cle || '';
       if (/^(verre|vr|vt|r#|rs|ev|ed)/.test(cle)) mat.userData.vitre = true;   // vitres : allumées la nuit
@@ -1658,10 +1635,26 @@ export class WorldView {
       for (const p of T.parts) poser(p, W);
       g.add(R); (this.tournants ||= new Set()).add(W);
     }
+    // sol de l'emprise : dalles (ou plancher) sous tout le bâtiment, juste au-dessus du sol généré. Les terrasses où
+    // l'on marche ne montrent plus le pavé bruité de la rue, et là où le modèle est plus étroit que son emprise, on ne
+    // voit plus l'ancienne tuile grise quadrillée
+    {
+      const pos = [], uv = [], col = [], y = 0.009;
+      for (let j = 0; j < b.d; j++) for (let i = 0; i < b.w; i++) {
+        const x0 = i / sx, x1 = (i + 1) / sx, z0 = j / sz, z1 = (j + 1) / sz;
+        pos.push(x0, y, z0, x0, y, z1, x1, y, z1, x0, y, z0, x1, y, z1, x1, y, z0);
+        uv.push(i, -j, i, -j - 1, i + 1, -j - 1, i, -j, i + 1, -j - 1, i + 1, -j);
+        for (let k = 0; k < 6; k++) col.push(1, 1, 1);
+      }
+      const tg = new THREE.BufferGeometry();
+      tg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); tg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); tg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      poser({ geo: tg, mat0: materiauTerrasse(mod.nom) }, g);
+      const me = g.children[g.children.length - 1]; me.userData.partage = false; me.material.depthWrite = false; me.renderOrder = -1;
+    }
     const sh = new Geo();
     this.ombreSol(sh, 0 - 0.1, b.d - 0.3, b.w + 0.1, b.d + 0.3, 0.012, 'bande');
     const ombre = new THREE.Mesh(sh.build(), this.mat.shadow); ombre.scale.set(1 / sx, 1, 1 / sz); g.add(ombre);
-    g.userData.b = b; g.userData.modele = mod.nom; g.userData.gabarit = true;
+    g.userData.b = b; g.userData.modele = mod.nom;
     g.userData.ecran = empriseEcran(parts, mod, sx, sz);
     g.userData.fumees = parts.fumees; g.userData.fanaux = parts.fanaux;
     return g;
@@ -1703,7 +1696,6 @@ export class WorldView {
       const shadow = new THREE.Mesh(sg, this.mat.shadow); shadow.renderOrder = 1;
       a = { mesh, shadow, kind: o.kind || 'char', dispose: () => { geo.dispose(); sg.dispose(); this.root?.remove(mesh); this.root?.remove(shadow); } };
       this.root.add(mesh); if (o.kind !== 'bang') this.root.add(shadow);
-      if (id === 'player' && !FONDU) { const sil = new THREE.Mesh(geo, this.mat.silhouette); sil.renderOrder = 6; sil.frustumCulled = false; mesh.add(sil); }
       this.actors.set(id, a);
       if (o.kind === 'item') { const r = this.S.rects.itemball; this.setSpriteRect(a, r, r.w, r.h); }
       if (o.kind === 'bang') { const r = this.S.rects.bang; this.setSpriteRect(a, r, r.w, r.h); }
@@ -1900,10 +1892,10 @@ export class WorldView {
       // derrière le bâtiment (au nord de son emprise), il le cache dès que ses pieds passent sous le haut du modèle à
       // l'écran (faîte, cheminée, statue, flèche…) et qu'il est dans sa largeur réelle (galeries et débords compris)
       const e = g.userData.ecran, hb = g.userData.hb || 0;
-      const hid = !this.sansFondu && (FONDU || !g.userData.gabarit) && fy < b.y - 0.5 && (e
+      const hid = !this.sansFondu && fy < b.y - 0.5 && (e
         ? pied > b.y + e.zN - hb / tan + 0.15 && fx + 0.85 > b.x + e.x0 && fx + 0.15 < b.x + e.x1
         : fx > b.x - 1 && fx < b.x + b.w && fy > b.y - b.h - 1.2);   // sansFondu : éditeur de carte
-      const t = hid ? 0.45 : 1;
+      const t = hid ? (FONDU || !g.userData.modele ? 0.45 : 0) : 1;
       const o = g.userData.opacity ?? 1;
       if (o === t) continue;
       const n = o + Math.sign(t - o) * Math.min(Math.abs(t - o), dt * 4);
@@ -1965,6 +1957,11 @@ export class WorldView {
     this.camera.position.set(this.focus.x, this.focus.y + d * Math.sin(EL), this.focus.z + d * Math.cos(EL));
     if (this.shake > 0) { this.camera.position.x += (Math.random() - 0.5) * this.shake; this.camera.position.y += (Math.random() - 0.5) * this.shake; this.shake *= 0.85; if (this.shake < 0.01) this.shake = 0; }
     this.camera.lookAt(this.focus.x, this.focus.y, this.focus.z);
+    { // milieu du joueur à l'écran (pixels du jeu, origine en bas à gauche) : centre de la lucarne des bâtiments
+      this.camera.updateMatrixWorld();
+      const q = (this._vLuc ||= new THREE.Vector3()).set(fx + 0.5, this.hAt(fx + 0.5, fy + 0.55) + 20 * HPX, fy + 0.55).project(this.camera), u = SPRITE_UNIFORMS;
+      LUCARNE.uJoueurE.value.set((q.x * 0.5 + 0.5) * u.uRes.value.x / u.uPx.value, (q.y * 0.5 + 0.5) * u.uRes.value.y / u.uPx.value);
+      LUCARNE.uLucarne.value = FONDU ? 0 : 1; }
     if (this.weather) this.weather.sol = this.focus.y + 0.02;   // les gouttes éclaboussent le sol où l'on marche
     this.weather?.update(dt, this.focus.x, this.focus.z);
     this.ambiance.maj(dt, fx, fy);
