@@ -28,8 +28,8 @@
 //                       pots, banc, bucher, lanterneFer, gargouille, dome, bougainvillee, dragon, velo, tonneaux, enseigne
 import * as THREE from 'three';
 
-/** essai : toits moins présents (?toits=bas dans l'adresse) */
-const TOITS_BAS = /[?&]toits=bas\b/.test(globalThis.location?.search || '');
+/** toits moins présents vus de dessus (ils cachaient la rue et le joueur) ; ?toits=hauts dans l'adresse remet les anciens */
+const TOITS_BAS = !/[?&]toits=hauts\b/.test(globalThis.location?.search || '');
 
 export function maisonsVilles(K) {
   const { B, TX, tex, hash, mix, S, D, boite, at, M, COL, LUM, cyl, fenetre2, fenArc, porte, portesVitrees, toit4, toitChinois, cheminee, fumee, balustrade, bucher, socle } = K;
@@ -339,7 +339,7 @@ export function maisonsVilles(K) {
     const toit = { f: '2p', m: 'tuiles', c: '#b85a3a', hr: 1.3, deb: 0.3, faite: null, ...(o.toit || {}) };
     // essai ?toits=bas : toits moins présents vus de dessus (pente un peu plus douce, corps de logis moins profond que
     // l'emprise ; le toit couvre toujours à l'écran le fond de l'emprise, voir plus bas)
-    if (TOITS_BAS && !o.pilotis && toit.f !== 'plat') toit.hr *= 0.8;
+    if (TOITS_BAS && !o.pilotis && toit.f !== 'plat') toit.hr *= 0.7;
     const F = o.fen || {}, ann = o.annexe || null;
     // corps de logis : x bx0 → bx1, z z0 → zf (façade) ; l'annexe prend un côté
     let bx0 = 0, bx1 = w;

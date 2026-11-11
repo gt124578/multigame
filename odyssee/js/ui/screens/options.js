@@ -12,6 +12,7 @@ export function optionsScreen(game) {
     const speeds = ['Lente', 'Normale', 'Rapide', 'Instantanée'];
     const runSpeeds = ['Normale (1×)', 'Rapide (1.7×)', 'Turbo (2.5×)'];
     let i = 0, solChange = false;
+    const natif = () => { try { return localStorage.getItem('odyssee-natif') === '1'; } catch (e) { return false; } };
     const nom = (liste, id) => liste.find((c) => c.id === id)?.nom || id;
     const rows = () => [
       ['Vitesse du texte', speeds[ui.textSpeed]],
@@ -23,15 +24,16 @@ export function optionsScreen(game) {
       ['Taille du HUD', game.hud?.tailleNom?.() || 'Moyen'],
       ['Graphismes', nom(SOLS_CHOIX, solChoix())],
       ['Sprites des Pokémon', nom(SPRITES_CHOIX, spritesChoix())],
+      ['Rendu', natif() ? 'Net (écrans 4K)' : 'Classique'],
       ['Crédits graphismes', ''],
       ['Retour', ''],
     ];
     const draw = () => { box.innerHTML = rows().map(([a, b], k) => `<div class="list-row ${k === i ? 'on' : ''}"><span class="cur">▶</span><span class="lbl">${a}</span><span class="rgt">${b ? '◀ ' + b + ' ▶' : ''}</span></div>`).join('') + '<div class="keys">' + (solChange ? '<b>Les graphismes changent au prochain lancement d\'Odyssée.</b><br>' : '') + '<b>Commandes</b><br>Flèches ou ZQSD : se déplacer · Espace / Entrée : valider, parler<br>Échap : annuler, menu · Maj : sprint · R : basculer course rapide/turbo · C : carte</div>'; };
     draw();
     const pop = ui.input.push((k) => {
-      const nRows = 11;
+      const nRows = 12;
       if (k === 'up') i = (i + nRows - 1) % nRows; else if (k === 'down') i = (i + 1) % nRows;
-      else if (k === 'left' || k === 'right' || (k === 'a' && (i === 1 || i === 3 || i === 4 || i === 5 || i === 6 || i === 7 || i === 8))) {
+      else if (k === 'left' || k === 'right' || (k === 'a' && (i === 1 || i === 3 || i === 4 || i === 5 || i === 6 || i === 7 || i === 8 || i === 9))) {
         const d = k === 'left' ? -1 : 1;
         if (i === 0) { ui.textSpeed = (ui.textSpeed + d + 4) % 4; try { localStorage.setItem('odyssee-textspeed', ui.textSpeed); } catch (e) {} }
         if (i === 1) {
@@ -46,9 +48,11 @@ export function optionsScreen(game) {
         if (i === 6) game.hud?.changerTaille?.(d);
         if (i === 7) { const L = SOLS_CHOIX, j = (L.findIndex((c) => c.id === solChoix()) + d + L.length) % L.length; choisirSol(L[j].id); solChange = true; }
         if (i === 8) { const L = SPRITES_CHOIX, j = (L.findIndex((c) => c.id === spritesChoix()) + d + L.length) % L.length; choisirSprites(L[j].id); }
+        // rendu net : la géométrie (bâtiments, relief) est tracée à la résolution de l'écran ; appliqué tout de suite
+        if (i === 9) { try { localStorage.setItem('odyssee-natif', natif() ? '0' : '1'); } catch (e) {} dispatchEvent(new Event('resize')); }
         if (i === 3) { game.followOff = !game.followOff; try { localStorage.setItem('odyssee-suiveur', game.followOff ? '0' : '1'); } catch (e) {} }
-      } else if (k === 'a' && i === 9) { creditsScreen(ui, draw); return; }
-      else if (k === 'b' || (k === 'a' && i === 10)) { pop(); s.remove(); ui.sound.sfx('cancel'); resolve({ reload: solChange }); return; }
+      } else if (k === 'a' && i === 10) { creditsScreen(ui, draw); return; }
+      else if (k === 'b' || (k === 'a' && i === 11)) { pop(); s.remove(); ui.sound.sfx('cancel'); resolve({ reload: solChange }); return; }
       else return;
       ui.sound.sfx('blip'); draw();
     });

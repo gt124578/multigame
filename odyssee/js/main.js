@@ -98,6 +98,12 @@ async function loadArt(prechauffe = false) {
   return { sprites: S, dens, kits: K, sols: L, sol32: L32, hgss: HGI, chars, title, suiveurs, relief, pack: pack ? PK : null, batiments: pack?.batiments ? { images: PB, styles: pack.batiments } : null };
 }
 
+/** rendu natif : ?natif=1 / ?natif=0 dans l'adresse, sinon le choix gardé dans le navigateur (« odyssee-natif ») */
+function renduNatif() {
+  const q = new URLSearchParams(location.search).get('natif');
+  if (q != null) return q !== '0';
+  try { return localStorage.getItem('odyssee-natif') === '1'; } catch (e) { return false; }
+}
 async function boot() {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, stencil: true, powerPreference: 'high-performance' });   // stencil : ombres au sol sans double couche (render/ombres.js)
   renderer.setPixelRatio(1); renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -131,7 +137,10 @@ async function boot() {
     // le monde : une case fait 32 pixels de rendu, environ 12 cases de haut comme sur DS (agrandi d'un facteur entier)
     const scale = Math.max(1, Math.round(innerHeight / 400));
     const iw = Math.ceil(innerWidth / scale), ih = Math.ceil(innerHeight / scale);
-    renderer.setSize(iw, ih, false); view.resize(iw, ih);
+    // rendu natif (?natif=1, ou Options → Graphismes) : même cadrage, mais la géométrie est tracée à la résolution de
+    // l'écran (arêtes des bâtiments et du relief nettes en 4K) ; textures, sprites et particules gardent leurs pixels
+    if (renduNatif()) { renderer.setSize(iw * scale, ih * scale, false); view.resize(iw * scale, ih * scale, scale); }
+    else { renderer.setSize(iw, ih, false); view.resize(iw, ih, 1); }
     // l'interface garde son propre pas de pixel
     const ui = Math.max(2, Math.round(innerHeight / 270));
     document.documentElement.style.setProperty('--px', ui + 'px');

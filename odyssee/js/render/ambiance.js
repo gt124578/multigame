@@ -13,16 +13,17 @@ const EL = 55 * Math.PI / 180, TAN = Math.tan(EL);
 
 const VERT = /* glsl */`
   attribute float aTaille; attribute vec4 aCoul; attribute float aForme;
-  uniform vec2 uRes; uniform float uEch;
+  uniform vec2 uRes; uniform float uEch; uniform float uPx;
   varying vec4 vCoul; varying float vForme; varying float vTaille;
   void main() {
     vec4 c = projectionMatrix * viewMatrix * vec4( position, 1.0 );
     // centre calé sur la grille des pixels (au milieu d'un pixel si la taille est impaire, sur un coin sinon)
-    float s = max( 1.0, floor( aTaille / uEch + 0.5 ) );
-    vec2 px = floor( ( c.xy / c.w * 0.5 + 0.5 ) * uRes ) + ( mod( s, 2.0 ) > 0.5 ? 0.5 : 0.0 );
+    // sj : taille en pixels du jeu (le dessin du point se compte en pixels du jeu, même en rendu natif) ; s : à l'écran
+    float sj = max( 1.0, floor( aTaille / ( uEch * uPx ) + 0.5 ) ), s = sj * uPx;
+    vec2 px = floor( ( c.xy / c.w * 0.5 + 0.5 ) * uRes / uPx ) * uPx + ( mod( s, 2.0 ) > 0.5 ? 0.5 : 0.0 );
     gl_Position = vec4( ( px / uRes * 2.0 - 1.0 ) * c.w, c.z, c.w );
     gl_PointSize = s;
-    vCoul = aCoul; vForme = aForme; vTaille = s;
+    vCoul = aCoul; vForme = aForme; vTaille = sj;
   }`;
 
 // motifs des petits sprites (lignes du haut vers le bas) : 1 = couleur, 2 = corps / contour plus sombre
@@ -97,7 +98,7 @@ export class Ambiance {
     // pour elle ; les autres points (papillons, lucioles, feuilles) en ont un, dans un second nuage
     const mat = (depth) => new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, depthTest: depth,
-      uniforms: { uRes: uniforms.uRes, uEch: uniforms.uEch, uTeinte: this.uTeinte },
+      uniforms: { uRes: uniforms.uRes, uEch: uniforms.uEch, uPx: uniforms.uPx || { value: 1 }, uTeinte: this.uTeinte },
     });
     this.fumee = new THREE.Points(g, mat(false)); this.fumee.frustumCulled = false; this.fumee.renderOrder = 5;
     // second nuage : même géométrie, autre plage (voir maj)

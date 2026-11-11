@@ -54,6 +54,14 @@ export function choisirModele(b, ctx = {}) {
   return null;
 }
 
+/** sol d'une terrasse (cases libres d'un modèle : terrasse d'auberge, cour, galerie) : plancher pour les maisons de bois,
+ *  dalles calmes ailleurs — le pavé de la rue, bruité, ne passe plus sous les tables */
+const BOIS_TERRASSE = new Set(['chalet', 'maisonThe', 'cabanePecheur', 'cabaneChasseur', 'pavillon']);
+export function materiauTerrasse(nom) {
+  const { TX, M } = atelierJeu();
+  return M({ map: BOIS_TERRASSE.has(nom) ? TX.planches('#9a7a54') : TX.dalles() });
+}
+
 /* ---------------- cuisson de l'éclairage et fusion ---------------- */
 const SOLEIL = new THREE.Vector3(-8, 14 / YS, 9).normalize();   // même soleil que la galerie (avant l'étirement vertical)
 const PALIERS = [0.6, 0.74, 0.88, 1.0];
@@ -76,7 +84,7 @@ export function geometriesModele(nom, o) {
   const G = B[nom](o);
   G.updateMatrixWorld(true);
   const n3 = new THREE.Matrix3(), nv = new THREE.Vector3(), pv = new THREE.Vector3(), mm = new THREE.Matrix4();
-  const fumees = [], fanaux = [];   // repères posés par batiments3d.js : hauts des cheminées (fumée), lanterne d'un phare
+  const fumees = [], fanaux = [], portes = [];   // portes : [x, y, z, largeur, hauteur] (hauteurs déjà étirées)   // repères posés par batiments3d.js : hauts des cheminées (fumée), lanterne d'un phare
   // parties qui tournent (ailes d'un moulin : userData.tourne) : fusionnées à part, dans leur propre repère
   const tournes = []; G.traverse((m) => { if (m.userData.tourne && m !== G) tournes.push(m); });
   const sous = new Set(); for (const T of tournes) T.traverse((m) => sous.add(m));
@@ -86,6 +94,7 @@ export function geometriesModele(nom, o) {
     const lots = new Map();
     racine.traverse((m) => {
       if (exclus?.has(m)) return;
+      if (m.userData.porte) { if (!inv) { pv.set(0, 0, 0).applyMatrix4(m.matrixWorld); portes.push([pv.x, pv.y * YS, pv.z, m.userData.porte[0], m.userData.porte[1] * YS]); } return; }
       if (m.userData.fumee || m.userData.fanal) { if (!inv) { pv.set(0, 0, 0).applyMatrix4(m.matrixWorld); (m.userData.fumee ? fumees : fanaux).push([pv.x, pv.y * YS, pv.z]); } return; }
       if (!m.isMesh) return;
       let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
@@ -106,7 +115,10 @@ export function geometriesModele(nom, o) {
           L.pos.push(pv.x, pv.y * ys, pv.z);
           nv.fromBufferAttribute(N, i).applyMatrix3(n3).normalize();
           const s = emis ? 1.15 : eclairage(nv);
-          L.col.push(s, s, s);
+          // rampe façon DS : les faces à l'ombre tirent vers le bleu-violet, les faces au soleil un peu vers le jaune
+          // (un gris qui assombrit seulement donne des volumes ternes)
+          if (emis) L.col.push(s, s, s);
+          else { const o = Math.max(0, 0.95 - s) / 0.35, c = Math.max(0, s - 0.95) / 0.13; L.col.push(s * (1 - 0.13 * o) * (1 + 0.03 * c), s * (1 - 0.07 * o) * (1 + 0.015 * c), s * (1 + 0.10 * o) * (1 - 0.05 * c)); }
           if (U) L.uv.push(U.getX(i), U.getY(i)); else L.uv.push(0, 0);
         }
       }
@@ -130,7 +142,7 @@ export function geometriesModele(nom, o) {
     const q = new THREE.Quaternion(); T.matrixWorld.decompose(new THREE.Vector3(), q, new THREE.Vector3());
     return { parts: fusionner(T, inv, 1, null), pivot: [pivot.x, pivot.y, pivot.z], quat: q, vitesse: T.userData.tourne.vitesse || 0.2 };
   });
-  out.fumees = fumees; out.fanaux = fanaux;
+  out.fumees = fumees; out.fanaux = fanaux; out.portes = portes;
   CACHE.set(key, out);
   return out;
 }

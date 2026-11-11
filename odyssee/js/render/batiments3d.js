@@ -12,12 +12,13 @@ export function atelier(D) {
   const mix = (c, f) => { const [r, g, b] = hex(c); const m = (v) => Math.max(0, Math.min(255, Math.round(f < 0 ? v * (1 + f) : v + (255 - v) * f))); return `rgb(${m(r)},${m(g)},${m(b)})`; };
   const S = D / 32, cache = new Map();
   const NETTES = new Set(['verre', 'croix', 'sac', 'etals', 'sol', 'shoji', 'pagodeMur']);
+  const netteCle = (k) => NETTES.has(k) || k.startsWith('dl#');
   function tex(key, w, h, draw, rep = true) {
     if (cache.has(key)) return cache.get(key);
     const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
     const px = (x, y, col) => { g.fillStyle = col; g.fillRect(x, y, 1, 1); };
     draw(g, px, w, h);
-    if (!NETTES.has(key)) {
+    if (!netteCle(key)) {
       // douceur : on rapproche chaque pixel de la teinte moyenne de la texture (motif gardé, contraste divisé par ~2)
       const im = g.getImageData(0, 0, w, h), d = im.data, n = w * h, moy = [0, 0, 0];
       for (let i = 0; i < d.length; i += 4) { moy[0] += d[i]; moy[1] += d[i + 1]; moy[2] += d[i + 2]; }
@@ -44,7 +45,31 @@ export function atelier(D) {
     canal: (col) => tex('c' + col, D, D, (g, px, w, h) => { const tw = 5 * S; for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const lx = x % tw, ly = y % (8 * S); let f = lx < S ? -0.4 : lx < 2 * S ? 0.22 : lx > tw - 1.5 * S ? -0.18 : 0.05; if (ly === 0) f -= 0.25; px(x, y, mix(col, f)); } }),
     ardoise: (col = '#3c4354') => tex('a' + col, D, D, (g, px, w, h) => { const rh = 6 * S, tw = 8 * S; for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const row = Math.floor(y / rh), ly = y % rh, lx = (x + (row % 2) * tw / 2) % tw; let c = hash(Math.floor((x + (row % 2) * tw / 2) / tw), row, 5) < 0.3 ? mix(col, 0.1) : col; if (ly === 0) c = mix(col, 0.28); if (ly >= rh - S || lx < S) c = mix(col, -0.35); px(x, y, c); } }),
     tole: (col) => tex('o' + col, D, D, (g, px, w, h) => { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const lx = x % (8 * S); px(x, y, mix(col, lx < S ? 0.25 : lx < 2 * S ? 0.1 : lx > 6 * S ? -0.2 : 0)); } }),
-    pierre: (col = '#c8c2b6') => tex('p' + col, D, D, (g, px, w, h) => { const rh = 8 * S, tw = 16 * S; for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const row = Math.floor(y / rh), ly = y % rh, lx = (x + (row % 2) * tw / 2) % tw; const id = hash(Math.floor((x + (row % 2) * tw / 2) / tw), row, 7); let c = mix(col, id < 0.3 ? -0.06 : id < 0.7 ? 0 : 0.05); if (ly < S || lx < S) c = mix(col, 0.18); if (ly >= rh - S || lx >= tw - S) c = mix(col, -0.3); px(x, y, c); } }),
+    // pierre de taille : assises de 8 px, blocs de longueurs inégales (10 à 22 px) aux joints sombres et fins, un ton par
+    // bloc, arête haute à peine éclaircie. (L'ancien motif — blocs tous égaux, bord clair en haut et à gauche — se lisait
+    // comme un carrelage.)
+    pierre: (col = '#c8c2b6') => tex('p' + col, D, D, (g, px, w, h) => {
+      const rh = 8 * S, COUPES = [[0, 12, 22], [6, 20], [0, 10, 26], [4, 16]];
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const row = Math.floor(y / rh) % 4, ly = y % rh, xs = x / S, c = COUPES[row];
+        let k = c.length - 1; for (let q = 0; q < c.length; q++) if (xs >= c[q]) k = q; if (xs < c[0]) k = c.length - 1;
+        const lx = xs >= c[k] ? xs - c[k] : xs + 32 - c[k], id = hash(k, row, 7);
+        let f = id < 0.3 ? -0.05 : id < 0.72 ? 0 : 0.045;
+        if (ly < S) f += 0.07; else if (hash(x, y, 8) < 0.03) f -= 0.04;
+        if (ly >= rh - S || lx < 1) f = -0.2;
+        px(x, y, mix(col, f));
+      }
+    }),
+    // dalles de terrasse : grandes dalles carrées de 16 px en deux tons calmes, joint fin (sol des terrasses, world3d.js)
+    dalles: (col = '#cfc7b6') => tex('dl' + col, D, D, (g, px, w, h) => {
+      const t = 16 * S;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const lx = x % t, ly = y % t, id = (Math.floor(x / t) + Math.floor(y / t)) % 2;
+        let f = id ? -0.045 : 0;
+        if (lx < S || ly < S) f = -0.2; else if (ly < 2 * S) f += 0.06;
+        px(x, y, mix(col, f));
+      }
+    }),
     marbre: () => tex('marbre', D, D, (g, px, w, h) => { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const v = Math.sin((x + y * 0.6) / (5 * S) + hash(x >> 2, y >> 2, 4) * 2); px(x, y, v > 0.92 ? '#c8c4d2' : (x % (16 * S) === 0 || y % (16 * S) === 0) ? '#d4d0dc' : '#f2f0f6'); } }),
     bois: (col = '#8e5c36') => tex('b' + col, D, D, (g, px, w, h) => { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const lx = x % (6 * S); px(x, y, lx < S ? mix(col, -0.45) : hash(x >> 1, y >> 3, 9) < 0.15 ? mix(col, -0.15) : col); } }),
     bardage: (col) => tex('g' + col, D, D, (g, px, w, h) => { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const ly = y % (6 * S); px(x, y, ly < S ? mix(col, 0.2) : ly >= 5 * S ? mix(col, -0.3) : hash(x >> 2, y, 2) < 0.04 ? mix(col, -0.1) : col); } }),
@@ -86,7 +111,10 @@ export function atelier(D) {
     }
   }
   /** porte de bois d'une case de large (0,75) posée sur un socle de hauteur y0 */
+  /** repère d'une porte (lu par bati-jeu.js, puis world3d.js : l'ouverture animée quand on entre ou qu'on sort) */
+  const reperePorte = (G, x, y0, z, w, h) => { const o = new THREE.Object3D(); o.position.set(x, y0, z); o.userData.porte = [w, h]; G.add(o); };
   function porte(G, x, z, y0, h, mat, cadre, w = 0.75) {
+    reperePorte(G, x, y0, z, w, h);
     G.add(at(boite(w, h, 0.03, mat), x, h / 2 + y0, z + 0.01));
     for (const [dx, dy, ww, hh] of [[0, h + 0.04, w + 0.2, 0.08], [-w / 2 - 0.05, h / 2, 0.08, h], [w / 2 + 0.05, h / 2, 0.08, h]]) G.add(at(boite(ww, hh, 0.1, cadre), x + dx, dy + y0, z + 0.03));
     G.add(at(boite(0.05, 0.05, 0.05, COL('#f0d060')), x + w * 0.3, h * 0.5 + y0, z + 0.04));
@@ -94,6 +122,7 @@ export function atelier(D) {
   }
   /** portes vitrées coulissantes (largeur w, 2 cases = 1,7) */
   function portesVitrees(G, x, z, w, h, cadre) {
+    reperePorte(G, x, 0, z, w, h);
     G.add(at(boite(w, h, 0.03, M({ map: TX.verre() })), x, h / 2, z + 0.01));
     for (const dx of [-w / 2, 0, w / 2]) G.add(at(boite(0.07, h, 0.08, cadre), x + dx, h / 2, z + 0.04));
     G.add(at(boite(w + 0.1, 0.08, 0.08, cadre), x, h, z + 0.04));
@@ -1529,6 +1558,7 @@ export function atelier(D) {
   const FEU = '#e05a20', LAVE = LUM('#ff7a20', '#ff4a00'), BRAISE = LUM('#ffb040', '#e06000');
   const medaillon = (G, x, y, z, r = 0.4) => { G.add(at(new THREE.Mesh(new THREE.CircleGeometry(r, 20), M({ map: emblemeTex('feu', FEU) })), x, y, z)); G.add(at(new THREE.Mesh(new THREE.TorusGeometry(r + 0.03, 0.05, 6, 20), OR), x, y, z + 0.02)); };
   function porte2(G, x, z, y0 = 0, h = 2.2, w = 1.8, bois = '#4a2412', cadre = OR, arc = true) {
+    reperePorte(G, x, y0, z, w, h);
     G.add(at(boite(w, h, 0.05, M({ map: TX.bois(bois) })), x, y0 + h / 2, z + 0.01));
     G.add(at(boite(0.04, h, 0.06, COL('#1a0e08')), x, y0 + h / 2, z + 0.03));
     for (const s of [-1, 1]) G.add(at(boite(0.12, h, 0.12, cadre), x + s * (w / 2 + 0.06), y0 + h / 2, z + 0.05));
@@ -1540,7 +1570,18 @@ export function atelier(D) {
     G.add(at(cyl(0.45 * s, 0.22 * s, 0.35 * s, COL('#3a3230'), 12), x, y + 0.17 * s, z)); G.add(at(cyl(0.47 * s, 0.47 * s, 0.05, OR, 12), x, y + 0.35 * s, z));
     flamme(G, x, y + 0.3 * s, z, 1.8 * s); flamme(G, x + 0.2 * s, y + 0.3 * s, z + 0.1 * s, 1.1 * s); flamme(G, x - 0.2 * s, y + 0.3 * s, z - 0.05 * s, 1.2 * s);
   }
-  const marches = (G, x, z, w, n, hm, pm, mat, y0 = 0) => { for (let k = 0; k < n; k++) G.add(at(boite(w, hm * (n - k), pm, mat), x, y0 + hm * (n - k) / 2, z + k * pm + pm / 2)); };
+  // marches : le dessus et la contremarche recevaient la même lumière (l'escalier se lisait comme une dalle plate) ;
+  // la contremarche est assombrie, les joues un peu moins, et un nez de marche clair souligne chaque arête
+  const sombre = new Map();
+  const assombri = (mat, k) => { const c = mat.uuid + k; if (!sombre.has(c)) { const m = mat.clone(); m.color.multiplyScalar(k); sombre.set(c, m); } return sombre.get(c); };
+  const marches = (G, x, z, w, n, hm, pm, mat, y0 = 0) => {
+    const face = assombri(mat, 0.66), joue = assombri(mat, 0.82), nez = assombri(mat, 1.12);
+    for (let k = 0; k < n; k++) {
+      const h = hm * (n - k);
+      G.add(at(boite(w, h, pm, [joue, joue, mat, mat, face, mat]), x, y0 + h / 2, z + k * pm + pm / 2));
+      G.add(at(boite(w, 0.03, 0.04, nez), x, y0 + h - 0.012, z + k * pm + pm - 0.018));
+    }
+  };
   const lathe = (pts, mat, n = 32) => { const m = new THREE.Mesh(new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), n), mat); m.castShadow = m.receiveShadow = true; return m; };
   const extr = (pts, prof, mat) => { const sh = new THREE.Shape(); sh.moveTo(pts[0][0], pts[0][1]); for (const [a, b] of pts.slice(1)) sh.lineTo(a, b); sh.closePath(); const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: prof, bevelEnabled: false }), mat); m.castShadow = m.receiveShadow = true; return m; };
 
