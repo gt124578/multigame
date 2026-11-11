@@ -111,7 +111,10 @@ export function atelier(D) {
     }
   }
   /** porte de bois d'une case de large (0,75) posée sur un socle de hauteur y0 */
+  /** repère d'une porte (lu par bati-jeu.js, puis world3d.js : l'ouverture animée quand on entre ou qu'on sort) */
+  const reperePorte = (G, x, y0, z, w, h) => { const o = new THREE.Object3D(); o.position.set(x, y0, z); o.userData.porte = [w, h]; G.add(o); };
   function porte(G, x, z, y0, h, mat, cadre, w = 0.75) {
+    reperePorte(G, x, y0, z, w, h);
     G.add(at(boite(w, h, 0.03, mat), x, h / 2 + y0, z + 0.01));
     for (const [dx, dy, ww, hh] of [[0, h + 0.04, w + 0.2, 0.08], [-w / 2 - 0.05, h / 2, 0.08, h], [w / 2 + 0.05, h / 2, 0.08, h]]) G.add(at(boite(ww, hh, 0.1, cadre), x + dx, dy + y0, z + 0.03));
     G.add(at(boite(0.05, 0.05, 0.05, COL('#f0d060')), x + w * 0.3, h * 0.5 + y0, z + 0.04));
@@ -119,6 +122,7 @@ export function atelier(D) {
   }
   /** portes vitrées coulissantes (largeur w, 2 cases = 1,7) */
   function portesVitrees(G, x, z, w, h, cadre) {
+    reperePorte(G, x, 0, z, w, h);
     G.add(at(boite(w, h, 0.03, M({ map: TX.verre() })), x, h / 2, z + 0.01));
     for (const dx of [-w / 2, 0, w / 2]) G.add(at(boite(0.07, h, 0.08, cadre), x + dx, h / 2, z + 0.04));
     G.add(at(boite(w + 0.1, 0.08, 0.08, cadre), x, h, z + 0.04));
@@ -1554,6 +1558,7 @@ export function atelier(D) {
   const FEU = '#e05a20', LAVE = LUM('#ff7a20', '#ff4a00'), BRAISE = LUM('#ffb040', '#e06000');
   const medaillon = (G, x, y, z, r = 0.4) => { G.add(at(new THREE.Mesh(new THREE.CircleGeometry(r, 20), M({ map: emblemeTex('feu', FEU) })), x, y, z)); G.add(at(new THREE.Mesh(new THREE.TorusGeometry(r + 0.03, 0.05, 6, 20), OR), x, y, z + 0.02)); };
   function porte2(G, x, z, y0 = 0, h = 2.2, w = 1.8, bois = '#4a2412', cadre = OR, arc = true) {
+    reperePorte(G, x, y0, z, w, h);
     G.add(at(boite(w, h, 0.05, M({ map: TX.bois(bois) })), x, y0 + h / 2, z + 0.01));
     G.add(at(boite(0.04, h, 0.06, COL('#1a0e08')), x, y0 + h / 2, z + 0.03));
     for (const s of [-1, 1]) G.add(at(boite(0.12, h, 0.12, cadre), x + s * (w / 2 + 0.06), y0 + h / 2, z + 0.05));

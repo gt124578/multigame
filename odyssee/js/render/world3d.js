@@ -54,23 +54,17 @@ export const SPRITE_UNIFORMS = { uRes: { value: new THREE.Vector2(400, 240) }, u
 /** fondu tramé d'un bâtiment (quand on passe derrière) : au lieu de le rendre transparent (on voyait alors à travers
  *  lui ses faces cachées, ses étages, l'intérieur de ses tours), une part de ses pixels s'efface selon une trame
  *  ordonnée de 4 × 4, pixel du jeu par pixel du jeu, comme sur les consoles portables. uTrame : part gardée (1 : plein) */
-// Lucarne : quand le joueur passe derrière un bâtiment, seul un rond autour de lui s'efface (bord tramé) ; le reste du
-// bâtiment ne change pas. uJoueurE : le milieu du joueur à l'écran, en pixels du jeu ; uLucarne : 0 avec ?fondu=1.
-export const LUCARNE = { uJoueurE: { value: new THREE.Vector2(-999, -999) }, uLucarne: { value: 1 } };
 const TRAME_GLSL = `
       if ( uTrame < 0.999 ) {
-        vec2 tq = floor( gl_FragCoord.xy / uPxT );
-        float tg = uTrame;
-        if ( uLucarne > 0.5 ) { vec2 td = ( tq + 0.5 - uJoueurE ) * vec2( 1.0, 0.82 ); tg = max( uTrame, smoothstep( 21.0, 37.0, length( td ) ) ); }
-        ivec2 tp = ivec2( mod( tq, 4.0 ) );
+        ivec2 tp = ivec2( mod( floor( gl_FragCoord.xy / uPxT ), 4.0 ) );
         int tb[16] = int[16]( 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 );
-        if ( ( float( tb[ tp.y * 4 + tp.x ] ) + 0.5 ) / 16.0 > tg ) discard;
+        if ( ( float( tb[ tp.y * 4 + tp.x ] ) + 0.5 ) / 16.0 > uTrame ) discard;
       }`;
 function trame(mat, sh) {
   mat.userData.uTrame ||= { value: 1 };
-  sh.uniforms.uTrame = mat.userData.uTrame; sh.uniforms.uPxT = SPRITE_UNIFORMS.uPx; sh.uniforms.uJoueurE = LUCARNE.uJoueurE; sh.uniforms.uLucarne = LUCARNE.uLucarne;
+  sh.uniforms.uTrame = mat.userData.uTrame; sh.uniforms.uPxT = SPRITE_UNIFORMS.uPx;
   sh.fragmentShader = sh.fragmentShader
-    .replace('#include <common>', '#include <common>\nuniform float uTrame;\nuniform float uPxT;\nuniform vec2 uJoueurE;\nuniform float uLucarne;')
+    .replace('#include <common>', '#include <common>\nuniform float uTrame;\nuniform float uPxT;')
     .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>' + TRAME_GLSL);
 }
 /** pied : une ligne d'ombre au pied des murs (trois pixels du jeu), là où le bâtiment touche le sol — il est posé, pas collé */
@@ -128,8 +122,6 @@ function profondeurGrille(mat, b) {
 }
 const DECALS = new Set(['fleche', 'vent', 'courant', 'dalle', 'tp', 'socle', 'pollen', 'alveole', 'interrupteur', 'estrade', 'tapis']);
 const AVANCE_PERSO = 0.38;
-/** ?fondu=1 : ancien comportement, tout le bâtiment s'efface en trame quand on passe derrière (sinon : une lucarne) */
-const FONDU = /[?&]fondu=1\b/.test(globalThis.location?.search || '');
 const WIDE_DECO = new Set(['healer', 'sofa', 'bench', 'startertable', 'fireplace', 'rug']);
 /** décor du dehors posé avec une ombre au sol (leur ombre violette, dessinée dans le sprite, a été retirée) */
 const OMBRE_DECO = new Set(['banc', 'parasol', 'tonneau', 'caisse', 'panneau_bois', 'borne', 'lanterne', 'stele']);
@@ -1656,7 +1648,7 @@ export class WorldView {
     const ombre = new THREE.Mesh(sh.build(), this.mat.shadow); ombre.scale.set(1 / sx, 1, 1 / sz); g.add(ombre);
     g.userData.b = b; g.userData.modele = mod.nom;
     g.userData.ecran = empriseEcran(parts, mod, sx, sz);
-    g.userData.fumees = parts.fumees; g.userData.fanaux = parts.fanaux;
+    g.userData.fumees = parts.fumees; g.userData.fanaux = parts.fanaux; g.userData.portes = parts.portes; g.userData.ech = [sx, sz];
     return g;
   }
   buildWindowsGroup() { /* les fenêtres de nuit sont posées avec chaque bâtiment (fenetresBat) */ }
@@ -1849,6 +1841,29 @@ export class WorldView {
   /** le dresseur par défaut d'un genre (recoloré aux couleurs de la tenue) */
   baseDe(genre) { const r = CHAR_ROWS[genre === 'f' ? 'player_f' : 'player_m']; return r == null ? null : { src: this.charsCanvas, sx: 0, sy: r * CHH }; }
   removeActor(id) { const a = this.actors.get(id); if (a) { a.dispose(); this.actors.delete(id); } }
+  /**
+   * Ouvre (ou referme) la porte du bâtiment dont l'entrée est la case (x, y) : le battant laisse voir le noir de
+   * l'intérieur, en trois crans depuis le milieu. Renvoie false si le bâtiment n'a pas de porte repérée (ancien rendu).
+   * Le repère vient du modèle (batiments3d.js : porte, porte2, portesVitrees).
+   */
+  porte(x, y, ouvert, tout = false) {
+    const g = (this.buildingMeshes || []).find((q) => { const b = q.userData.b; return b && b.doorY === y && (b.doorX === x || b.door2X === x) && q.userData.portes?.length; });
+    if (!g) return false;
+    const b = g.userData.b, [sx, sz] = g.userData.ech || [1, 1];
+    let t = g.userData.trou;
+    if (!t) {
+      // la porte la plus proche du milieu de l'entrée (une entrée de deux cases : entre les deux)
+      const cx = ((b.door2X !== undefined ? (b.doorX + b.door2X) / 2 : b.doorX) + 0.5 - b.x) / sx;
+      const P = g.userData.portes.reduce((a, q) => (Math.abs(q[0] - cx) < Math.abs(a[0] - cx) ? q : a));
+      const geo = new THREE.PlaneGeometry(P[3] * 0.94, P[4] * 0.97); geo.translate(0, P[4] * 0.485, 0);
+      const mat = frontDepth(new THREE.MeshBasicMaterial({ color: 0x16121e }), b.y + b.d + 0.035);
+      t = g.userData.trou = new THREE.Mesh(geo, mat); t.position.set(P[0], P[1], P[2] + 0.05 / sz); t.userData.k = 0; t.visible = false; g.add(t);
+    }
+    t.userData.cible = ouvert ? 1 : 0;
+    if (tout) { t.userData.k = t.userData.cible; t.scale.x = Math.max(0.001, t.userData.k); t.visible = t.userData.k > 0; }
+    (this.portesAnim ||= new Set()).add(t);
+    return true;
+  }
   /** taille d'un pixel du jeu à l'écran (pixels de la page) : ce qui se dessine par-dessus le décor s'y cale */
   pixelJeu() { return this.renderer.domElement.clientHeight / SPRITE_UNIFORMS.uRes.value.y / SPRITE_UNIFORMS.uEch.value; }
   /** position à l'écran (pixels de la page) d'un point de la carte, à h pixels au-dessus du sol (noms des autres joueurs) */
@@ -1895,7 +1910,7 @@ export class WorldView {
       const hid = !this.sansFondu && fy < b.y - 0.5 && (e
         ? pied > b.y + e.zN - hb / tan + 0.15 && fx + 0.85 > b.x + e.x0 && fx + 0.15 < b.x + e.x1
         : fx > b.x - 1 && fx < b.x + b.w && fy > b.y - b.h - 1.2);   // sansFondu : éditeur de carte
-      const t = hid ? (FONDU || !g.userData.modele ? 0.45 : 0) : 1;
+      const t = hid ? 0.45 : 1;
       const o = g.userData.opacity ?? 1;
       if (o === t) continue;
       const n = o + Math.sign(t - o) * Math.min(Math.abs(t - o), dt * 4);
@@ -1929,6 +1944,12 @@ export class WorldView {
       this.focus.set(Math.round((fx + 0.5) * TILE_PX) / TILE_PX, fh, s + fh / tan);
     }
     this.fadeBuildings(fx, fy, dt);
+    if (this.portesAnim?.size) for (const t of this.portesAnim) {
+      const u = t.userData; u.k += Math.sign(u.cible - u.k) * Math.min(Math.abs(u.cible - u.k), dt / 0.2);
+      const cran = Math.ceil(u.k * 3 - 1e-6) / 3;          // trois crans nets, pas un glissement
+      t.visible = cran > 0; t.scale.x = Math.max(0.001, cran);
+      if (u.k === u.cible) this.portesAnim.delete(t);
+    }
     if (this.tournants?.size) {
       const t = performance.now() / 1000, qz = new THREE.Quaternion(), Z = new THREE.Vector3(0, 0, 1);
       for (const W of this.tournants) {
@@ -1957,11 +1978,6 @@ export class WorldView {
     this.camera.position.set(this.focus.x, this.focus.y + d * Math.sin(EL), this.focus.z + d * Math.cos(EL));
     if (this.shake > 0) { this.camera.position.x += (Math.random() - 0.5) * this.shake; this.camera.position.y += (Math.random() - 0.5) * this.shake; this.shake *= 0.85; if (this.shake < 0.01) this.shake = 0; }
     this.camera.lookAt(this.focus.x, this.focus.y, this.focus.z);
-    { // milieu du joueur à l'écran (pixels du jeu, origine en bas à gauche) : centre de la lucarne des bâtiments
-      this.camera.updateMatrixWorld();
-      const q = (this._vLuc ||= new THREE.Vector3()).set(fx + 0.5, this.hAt(fx + 0.5, fy + 0.55) + 20 * HPX, fy + 0.55).project(this.camera), u = SPRITE_UNIFORMS;
-      LUCARNE.uJoueurE.value.set((q.x * 0.5 + 0.5) * u.uRes.value.x / u.uPx.value, (q.y * 0.5 + 0.5) * u.uRes.value.y / u.uPx.value);
-      LUCARNE.uLucarne.value = FONDU ? 0 : 1; }
     if (this.weather) this.weather.sol = this.focus.y + 0.02;   // les gouttes éclaboussent le sol où l'on marche
     this.weather?.update(dt, this.focus.x, this.focus.z);
     this.ambiance.maj(dt, fx, fy);

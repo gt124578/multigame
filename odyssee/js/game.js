@@ -494,7 +494,8 @@ export class Game {
   async warp(to, sfx = 'door') {
     this.busy = true;
     if (this.currentRoadSign) { this.currentRoadSign = null; this.ui.hideRoadSign?.(); }
-    this.sound.sfx(sfx);
+    if (!this.porteOuverte) this.sound.sfx(sfx);   // la porte a déjà fait son bruit en s'ouvrant
+    this.porteOuverte = false;
     await this.ui.doorTransition(true, 240);
     const from = this.mapObj.id;
     this.clearSpeechBubbles?.();
@@ -504,7 +505,12 @@ export class Game {
     this.view.update(0, this.player.x, this.player.y);
     this.save(true);
     await this.view.solPret?.();   // l'écran se rouvre sur le sol généré, jamais sur l'ancien
+    // on sort d'un bâtiment : le joueur est dans l'embrasure, porte ouverte ; il fait un pas dehors et elle se referme
+    const pl = this.player, mo = this.mapObj;
+    const sortie = mo.outdoor && (to.dir || pl.dir) === 'down' && mo.get(to.x, to.y - 1) === T.DOOR && !this.occupied(to.x, to.y, pl) && this.view.porte?.(to.x, to.y - 1, true, true);
+    if (sortie) { pl.y = to.y - 1; this.view.update(0, pl.x, pl.y); }
     await this.ui.doorTransition(false, 240);
+    if (sortie) { await this.playerWalk('down', 1); if (pl.y !== to.y) { pl.y = to.y; pl.move = null; } this.view.porte?.(to.x, to.y - 1, false); }
     if (this.mapObj.dark && this.mapObj.dark !== 'arene' && this.canField('flash') && this.lead()) await this.ui.say(`${monName(this.lead())} utilise Flash !\nLa grotte s'éclaire.`, { auto: 900 });
     await this.onEnterMap(from);
     this.busy = false;
@@ -711,6 +717,12 @@ export class Game {
       if (walkable(m.get(lx, ly)) && !this.occupied(lx, ly)) { p.move = { fx: p.x, fy: p.y, tx: lx, ty: ly, t: 0, dur: 0.42, jump: true }; p.walking = true; this.sound.sfx('ledge'); return; }
     }
     if (m.in(tx, ty) && walkable(t) && !this.occupied(tx, ty) && m.canStep(p.x, p.y, tx, ty)) {
+      // une porte du dehors : elle s'ouvre d'abord (son, battant), puis on entre au pas ; le fondu vient ensuite (warp)
+      if (t === T.DOOR && d === 'up' && m.outdoor && m.warpAt(tx, ty) && !this.porteOuverte && this.view.porte?.(tx, ty, true)) {
+        this.porteOuverte = true; this.busy = true; p.walking = false; this.sound.sfx('door');
+        wait(240).then(() => { p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur: WALK }; p.walking = true; this.busy = false; });
+        return;
+      }
       const dur = this.onBike() ? VELO : isRunning ? this.runDur(isTurbo) : WALK;
       p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur }; p.walking = true;
       return;
@@ -742,7 +754,7 @@ export class Game {
       if (w.need && !this.state.bag[w.need]) {
         this.busy = true;
         await this.ui.say(['Une force mystérieuse bloque l\'entrée...', 'Il faudrait un objet lié à ce lieu pour l\'ouvrir.']);
-        await this.playerWalk('down', 1); this.busy = false; return;
+        await this.playerWalk('down', 1); this.view.porte?.(p.x, p.y - 1, false); this.porteOuverte = false; this.busy = false; return;
       }
       await this.warp(w, t === T.CAVEDOOR || w.step ? 'exit' : 'door'); return;
     }
