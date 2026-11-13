@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { STATUES } from './statues-data.js';
 import { maisonsVilles } from './maisons-villes.js';
+import { monumentsDesert } from './desert3d.js';
 
 export function atelier(D) {
   /* -------------------------------------------------------------- textures ------------------------------------------ */
@@ -2939,6 +2940,9 @@ export function atelier(D) {
   // maisons des villes (une architecture par ville) : modèle « maisonVille », réglé par styles-villes.js
   maisonsVilles({ B, TX, tex, hash, mix, S, D, boite, at, M, COL, LUM, cyl, fenetre2, fenArc, porte, portesVitrees, toit4, toitChinois, cheminee, fumee, balustrade, bucher, socle });
 
+  // monuments du désert : pyramide, temple du pharaon
+  monumentsDesert({ B, tex, hash, mix, S, D, boite, at, M, COL, LUM, cyl, brasero, reperePorte, OR });
+
   return { B, boite, at, M, COL, TX };
 }
 
@@ -2950,4 +2954,5 @@ export const EMPRISES = {
   mairie: [9, 5], fontaine: [3, 3], centre: [7, 5], boutique: [5, 4], arene: [12, 11], areneFeu: [12, 11], pavillonFeu: [12, 11], areneCour: [18, 14], areneBloc: [9, 6], areneRonde: [9, 9], areneVoute: [8, 11], statueChampion: [2, 2], labo: [10, 7],
   pagode: [11, 11], tourCendree: [11, 11], pavillon: [8, 7], tour: [8, 5], tourVerre: [10, 7], tourDeco: [8, 8], bourse: [12, 8], casino: [14, 8], ligue: [30, 14], usinePokeball: [32, 10],
   escalierMontant: [1, 2], escalierDescendant: [1, 2],
+  pyramide: [12, 12], temple: [11, 8],
 };
