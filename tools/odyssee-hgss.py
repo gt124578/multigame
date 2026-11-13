@@ -199,9 +199,14 @@ def build():
     # dessins de combat : fond transparent, agrandis ×2 comme les Pokémon HGSS
     os.makedirs(os.path.join(OUT, 'dresseurs'), exist_ok=True)
     dres = []
+    js = os.path.join(ROOT, 'odyssee', 'js', 'data', 'sprites.js')
+    txt = open(js).read(); meta = json.loads(txt[txt.index('{'):txt.rindex('}') + 1])
+    # un personnage qui a déjà son portrait peint (img/portraits/) ou son dessin de combat à nous
+    # (assets/graphics/portraits-combat/) garde le sien : pas de dessin HGSS provisoire par-dessus
+    notres = set(meta.get('portraits', [])) | {f[:-4] for f in os.listdir(os.path.join(ROOT, 'assets', 'graphics', 'portraits-combat')) if f.endswith('.png')}
     for cid in CHARS:
         p = os.path.join(RAW, 'dresseurs', cid + '.png')
-        if not os.path.exists(p): continue
+        if not os.path.exists(p) or cid in notres: continue
         im = Image.open(p).convert('RGBA')
         a = im.load(); bg = a[0, 0]
         if bg[3]:
@@ -210,8 +215,7 @@ def build():
                     if a[x, y][:3] == bg[:3]: a[x, y] = (0, 0, 0, 0)
         im.save(os.path.join(OUT, 'dresseurs', cid + '.png'), optimize=True)
         dres.append(cid)
-    js = os.path.join(ROOT, 'odyssee', 'js', 'data', 'sprites.js')
-    txt = open(js).read(); meta = json.loads(txt[txt.index('{'):txt.rindex('}') + 1])
+    dres += [c for c in meta.get('dresseurs', []) if c not in dres and os.path.exists(os.path.join(OUT, 'dresseurs', c + '.png')) and c in notres]
     meta['chars'] = {'w': CW, 'h': CW, 'd': 2, 'rows': {c: i for i, c in enumerate(ids)}}
     meta['dresseurs'] = dres
     # animations de terrain : copiées telles quelles (bandes d'images de 16 ou 32 px)
