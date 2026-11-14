@@ -1,0 +1,793 @@
+{
+ "last_node_id": 17,
+ "last_link_id": 16,
+ "nodes": [
+  {
+   "id": 1,
+   "type": "Note",
+   "pos": [
+    0,
+    0
+   ],
+   "size": [
+    420,
+    360
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "Note"
+   },
+   "widgets_values": [
+    "ÉTAPE 1 — RÉFÉRENCE\n\nDécris le personnage dans le cadre « Personnage » (en anglais, c'est mieux compris). Le reste du texte fixe le style HeartGold et le fond magenta (facile à détourer).\n\n4 images par lancement (« batch_size »). Garde la meilleure : c'est elle qui sert de référence aux étapes 2 et 3.\n\nRapide (Lightning, 4 étapes, CFG 1) par défaut. Pour plus de qualité : contourne la LoRA Lightning (Ctrl+B) et mets 40 étapes, CFG 4.\n\nLoRA pixel art (Pixel Art Redmond) : facultative, contournée au départ ; télécharge-la puis Ctrl+B pour l'activer.\n\nSorties : ComfyUI/output/odyssee/"
+   ],
+   "color": "#432",
+   "bgcolor": "#653"
+  },
+  {
+   "id": 2,
+   "type": "UNETLoader",
+   "pos": [
+    460,
+    0
+   ],
+   "size": [
+    320,
+    120
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      1
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "UNETLoader"
+   },
+   "widgets_values": [
+    "qwen_image_2512_fp8_e4m3fn.safetensors",
+    "default"
+   ],
+   "title": "Modèle (diffusion_models)"
+  },
+  {
+   "id": 3,
+   "type": "CLIPLoader",
+   "pos": [
+    460,
+    150
+   ],
+   "size": [
+    320,
+    120
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "CLIP",
+     "type": "CLIP",
+     "links": [
+      4,
+      5
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPLoader"
+   },
+   "widgets_values": [
+    "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+    "qwen_image",
+    "default"
+   ],
+   "title": "Encodeur de texte (text_encoders)"
+  },
+  {
+   "id": 4,
+   "type": "VAELoader",
+   "pos": [
+    460,
+    300
+   ],
+   "size": [
+    320,
+    120
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "VAE",
+     "type": "VAE",
+     "links": [
+      11
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAELoader"
+   },
+   "widgets_values": [
+    "qwen_image_vae.safetensors"
+   ],
+   "title": "VAE (vae)"
+  },
+  {
+   "id": 5,
+   "type": "LoraLoaderModelOnly",
+   "pos": [
+    820,
+    0
+   ],
+   "size": [
+    320,
+    120
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 1
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      2
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoraLoaderModelOnly"
+   },
+   "widgets_values": [
+    "Qwen-Image-Lightning-4steps-V1.0.safetensors",
+    1.0
+   ],
+   "title": "Lightning : 4 étapes (désactiver → 40 étapes, CFG 4)"
+  },
+  {
+   "id": 6,
+   "type": "LoraLoaderModelOnly",
+   "pos": [
+    820,
+    150
+   ],
+   "size": [
+    320,
+    120
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 4,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 2
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      3
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoraLoaderModelOnly"
+   },
+   "widgets_values": [
+    "pixel-art-redmond-qwen-image.safetensors",
+    0.8
+   ],
+   "title": "LoRA pixel art (facultative : Ctrl+B pour l'activer)"
+  },
+  {
+   "id": 7,
+   "type": "ModelSamplingAuraFlow",
+   "pos": [
+    820,
+    300
+   ],
+   "size": [
+    320,
+    120
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 3
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      6
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "ModelSamplingAuraFlow"
+   },
+   "widgets_values": [
+    3.1
+   ]
+  },
+  {
+   "id": 8,
+   "type": "CLIPTextEncode",
+   "pos": [
+    1180,
+    0
+   ],
+   "size": [
+    460,
+    260
+   ],
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "clip",
+     "type": "CLIP",
+     "link": 4
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "links": [
+      7
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPTextEncode"
+   },
+   "widgets_values": [
+    "Pixel art character design of a young pokemon trainer: a girl with a red cap, short brown hair, a white jacket over a black shirt, blue shorts and a yellow messenger bag. Full body from head to feet, standing straight, facing the viewer, front view, arms relaxed, about three heads tall. Style of the Pokemon HeartGold and SoulSilver sprites: clean dark 1-pixel outline, flat cel shading with two or three tones per color, limited palette, crisp square pixels, no anti-aliasing, no blur, no gradient. Single character, centered, plain solid magenta background (#FF00FF), no shadow on the ground, no text, no frame."
+   ],
+   "title": "Personnage (à décrire ici)",
+   "color": "#232",
+   "bgcolor": "#353"
+  },
+  {
+   "id": 9,
+   "type": "CLIPTextEncode",
+   "pos": [
+    1180,
+    290
+   ],
+   "size": [
+    460,
+    130
+   ],
+   "flags": {},
+   "order": 8,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "clip",
+     "type": "CLIP",
+     "link": 5
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "links": [
+      8
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPTextEncode"
+   },
+   "widgets_values": [
+    "blurry, anti-aliasing, gradient, photo, 3d render, realistic, painterly, soft shading, text, watermark, frame, several characters, cropped, cut off feet, shadow, busy background"
+   ],
+   "title": "À éviter",
+   "color": "#322",
+   "bgcolor": "#533"
+  },
+  {
+   "id": 10,
+   "type": "EmptySD3LatentImage",
+   "pos": [
+    1180,
+    450
+   ],
+   "size": [
+    320,
+    120
+   ],
+   "flags": {},
+   "order": 9,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      9
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "EmptySD3LatentImage"
+   },
+   "widgets_values": [
+    1024,
+    1024,
+    4
+   ],
+   "title": "Taille et nombre d'images"
+  },
+  {
+   "id": 11,
+   "type": "KSampler",
+   "pos": [
+    1680,
+    0
+   ],
+   "size": [
+    320,
+    270
+   ],
+   "flags": {},
+   "order": 10,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 6
+    },
+    {
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": 7
+    },
+    {
+     "name": "negative",
+     "type": "CONDITIONING",
+     "link": 8
+    },
+    {
+     "name": "latent_image",
+     "type": "LATENT",
+     "link": 9
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      10
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "KSampler"
+   },
+   "widgets_values": [
+    0,
+    "randomize",
+    4,
+    1.0,
+    "euler",
+    "simple",
+    1.0
+   ]
+  },
+  {
+   "id": 12,
+   "type": "VAEDecode",
+   "pos": [
+    1680,
+    300
+   ],
+   "size": [
+    320,
+    120
+   ],
+   "flags": {},
+   "order": 11,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "samples",
+     "type": "LATENT",
+     "link": 10
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 11
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      12,
+      13
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAEDecode"
+   },
+   "widgets_values": []
+  },
+  {
+   "id": 13,
+   "type": "SaveImage",
+   "pos": [
+    0,
+    420
+   ],
+   "size": [
+    300,
+    330
+   ],
+   "flags": {},
+   "order": 12,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 12
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "odyssee/reference_brut"
+   ],
+   "title": "reference : image brute"
+  },
+  {
+   "id": 14,
+   "type": "PixelArtDetectorToImage",
+   "pos": [
+    320,
+    420
+   ],
+   "size": [
+    300,
+    110
+   ],
+   "flags": {},
+   "order": 13,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 13
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      14,
+      15
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "PixelArtDetectorToImage"
+   },
+   "widgets_values": [
+    true,
+    24
+   ],
+   "title": "Au pixel près (grille + palette)"
+  },
+  {
+   "id": 15,
+   "type": "SaveImage",
+   "pos": [
+    320,
+    550
+   ],
+   "size": [
+    300,
+    200
+   ],
+   "flags": {},
+   "order": 14,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 14
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "odyssee/reference_pixel"
+   ],
+   "title": "reference : à la vraie taille (à garder)"
+  },
+  {
+   "id": 16,
+   "type": "ImageScaleBy",
+   "pos": [
+    640,
+    420
+   ],
+   "size": [
+    320,
+    120
+   ],
+   "flags": {},
+   "order": 15,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 15
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      16
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "ImageScaleBy"
+   },
+   "widgets_values": [
+    "nearest-exact",
+    4.0
+   ],
+   "title": "Aperçu ×4"
+  },
+  {
+   "id": 17,
+   "type": "PreviewImage",
+   "pos": [
+    640,
+    530
+   ],
+   "size": [
+    300,
+    330
+   ],
+   "flags": {},
+   "order": 16,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 16
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   },
+   "widgets_values": []
+  }
+ ],
+ "links": [
+  [
+   1,
+   2,
+   0,
+   5,
+   0,
+   "MODEL"
+  ],
+  [
+   2,
+   5,
+   0,
+   6,
+   0,
+   "MODEL"
+  ],
+  [
+   3,
+   6,
+   0,
+   7,
+   0,
+   "MODEL"
+  ],
+  [
+   4,
+   3,
+   0,
+   8,
+   0,
+   "CLIP"
+  ],
+  [
+   5,
+   3,
+   0,
+   9,
+   0,
+   "CLIP"
+  ],
+  [
+   6,
+   7,
+   0,
+   11,
+   0,
+   "MODEL"
+  ],
+  [
+   7,
+   8,
+   0,
+   11,
+   1,
+   "CONDITIONING"
+  ],
+  [
+   8,
+   9,
+   0,
+   11,
+   2,
+   "CONDITIONING"
+  ],
+  [
+   9,
+   10,
+   0,
+   11,
+   3,
+   "LATENT"
+  ],
+  [
+   10,
+   11,
+   0,
+   12,
+   0,
+   "LATENT"
+  ],
+  [
+   11,
+   4,
+   0,
+   12,
+   1,
+   "VAE"
+  ],
+  [
+   12,
+   12,
+   0,
+   13,
+   0,
+   "IMAGE"
+  ],
+  [
+   13,
+   12,
+   0,
+   14,
+   0,
+   "IMAGE"
+  ],
+  [
+   14,
+   14,
+   0,
+   15,
+   0,
+   "IMAGE"
+  ],
+  [
+   15,
+   14,
+   0,
+   16,
+   0,
+   "IMAGE"
+  ],
+  [
+   16,
+   16,
+   0,
+   17,
+   0,
+   "IMAGE"
+  ]
+ ],
+ "groups": [
+  {
+   "title": "1. Le personnage de référence : de face, en pied (on en tire 4, on garde le meilleur)",
+   "bounding": [
+    -20,
+    -60,
+    2300,
+    820
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  }
+ ],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.6,
+   "offset": [
+    40,
+    40
+   ]
+  }
+ },
+ "version": 0.4
+}

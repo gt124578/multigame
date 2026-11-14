@@ -1,0 +1,306 @@
+{
+ "last_node_id": 7,
+ "last_link_id": 5,
+ "nodes": [
+  {
+   "id": 1,
+   "type": "Note",
+   "pos": [
+    0,
+    0
+   ],
+   "size": [
+    420,
+    300
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "Note"
+   },
+   "widgets_values": [
+    "PASSAGE AU PIXEL PRÈS SEUL\n\nPour une image déjà générée (ou retouchée ailleurs) : détecte la taille réelle d'un « pixel », réduit l'image à sa vraie résolution et limite la palette (nombre de couleurs à régler).\n\nLa mise au format du jeu (case de 64 × 64 pieds en bas, portrait 64 × 80, palette des dresseurs, fond magenta retiré) se fait ensuite par notre script côté dépôt."
+   ],
+   "color": "#432",
+   "bgcolor": "#653"
+  },
+  {
+   "id": 2,
+   "type": "LoadImage",
+   "pos": [
+    460,
+    0
+   ],
+   "size": [
+    320,
+    360
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      1,
+      2
+     ],
+     "slot_index": 0
+    },
+    {
+     "name": "MASK",
+     "type": "MASK",
+     "links": [],
+     "slot_index": 1
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadImage"
+   },
+   "widgets_values": [
+    "image.png",
+    "image"
+   ]
+  },
+  {
+   "id": 3,
+   "type": "SaveImage",
+   "pos": [
+    800,
+    0
+   ],
+   "size": [
+    300,
+    330
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 1
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "odyssee/image_brut"
+   ],
+   "title": "image : image brute"
+  },
+  {
+   "id": 4,
+   "type": "PixelArtDetectorToImage",
+   "pos": [
+    1120,
+    0
+   ],
+   "size": [
+    300,
+    110
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 2
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      3,
+      4
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "PixelArtDetectorToImage"
+   },
+   "widgets_values": [
+    true,
+    24
+   ],
+   "title": "Au pixel près (grille + palette)"
+  },
+  {
+   "id": 5,
+   "type": "SaveImage",
+   "pos": [
+    1120,
+    130
+   ],
+   "size": [
+    300,
+    200
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 3
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "odyssee/image_pixel"
+   ],
+   "title": "image : à la vraie taille (à garder)"
+  },
+  {
+   "id": 6,
+   "type": "ImageScaleBy",
+   "pos": [
+    1440,
+    0
+   ],
+   "size": [
+    320,
+    120
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 4
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      5
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "ImageScaleBy"
+   },
+   "widgets_values": [
+    "nearest-exact",
+    4.0
+   ],
+   "title": "Aperçu ×4"
+  },
+  {
+   "id": 7,
+   "type": "PreviewImage",
+   "pos": [
+    1440,
+    110
+   ],
+   "size": [
+    300,
+    330
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 5
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   },
+   "widgets_values": []
+  }
+ ],
+ "links": [
+  [
+   1,
+   2,
+   0,
+   3,
+   0,
+   "IMAGE"
+  ],
+  [
+   2,
+   2,
+   0,
+   4,
+   0,
+   "IMAGE"
+  ],
+  [
+   3,
+   4,
+   0,
+   5,
+   0,
+   "IMAGE"
+  ],
+  [
+   4,
+   4,
+   0,
+   6,
+   0,
+   "IMAGE"
+  ],
+  [
+   5,
+   6,
+   0,
+   7,
+   0,
+   "IMAGE"
+  ]
+ ],
+ "groups": [
+  {
+   "title": "Au pixel près : n'importe quelle image → sa vraie grille et une palette réduite",
+   "bounding": [
+    -20,
+    -60,
+    1700,
+    560
+   ],
+   "color": "#3f789e",
+   "font_size": 24,
+   "flags": {}
+  }
+ ],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.6,
+   "offset": [
+    40,
+    40
+   ]
+  }
+ },
+ "version": 0.4
+}
