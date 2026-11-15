@@ -222,7 +222,7 @@
     "Node name for S&R": "LoraLoaderModelOnly"
    },
    "widgets_values": [
-    "pixel_spritesheet_4walk_combat_32x48_v1.safetensors",
+    "pixel_4walk_32x48_qwen_image_edit_2511_v1.safetensors",
     0.8
    ],
    "title": "LoRA planche de marche (facultative : Ctrl+B pour l'activer)"

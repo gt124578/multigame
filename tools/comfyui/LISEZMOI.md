@@ -30,7 +30,7 @@ Modèles :
 | `loras` | `Qwen-Image-Lightning-4steps-V1.0.safetensors` | lightx2v/Qwen-Image-Lightning |
 | `loras` | `Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors` | lightx2v/Qwen-Image-Edit-2511-Lightning |
 | `loras` (facultatif) | Pixel Art Redmond pour Qwen-Image 2512 | artificialguybr/PIXELART-REDMOND-QWENIMAGE |
-| `loras` (facultatif) | planche de marche 32 × 48 pour Qwen-Image-Edit 2511 | Leon1000/pixel_spritesheet_4walk_combat_32x48_v1 |
+| `loras` (facultatif) | `pixel_4walk_32x48_qwen_image_edit_2511_v1.safetensors` (planche de marche 32 × 48 ; les fichiers `…_000001750`, `…_2000`, `…_2500` sont des étapes intermédiaires de l'entraînement, inutiles au départ) | svntax-dev (ou Leon1000)/pixel_spritesheet_4walk_combat_32x48_v1 |
 
 Si un nom de fichier diffère chez toi, le nœud s'affiche en rouge : choisis le bon fichier dans sa liste déroulante.
 Les deux LoRA facultatives sont **contournées** au départ (nœud grisé) : Ctrl+B dessus pour les activer.

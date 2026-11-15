@@ -17,7 +17,7 @@ VAE = 'qwen_image_vae.safetensors'
 LORA_T2I = 'Qwen-Image-Lightning-4steps-V1.0.safetensors'
 LORA_EDIT = 'Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors'
 LORA_PIXEL = 'pixel-art-redmond-qwen-image.safetensors'          # Pixel Art Redmond (Qwen-Image 2512), facultative
-LORA_PLANCHE = 'pixel_spritesheet_4walk_combat_32x48_v1.safetensors'  # planches de marche (Qwen-Image-Edit 2511), facultative
+LORA_PLANCHE = 'pixel_4walk_32x48_qwen_image_edit_2511_v1.safetensors'  # planches de marche (Qwen-Image-Edit 2511), facultative
 
 STYLE = ('Style of the Pokemon HeartGold and SoulSilver sprites: clean dark 1-pixel outline, flat cel shading with two or three '
          'tones per color, limited palette, crisp square pixels, no anti-aliasing, no blur, no gradient. ')
