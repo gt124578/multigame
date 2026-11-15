@@ -10,6 +10,7 @@ import { Battle } from './core/battle.js';
 import { ITEMS, itemName, applyItem, canUseOn, useCandy, formatFindItem, formatObtainItem, itemPocketName } from './core/items.js';
 import { SPECIES } from './data/species.js';
 import { MOVES } from './data/moves.js';
+import { moveDesc } from './data/moveDescriptions.js';
 import { SAUVAGE, R } from './data/remplacants.js';
 import { STARTERS, STARTER_CHOICES, STARTER_TABLE, starterSlot, RIVAL_NAME, BADGES, LEADERS, FIELD, CARTE_VERSION } from './world/region.js';
 import { migrerCarte } from './world/migration.js';
@@ -1544,7 +1545,7 @@ export class Game {
     }
 
     this.player.bang = true;
-    this.sound.sfx('fanfare');
+    this.sound.sfx('bang');   // le « ! » d'une touche (il n'y a pas de son « fanfare » : la prise était muette)
     await this.ui.say('Oh ! Ça mord ! Une prise vigoureuse au bout de la ligne !');
     this.player.bang = false;
 

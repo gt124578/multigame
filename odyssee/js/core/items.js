@@ -31,6 +31,7 @@ export const ITEMS = {
   'oran-berry': { pocket: 'baies', price: 80, heal: 10, desc: 'Une Baie qui restaure 10 PV.' },
   ether: { pocket: 'soin', price: 1200, pp: 10, desc: 'Restaure 10 PP d\'une attaque.' },
   elixir: { pocket: 'soin', price: 3000, ppAll: 10, desc: 'Restaure 10 PP de toutes les attaques.' },
+  'max-elixir': { pocket: 'soin', name: 'Max Élixir', price: 4500, ppAll: 99, desc: 'Restaure tous les PP de toutes les attaques.' },
   'escape-rope': { pocket: 'objets', price: 550, desc: 'Une longue corde pour sortir d\'une grotte en un instant.' },
   repel: { pocket: 'objets', price: 350, repel: 100, desc: 'Éloigne les Pokémon sauvages faibles pendant 100 pas.' },
   'super-repel': { pocket: 'objets', price: 500, repel: 200, desc: 'Éloigne les Pokémon sauvages faibles pendant 200 pas.' },

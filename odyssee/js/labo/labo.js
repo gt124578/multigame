@@ -241,13 +241,18 @@ export async function startLabo({ game, world, view, ui, input, sound, setMode }
     ui.root.appendChild(b);
     return b;
   };
+  // B, G et T sont aussi des touches du jeu (Ball, Amis, Trophées) : le labo les prend avant lui (phase de capture) et
+  // ne les lui laisse pas, sinon T ouvrait à la fois la téléportation et l'écran des trophées. Dans un menu, un écran
+  // ou un dialogue du jeu, elles restent au jeu.
   addEventListener('keydown', (e) => {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
-    if (!game.state || document.querySelector('.labo-scr') || editeur.seul) return;
-    if (e.code === 'KeyB' && !game.bv.alive) { e.preventDefault(); editeur.toggle(); }
-    if (e.code === 'KeyG' && !game.busy && !editeur.on) { e.preventDefault(); lancer(); }
-    if (e.code === 'KeyT' && !editeur.on && !game.bv.alive) { e.preventDefault(); teleporter(); }
-  });
+    if (!game.state || document.querySelector('.labo-scr') || editeur.seul || e.repeat) return;
+    const libre = editeur.on || (!game.busy && game.input.free);
+    const pris = (f) => { e.preventDefault(); e.stopPropagation(); f(); };
+    if (e.code === 'KeyB' && !game.bv.alive && libre) pris(() => editeur.toggle());
+    else if (e.code === 'KeyG' && libre && !editeur.on) pris(() => lancer());
+    else if (e.code === 'KeyT' && libre && !editeur.on && !game.bv.alive) pris(() => teleporter());
+  }, true);
   void T; void sound; void view;
   await lancer();
 }

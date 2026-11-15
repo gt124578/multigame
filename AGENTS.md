@@ -335,6 +335,10 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   ombrées gradin par gradin ; ravins à parois verticales (`geoRavin`, `r3fond` : profondeur du fondu au noir). Sans le paramètre,
   rien ne change.
 - Odyssée, choix des graphismes (Options → Graphismes, `odyssee/js/gfx.js`) : sol du dehors (« odyssee » = sol généré, « classique » = tuiles d'origine, ou un pack de tuiles de 16 px dans `odyssee/img/gfx/<pack>/`, déclaré dans `PACKS`) et sprites des Pokémon (HeartGold / SoulSilver ou Noir & Blanc, `gen()` dans `assets.js`) ; écran « Crédits graphismes » (`CREDITS`). Le sol se lit au chargement (`loadArt` dans `main.js`, `setArt` dans `render/textures.js`). Pack « Lumineux » : `python3 tools/odyssee-pack-sol.py <planche 1.png de Team Aqua>`. Sprites Noir & Blanc 1 à 493 : copiés de PokeAPI/sprites dans `odyssee/img/pokeapi/pokemon/versions/generation-v/black-white/`. Toute tuile ou sprite ajouté doit être crédité (`CREDITS` et un `LISEZMOI.txt` à côté).
+  Recherche de bugs : `node tools/fuzz-odyssee-combats.mjs [combats] [graine]` joue des combats au hasard dans le moteur (espèces, attaques, talents,
+  objets, météo : aucune exception, PV et PP valides, tout combat finit) ; `node tools/audit-odyssee-monde.mjs` vérifie toutes les cartes (portes,
+  habitants et objets au sol jamais l'un sur l'autre, objets et espèces qui existent, intérieurs et grottes accessibles) : à lancer quand on touche
+  au moteur de combat ou qu'on ajoute des lieux.
 - Island Rush (battle royale, `royale/`) : l'île vient d'une graine (`royale/engine/map.js`, île officielle `ILE`), `royale/carte.html`
   la montre en 2D. `node tools/test-royale.mjs` vérifie l'île sur plusieurs graines, le déplacement (portes, escaliers, murs, nage),
   une partie (butin, combat, construction), les copies des invités et le relais d'hôte, la prédiction : à lancer quand on touche

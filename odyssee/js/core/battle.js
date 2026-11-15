@@ -63,7 +63,8 @@ export class Battle {
   /** identifiant du talent du Pokémon actif d'un camp */
   ab(i) { const m = this.act(i); return m && !isFainted(m) ? getAbility(m)?.id : null; }
   /** efficacité d'un type contre le Pokémon actif d'un camp (Querelleur : Normal et Combat touchent les Spectres) */
-  effOn(a, d, type) {
+  effOn(a, d, type, mv = null) {
+    if (mv?.id === 165) return 1;   // Lutte n'a pas de type : elle touche tout le monde (deux Spectres à court de PP finissent le combat)
     let t = SPECIES[this.act(d).sp].t;
     if (this.ab(a) === 'scrappy' && (type === 'normal' || type === 'fighting')) t = t.filter((x) => x !== 'ghost');
     return typeEff(type, t);
@@ -451,7 +452,7 @@ export class Battle {
     if (mv.c === 'status' && !mv.m?.u) return null;
     const u = mv.m?.u, max = T.stats[0];
     const pct = (lo, hi) => ({ lo: Math.max(0, Math.floor(lo * 1000 / max) / 10), hi: Math.min(999, Math.ceil(hi * 1000 / max) / 10), lo0: lo, hi0: hi, ko: hi >= T.hp, sure: lo >= T.hp });
-    const type = this.moveType(a, mv), eff = typeEff(type, SPECIES[T.sp].t);
+    const type = this.moveType(a, mv), eff = mv.id === 165 ? 1 : typeEff(type, SPECIES[T.sp].t);
     if (eff === 0) return { lo: 0, hi: 0, eff: 0 };
     const m = this.act(a);
     const fixed = u === 'dragon-rage' ? 40 : u === 'sonic-boom' ? 20 : u === 'seismic-toss' || u === 'night-shade' ? m.lvl : u === 'super-fang' ? Math.max(1, Math.floor(T.hp / 2)) : u === 'endeavor' ? Math.max(0, T.hp - m.hp) : null;
@@ -651,7 +652,7 @@ export class Battle {
       else if (type === 'water') dmg = Math.floor(dmg * 0.5);
     }
     // Efficacité des types
-    const eff = this.effOn(a, d, type);
+    const eff = this.effOn(a, d, type, mv);
     dmg = Math.floor(dmg * eff);
     if (aId === 'tinted-lens' && eff > 0 && eff < 1) dmg *= 2;
     // Talents du défenseur
@@ -785,8 +786,8 @@ export class Battle {
     if (type === 'water' && tAb?.id === 'dry-skin') { this.say(`Peau Sèche absorbe l'eau et soigne ${this.nm(d)} !`); this.hp(d, Math.floor(T.stats[0] / 4)); v.rampage = null; return; }
     const absorb = { 'storm-drain': ['water', 4], 'lightning-rod': ['electric', 4], 'motor-drive': ['electric', 6], 'sap-sipper': ['grass', 2] }[tAb?.id];
     if (absorb && absorb[0] === type) { this.say(`${tAb.name} attire l'attaque vers ${this.nm(d)} !`); this.lastUser = d; this.boost(d, absorb[1], 1, true); v.rampage = null; return; }
-    const eff = this.effOn(i, d, type);
-    if (tAb?.id === 'wonder-guard' && eff <= 1 && this.fixedDamage(i, d, mv) == null) { this.say(`Garde Mystik protège ${this.nm(d)} !`); v.rampage = null; return; }
+    const eff = this.effOn(i, d, type, mv);
+    if (tAb?.id === 'wonder-guard' && eff <= 1 && mv.id !== 165 && this.fixedDamage(i, d, mv) == null) { this.say(`Garde Mystik protège ${this.nm(d)} !`); v.rampage = null; return; }
     if (eff === 0) { this.say(`Ça n'affecte pas ${this.nm(d)}...`); v.rampage = null; return; }
     if (x.cat === 9) {
       if (T.lvl > m.lvl || tAb?.id === 'sturdy') { this.say('Mais cela échoue !'); return; }

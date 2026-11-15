@@ -119,7 +119,7 @@ export function buildQuests(ctx) {
     throw new Error('pas de clairière pour ' + routeId);
   };
   /** case libre près d'un point (pas sur un PNJ déjà posé) */
-  const spot = (m, x, y) => { const used = new Set(m.npcs.map((n) => key(n.x, n.y))); for (const d of m.deco) used.add(key(d.x, d.y)); return nearestWalkable(m, x, y, used); };
+  const spot = (m, x, y) => { const used = new Set(m.npcs.map((n) => key(n.x, n.y))); for (const d of m.deco) used.add(key(d.x, d.y)); for (const it of m.items) used.add(key(it.x, it.y)); return nearestWalkable(m, x, y, used); };
   /** PNJ de quête */
   const pnj = (m, id, x, y, o) => { const [px, py] = spot(m, x, y); return m.npc({ id, x: px, y: py, dir: 'down', ...o }); };
   /** dresseur de quête (n'apparaît qu'à certaines étapes) */

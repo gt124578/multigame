@@ -54,6 +54,12 @@ for (const M of MISSIONS) {
   } else if (M.kind === 'check') {
     if (M.id === 'mCapitaine') st.dex.caught = Object.keys(SPECIES).map(Number).filter((x) => SPECIES[x].t.includes('water')).slice(0, 10);
     if (M.id === 'mReves') st.flags['VN:jardin'] = true;
+    if (M.id === 'mPsyko') { // le Psykokwak perdu attend sur la route 5 dès la requête acceptée : lui parler le renvoie chez lui
+      const p = W.npcs.find((x) => x.id === 'psyko-perdu');
+      ok(p && p.when(st.flags), 'mPsyko : le Psykokwak perdu est sur la route');
+      if (p) await p.talk({ game: g, say: async () => {}, flag: (f) => { st.flags[f] = true; } });
+      ok(p && !p.when(st.flags), 'mPsyko : retrouvé, il quitte la route');
+    }
     for (const r of ['r5', 'r11']) for (const id of g.missionTrainers(r)) st.flags['T:' + id] = true;
     ok(M.test(st, g), `${M.id} : condition remplie`);
     await talk(n);

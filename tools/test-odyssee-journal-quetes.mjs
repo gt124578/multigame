@@ -15,7 +15,7 @@ const makeGame = (flags = {}, badges = 0, journal = {}) => ({
 
 // 1. rien n'est noté avant d'avoir accepté une quête
 const g0 = makeGame();
-assert.equal(getAllQuests(g0).length, 0, 'journal vide au début');
+assert.equal(getAllQuests(g0).filter((q) => q.cat !== 'main').length, 0, 'aucune quête annexe au début (seule la quête principale est notée)');
 assert.ok(QUEST_COUNT >= 45, 'au moins 45 quêtes au registre');
 for (const c of ['main', 'side', 'legend', 'npc']) assert.ok(QUEST_CATEGORIES[c], 'catégorie ' + c);
 console.log(`✓ journal vide au départ, ${QUEST_COUNT} quêtes possibles`);
@@ -23,7 +23,7 @@ console.log(`✓ journal vide au départ, ${QUEST_COUNT} quêtes possibles`);
 // 2. une quête acceptée apparaît, avec l'heure (en temps de jeu) où elle l'a été
 const g1 = makeGame({ starter: 1, 'Q:ponyta': 1 });
 let fresh = syncJournal(g1);
-assert.deepEqual(fresh.map((q) => q.id).sort(), ['ligue', 'ponyta']);
+assert.deepEqual(fresh.map((q) => q.id).filter((id) => id !== 'depart').sort(), ['ligue', 'ponyta']);
 g1.state.time = 2 * 3600 + 5 * 60;
 const ponyta = getAllQuests(g1).find((q) => q.id === 'ponyta');
 assert.equal(ponyta.status, 'active');
