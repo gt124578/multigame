@@ -2,6 +2,8 @@
 // On choisit un lieu et une équipe toute prête, et on apparaît directement dans la région, avec le vrai jeu.
 // Rien n'est sauvegardé : la vraie partie n'est jamais touchée. Une barre d'outils permet de tester les nouveautés
 // (heure, Éclipse, badges, carte dévoilée, rencontres) et d'ouvrir l'éditeur de carte (labo/editeur.js).
+import { construireArene } from '../world/arenes-plan.js';
+import { planEssai } from '../world/etages.js';
 import { createMon, healFull } from '../core/mon.js';
 import { walkable, T } from '../world/tiles.js';
 import { nearestWalkable } from '../world/mapgen.js';
@@ -85,13 +87,21 @@ export function listerLieux(world) {
   // chaque arène : son nom de ville et son type
   for (const m of tous.filter((q) => /:gym/.test(q.id))) out.push({ cat: 'Arènes', nom: (m.name || m.id) + (m.arene ? ' · ' + m.arene : ''), ...inside(m) });
   for (const m of tous.filter((q) => /^plateau:|^ligue:|league/.test(q.id))) out.push({ cat: 'Ligue', nom: m.name || m.id, ...inside(m) });
-  for (const m of tous.filter((q) => q.id.includes(':') && !/:gym|^plateau:|^ligue:|league|^domaine/.test(q.id))) out.push({ cat: 'Intérieurs', nom: `${m.name || m.id} (${m.id.split(':')[0]})`, ...inside(m) });
+  for (const m of tous.filter((q) => q.id.includes(':') && !/:gym|^plateau:|^ligue:|league|^domaine|^essai:/.test(q.id))) out.push({ cat: 'Intérieurs', nom: `${m.name || m.id} (${m.id.split(':')[0]})`, ...inside(m) });
   out.push({ cat: 'Domaine', nom: 'Ton Domaine (terrain à bâtir)', map: 'domaine', x: 32, y: 44, domaine: true });
+  for (const m of tous.filter((q) => /^essai:/.test(q.id))) out.push({ cat: 'Essais', nom: m.name || m.id, ...inside(m) });
   return out;
 }
 
 /* ---------------- démarrage ---------------- */
 export async function startLabo({ game, world, view, ui, input, sound, setMode }) {
+  // salles d'essai, seulement dans Odyssée Test : la salle à plusieurs niveaux (world/etages.js) ; sa sortie ramène à Bourg-Aube
+  if (!world.maps['essai:niveaux']) {
+    const m = construireArene('essai:niveaux', null, planEssai(), 'Salle d\'essai : niveaux, marches, monte-charge').map;
+    const t = Object.values(world.towns)[0], [x, y] = nearestWalkable(world.maps.monde, t.x + (t.w >> 1) + 0.5, t.y + (t.h >> 1) + 0.5);
+    m.warp(m.exitX, m.exitY, { map: 'monde', x, y, dir: 'down' });
+    world.maps[m.id] = m;
+  }
   let lieux = listerLieux(world);
   let choix = { lieu: 0, equipe: 'moyenne', perso: 'm', badges: BADGES.length, histoire: 'normale', libre: true, domaine: true, dresseurs: false };
   try { Object.assign(choix, JSON.parse(localStorage.getItem(CHOIX_KEY) || '{}')); } catch (e) { /* premier passage */ }

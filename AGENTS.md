@@ -335,6 +335,15 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   ombrées gradin par gradin ; ravins à parois verticales (`geoRavin`, `r3fond` : profondeur du fondu au noir). Sans le paramètre,
   rien ne change.
 - Odyssée, choix des graphismes (Options → Graphismes, `odyssee/js/gfx.js`) : sol du dehors (« odyssee » = sol généré, « classique » = tuiles d'origine, ou un pack de tuiles de 16 px dans `odyssee/img/gfx/<pack>/`, déclaré dans `PACKS`) et sprites des Pokémon (HeartGold / SoulSilver ou Noir & Blanc, `gen()` dans `assets.js`) ; écran « Crédits graphismes » (`CREDITS`). Le sol se lit au chargement (`loadArt` dans `main.js`, `setArt` dans `render/textures.js`). Pack « Lumineux » : `python3 tools/odyssee-pack-sol.py <planche 1.png de Team Aqua>`. Sprites Noir & Blanc 1 à 493 : copiés de PokeAPI/sprites dans `odyssee/img/pokeapi/pokemon/versions/generation-v/black-white/`. Toute tuile ou sprite ajouté doit être crédité (`CREDITS` et un `LISEZMOI.txt` à côté).
+  Salles à plusieurs niveaux (`odyssee/js/world/etages.js`, pour les arènes dessinées dans un plan) : `niveaux` (une ligne de chiffres par ligne
+  du plan : la hauteur de chaque case), légende `marche: sens` (une case de marches monte d'un niveau, on n'y passe que dans son axe) et
+  `pont: hauteur` (passerelle : on passe dessus depuis un palier à sa hauteur, dessous sinon ; deux niveaux d'écart au moins pour passer dessous),
+  `plateformes` et `bassins` (`{ c: caractères, r: registre, h: hauteur selon le registre }` : monte-charge, ponton qui flotte, eau qui monte).
+  Mêmes règles pour le jeu (`canStep` de la salle, `pasEtages`, `tracerPas` retient l'étage du joueur et du Pokémon qui suit) et pour le rendu :
+  `etagesBloc` de `world3d.js` monte ce que le bloc a posé à plat (marches en rampe, sprites à leurs pieds), ajoute flancs des paliers et tabliers ;
+  un niveau = trois quarts de case à l'écran (`NIVEAU_CASES`) ; `animerEtages` (`arenes-jeu.js`) fait glisser les plateformes. Une case basse
+  juste au nord d'un palier haut est cachée par lui : ne pas y faire passer le joueur. Salle d'essai (`planEssai`) : Odyssée Test → lieu
+  « Essais ». `node tools/test-odyssee-etages.mjs` (règles, tous les états de la salle d'essai). Le solveur des arènes ne connaît pas encore les niveaux.
   Recherche de bugs : `node tools/fuzz-odyssee-combats.mjs [combats] [graine]` joue des combats au hasard dans le moteur (espèces, attaques, talents,
   objets, météo : aucune exception, PV et PP valides, tout combat finit) ; `node tools/audit-odyssee-monde.mjs` vérifie toutes les cartes (portes,
   habitants et objets au sol jamais l'un sur l'autre, objets et espèces qui existent, intérieurs et grottes accessibles) : à lancer quand on touche

@@ -16,10 +16,12 @@
 //   canons      canons à vent : ils tirent vers l'île visée puis pivotent d'un quart de tour
 //   verrous     quand une condition devient vraie, un registre se fixe (un parterre fleuri garde sa haie ouverte)
 //   remise      pupitre qui remet l'arène comme au début (le joueur revient à l'entrée)
+//   niveaux     salle à plusieurs hauteurs (world/etages.js) : marches, passerelles, monte-charges et pontons à registre
 // Le solveur (resoudre) parcourt tous les états (zone où le joueur circule librement, registres, rochers) avec ces
 // mêmes règles ; le jeu les applique dans js/arenes-jeu.js, et tools/test-odyssee-arenes-jeu.mjs vérifie qu'ils s'accordent.
 import { T, DIRS, walkable } from './tiles.js';
 import { GameMap } from './mapgen.js';
+import { lireEtages, appliquerEtages } from './etages.js';
 
 export const SENS = ['up', 'right', 'down', 'left'];
 export const tourne = (d, q) => SENS[(((SENS.indexOf(d) + q) % 4) + 4) % 4];
@@ -139,6 +141,7 @@ export function appliquerEtat(m, regs, joueur = null) {
     m.rayon = apres;
     for (const [i, r] of rayons(m, regs).entries()) { const c = E.lasers[i].cibleDeco; if (c && c.on !== r.touche) { c.on = r.touche; chg.push([E.lasers[i].cible[0], E.lasers[i].cible[1]]); } }
   }
+  if (m.etages) for (const c of appliquerEtages(m, regs)) chg.push(c);   // monte-charges, pontons
   m.regs = regs.slice();
   return chg;
 }
@@ -231,6 +234,7 @@ export function construireArene(id, gym, def, name) {
     m.prop('source', x, y, true, { dir: l.dir }); m.prop('cristal_cible', cx, cy, true); m.deco.pop(); m.deco.push(d);
     E.lasers.push({ x, y, dir: l.dir, cible: [cx, cy], cibleDeco: d });
   }
+  if (def.niveaux) lireEtages(m, def, L);   // salle à plusieurs niveaux : hauteurs, marches, passerelles, plateformes
   m.regs0 = (def.regs || []).slice();
   appliquerEtat(m, m.regs0);
   // un rocher posé sur le plan (R) garde son sol : on le pousse sur des cases de sol

@@ -30,6 +30,7 @@ import { storyTalk, storyTrigger, storyWin, lugiaBattle, placeLugia, purify, ove
 import { syncJournal } from './core/questsData.js';
 import { QUIZ } from './world/arenes.js';
 import { souffle, stelesPleines, moitieDe } from './world/arene-sylve.js';
+import { tracerPas } from './world/etages.js';
 import { preparerArene, surCaseArene, actionnerArene, remettreArene, pasArene, rocherDansFosse } from './arenes-jeu.js';
 import { casinoScreen, bourseScreen, entretienPierre } from './ui/metropole.js';
 import { arcadeScreen } from './ui/arcade.js';
@@ -325,6 +326,7 @@ export class Game {
     else sf = Math.floor(performance.now() / 420) % 2 ? 1 : 0;
     if (f.flyElevation) hop += f.flyElevation;   // il piétine sur place, comme dans HGSS
     const a = v.actor('follower', {});
+    a.couche = true;
     a.mesh.scale.setScalar(SUIVEUR);   // un peu plus petit que le dresseur
     v.setFrame(a, 'poke:' + sp, f.dir, sf);
     const t = this.mapObj.get(Math.round(x), Math.round(y)), grass = isGrassEnc(t) && !f.move;
@@ -634,6 +636,7 @@ export class Game {
     const t = this.mapObj.get(Math.round(px), Math.round(py));
     // sur l'eau : le joueur flotte sur le dos d'une créature, entouré d'un sillage
     const bob = p.surf ? 0.04 + Math.sin(performance.now() / 260) * 0.03 : 0;
+    a.couche = true;
     v.place(a, px, py, hop + bob, (isGrassEnc(t) && !p.move) || p.surf);
     v.cover(a, ...(isGrassEnc(t) && !p.surf && hop < 0.05 ? [Math.round(px), Math.round(py)] : [null]));
     this.drawFollower(v);
@@ -725,6 +728,7 @@ export class Game {
         return;
       }
       const dur = this.onBike() ? VELO : isRunning ? this.runDur(isTurbo) : WALK;
+      if (m.etages) tracerPas(m, p.x, p.y, tx, ty);   // salle à niveaux : sur la passerelle ou dessous
       p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur }; p.walking = true;
       return;
     }

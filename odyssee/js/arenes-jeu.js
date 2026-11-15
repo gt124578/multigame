@@ -5,6 +5,7 @@
 import { T, DIRS } from './world/tiles.js';
 import { appliquerEtat, agir, tirCanon, rayons, pousserTourniquet } from './world/arenes-plan.js';
 import { wait } from './ui/ui.js';
+import { enMouvement, poserEtages } from './world/etages.js';
 
 const k2 = (x, y) => x + ',' + y;
 
@@ -24,6 +25,7 @@ export function preparerArene(g, m) {
     st.flags[v] = ver;
   }
   appliquerEtat(m, regsArene(g, m));
+  if (m.etages) poserEtages(m);   // monte-charges et pontons tout de suite à leur hauteur
   // dalles fendues : rien ne reste fendu d'une visite à l'autre
   for (const d of m.deco) if (d.k === 'fragile') d.f = 0;
   m._fend = null;
@@ -38,6 +40,24 @@ export function changerRegs(g, R2) {
   if (m.planArene?.noir) g.updateOverlay?.();
 }
 
+/** salle à plusieurs niveaux : les monte-charges et les pontons glissent jusqu'à leur nouvelle hauteur (le joueur avec) */
+export async function animerEtages(g) {
+  const m = g.mapObj; if (!m.etages) return;
+  const L = enMouvement(m); if (!L.length) return;
+  const dep = L.map((P) => P.hv), ecart = Math.max(...L.map((P, i) => Math.abs(P.cible - dep[i]))), dur = Math.max(450, 520 * ecart);
+  const blocs = new Map(); for (const P of L) for (const [x, y] of P.cases) for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) blocs.set((x + dx >> 4) + ',' + (y + dy >> 4), [x + dx, y + dy]);
+  const redessiner = () => { for (const [x, y] of blocs.values()) if (m.in(x, y)) g.view.rebuildAt(x, y); };
+  const t0 = performance.now();
+  for (;;) {
+    const u = Math.min(1, (performance.now() - t0) / dur), e = u * u * (3 - 2 * u);
+    L.forEach((P, i) => { P.hv = u >= 1 ? P.cible : dep[i] + (P.cible - dep[i]) * e; });
+    redessiner();
+    if (u >= 1) break;
+    await wait(16);
+  }
+  g.view.shake = 0.05; g.sound.sfx('bump');
+}
+
 /** le joueur vient d'arriver sur une case (pas, glissade) ; renvoie true s'il a été déplacé (il faut rejouer l'arrivée) */
 export async function surCaseArene(g, o, slid) {
   const m = g.mapObj, p = g.player;
@@ -47,6 +67,7 @@ export async function surCaseArene(g, o, slid) {
     if (R2.join() === R.join()) return false;
     g.sound.sfx(o.son || 'select'); g.view.shake = 0.04;
     changerRegs(g, R2);
+    await animerEtages(g);
     if (o.msg) await g.ui.say(o.msg, { auto: 1300 });
     return false;
   }
@@ -122,6 +143,7 @@ export async function actionnerArene(g, o) {
   }
   g.sound.sfx(o.son || 'select'); g.view.shake = 0.05;
   changerRegs(g, R2);
+  await animerEtages(g);
   if (o.msg) await g.ui.say(o.msg);
 }
 

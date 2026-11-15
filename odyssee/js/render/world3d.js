@@ -2,6 +2,7 @@
 // arbres / herbes / personnages en sprites verticaux, caméra inclinée en perspective étroite, rendu basse résolution.
 import * as THREE from 'three';
 import { T, walkable } from '../world/tiles.js';
+import { hauteurVue, hauteurCase, NIVEAU_CASES } from '../world/etages.js';
 import { styleMur } from './murs-tex.js';
 import { pente, ravin, mont } from '../world/relief.js';
 import { sensPont } from '../world/ponts.js';
@@ -24,6 +25,8 @@ import { setRelief3dSol, setReliefHGSSSol } from './solgen.js';
 import { ReliefHGSS, reliefHGSSActif } from './falaises.js';
 
 export const EL = 55 * Math.PI / 180, FOV = 13;
+/** hauteur d'un niveau d'une salle à plusieurs niveaux (world/etages.js) : trois quarts de case à l'écran */
+const LVE = NIVEAU_CASES * Math.tan(EL);
 
 // Une tuile fait 16 × 16 pixels à l'écran (la projection est resserrée en largeur pour que les tuiles soient carrées,
 // comme sur DS) ; un pixel de sprite vaut un pixel d'écran : WPX en largeur, HPX en hauteur (unités du monde).
@@ -963,7 +966,16 @@ export class WorldView {
     }
   }
   /** hauteur du sol à l'endroit (x, z) du monde : 0 sans le relief en 3D (?relief3d) */
-  hAt(x, z) { return this.r3d ? this.r3d.Hmarche(x, z) : 0; }
+  hAt(x, z) { return this.map?.etages ? hauteurVue(this.map, x, z) * LVE : this.r3d ? this.r3d.Hmarche(x, z) : 0; }
+  /** le même matériau de personnage, rangé 0,45 case plus au nord en profondeur (sous une passerelle) */
+  matSousPont(mat) {
+    this._sousPont ||= new Map();
+    let k = this._sousPont.get(mat);
+    if (!k) { k = screenSprite(new THREE.MeshBasicMaterial({ map: mat.map, alphaTest: 0.5, side: THREE.DoubleSide }), -0.45); k.color.copy(mat.color); this.tinted.push(k); this._sousPont.set(mat, k); }
+    return k;
+  }
+  /** salle à plusieurs niveaux : hauteur où se tient un personnage (le joueur et son Pokémon peuvent être sur une passerelle) */
+  hEtages(a, x, z) { const m = this.map, E = m.etages; return hauteurVue(m, x, z, !!(a.couche && E.trace.get(Math.floor(x) + ',' + Math.floor(z)))) * LVE; }
   r3dLV() { return this.r3d ? R3LV : 0; }
   r3dMats() {
     if (!this._r3dMats) {
@@ -1194,6 +1206,7 @@ export class WorldView {
         for (let k = 0; k < 4; k++) Sh.p[(v + k) * 3 + 1] += h;
       }
     }
+    if (m.etages) this.etagesBloc([G, N, O, O0, NO, P, Wl, Sh, PB], G, Wl, O0, x0, y0, xEnd, yEnd);
     const grp = new THREE.Group();
     const add = (geo, mat, order = 0) => { const g = geo.build(); if (g) { const me = new THREE.Mesh(g, mat); me.renderOrder = order; me.frustumCulled = false; grp.add(me); } };
     // sous le sol généré (sol.js, ordre -2, sans profondeur : pas de scintillement entre couches presque à la même hauteur)
@@ -1310,6 +1323,64 @@ export class WorldView {
     const ry = m.rayon?.get(x + ',' + y); if (ry) aPlat('dec_rayon_' + ry);
   }
 
+  /**
+   * salle à plusieurs niveaux (world/etages.js) : tout ce qui vient d'être posé à plat monte à la hauteur de sa case
+   * (les marches deviennent une rampe, les sprites suivent leurs pieds), puis on ajoute les flancs des paliers
+   * (faces sud, est et ouest, un demi-carreau de pierre par niveau) et les tabliers des passerelles avec leur ombre.
+   */
+  etagesBloc(geos, Sol, Wl, Dec, x0, y0, xEnd, yEnd) {
+    const m = this.map, E = m.etages, A = this.A.cells, eps = 1e-3;
+    const hc = (cx, cy, X, Z) => (m.in(cx, cy) ? hauteurCase(m, cx, cy, X, Z) : 0) * LVE;
+    for (const G of geos) {
+      const p = G.p, an = G.an;
+      if (an.length === G.n * 3 && G.n) { for (let v = 0; v < G.n; v++) { const X = an[v * 3], Z = an[v * 3 + 2], h = hc(Math.floor(X), Math.floor(Z - eps), X, Z); p[v * 3 + 1] += h; an[v * 3 + 1] += h; } continue; }
+      for (let v = 0; v + 3 < G.n; v += 4) {
+        const i = v * 3, X = [p[i], p[i + 3], p[i + 6], p[i + 9]], Z = [p[i + 2], p[i + 5], p[i + 8], p[i + 11]];
+        const cx = (X[0] + X[1] + X[2] + X[3]) / 4, cz = (Z[0] + Z[1] + Z[2] + Z[3]) / 4;
+        const plan = Math.abs(p[i + 1] - p[i + 7]) < eps && Math.abs(p[i + 1] - p[i + 4]) < eps;
+        let ax = Math.floor(cx), az = Math.floor(cz);
+        if (!plan) {   // face dressée : elle appartient à la case dont elle est le bord (sud, est ou ouest)
+          if (Math.abs(Z[0] - Z[2]) < eps && Math.abs(Z[0] - Z[1]) < eps) az = Math.floor(cz - eps);
+          else if (Math.abs(X[0] - X[2]) < eps) ax = Math.floor(Z[0] > Z[1] ? cx - eps : cx + eps);
+        }
+        const mid = hc(ax, az, ax + 0.5, az + 0.5);
+        // le sol s'éclaircit en montant : les paliers se lisent d'un coup d'œil
+        if (plan && G === Sol) { const f = Math.min(1.08, 0.82 + 0.075 * mid / LVE); for (let k = 0; k < 12; k++) G.c[i + k] *= f; }
+        for (let k = 0; k < 4; k++) p[i + k * 3 + 1] += plan ? hc(ax, az, Math.min(ax + 1, Math.max(ax, X[k])), Math.min(az + 1, Math.max(az, Z[k]))) : mid;
+      }
+    }
+    // flancs : là où une case est plus haute que sa voisine (au sud, à l'est, à l'ouest)
+    const face = (cx, cy) => { const o = E.mobile.get(cx + ',' + cy); return o ? (o.eau ? A.etg_face_bassin : A.etg_face_metal) : A.etg_face; };
+    const pan = (a, b, ha0, hb0, ha1, hb1, tex, sh) => {
+      // a, b : les deux coins du bord (x, z) ; h?0 : en bas, h?1 : en haut ; tranches d'un niveau depuis le haut
+      if (!tex || (ha1 - ha0 < eps && hb1 - hb0 < eps)) return;
+      const [u0, v0, u1, v1] = tex, vm = (v0 + v1) / 2, n = Math.max(1, Math.ceil(Math.max(ha1 - ha0, hb1 - hb0) / LVE - eps));
+      for (let k = 0; k < n; k++) {
+        const ta = Math.max(ha0, ha1 - k * LVE), tb = Math.max(hb0, hb1 - k * LVE), ba = Math.max(ha0, ha1 - (k + 1) * LVE), bb = Math.max(hb0, hb1 - (k + 1) * LVE);
+        if (ta - ba < eps && tb - bb < eps) continue;
+        const f = Math.min(1, Math.max(ta - ba, tb - bb) / LVE);
+        Wl.quadv([[a[0], ba, a[1]], [b[0], bb, b[1]], [b[0], tb, b[1]], [a[0], ta, a[1]]], [[u0, v0 + (vm - v0) * f], [u1, v0 + (vm - v0) * f], [u1, v0], [u0, v0]], [sh, sh, sh, sh]);
+      }
+    };
+    for (let y = y0; y < yEnd; y++) for (let x = x0; x < xEnd; x++) {
+      const t = face(x, y);
+      // sud : coins (x, y+1) et (x+1, y+1)
+      pan([x, y + 1], [x + 1, y + 1], hc(x, y + 1, x, y + 1), hc(x, y + 1, x + 1, y + 1), hc(x, y, x, y + 1), hc(x, y, x + 1, y + 1), t, 1);
+      // est : coins (x+1, y+1) et (x+1, y)
+      pan([x + 1, y + 1], [x + 1, y], hc(x + 1, y, x + 1, y + 1), hc(x + 1, y, x + 1, y), hc(x, y, x + 1, y + 1), hc(x, y, x + 1, y), t, 0.74);
+      // ouest : coins (x, y) et (x, y+1)
+      pan([x, y], [x, y + 1], hc(x - 1, y, x, y), hc(x - 1, y, x, y + 1), hc(x, y, x, y), hc(x, y, x, y + 1), t, 0.74);
+      // passerelle : tablier à sa hauteur, chant au sud, ombre sur le sol du dessous
+      const pt = E.ponts.get(x + ',' + y);
+      if (pt) {
+        const h = pt.h * LVE, ew = E.ponts.has((x - 1) + ',' + y) || E.ponts.has((x + 1) + ',' + y) || !(E.ponts.has(x + ',' + (y - 1)) || E.ponts.has(x + ',' + (y + 1)));
+        if (A.etg_ombre) flat(Dec, x, y + 0.3, x + 1, y + 1.3, hc(x, y, x + 0.5, y + 0.5) + 0.03, A.etg_ombre);
+        flat(Wl, x, y, x + 1, y + 1, h, (ew ? A.etg_tablier_h : A.etg_tablier_v) || A.dec_passerelle_bois);
+        const ep = 0.2 * LVE, tex = A.etg_face;
+        if (tex && !E.ponts.has(x + ',' + (y + 1))) { const [u0, v0, u1, v1] = tex; Wl.quadv([[x, h - ep, y + 1], [x + 1, h - ep, y + 1], [x + 1, h, y + 1], [x, h, y + 1]], [[u0, v0 + (v1 - v0) * 0.09], [u1, v0 + (v1 - v0) * 0.09], [u1, v0], [u0, v0]], [0.62, 0.62, 0.62, 0.62]); }
+      }
+    }
+  }
   /** une case a changé (arbre coupé, rocher brisé) : le morceau de carte qui la contient est reconstruit */
   rebuildAt(x, y) {
     const k = Math.floor(x / CH) + ',' + Math.floor(y / CH), g = this.chunks.get(k);
@@ -1711,7 +1782,10 @@ export class WorldView {
     const uv = a.mesh.geometry.attributes.uv; uv.setXY(0, u0, v0); uv.setXY(1, u1, v0); uv.setXY(2, u0, v1); uv.setXY(3, u1, v1); uv.needsUpdate = true;
   }
   place(a, x, y, hop = 0, inGrass = false) {
-    const h = this.r3d ? this.r3d.Hmarche(x + 0.5, y + 0.55) : 0;
+    const h = this.map?.etages ? this.hEtages(a, x + 0.5, y + 0.5) : this.r3d ? this.r3d.Hmarche(x + 0.5, y + 0.55) : 0;
+    // sous une passerelle : le personnage est rangé plus au nord en profondeur, le tablier lui passe devant
+    { const E = this.map?.etages, k = E && Math.floor(x + 0.5) + ',' + Math.floor(y + 0.5), sous = !!(E && a.couche && E.ponts.has(k) && !E.trace.get(k));
+      if (sous !== !!a.sous) { a.sous = sous; if (sous) { a.matDessus = a.mesh.material; a.mesh.material = this.matSousPont(a.mesh.material); } else if (a.matDessus) a.mesh.material = a.matDessus; } }
     // retombée d'un saut (rebord) : un petit nuage de poussière aux pieds
     if ((a.hop ?? 0) > 0.08 && hop < 0.02 && !inGrass && a.kind === 'char') this.ambiance.poussiere(x + 0.5, h, y + 0.6);
     a.hop = hop;

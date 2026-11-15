@@ -138,6 +138,43 @@ export function texturesArenes(putImg) {
     T.rect(0, 5, 32, 1, '#3a2410'); T.rect(0, 26, 32, 1, '#3a2410');
   }, 13));
 
+  // ------- salles à plusieurs niveaux (world/etages.js) : flancs des paliers, marches, monte-charge, ponton, tablier
+  // flanc d'un palier : la moitié haute de la tuile habille un niveau (16 px à l'écran) — nez clair, pierres, pied sombre
+  for (const [k, C] of [['etg_face', ['#e8e2d2', '#b9b0a0', '#9a9184', '#6e665c', '#4a443c']], ['etg_face_metal', ['#e6eaf0', '#a8b0bc', '#8a929e', '#5c6470', '#3a4048']], ['etg_face_bassin', ['#d8eef8', '#7aa8c8', '#5a88ac', '#3a6488', '#284a68']]]) putImg(k, toile(32, 32, (T) => {
+    for (const y0 of [0, 16]) {
+      T.rect(0, y0, 32, 16, C[2]); T.rect(0, y0, 32, 2, C[0]); T.rect(0, y0 + 2, 32, 1, C[1]); T.rect(0, y0 + 13, 32, 3, C[3]); T.rect(0, y0 + 15, 32, 1, C[4]);
+      if (k === 'etg_face_metal') { for (let i = 3; i < 32; i += 9) { T.rect(i, y0 + 5, 1, 7, C[3]); T.p(i + 1, y0 + 5, C[0]); } T.rect(0, y0 + 8, 32, 1, C[1]); }
+      else { for (const [x, w] of [[0, 9], [10, 12], [23, 9]]) { T.rect(x, y0 + 4, w, 4, C[1]); T.rect(x, y0 + 8, w, 1, C[3]); } for (const [x, w] of [[0, 4], [5, 12], [18, 14]]) { T.rect(x, y0 + 9, w, 3, C[1]); T.rect(x, y0 + 12, w, 1, C[3]); } }
+    }
+  }, 31));
+  // marches (dessinées vers le haut : on monte vers le nord) : quatre marches, nez clair, contremarche sombre, limons
+  quatreSens(putImg, 'dec_marches', toile(32, 32, (T) => {
+    for (let k = 0; k < 4; k++) { const y = k * 8; T.rect(0, y, 32, 8, '#b4ab9b'); T.rect(0, y, 32, 2, '#ece6d6'); T.rect(0, y + 2, 32, 3, '#cfc7b6'); T.rect(0, y + 6, 32, 2, '#6a6258'); }
+    T.rect(0, 0, 2, 32, '#5a534a'); T.rect(30, 0, 2, 32, '#5a534a'); T.rect(2, 0, 1, 32, '#8a8276'); T.rect(29, 0, 1, 32, '#8a8276');
+  }, 33));
+  // plateau du monte-charge : tôle striée, bande jaune et noire au bord
+  putImg('dec_monte_charge', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#8a929e'); T.cadre(0, 0, 32, 32, '#3a4048');
+    for (let j = 4; j < 28; j += 4) for (let i = 4 + (j % 8 ? 2 : 0); i < 28; i += 4) { T.p(i, j, '#c8d0da'); T.p(i + 1, j + 1, '#5c6470'); }
+    for (let i = 1; i < 31; i++) { const c = Math.floor(i / 4) % 2 ? '#f0c020' : '#2a2a2a'; T.p(i, 1, c); T.p(i, 2, c); T.p(i, 29, c); T.p(i, 30, c); T.p(1, i, c); T.p(2, i, c); T.p(29, i, c); T.p(30, i, c); }
+  }, 35));
+  // ponton flottant : planches, traverses, flotteurs aux coins
+  putImg('dec_ponton_etg', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#6a4422');
+    for (let i = 0; i < 32; i += 8) { T.rect(i, 0, 7, 32, '#b07a44'); T.rect(i, 0, 2, 32, '#d09a60'); T.rect(i + 6, 0, 1, 32, '#7a5028'); }
+    T.rect(0, 5, 32, 2, '#5a3a1c'); T.rect(0, 25, 32, 2, '#5a3a1c'); for (const x of [3, 11, 19, 27]) for (const y of [5, 25]) T.p(x, y, '#e8e0c0');
+  }, 37));
+  // tablier d'une passerelle (dans les deux sens) et son ombre portée
+  putImg('etg_tablier_h', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#6a4422'); for (let i = 0; i < 32; i += 6) { T.rect(i, 3, 5, 26, '#a8743e'); T.rect(i, 3, 5, 2, '#c8945a'); T.rect(i, 27, 5, 2, '#7a5028'); }
+    T.rect(0, 0, 32, 3, '#4a2e14'); T.rect(0, 1, 32, 1, '#c8945a'); T.rect(0, 29, 32, 3, '#4a2e14'); T.rect(0, 30, 32, 1, '#8a5c30');
+  }, 39));
+  putImg('etg_tablier_v', tourne(toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#6a4422'); for (let i = 0; i < 32; i += 6) { T.rect(i, 3, 5, 26, '#a8743e'); T.rect(i, 3, 5, 2, '#c8945a'); T.rect(i, 27, 5, 2, '#7a5028'); }
+    T.rect(0, 0, 32, 3, '#4a2e14'); T.rect(0, 1, 32, 1, '#c8945a'); T.rect(0, 29, 32, 3, '#4a2e14'); T.rect(0, 30, 32, 1, '#8a5c30');
+  }, 39), 1));
+  putImg('etg_ombre', toile(32, 32, (T) => { for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) if ((i + j) % 2 === 0 && (j % 2 === 0 || (j > 5 && j < 26))) T.p(i, j, '#4a3620'); }, 41));   // ombre tramée (pas de transparence partielle dans l'atlas)
+
   // ------- Voltacité (Électrik) : dalle-éclair, sol de la porte du générateur
   putImg('dec_eclair', toile(32, 32, (T) => {
     T.rect(3, 3, 26, 26, '#3a3a44'); T.rect(4, 4, 24, 24, '#f0d040'); T.rect(4, 4, 24, 2, '#fff4a0'); T.rect(4, 26, 24, 2, '#b89a20');
