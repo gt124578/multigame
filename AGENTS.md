@@ -348,6 +348,12 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   un gradin plus haut et tombe du bord d'un gradin sur celui du dessous (`chuteGlissade`, même règle dans `glisse` de `game.js` et dans le solveur
   `resoudre`, qui respecte aussi marches et hauteurs fixes — pas encore passerelles ni plateformes). Arène Glace d'essai, le Glacier (`planGlace` :
   trois gradins, piliers et congères placés par recherche, 15 glissades au plus court) : Odyssée Test → « Essais ».
+  Le Glacier, version 2 : boules de neige (légende `boule: true`) qu'on brise en glissant dessus avec de l'élan (`ELAN` = 3 cases de glissade,
+  chutes comprises) ; rochers de glace (`rocher` sur `glace`) qu'on pousse à l'arrêt et qui glissent jusqu'au premier obstacle, tombent des gradins
+  et servent de butée (`glisseRocher`, même code pour `tryStep` / `rocherGlisse` de `game.js` et pour le solveur ; le joueur ne bouge pas quand il
+  pousse). 25 coups au plus court dont 5 poussées. Décors d'arène en volume (`odyssee/js/render/props3d.js` : panneau, statue, pupitre à écran,
+  pics de glace, rocher de glace ; boîtes, troncs de pyramide et pointes posés dans la géométrie des murs, tuiles `p3_*` de `arenes-tex.js`) :
+  ils remplacent les sprites dressés dans toutes les arènes dessinées (`celluleArene`).
   `node tools/test-odyssee-etages.mjs` (règles, tous les états de la salle d'essai, le Glacier résolu sans impasse).
   Recherche de bugs : `node tools/fuzz-odyssee-combats.mjs [combats] [graine]` joue des combats au hasard dans le moteur (espèces, attaques, talents,
   objets, météo : aucune exception, PV et PP valides, tout combat finit) ; `node tools/audit-odyssee-monde.mjs` vérifie toutes les cartes (portes,

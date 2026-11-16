@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { T, walkable } from '../world/tiles.js';
 import { hauteurVue, hauteurCase, NIVEAU_CASES, MARCHES } from '../world/etages.js';
+import { prop3d } from './props3d.js';
 import { styleMur } from './murs-tex.js';
 import { pente, ravin, mont } from '../world/relief.js';
 import { sensPont } from '../world/ponts.js';
@@ -669,6 +670,7 @@ export class WorldView {
     const tt = groundOf(t);
     const deco = this.decoAt.get(x + ',' + y);
     if (deco?.k === 'carpet') return { c: A.mat };
+    if (m.etat?.boules?.has(x + ',' + y)) return { c: A['floor_' + m.floor] || A.floor_wood };   // la neige sous une boule de neige
     if (deco?.k === 'glace' || (m.etages && this.decosAt?.get(x + ',' + y)?.some((q) => q.k === 'glace'))) return { c: A.gl_ice };   // (sous un pilier de glace aussi)
     if (deco?.k === 'asph') return { c: A['asph' + (deco.v ? '_' + deco.v : '')] || A.asph };
     if (deco?.k === 'sable') return { c: A.gl_sable };
@@ -1100,6 +1102,7 @@ export class WorldView {
       else if (t === T.ROCK) { const r = S.rock; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r); this.ombreSol(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85); }
       else if (t === T.BUSH) { const r = S[this.arbresUnis ? 'bush' : variante(S, 'bush', x, y)]; billboard(P, x + 0.5, y + 0.6, SW(r), SH(r), r, 0, !this.arbresUnis && miroir(x, y), this.arbresUnis ? 1 : teinte(x, y)); }
       else if (t === T.CUT) { const r = S.cuttree; billboard(P, x + 0.5, y + 0.62, SW(r), SH(r), r); this.ombreSol(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85); }
+      else if (t === T.BOULDER && m.etages?.theme === 'glace' && prop3d(Wl, A, 'rocher_glace', x, y, Math.tan(EL))) this.ombreSol(Sh, x - 0.02, y + 0.45, x + 1.02, y + 1.06);
       else if (t === T.BOULDER && m.bloc && S[m.bloc]) { const r = S[m.bloc]; billboard(P, x + 0.5, y + 0.66, SW(r) * 1.1, SH(r) * 1.1, r); this.ombreSol(Sh, x + 0.14, y + 0.5, x + 0.86, y + 0.86); }
       else if (t === T.BOULDER) { const r = (m.bloc && S[m.bloc]) || (m.outdoor ? S.rock : S.caverock || S.rock); billboard(P, x + 0.5, y + 0.62, SW(r) * 1.15, SH(r) * 1.15, r); this.ombreSol(Sh, x + 0.02, y + 0.35, x + 0.98, y + 0.9); }
       else if (t === T.SMASH) { const r = S.crackrock; billboard(P, x + 0.5, y + 0.62, SW(r), SH(r), r); this.ombreSol(Sh, x + 0.05, y + 0.4, x + 0.95, y + 0.85); }
@@ -1303,6 +1306,7 @@ export class WorldView {
       if (k === 'etat') {
         if (d.bras && !marche) { debout(d.f, 0.62, false) || aPlat('dec_' + d.f); continue; }
         const n = marche ? d.o : d.f; if (!n) continue;
+        if (n === 'boule_neige') { debout(n, 0.74, false); this.ombreSol(Sh, x + 0.06, y + 0.5, x + 0.94, y + 0.96); continue; }
         if (d.dir && (A[`dec_${n}_${d.dir}`] || S[`${n}_${d.dir}`])) ou(`${n}_${d.dir}`); else ou(n);
         continue;
       }
@@ -1315,6 +1319,8 @@ export class WorldView {
       if (k === 'ciel') { aPlat(hash(x * 3 + 1, y * 5 + 2) < 0.1 ? 'dec_nuage' : 'dec_ciel'); continue; }
       if (k === 'fleche' || k === 'vent' || k === 'courant' || k.startsWith('tapis_')) { aPlat(`dec_${k}_${d.dir || 'up'}`); continue; }
       if (k === 'lanterne_marais' || k === 'torche_ombre') { const o = m.objectAt(x, y), r = o?.a?.set?.[0]; debout(r != null && R[r] ? k + '_on' : k); continue; }
+      // panneau, statue, pupitre, pics de glace : en vrai volume (props3d.js), avec leur ombre au sol
+      if (Wl && (k === 'sign' || k === 'gymstatue' || k === 'pupitre' || k === 'pilier_glace') && prop3d(Wl, A, k, x, y, Math.tan(EL))) { this.ombreSol(Sh, x + 0.04, y + 0.5, x + 0.98, y + 1.02); continue; }
       if (k === 'sign' || k === 'gymstatue' || k === 'plant' || k === 'pupitre') { debout(k, k === 'gymstatue' ? 0.66 : 0.6); continue; }
       const cle = k + (d.g != null ? '_' + d.g : d.dir ? '_' + d.dir : '');
       if (!aPlat('dec_' + cle) && !aPlat('dec_' + k)) debout(cle) || debout(k);
@@ -1347,7 +1353,7 @@ export class WorldView {
         if (E.marches.has(ax + ',' + az)) { const b = m.height(ax, az) * LVE - 0.01; for (let k = 0; k < 4; k++) p[i + k * 3 + 1] += b; continue; }
         const mid = hc(ax, az, ax + 0.5, az + 0.5);
         // le sol s'éclaircit en montant : les paliers se lisent d'un coup d'œil
-        if (plan && G === Sol) { const f = Math.min(1.08, 0.82 + 0.075 * mid / LVE); for (let k = 0; k < 12; k++) G.c[i + k] *= f; }
+        if (plan && G === Sol && E.theme !== 'glace') { const f = Math.min(1.08, 0.82 + 0.075 * mid / LVE); for (let k = 0; k < 12; k++) G.c[i + k] *= f; }
         for (let k = 0; k < 4; k++) p[i + k * 3 + 1] += plan ? hc(ax, az, Math.min(ax + 1, Math.max(ax, X[k])), Math.min(az + 1, Math.max(az, Z[k]))) : mid;
       }
     }

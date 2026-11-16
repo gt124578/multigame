@@ -30,7 +30,7 @@ import { storyTalk, storyTrigger, storyWin, lugiaBattle, placeLugia, purify, ove
 import { syncJournal } from './core/questsData.js';
 import { QUIZ } from './world/arenes.js';
 import { souffle, stelesPleines, moitieDe } from './world/arene-sylve.js';
-import { tracerPas, chuteGlissade } from './world/etages.js';
+import { tracerPas, chuteGlissade, glisseRocher, ELAN } from './world/etages.js';
 import { preparerArene, surCaseArene, actionnerArene, remettreArene, pasArene, rocherDansFosse } from './arenes-jeu.js';
 import { casinoScreen, bourseScreen, entretienPierre } from './ui/metropole.js';
 import { arcadeScreen } from './ui/arcade.js';
@@ -709,6 +709,14 @@ export class Game {
       const bx = tx + dx, by = ty + dy, bt = m.get(bx, by);
       // arène de la Carrière : le rocher comble la fosse
       if (m.etat && !this.occupied(bx, by) && rocherDansFosse(this, tx, ty, bx, by)) { p.bumpT = 0.3; p.walking = false; return; }
+      // salle à niveaux : sur la glace, le rocher glisse jusqu'au premier obstacle et tombe du bord d'un gradin
+      if (m.etages) {
+        const peut = (a, b) => { const q = m.get(a, b), ob = m.objectAt(a, b); return walkable(q) && ![T.DOOR, T.MAT, T.CAVEDOOR, T.STAIRS].includes(q) && !this.occupied(a, b) && !m.warpAt(a, b) && (!ob || ob.type === 'glace'); };
+        const fin = m.canStep(p.x, p.y, tx, ty) ? glisseRocher(m, tx, ty, d, peut) : null;
+        p.walking = false;
+        if (!fin) { if (p.bumpT <= 0) { this.sound.sfx('bump'); p.bumpT = 0.3; } return; }
+        this.rocherGlisse(tx, ty, d, fin); return;
+      }
       if (walkable(bt) && ![T.DOOR, T.MAT, T.CAVEDOOR, T.STAIRS].includes(bt) && !this.occupied(bx, by) && !m.warpAt(bx, by) && !(m.etat && m.objectAt(bx, by))) {
         this.setTile(tx, ty, m.etat ? T.FLOOR : m.outdoor ? T.GRASS : T.CAVE); this.setTile(bx, by, T.BOULDER);
         this.sound.sfx('ledge'); this.view.shake = 0.08; p.bumpT = 0.3; p.walking = false;
@@ -798,6 +806,12 @@ export class Game {
       const o = m.objectAt(p.x, p.y);
       if (o?.type === 'fleche') dir = o.dir; else if (o?.type !== 'glace') break;
       const [dx, dy] = DIRS[dir], tx = p.x + dx, ty = p.y + dy;
+      // boule de neige : avec assez d'élan, on la brise et l'on s'arrête à sa place
+      if (guard >= ELAN && m.etat?.boules?.has(key(tx, ty)) && m.get(tx, ty) === T.BLOCK && m.height(tx, ty) === m.height(p.x, p.y)) {
+        this.setTile(tx, ty, T.FLOOR); this.sound.sfx('hitstrong'); this.view.shake = 0.16; this.ambianceNeige?.(tx, ty);
+        p.dir = dir; p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur: 0.14, scripted: true }; while (p.move) await wait(16);
+        break;
+      }
       if (!walkable(m.get(tx, ty)) || this.occupied(tx, ty)) break;
       // salle à niveaux : un palier plus haut arrête la glissade ; au bord d'un palier, on tombe sur celui du dessous
       const chute = !!m.etages && !m.canStep(p.x, p.y, tx, ty);
@@ -807,6 +821,19 @@ export class Game {
       p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur: 0.1, scripted: true }; while (p.move) await wait(16);
     }
     p.walking = false;
+  }
+  /** le rocher poussé glisse case par case jusqu'à sa case d'arrêt (un saut quand il tombe d'un gradin) */
+  async rocherGlisse(x, y, d, fin) {
+    const m = this.mapObj, [dx, dy] = DIRS[d];
+    this.busy = true; this.sound.sfx('ledge');
+    try {
+      for (let g = 0; g < 200 && (x !== fin[0] || y !== fin[1]); g++) {
+        const nx = x + dx, ny = y + dy, tombe = m.height(nx, ny) < m.height(x, y);
+        this.setTile(x, y, T.FLOOR); this.setTile(nx, ny, T.BOULDER); x = nx; y = ny;
+        if (tombe) { this.sound.sfx('hitstrong'); this.view.shake = 0.12; await wait(140); } else await wait(55);
+      }
+      this.sound.sfx('bump'); this.view.shake = 0.06;
+    } finally { this.busy = false; }
   }
   /** dalle : lève les barrières d'une couleur et baisse celles de l'autre (l'état est gardé avec la carte) */
   dalle(o) {

@@ -61,6 +61,25 @@ export function chuteGlissade(m, x0, y0, x1, y1) {
   if (E.marches.has(k2(x0, y0)) || E.marches.has(k2(x1, y1)) || E.ponts.has(k2(x1, y1))) return false;
   return m.height(x1, y1) < m.height(x0, y0);
 }
+/** élan : nombre de cases de glissade qu'il faut avoir derrière soi pour briser une boule de neige */
+export const ELAN = 3;
+/**
+ * un rocher poussé depuis (x, y) dans le sens d : il avance d'une case ; sur la glace, il glisse jusqu'au premier
+ * obstacle, s'arrête contre un gradin plus haut ou des marches, et tombe du bord d'un gradin sur celui du dessous (où il
+ * continue de glisser s'il y a de la glace). libre(x, y) : un rocher peut-il occuper cette case ? Renvoie sa case
+ * d'arrêt, ou null s'il ne bouge pas.
+ */
+export function glisseRocher(m, x, y, d, libre) {
+  const [dx, dy] = DIRS[d], E = m.etages; let n = 0;
+  for (let g = 0; g < 200; g++) {
+    const a = x + dx, b = y + dy;
+    if (!m.in(a, b) || !libre(a, b)) break;
+    if (E && (E.marches.has(k2(a, b)) || E.ponts.has(k2(a, b)) || m.height(a, b) > m.height(x, y))) break;
+    x = a; y = b; n++;
+    if (m.objectAt(x, y)?.type !== 'glace') break;
+  }
+  return n ? [x, y] : null;
+}
 /** le joueur vient de faire un pas : on retient à quel étage il est sur ses dernières cases (lui, puis le Pokémon qui le suit) */
 export function tracerPas(m, x0, y0, x1, y1) {
   const E = m.etages, r = pasEtages(m, x0, y0, x1, y1, !!E.trace.get(k2(x0, y0)));
@@ -173,33 +192,39 @@ export function planEssai() {
 }
 
 /**
- * Arène Glace à niveaux (essai) : le Glacier. Trois gradins de glace montent vers le fond ; on glisse jusqu'au premier
- * obstacle (pilier, congère de neige, paroi du gradin du dessus) et, au bord d'un gradin, on tombe sur celui du dessous.
- * Des marches taillées dans la glace mènent d'un gradin au suivant : il faut s'y présenter par le bas, dans leur axe.
- * Plan trouvé par recherche (15 glissades au plus court, aucune impasse) ; vérifié par tools/test-odyssee-etages.mjs.
+ * Arène Glace à niveaux (essai) : le Glacier. Trois gradins de glace montent vers le fond.
+ *  - on glisse jusqu'au premier obstacle (pic de glace, congère, rocher, paroi du gradin du dessus) ;
+ *  - au bord d'un gradin, rien ne retient : on tombe sur celui du dessous (les gradins de Frimapic, dans Platine) ;
+ *  - une boule de neige barre le pied de chaque escalier : on la brise en arrivant dessus avec de l'élan (trois cases de
+ *    glissade au moins, comme les boules de neige de Frimapic) ;
+ *  - les rochers de glace se poussent à l'arrêt : ils glissent jusqu'au premier obstacle et servent ensuite de butée ;
+ *    poussé par-dessus le bord, un rocher tombe sur le gradin du dessous et y devient une butée (les rochers de la
+ *    Route de Glace, dans HeartGold / SoulSilver).
+ * Plan trouvé par recherche (25 coups au plus court dont 5 poussées, un rocher à faire tomber, aucune impasse) ; vérifié
+ * par tools/test-odyssee-etages.mjs. Les marches se prennent par le bas, dans leur axe.
  */
 export function planGlace() {
   return {
-    type: 'ice', version: 1, sol: 'gymGlace', theme: 'glace', minActions: 0,
+    type: 'ice', version: 2, sol: 'gymGlace', theme: 'glace', minActions: 0,
     plan: [
       '#########################',
       '#########################',
       '#.........g.B.g.........#',
       '#.......................#',
       '#.......................#',
-      '#***^************I******#',
-      '#***.*******************#',
-      '#*****************I*****#',
+      '#********************^**#',
+      '#***********.********O**#',
+      '#*********IIQ***********#',
+      '#**********I********I***#',
+      '#******I*****I*********Q#',
+      '#*********.*************#',
+      '#*********^*************#',
+      '#****I****O**Q**********#',
+      '#********************Q**#',
       '#***********************#',
-      '#***********************#',
-      '#*.********.*I**.*******#',
-      '#**********^***.********#',
-      '#***********************#',
-      '#********.**************#',
-      '#**********.I***********#',
-      '#********I***I**********#',
-      '#***************.*******#',
-      '#...............^.......#',
+      '#****************I*****.#',
+      '#****.******************#',
+      '#....^..................#',
       '#.........S...Z.........#',
       '#.......................#',
       '############E############'
@@ -227,9 +252,9 @@ export function planGlace() {
       '0000000000000000000000000',
       '0000000000000000000000000'
 ],
-    regles: ['ARÈNE DU GLACIER (essai)', 'Sur la glace, on glisse jusqu\'au premier obstacle : pilier, congère de neige, paroi.', 'Au bord d\'un gradin, rien ne retient : on tombe sur celui du dessous.', 'Les marches se prennent par le bas, bien en face.'],
+    regles: ['ARÈNE DU GLACIER (essai)', 'Sur la glace, on glisse jusqu\'au premier obstacle. Au bord d\'un gradin, on tombe sur celui du dessous.', 'Une boule de neige se brise si l\'on arrive dessus avec de l\'élan : trois cases de glissade au moins.', 'Un rocher de glace se pousse à l\'arrêt : il glisse, tombe des gradins, et sert ensuite de butée.', 'Le pupitre remet tout en place.'],
     legende: {
-      '^': { marche: 'up' }, I: { sol: 'glace', prop: 'pilier_glace' },
+      '^': { marche: 'up' }, I: { sol: 'glace', prop: 'pilier_glace' }, Q: { glace: true, rocher: true }, O: { boule: true },
       B: { panneau: ['Le sommet du Glacier ! Le Champion t\'attendrait ici.'] },
     },
     but: [12, 3],

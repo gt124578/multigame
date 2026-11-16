@@ -63,21 +63,29 @@ while (pile.length) { for (const a of inv.get(pile.pop()) || []) if (!retour.has
 assert.equal(retour.size, vus.size, `${vus.size - retour.size} états d'où l'on ne revient pas à l'entrée`);
 console.log(`\n✓ marches, passerelle, monte-charge ; ${vus.size} états parcourus, toutes les cases atteintes, retour toujours possible`);
 
-// 6. arène Glace à gradins : glissades, chutes au bord d'un gradin, marches ; le solveur des arènes la résout
+// 6. arène Glace à gradins : glissades, chutes, boules de neige à briser avec de l'élan, rochers qui glissent et tombent
 {
   const { resoudre } = await import(B + 'world/arenes-plan.js');
-  const { planGlace, chuteGlissade } = await import(B + 'world/etages.js');
+  const { planGlace, chuteGlissade, glisseRocher, ELAN } = await import(B + 'world/etages.js');
   const dg = planGlace(), g = construireArene('essai:glace', null, dg, 'Glacier').map;
-  assert.ok(chuteGlissade(g, 5, 10, 5, 11) && chuteGlissade(g, 5, 16, 5, 17), 'au bord d\'un gradin, la glissade tombe');
+  assert.ok(chuteGlissade(g, 5, 10, 5, 11) && chuteGlissade(g, 7, 16, 7, 17) && !chuteGlissade(g, 5, 16, 5, 17), 'au bord d\'un gradin, la glissade tombe');
   assert.ok(!chuteGlissade(g, 5, 11, 5, 10) && !g.canStep(5, 11, 5, 10), 'la paroi du gradin du dessus arrête');
   assert.ok(!g.canStep(5, 10, 5, 11), 'en marchant, on ne saute pas d\'un gradin');
+  // un rocher poussé sur la glace : jusqu'à l'obstacle ; par-dessus le bord, il tombe et continue ; une paroi l'arrête
+  const vide = (x, y) => walkable(g.get(x, y)) && (!g.objectAt(x, y) || g.objectAt(x, y).type === 'glace');
+  assert.equal(g.get(21, 13), T.BOULDER);
+  assert.deepEqual(glisseRocher(g, 21, 13, 'right', vide), [23, 13], 'le rocher glisse jusqu\'au mur');
+  assert.deepEqual(glisseRocher(g, 21, 13, 'down', vide), [21, 17], 'poussé vers le bord, il tombe du gradin dans le hall');
+  assert.equal(glisseRocher(g, 23, 9, 'right', vide), null, 'contre le mur, il ne bouge pas');
+  assert.deepEqual(glisseRocher(g, 23, 9, 'up', vide), [23, 5], 'la paroi du gradin du dessus l\'arrête');
+  assert.ok(g.etat.boules.has('10,12') && g.get(10, 12) === T.BLOCK && ELAN === 3, 'une boule de neige au pied des marches');
   const R = resoudre(g, { npcs: new Set(), but: (x, y) => x === dg.but[0] && y === dg.but[1] });
   assert.ok(R.ok && R.retour, 'le Glacier se résout et l\'on en revient');
   assert.equal(R.coinces.length, 0, 'aucune impasse');
-  assert.equal(R.pas, 15, 'quinze glissades au plus court');
-  // une glissade vers le sud depuis le haut du deuxième gradin : on dévale tout jusqu'au hall
-  const tombe = resoudre(g, { npcs: new Set(), depart: [2, 9], but: (x, y) => y >= 17 });
-  assert.ok(tombe.ok, 'on peut redescendre en tombant');
-  console.log(`✓ arène Glace : ${R.pas} glissades au plus court, ${R.etats} états, aucune impasse`);
+  assert.equal(R.pas, 25, 'vingt-cinq coups au plus court');
+  let pousses = 0, tombes = 0, brisees = 0;
+  for (let i = 1; i < R.chemin.length; i++) { const a = R.chemin[i - 1], b = R.chemin[i], parti = [...a[3]].find((k) => !b[3].has(k)), venu = [...b[3]].find((k) => !a[3].has(k)); if (parti && venu) { pousses++; if (g.height(...venu.split(',').map(Number)) < g.height(...parti.split(',').map(Number))) tombes++; } if (b[4].size > a[4].size) brisees++; }
+  assert.ok(pousses >= 4 && tombes >= 1 && brisees === 2, `la solution pousse des rochers (${pousses}), en fait tomber (${tombes}) et brise les deux boules (${brisees})`);
+  console.log(`✓ arène Glace : ${R.pas} coups au plus court (${pousses} rochers poussés dont ${tombes} tombé, ${brisees} boules brisées), ${R.etats} états, aucune impasse`);
 }
 console.log('SALLES À NIVEAUX AU VERT');

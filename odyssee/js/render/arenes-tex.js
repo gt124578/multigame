@@ -166,6 +166,75 @@ export function texturesArenes(putImg) {
     for (const [x, w] of [[0, 6], [7, 12], [20, 12]]) { T.rect(x, 14, w, 6, '#7ab8e0'); T.rect(x, 14, 1, 6, '#5a9cc8'); T.rect(x + 2, 15, 2, 1, '#c8e8fa'); }
     T.rect(0, 20, 32, 2, '#5a9cc8'); T.rect(0, 22, 32, 2, '#3f78a8');
   }, 43));
+  // ------- décors en volume (render/props3d.js) : chaque tuile est une planche de morceaux, découpés face par face
+  // bois : poteaux (colonnes 0 à 5), dessus et chants des planches (à droite)
+  putImg('p3_bois', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#8a5a30'); T.rect(0, 0, 3, 32, '#b07a44'); T.rect(0, 0, 1, 32, '#d09a60'); T.rect(3, 0, 3, 32, '#5a3a1c'); T.rect(6, 0, 2, 32, '#3a2410');
+    T.rect(8, 0, 24, 8, '#c8945a'); T.rect(8, 3, 24, 1, '#a8743e'); T.rect(8, 8, 24, 3, '#6a4422'); T.rect(8, 8, 24, 1, '#3a2410'); T.rect(8, 11, 24, 7, '#d8a468'); T.rect(8, 14, 24, 1, '#b8844a'); T.rect(8, 17, 24, 1, '#8a5a30');
+  }, 51));
+  // planche du panneau (28 × 18) : cadre sombre, bois clair, lignes gravées, deux clous
+  putImg('p3_panneau', toile(32, 32, (T) => {
+    T.rect(0, 0, 28, 18, '#5a3a1c'); T.rect(1, 1, 26, 16, '#c8945a'); T.rect(1, 1, 26, 1, '#e8b87a'); T.rect(1, 16, 26, 1, '#8a5a30'); T.rect(1, 9, 26, 1, '#b07a44');
+    for (const [y, x0, w] of [[4, 5, 18], [7, 5, 14], [11, 5, 17], [14, 5, 10]]) { T.rect(x0, y, w, 1, '#4a2e14'); T.rect(x0, y + 1, w, 1, '#e0b074'); }
+    T.p(2, 2, '#3a2410'); T.p(25, 2, '#3a2410'); T.p(2, 15, '#3a2410'); T.p(25, 15, '#3a2410');
+  }, 53));
+  // socle de statue : face à plaque de bronze (24 × 13), moulure (rangées 13 à 15), flanc et dessus (en bas)
+  putImg('p3_socle', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#8e8a96'); T.rect(0, 0, 24, 13, '#9a96a2'); T.rect(0, 0, 24, 1, '#c4c0cc'); T.rect(0, 12, 24, 1, '#5e5a68'); T.rect(0, 0, 1, 13, '#b4b0bc'); T.rect(23, 0, 1, 13, '#6e6a78');
+    T.rect(5, 3, 14, 7, '#7a5a20'); T.rect(6, 4, 12, 5, '#d8b050'); T.rect(6, 4, 12, 1, '#f8e090'); T.rect(8, 6, 8, 1, '#8a6a28'); T.rect(8, 8, 5, 1, '#8a6a28');
+    T.rect(0, 13, 32, 3, '#b0acb8'); T.rect(0, 13, 32, 1, '#d8d4e0'); T.rect(0, 15, 32, 1, '#5e5a68');
+    T.rect(0, 16, 16, 16, '#7c7886'); T.rect(0, 16, 16, 1, '#a09caa'); for (const [x, y] of [[3, 20], [9, 24], [5, 28], [12, 19]]) T.p(x, y, '#5e5a68'); T.rect(0, 23, 16, 1, '#6a6674');
+    T.rect(16, 16, 16, 16, '#b8b4c0'); T.cadre(16, 16, 16, 16, '#d8d4e0'); T.rect(19, 19, 10, 10, '#a8a4b2');
+  }, 55));
+  // statue : tête de face aux yeux creusés (12 × 10), dessus (12 à 15), pattes, flancs, corps au poitrail clair
+  putImg('p3_statue', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#74707e');
+    T.rect(0, 0, 12, 10, '#8c8896'); T.rect(0, 0, 12, 1, '#b4b0bc'); T.rect(0, 0, 1, 10, '#a09caa'); T.rect(11, 0, 1, 10, '#5e5a68'); T.rect(2, 3, 2, 3, '#2e2a38'); T.rect(8, 3, 2, 3, '#2e2a38'); T.p(2, 3, '#e8e4f0'); T.p(8, 3, '#e8e4f0'); T.rect(4, 7, 4, 1, '#3e3a48'); T.rect(5, 8, 2, 1, '#5e5a68');
+    T.rect(12, 0, 4, 4, '#b4b0bc');
+    T.rect(16, 0, 4, 6, '#8c8896'); T.rect(16, 0, 4, 1, '#b4b0bc'); T.rect(16, 5, 4, 1, '#4e4a58'); T.rect(17, 5, 1, 1, '#2e2a38'); T.rect(20, 0, 3, 6, '#5e5a68');
+    T.rect(16, 6, 12, 26, '#6a6674'); for (let j = 8; j < 32; j += 5) T.rect(16, j, 12, 1, '#5a5664'); T.rect(16, 6, 12, 1, '#8c8896');
+    T.rect(0, 16, 16, 16, '#807c8a'); T.rect(0, 16, 16, 1, '#a8a4b2'); T.rect(4, 19, 8, 11, '#9c98a6'); T.rect(5, 20, 6, 1, '#b8b4c0'); T.rect(0, 16, 1, 16, '#9490a0'); T.rect(15, 16, 1, 16, '#5a5664'); T.rect(0, 31, 16, 1, '#4e4a58');
+  }, 57));
+  // métal blanc du pupitre : fût, dessus du pied, embase, bandeau de la console, flanc
+  putImg('p3_metal', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#c8d0d8'); T.rect(0, 0, 2, 16, '#f4f8fc'); T.rect(2, 0, 4, 16, '#dce4ec'); T.rect(6, 0, 4, 16, '#8a96a4'); T.rect(12, 0, 8, 6, '#e8eef4');
+    T.rect(20, 0, 8, 8, '#a8b4c0'); T.rect(20, 0, 8, 1, '#dce4ec');
+    T.rect(12, 8, 18, 14, '#dce4ec'); T.cadre(12, 8, 18, 14, '#f4f8fc'); T.rect(12, 21, 18, 1, '#8a96a4');
+    T.rect(0, 18, 18, 2, '#9aa6b4'); T.rect(0, 18, 18, 1, '#e8eef4');
+    T.rect(0, 22, 24, 3, '#aab6c4'); T.rect(0, 22, 24, 1, '#f4f8fc'); for (const x of [3, 7, 19]) T.p(x, 23, x === 19 ? '#e04040' : '#48c060');
+  }, 59));
+  // écran du pupitre (24 × 20) : cadre, verre vert, lignes de texte, reflet, voyant
+  putImg('p3_ecran', toile(32, 32, (T) => {
+    T.rect(0, 0, 24, 20, '#eef2f6'); T.rect(0, 19, 24, 1, '#9aa6b4'); T.rect(2, 2, 20, 14, '#1c4a38'); T.rect(3, 3, 18, 12, '#2a7a58');
+    for (const [y, w] of [[5, 12], [7, 9], [9, 13], [11, 6]]) T.rect(5, y, w, 1, '#a8f0c8'); T.rect(15, 11, 3, 1, '#f0f8a0');
+    T.ligne(17, 3, 20, 6, '#58b890'); T.ligne(18, 3, 20, 5, '#58b890'); T.rect(19, 17, 2, 2, '#f0a030'); T.rect(3, 17, 6, 1, '#b8c4d0');
+  }, 61));
+  // glace des cristaux : face éclairée striée de reflets (0 à 15), face dans l'ombre (16 à 23), face au jour (24 à 31)
+  putImg('p3_glace', toile(32, 32, (T) => {
+    T.rect(0, 0, 16, 32, '#9ed2f0'); T.rect(16, 0, 8, 32, '#4f8fc0'); T.rect(24, 0, 8, 32, '#d4eefc');
+    for (let j = 0; j < 32; j++) { T.p(0, j, '#e8f8ff'); T.p(15, j, '#6aa8d4'); T.p(16, j, '#3a74a4'); T.p(31, j, '#ffffff'); }
+    T.ligne(4, 2, 2, 30, '#f4fcff'); T.ligne(5, 2, 3, 22, '#e0f4ff'); T.ligne(10, 8, 9, 30, '#84bee4'); T.ligne(12, 0, 12, 14, '#c4e6fa'); T.ligne(19, 4, 20, 30, '#3a74a4'); T.ligne(27, 0, 26, 30, '#f4fcff');
+    for (let q = 0; q < 6; q++) T.p(2 + Math.floor(T.rnd() * 12), Math.floor(T.rnd() * 32), '#ffffff');
+    T.rect(0, 29, 16, 3, '#eef8ff'); T.rect(16, 30, 8, 2, '#a8cce4'); T.rect(24, 29, 8, 3, '#ffffff');   // la neige au pied
+  }, 63));
+  // bloc de glace à pousser : face (24 × 18) à veines et bulles, flanc (en bas)
+  putImg('p3_bloc', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#7ab8e0'); T.rect(0, 0, 24, 18, '#96cdee'); T.rect(0, 0, 24, 1, '#dff2fc'); T.rect(0, 0, 1, 18, '#c8e8fa'); T.rect(23, 0, 1, 18, '#5a9cc8'); T.rect(0, 16, 24, 2, '#5a9cc8');
+    T.ligne(4, 2, 9, 9, '#e8f8ff'); T.ligne(9, 9, 7, 15, '#e8f8ff'); T.ligne(15, 3, 19, 12, '#6aa8d4'); T.ligne(12, 10, 16, 15, '#c8e8fa'); for (const [x, y] of [[20, 5], [3, 12], [13, 6]]) { T.p(x, y, '#ffffff'); T.p(x + 1, y, '#dff2fc'); }
+    T.rect(0, 12, 24, 1, '#84c0e6');
+    T.rect(0, 18, 20, 14, '#5c9cc8'); T.rect(0, 18, 20, 1, '#a8d6f2'); T.ligne(5, 20, 8, 30, '#3f78a8'); T.ligne(13, 19, 11, 28, '#84c0e6'); T.rect(0, 30, 20, 2, '#3f78a8');
+  }, 65));
+  // neige qui coiffe le bloc : dessus (24 × 20), bords tombants (en bas)
+  putImg('p3_neige', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#ffffff'); for (let q = 0; q < 22; q++) T.p(Math.floor(T.rnd() * 24), Math.floor(T.rnd() * 20), q % 2 ? '#dcecf8' : '#eef6fc');
+    T.rect(0, 20, 24, 6, '#eef6fc'); T.rect(0, 24, 24, 2, '#c8dcee'); for (const x of [2, 7, 13, 18]) T.rect(x, 25, 3, 1, '#eef6fc');
+    T.rect(0, 26, 20, 6, '#c4d8ec'); T.rect(0, 30, 20, 2, '#a4c0dc');
+  }, 67));
+  // boule de neige brisée : éclats au sol
+  putImg('dec_neige_brisee', toile(32, 32, (T) => {
+    for (const [x, y, r] of [[8, 9, 4], [22, 8, 3], [15, 17, 5], [6, 23, 3], [25, 22, 4], [16, 27, 2]]) { T.disque(x, y, r, r * 0.7, '#ffffff'); T.disque(x + 0.5, y + r * 0.45, r * 0.8, r * 0.3, '#c8dcee'); }
+    for (let q = 0; q < 12; q++) T.p(2 + Math.floor(T.rnd() * 28), 2 + Math.floor(T.rnd() * 28), '#eef6fc');
+  }, 69));
   // sol de l'arène Glace : neige tassée, quelques traces et cristaux
   putImg('floor_gymGlace', toile(32, 32, (T) => {
     T.rect(0, 0, 32, 32, '#eef6fc');
@@ -439,6 +508,15 @@ const SPR = {
     for (let j = 8; j < 46; j += 8) T.rect(2, j, 28, 1, '#a8804a'); T.disque(16, 22, 6, 6, '#a8804a'); T.disque(16, 22, 4, 4, '#e8c060');
   }],
   // Forge-Acier : leviers rouge et bleu
+  // arène Glace : grosse boule de neige (ombrée en sphère, lumière en haut à gauche, traînées de neige tassée)
+  boule_neige: [34, 34, (T) => {
+    for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) {
+      const dx = (i - 15.5) / 15.5, dy = (j - 15.5) / 15.5, r = Math.sqrt(dx * dx + dy * dy); if (r > 1) continue;
+      const lx = (i - 10) / 16, ly = (j - 9) / 16, l = 1 - Math.sqrt(lx * lx + ly * ly) * 0.66;
+      T.p(i + 1, j + 1, r > 0.93 ? '#7fa2c4' : l > 0.88 ? '#ffffff' : l > 0.68 ? '#eef6fc' : l > 0.48 ? '#d2e4f2' : l > 0.3 ? '#b0cbe2' : '#8fb0cf');
+    }
+    T.ligne(7, 21, 15, 28, '#c2d8ea'); T.ligne(21, 7, 27, 13, '#dcebf6'); T.ligne(12, 13, 9, 16, '#ffffff'); for (const [x, y] of [[22, 21], [14, 24], [25, 17], [9, 10]]) T.p(x, y, '#a8c4dc');
+  }],
   // arène Glace : pilier de glace (stalagmite à facettes, reflet)
   pilier_glace: [32, 46, (T) => {
     T.disque(16, 41, 12, 4, '#00000030');

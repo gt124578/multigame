@@ -21,7 +21,7 @@
 // mêmes règles ; le jeu les applique dans js/arenes-jeu.js, et tools/test-odyssee-arenes-jeu.mjs vérifie qu'ils s'accordent.
 import { T, DIRS, walkable } from './tiles.js';
 import { GameMap } from './mapgen.js';
-import { lireEtages, appliquerEtages, chuteGlissade } from './etages.js';
+import { lireEtages, appliquerEtages, chuteGlissade, glisseRocher, ELAN } from './etages.js';
 
 export const SENS = ['up', 'right', 'down', 'left'];
 export const tourne = (d, q) => SENS[(((SENS.indexOf(d) + q) % 4) + 4) % 4];
@@ -215,6 +215,7 @@ export function construireArene(id, gym, def, name) {
     if (s.tp) m.object(x, y, { type: 'tp', cible: s.tp, dir: s.dirTp });
     if (s.tp && s.pad !== false) m.deco.push({ k: s.padTp || 'tp', x, y });
     if (s.chute) { m.object(x, y, { type: 'chute', cible: s.chute, msg: s.msg }); if (s.vide !== false) m.deco.push({ k: s.decoChute || 'vide', x, y }); }
+    if (s.boule) { m.set(x, y, T.BLOCK); (E.boules ||= new Set()).add(k2(x, y)); m.deco.push({ k: 'etat', x, y, o: 'neige_brisee', f: 'boule_neige' }); }   // boule de neige : on la brise en glissant dessus avec de l'élan
     if (s.fosse) { m.set(x, y, T.BLOCK); E.fosses.push([x, y]); m.deco.push({ k: 'etat', x, y, o: 'fosse_pleine', f: 'fosse' }); }
     if (s.fragile) { const f = E.fragiles[s.fragile] ||= { cases: [], ...(def.fragiles?.[s.fragile] || {}) }; f.cases.push([x, y]); m.object(x, y, { type: 'fragile', salle: s.fragile }); m.deco.push({ k: 'fragile', x, y, salle: s.fragile }); }
     if (s.remise) { E.remises.push([x, y]); m.object(x, y, { type: 'remise', x, y, actionne: true }); }
@@ -273,7 +274,7 @@ export function resoudre(m, o = {}) {
   const W0 = m.w, NAT = new Int8Array(m.w * m.h), PNJ = new Uint8Array(m.w * m.h);
   for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
     const k = k2(x, y), i = y * W0 + x;
-    NAT[i] = fosses.has(k) ? 2 : portes.has(k) ? 3 : E.armes.has(k) ? 4 : rocBase.has(k) || walkable(m.get(x, y)) ? 1 : 0;
+    NAT[i] = fosses.has(k) || E.boules?.has(k) ? 2 : portes.has(k) ? 3 : E.armes.has(k) ? 4 : rocBase.has(k) || walkable(m.get(x, y)) ? 1 : 0;
     if (npcs.has(k)) PNJ[i] = 1;
   }
   // rochers de l'état en cours, marqués dans un tableau (bien plus rapide qu'un Set de chaînes)
@@ -306,7 +307,13 @@ export function resoudre(m, o = {}) {
         let d = ob.type === 'fleche' ? sensFleche(ob, R) : arrive.dir;
         for (let g = 0; g < 200; g++) {
           const o2 = m.objectAt(x, y); if (o2?.type === 'fleche') d = sensFleche(o2, R); else if (o2?.type !== 'glace') break;
-          const [dx, dy] = DIRS[d]; if (!libre(x + dx, y + dy, R, rocs, comb)) break;
+          const [dx, dy] = DIRS[d];
+          if (!libre(x + dx, y + dy, R, rocs, comb)) {
+            // une boule de neige : avec assez d'élan on la brise et l'on s'arrête à sa place (sans dénivelé)
+            const kb = k2(x + dx, y + dy);
+            if (g >= ELAN && E.boules?.has(kb) && !comb.has(kb) && m.height(x + dx, y + dy) === m.height(x, y)) { comb = new Set(comb); comb.add(kb); x += dx; y += dy; }
+            break;
+          }
           // salle à niveaux : un palier plus haut arrête, un bord sans rien derrière fait tomber sur le palier du dessous
           if (m.etages && !m.canStep(x, y, x + dx, y + dy) && !chuteGlissade(m, x, y, x + dx, y + dy)) break;
           x += dx; y += dy;
@@ -319,7 +326,7 @@ export function resoudre(m, o = {}) {
       if (ob.type === 'reg' && ob.pas) R = agir(ob.a, R, m);
       break;
     }
-    return [x, y, R];
+    return [x, y, R, comb];
   };
   const dep = o.depart || [m.exitX, m.exitY - 1];
   // états « normalisés » : on ne garde que la zone où le joueur circule librement (sans toucher à rien) ; les pas
@@ -387,6 +394,10 @@ export function resoudre(m, o = {}) {
         if (rocs.has(kn)) {
           const bx = nx + dx, by = ny + dy, kb = k2(bx, by);
           if (fosses.has(kb) && !comb.has(kb) && !npcs.has(kb)) { const r2 = new Set(rocs); r2.delete(kn); const c2 = new Set(comb); c2.add(kb); ajoute([nx, ny, R, r2, c2], 1); }
+          else if (m.etages) {
+            // salle à niveaux : sur la glace le rocher glisse (et tombe d'un gradin) ; le joueur, lui, ne bouge pas
+            if (m.canStep(x, y, nx, ny)) { const f = glisseRocher(m, nx, ny, d, (a, b) => libre(a, b, R, rocs, comb) && (!m.objectAt(a, b) || m.objectAt(a, b).type === 'glace')); if (f) { const r2 = new Set(rocs); r2.delete(kn); r2.add(k2(f[0], f[1])); ajoute([x, y, R, r2, comb], 1); } }
+          }
           else if (libre(bx, by, R, rocs, comb) && !m.objectAt(bx, by)) { const r2 = new Set(rocs); r2.delete(kn); r2.add(kb); ajoute([nx, ny, R, r2, comb], 1); }
           continue;
         }
@@ -404,8 +415,8 @@ export function resoudre(m, o = {}) {
           if (!R[f.r]) continue;   // salle pas encore réussie : on ne fait qu'y entrer d'un coup ; réussie, ses dalles tiennent
         }
         arrive.dir = d;
-        const [ax, ay, R2] = arrive(nx, ny, R, rocs, comb, false);
-        ajoute([ax, ay, R2, rocs, comb], R2 !== R && R2.join() !== R.join() ? 1 : 0);
+        const [ax, ay, R2, comb2] = arrive(nx, ny, R, rocs, comb, false);
+        ajoute([ax, ay, R2, rocs, comb2], (R2 !== R && R2.join() !== R.join()) || comb2 !== comb ? 1 : 0);
       }
       // interagir avec ce qui est autour (leviers, statues, miroirs, coffres)
       for (const ob of USE[iz] || []) {
