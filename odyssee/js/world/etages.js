@@ -17,6 +17,8 @@ const k2 = (x, y) => x + ',' + y;
 /** hauteur d'un niveau à l'écran, en cases (une marche d'une case monte d'autant) */
 export const NIVEAU_CASES = 0.75;
 
+/** nombre de marches d'une case d'escalier */
+export const MARCHES = 4;
 /** installe les niveaux sur une carte : m.etages, et un canStep qui en tient compte */
 export function installerEtages(m) {
   const E = m.etages = { marches: new Map(), ponts: new Map(), plateformes: [], bassins: [], mobile: new Map(), trace: new Map() };
@@ -50,6 +52,15 @@ export function pasEtages(m, x0, y0, x1, y1, dessus = false) {
   if (mb) { const s = sens(mb); return s > 0 && hb === S ? { ok: true, dessus: false } : s < 0 && hb + 1 === S ? { ok: true, dessus: false } : NON; }
   return hb === S ? { ok: true, dessus: false } : NON;
 }
+/**
+ * en glissant (glace), on ne s'arrête pas au bord d'un palier : si la case d'après est plus basse (et que ce ne sont pas
+ * des marches), on tombe dessus. Renvoie true si la glissade de (x0, y0) vers (x1, y1) est une chute.
+ */
+export function chuteGlissade(m, x0, y0, x1, y1) {
+  const E = m.etages; if (!E || !m.in(x1, y1)) return false;
+  if (E.marches.has(k2(x0, y0)) || E.marches.has(k2(x1, y1)) || E.ponts.has(k2(x1, y1))) return false;
+  return m.height(x1, y1) < m.height(x0, y0);
+}
 /** le joueur vient de faire un pas : on retient à quel étage il est sur ses dernières cases (lui, puis le Pokémon qui le suit) */
 export function tracerPas(m, x0, y0, x1, y1) {
   const E = m.etages, r = pasEtages(m, x0, y0, x1, y1, !!E.trace.get(k2(x0, y0)));
@@ -65,7 +76,7 @@ function sol(m, cx, cy, X, Z) {
   const h = m.height(cx, cy), d = E.marches.get(k);
   if (!d) return h;
   const f = d === 'up' ? cy + 1 - Z : d === 'down' ? Z - cy : d === 'right' ? X - cx : cx + 1 - X;
-  return h + Math.max(0, Math.min(1, f));
+  return h + Math.max(0, Math.min(1, (Math.floor(f * MARCHES + 1e-6) + 1) / MARCHES));   // le dessus de la marche où l'on est
 }
 /** hauteur du sol d'une case (cx, cy) en un de ses points (X, Z) */
 export const hauteurCase = sol;
@@ -100,6 +111,7 @@ export function poserEtages(m) { for (const P of [...m.etages.plateformes, ...m.
  */
 export function lireEtages(m, def, legende) {
   const E = installerEtages(m), P = def.plan;
+  E.theme = def.theme || '';   // habillage des flancs et des marches (pierre par défaut, « glace »)
   for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
     const c = P[y][x], s = legende[c] || {}, n = def.niveaux?.[y]?.[x];
     if (n >= '0' && n <= '9') m.setHeight(x, y, +n);
@@ -147,7 +159,7 @@ export function planEssai() {
     plan: plan.map((l) => l.join('')), niveaux: niv.map((l) => l.join('')),
     regles: ['SALLE D\'ESSAI DES NIVEAUX', 'Quatre hauteurs : le hall, le palier, les estrades, la mezzanine.', 'Le levier rouge fait monter le monte-charge d\'un étage.', 'Au fond, la vanne bleue fait monter l\'eau : le ponton flotte dessus.', 'On passe sur la passerelle, ou dessous par le couloir.'],
     legende: {
-      '^': { marche: 'up', deco: { k: 'marches', dir: 'up' } }, '>': { marche: 'right', deco: { k: 'marches', dir: 'right' } },
+      '^': { marche: 'up' }, '>': { marche: 'right' },
       '=': { pont: 2 },
       A: { deco: 'monte_charge' },
       a: { deco: 'monte_charge', prop: 'levier_rouge', reg: { inc: [0, 3] }, use: true, son: 'door' },
@@ -157,6 +169,70 @@ export function planEssai() {
     },
     plateformes: [{ c: 'Aa', r: 0, h: [0, 2, 3] }, { c: 'PV', r: 1, h: [0, 1, 2, 3] }],
     bassins: [{ c: '~', r: 1, h: [-0.3, 0.7, 1.7, 2.7] }],
+  };
+}
+
+/**
+ * Arène Glace à niveaux (essai) : le Glacier. Trois gradins de glace montent vers le fond ; on glisse jusqu'au premier
+ * obstacle (pilier, congère de neige, paroi du gradin du dessus) et, au bord d'un gradin, on tombe sur celui du dessous.
+ * Des marches taillées dans la glace mènent d'un gradin au suivant : il faut s'y présenter par le bas, dans leur axe.
+ * Plan trouvé par recherche (15 glissades au plus court, aucune impasse) ; vérifié par tools/test-odyssee-etages.mjs.
+ */
+export function planGlace() {
+  return {
+    type: 'ice', version: 1, sol: 'gymGlace', theme: 'glace', minActions: 0,
+    plan: [
+      '#########################',
+      '#########################',
+      '#.........g.B.g.........#',
+      '#.......................#',
+      '#.......................#',
+      '#***^************I******#',
+      '#***.*******************#',
+      '#*****************I*****#',
+      '#***********************#',
+      '#***********************#',
+      '#*.********.*I**.*******#',
+      '#**********^***.********#',
+      '#***********************#',
+      '#********.**************#',
+      '#**********.I***********#',
+      '#********I***I**********#',
+      '#***************.*******#',
+      '#...............^.......#',
+      '#.........S...Z.........#',
+      '#.......................#',
+      '############E############'
+],
+    niveaux: [
+      '0000000000000000000000000',
+      '0000000000000000000000000',
+      '0333333333333333333333330',
+      '0333333333333333333333330',
+      '0333333333333333333333330',
+      '0222222222222222222222220',
+      '0222222222222222222222220',
+      '0222222222222222222222220',
+      '0222222222222222222222220',
+      '0222222222222222222222220',
+      '0222222222222222222222220',
+      '0111111111111111111111110',
+      '0111111111111111111111110',
+      '0111111111111111111111110',
+      '0111111111111111111111110',
+      '0111111111111111111111110',
+      '0111111111111111111111110',
+      '0000000000000000000000000',
+      '0000000000000000000000000',
+      '0000000000000000000000000',
+      '0000000000000000000000000'
+],
+    regles: ['ARÈNE DU GLACIER (essai)', 'Sur la glace, on glisse jusqu\'au premier obstacle : pilier, congère de neige, paroi.', 'Au bord d\'un gradin, rien ne retient : on tombe sur celui du dessous.', 'Les marches se prennent par le bas, bien en face.'],
+    legende: {
+      '^': { marche: 'up' }, I: { sol: 'glace', prop: 'pilier_glace' },
+      B: { panneau: ['Le sommet du Glacier ! Le Champion t\'attendrait ici.'] },
+    },
+    but: [12, 3],
   };
 }
 export { walkable };

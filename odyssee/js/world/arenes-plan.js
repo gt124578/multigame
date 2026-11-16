@@ -21,7 +21,7 @@
 // mêmes règles ; le jeu les applique dans js/arenes-jeu.js, et tools/test-odyssee-arenes-jeu.mjs vérifie qu'ils s'accordent.
 import { T, DIRS, walkable } from './tiles.js';
 import { GameMap } from './mapgen.js';
-import { lireEtages, appliquerEtages } from './etages.js';
+import { lireEtages, appliquerEtages, chuteGlissade } from './etages.js';
 
 export const SENS = ['up', 'right', 'down', 'left'];
 export const tourne = (d, q) => SENS[(((SENS.indexOf(d) + q) % 4) + 4) % 4];
@@ -306,7 +306,10 @@ export function resoudre(m, o = {}) {
         let d = ob.type === 'fleche' ? sensFleche(ob, R) : arrive.dir;
         for (let g = 0; g < 200; g++) {
           const o2 = m.objectAt(x, y); if (o2?.type === 'fleche') d = sensFleche(o2, R); else if (o2?.type !== 'glace') break;
-          const [dx, dy] = DIRS[d]; if (!libre(x + dx, y + dy, R, rocs, comb)) break; x += dx; y += dy;
+          const [dx, dy] = DIRS[d]; if (!libre(x + dx, y + dy, R, rocs, comb)) break;
+          // salle à niveaux : un palier plus haut arrête, un bord sans rien derrière fait tomber sur le palier du dessous
+          if (m.etages && !m.canStep(x, y, x + dx, y + dy) && !chuteGlissade(m, x, y, x + dx, y + dy)) break;
+          x += dx; y += dy;
         }
         glisse = true; continue;
       }
@@ -342,6 +345,7 @@ export function resoudre(m, o = {}) {
         const a = cx + DX[d], b = cy + DY[d];
         if (a < 0 || b < 0 || a >= W || b >= m.h) continue;
         const j = b * W + a; if (mk[j] === t || !NAT[j]) continue;
+        if (m.etages && !m.canStep(cx, cy, a, b)) continue;   // pas d'un palier à l'autre sans marches
         if (plaine(a, b, R, rocs, comb)) { mk[j] = t; z.push(j); }
       }
     }
@@ -388,6 +392,7 @@ export function resoudre(m, o = {}) {
         }
         // pousser un bras de tourniquet
         if (NAT[ni] === 4 && !libre(nx, ny, R, new Set(), comb)) { const R2 = pousserTourniquet(m, R, x, y, d, (a, b) => npcs.has(k2(a, b))); if (R2) ajoute([nx, ny, R2, rocs, comb], 1); continue; }
+        if (m.etages && !rocs.has(kn) && !m.canStep(x, y, nx, ny)) continue;
         const ob = obj(nx, ny), kt = ob?.type === 'glace' ? kn + d : kn;
         if (tente.has(kt)) continue;
         tente.add(kt);

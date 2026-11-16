@@ -25,8 +25,8 @@ assert.ok(!pasEtages(m, 10, 11, 10, 10, true).ok, 'on ne saute pas de la passere
 assert.ok(pasEtages(m, 10, 11, 10, 10, false).ok && pasEtages(m, 10, 11, 11, 11, true).dessus && !pasEtages(m, 10, 11, 11, 11, false).dessus);
 assert.ok(!pasEtages(m, 8, 11, 7, 11, false).ok && pasEtages(m, 8, 11, 7, 11, true).ok, 'dessous, on ne grimpe pas sur l\'estrade');
 assert.equal(niveau(m, 10, 11, true), 2); assert.equal(niveau(m, 10, 11, false), 0);
-// 3. hauteurs dessinées : rampe des marches
-assert.ok(Math.abs(hauteurVue(m, 4.5, 16.5) - 0.5) < 1e-9); assert.equal(hauteurVue(m, 4.5, 15.5), 1); assert.ok(Math.abs(hauteurVue(m, 4.5, 14.25) - 1.75) < 1e-9); assert.equal(hauteurVue(m, 4.5, 13.5), 2);
+// 3. hauteurs dessinées : les marches
+assert.equal(hauteurVue(m, 4.5, 16.9), 0.25); assert.equal(hauteurVue(m, 4.5, 16.4), 0.75); assert.equal(hauteurVue(m, 4.5, 15.5), 1); assert.equal(hauteurVue(m, 4.5, 14.1), 2); assert.equal(hauteurVue(m, 4.5, 13.5), 2);   // quatre marches par case
 assert.equal(hauteurVue(m, 10.5, 11.5, true), 2); assert.equal(hauteurVue(m, 10.5, 11.5, false), 0);
 // 4. monte-charge : il suit son registre
 assert.ok(pasEtages(m, 20, 14, 20, 13).ok && !pasEtages(m, 19, 13, 20, 13).ok, 'en bas : on y monte depuis le hall');
@@ -62,4 +62,22 @@ for (const k of pile) retour.add(k);
 while (pile.length) { for (const a of inv.get(pile.pop()) || []) if (!retour.has(a)) { retour.add(a); pile.push(a); } }
 assert.equal(retour.size, vus.size, `${vus.size - retour.size} états d'où l'on ne revient pas à l'entrée`);
 console.log(`\n✓ marches, passerelle, monte-charge ; ${vus.size} états parcourus, toutes les cases atteintes, retour toujours possible`);
+
+// 6. arène Glace à gradins : glissades, chutes au bord d'un gradin, marches ; le solveur des arènes la résout
+{
+  const { resoudre } = await import(B + 'world/arenes-plan.js');
+  const { planGlace, chuteGlissade } = await import(B + 'world/etages.js');
+  const dg = planGlace(), g = construireArene('essai:glace', null, dg, 'Glacier').map;
+  assert.ok(chuteGlissade(g, 5, 10, 5, 11) && chuteGlissade(g, 5, 16, 5, 17), 'au bord d\'un gradin, la glissade tombe');
+  assert.ok(!chuteGlissade(g, 5, 11, 5, 10) && !g.canStep(5, 11, 5, 10), 'la paroi du gradin du dessus arrête');
+  assert.ok(!g.canStep(5, 10, 5, 11), 'en marchant, on ne saute pas d\'un gradin');
+  const R = resoudre(g, { npcs: new Set(), but: (x, y) => x === dg.but[0] && y === dg.but[1] });
+  assert.ok(R.ok && R.retour, 'le Glacier se résout et l\'on en revient');
+  assert.equal(R.coinces.length, 0, 'aucune impasse');
+  assert.equal(R.pas, 15, 'quinze glissades au plus court');
+  // une glissade vers le sud depuis le haut du deuxième gradin : on dévale tout jusqu'au hall
+  const tombe = resoudre(g, { npcs: new Set(), depart: [2, 9], but: (x, y) => y >= 17 });
+  assert.ok(tombe.ok, 'on peut redescendre en tombant');
+  console.log(`✓ arène Glace : ${R.pas} glissades au plus court, ${R.etats} états, aucune impasse`);
+}
 console.log('SALLES À NIVEAUX AU VERT');

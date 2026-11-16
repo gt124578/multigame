@@ -30,7 +30,7 @@ import { storyTalk, storyTrigger, storyWin, lugiaBattle, placeLugia, purify, ove
 import { syncJournal } from './core/questsData.js';
 import { QUIZ } from './world/arenes.js';
 import { souffle, stelesPleines, moitieDe } from './world/arene-sylve.js';
-import { tracerPas } from './world/etages.js';
+import { tracerPas, chuteGlissade } from './world/etages.js';
 import { preparerArene, surCaseArene, actionnerArene, remettreArene, pasArene, rocherDansFosse } from './arenes-jeu.js';
 import { casinoScreen, bourseScreen, entretienPierre } from './ui/metropole.js';
 import { arcadeScreen } from './ui/arcade.js';
@@ -799,7 +799,11 @@ export class Game {
       if (o?.type === 'fleche') dir = o.dir; else if (o?.type !== 'glace') break;
       const [dx, dy] = DIRS[dir], tx = p.x + dx, ty = p.y + dy;
       if (!walkable(m.get(tx, ty)) || this.occupied(tx, ty)) break;
+      // salle à niveaux : un palier plus haut arrête la glissade ; au bord d'un palier, on tombe sur celui du dessous
+      const chute = !!m.etages && !m.canStep(p.x, p.y, tx, ty);
+      if (chute && !chuteGlissade(m, p.x, p.y, tx, ty)) break;
       p.dir = dir; p.walking = o?.type === 'fleche';
+      if (chute) { this.sound.sfx('ledge'); p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur: 0.3, jump: true, scripted: true }; while (p.move) await wait(16); this.view.shake = 0.07; continue; }
       p.move = { fx: p.x, fy: p.y, tx, ty, t: 0, dur: 0.1, scripted: true }; while (p.move) await wait(16);
     }
     p.walking = false;

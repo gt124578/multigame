@@ -2,7 +2,7 @@
 // arbres / herbes / personnages en sprites verticaux, caméra inclinée en perspective étroite, rendu basse résolution.
 import * as THREE from 'three';
 import { T, walkable } from '../world/tiles.js';
-import { hauteurVue, hauteurCase, NIVEAU_CASES } from '../world/etages.js';
+import { hauteurVue, hauteurCase, NIVEAU_CASES, MARCHES } from '../world/etages.js';
 import { styleMur } from './murs-tex.js';
 import { pente, ravin, mont } from '../world/relief.js';
 import { sensPont } from '../world/ponts.js';
@@ -669,7 +669,7 @@ export class WorldView {
     const tt = groundOf(t);
     const deco = this.decoAt.get(x + ',' + y);
     if (deco?.k === 'carpet') return { c: A.mat };
-    if (deco?.k === 'glace') return { c: A.gl_ice };
+    if (deco?.k === 'glace' || (m.etages && this.decosAt?.get(x + ',' + y)?.some((q) => q.k === 'glace'))) return { c: A.gl_ice };   // (sous un pilier de glace aussi)
     if (deco?.k === 'asph') return { c: A['asph' + (deco.v ? '_' + deco.v : '')] || A.asph };
     if (deco?.k === 'sable') return { c: A.gl_sable };
     if (deco?.k === 'eau') return { anim: this.N.cells.water15 };
@@ -1326,7 +1326,7 @@ export class WorldView {
   /**
    * salle à plusieurs niveaux (world/etages.js) : tout ce qui vient d'être posé à plat monte à la hauteur de sa case
    * (les marches deviennent une rampe, les sprites suivent leurs pieds), puis on ajoute les flancs des paliers
-   * (faces sud, est et ouest, un demi-carreau de pierre par niveau) et les tabliers des passerelles avec leur ombre.
+   * (faces sud, est et ouest, une bande de pierre de 24 px par niveau) et les tabliers des passerelles avec leur ombre.
    */
   etagesBloc(geos, Sol, Wl, Dec, x0, y0, xEnd, yEnd) {
     const m = this.map, E = m.etages, A = this.A.cells, eps = 1e-3;
@@ -1343,6 +1343,8 @@ export class WorldView {
           if (Math.abs(Z[0] - Z[2]) < eps && Math.abs(Z[0] - Z[1]) < eps) az = Math.floor(cz - eps);
           else if (Math.abs(X[0] - X[2]) < eps) ax = Math.floor(Z[0] > Z[1] ? cx - eps : cx + eps);
         }
+        // une case de marches : son sol reste au niveau du bas, sous les marches en volume
+        if (E.marches.has(ax + ',' + az)) { const b = m.height(ax, az) * LVE - 0.01; for (let k = 0; k < 4; k++) p[i + k * 3 + 1] += b; continue; }
         const mid = hc(ax, az, ax + 0.5, az + 0.5);
         // le sol s'éclaircit en montant : les paliers se lisent d'un coup d'œil
         if (plan && G === Sol) { const f = Math.min(1.08, 0.82 + 0.075 * mid / LVE); for (let k = 0; k < 12; k++) G.c[i + k] *= f; }
@@ -1350,11 +1352,12 @@ export class WorldView {
       }
     }
     // flancs : là où une case est plus haute que sa voisine (au sud, à l'est, à l'ouest)
-    const face = (cx, cy) => { const o = E.mobile.get(cx + ',' + cy); return o ? (o.eau ? A.etg_face_bassin : A.etg_face_metal) : A.etg_face; };
+    const th = E.theme ? '_' + E.theme : '', pierre = A['etg_face' + th] || A.etg_face, texM = A['etg_marche' + th] || A.etg_marche;
+    const face = (cx, cy) => { const o = E.mobile.get(cx + ',' + cy); return o ? (o.eau ? A.etg_face_bassin : A.etg_face_metal) : pierre; };
     const pan = (a, b, ha0, hb0, ha1, hb1, tex, sh) => {
       // a, b : les deux coins du bord (x, z) ; h?0 : en bas, h?1 : en haut ; tranches d'un niveau depuis le haut
       if (!tex || (ha1 - ha0 < eps && hb1 - hb0 < eps)) return;
-      const [u0, v0, u1, v1] = tex, vm = (v0 + v1) / 2, n = Math.max(1, Math.ceil(Math.max(ha1 - ha0, hb1 - hb0) / LVE - eps));
+      const [u0, v0, u1, v1] = tex, vm = v0 + (v1 - v0) * 0.75, n = Math.max(1, Math.ceil(Math.max(ha1 - ha0, hb1 - hb0) / LVE - eps));
       for (let k = 0; k < n; k++) {
         const ta = Math.max(ha0, ha1 - k * LVE), tb = Math.max(hb0, hb1 - k * LVE), ba = Math.max(ha0, ha1 - (k + 1) * LVE), bb = Math.max(hb0, hb1 - (k + 1) * LVE);
         if (ta - ba < eps && tb - bb < eps) continue;
@@ -1362,8 +1365,35 @@ export class WorldView {
         Wl.quadv([[a[0], ba, a[1]], [b[0], bb, b[1]], [b[0], tb, b[1]], [a[0], ta, a[1]]], [[u0, v0 + (vm - v0) * f], [u1, v0 + (vm - v0) * f], [u1, v0], [u0, v0]], [sh, sh, sh, sh]);
       }
     };
+    // un pan dressé entre deux points d'un bord, tourné vers n (sud, est ou ouest ; le nord ne se voit jamais)
+    const dresse = (P, Q, n, hP, hQ, h, tex, sh) => {
+      if (n === 'n') return;
+      const inv = n === 's' ? P[0] > Q[0] : n === 'e' ? P[1] < Q[1] : P[1] > Q[1];
+      if (inv) pan(Q, P, hQ, hP, h, h, tex, sh); else pan(P, Q, hP, hQ, h, h, tex, sh);
+    };
+    /** des marches en volume : dessus et contremarche de chaque marche, joues en escalier sur les côtés */
+    const escalier = (x, y, d) => {
+      const L = m.height(x, y) * LVE, N = MARCHES, [u0, v0, u1, v1] = texM || pierre, dv = v1 - v0;
+      const pt = (t, s) => (d === 'up' ? [x + s, y + 1 - t] : d === 'down' ? [x + 1 - s, y + t] : d === 'right' ? [x + t, y + s] : [x + 1 - t, y + 1 - s]);
+      const nC = { up: 's', down: 'n', right: 'w', left: 'e' }[d], nS = { up: ['w', 'e'], down: ['e', 'w'], right: ['n', 's'], left: ['s', 'n'] }[d];
+      const voisin = (s) => { const [X, Z] = pt(0.5, s ? 1.5 : -0.5); return [Math.floor(X), Math.floor(Z)]; };
+      for (let k = 0; k < N; k++) {
+        const t0 = k / N, t1 = (k + 1) / N, hb = L + t0 * LVE, h = L + t1 * LVE;
+        const a = pt(t0, 0), b = pt(t0, 1), c = pt(t1, 1), e = pt(t1, 0);
+        Wl.quadv([[a[0], h, a[1]], [b[0], h, b[1]], [c[0], h, c[1]], [e[0], h, e[1]]], [[u0, v0 + dv * 0.25], [u1, v0 + dv * 0.25], [u1, v0], [u0, v0]], [1, 1, 1, 1]);
+        if (nC !== 'n') {   // contremarche
+          const inv = nC === 's' ? a[0] > b[0] : nC === 'e' ? a[1] < b[1] : a[1] > b[1], [p0, p1] = inv ? [b, a] : [a, b], sh = nC === 's' ? 1 : 0.8;
+          Wl.quadv([[p0[0], hb, p0[1]], [p1[0], hb, p1[1]], [p1[0], h, p1[1]], [p0[0], h, p0[1]]], [[u0, v0 + dv * 0.4375], [u1, v0 + dv * 0.4375], [u1, v0 + dv * 0.25], [u0, v0 + dv * 0.25]], [sh, sh, sh, sh]);
+        }
+        for (const s of [0, 1]) {   // joues
+          const [vx, vy] = voisin(s), P = pt(t0, s), Q = pt(t1, s);
+          dresse(P, Q, nS[s], hc(vx, vy, P[0], P[1]), hc(vx, vy, Q[0], Q[1]), h, pierre, nS[s] === 's' ? 0.92 : 0.7);
+        }
+      }
+    };
     for (let y = y0; y < yEnd; y++) for (let x = x0; x < xEnd; x++) {
-      const t = face(x, y);
+      const t = face(x, y), dm = E.marches.get(x + ',' + y);
+      if (dm) { escalier(x, y, dm); continue; }
       // sud : coins (x, y+1) et (x+1, y+1)
       pan([x, y + 1], [x + 1, y + 1], hc(x, y + 1, x, y + 1), hc(x, y + 1, x + 1, y + 1), hc(x, y, x, y + 1), hc(x, y, x + 1, y + 1), t, 1);
       // est : coins (x+1, y+1) et (x+1, y)
@@ -1377,7 +1407,7 @@ export class WorldView {
         if (A.etg_ombre) flat(Dec, x, y + 0.3, x + 1, y + 1.3, hc(x, y, x + 0.5, y + 0.5) + 0.03, A.etg_ombre);
         flat(Wl, x, y, x + 1, y + 1, h, (ew ? A.etg_tablier_h : A.etg_tablier_v) || A.dec_passerelle_bois);
         const ep = 0.2 * LVE, tex = A.etg_face;
-        if (tex && !E.ponts.has(x + ',' + (y + 1))) { const [u0, v0, u1, v1] = tex; Wl.quadv([[x, h - ep, y + 1], [x + 1, h - ep, y + 1], [x + 1, h, y + 1], [x, h, y + 1]], [[u0, v0 + (v1 - v0) * 0.09], [u1, v0 + (v1 - v0) * 0.09], [u1, v0], [u0, v0]], [0.62, 0.62, 0.62, 0.62]); }
+        if (tex && !E.ponts.has(x + ',' + (y + 1))) { const [u0, v0, u1, v1] = tex; Wl.quadv([[x, h - ep, y + 1], [x + 1, h - ep, y + 1], [x + 1, h, y + 1], [x, h, y + 1]], [[u0, v0 + (v1 - v0) * 0.15], [u1, v0 + (v1 - v0) * 0.15], [u1, v0], [u0, v0]], [0.7, 0.7, 0.7, 0.7]); }
       }
     }
   }

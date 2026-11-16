@@ -139,19 +139,39 @@ export function texturesArenes(putImg) {
   }, 13));
 
   // ------- salles à plusieurs niveaux (world/etages.js) : flancs des paliers, marches, monte-charge, ponton, tablier
-  // flanc d'un palier : la moitié haute de la tuile habille un niveau (16 px à l'écran) — nez clair, pierres, pied sombre
-  for (const [k, C] of [['etg_face', ['#e8e2d2', '#b9b0a0', '#9a9184', '#6e665c', '#4a443c']], ['etg_face_metal', ['#e6eaf0', '#a8b0bc', '#8a929e', '#5c6470', '#3a4048']], ['etg_face_bassin', ['#d8eef8', '#7aa8c8', '#5a88ac', '#3a6488', '#284a68']]]) putImg(k, toile(32, 32, (T) => {
-    for (const y0 of [0, 16]) {
-      T.rect(0, y0, 32, 16, C[2]); T.rect(0, y0, 32, 2, C[0]); T.rect(0, y0 + 2, 32, 1, C[1]); T.rect(0, y0 + 13, 32, 3, C[3]); T.rect(0, y0 + 15, 32, 1, C[4]);
-      if (k === 'etg_face_metal') { for (let i = 3; i < 32; i += 9) { T.rect(i, y0 + 5, 1, 7, C[3]); T.p(i + 1, y0 + 5, C[0]); } T.rect(0, y0 + 8, 32, 1, C[1]); }
-      else { for (const [x, w] of [[0, 9], [10, 12], [23, 9]]) { T.rect(x, y0 + 4, w, 4, C[1]); T.rect(x, y0 + 8, w, 1, C[3]); } for (const [x, w] of [[0, 4], [5, 12], [18, 14]]) { T.rect(x, y0 + 9, w, 3, C[1]); T.rect(x, y0 + 12, w, 1, C[3]); } }
+  // flanc d'un palier : les 24 rangées du haut de la tuile habillent un niveau (trois quarts de case : 24 px à l'écran,
+  // pixel pour pixel) — nez clair, deux assises de pierres, pied dans l'ombre
+  for (const [k, C] of [['etg_face', ['#f0eadb', '#c4bbab', '#a39a8c', '#766e63', '#4e483f']], ['etg_face_metal', ['#e6eaf0', '#a8b0bc', '#8a929e', '#5c6470', '#3a4048']], ['etg_face_bassin', ['#d8eef8', '#7aa8c8', '#5a88ac', '#3a6488', '#284a68']]]) putImg(k, toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 24, C[2]); T.rect(0, 0, 32, 2, C[0]); T.rect(0, 2, 32, 1, C[1]); T.rect(0, 3, 32, 1, C[3]);
+    if (k === 'etg_face_metal') { T.rect(0, 11, 32, 1, C[1]); T.rect(0, 12, 32, 1, C[3]); for (let i = 3; i < 32; i += 9) { T.rect(i, 5, 1, 15, C[3]); T.p(i + 1, 5, C[0]); T.p(i + 1, 14, C[0]); } }
+    else {
+      for (const [x, w] of [[0, 9], [10, 12], [23, 9]]) { T.rect(x, 4, w, 7, C[1]); T.rect(x, 4, w, 1, C[0]); T.rect(x, 11, w, 1, C[3]); T.rect(x + w, 4, 1, 8, C[3]); }
+      for (const [x, w] of [[0, 4], [5, 12], [18, 14]]) { T.rect(x, 12, w, 7, C[1]); T.rect(x, 19, w, 1, C[3]); T.rect(x + w, 12, 1, 8, C[3]); }
     }
+    T.rect(0, 20, 32, 4, C[3]); T.rect(0, 22, 32, 2, C[4]);
   }, 31));
-  // marches (dessinées vers le haut : on monte vers le nord) : quatre marches, nez clair, contremarche sombre, limons
-  quatreSens(putImg, 'dec_marches', toile(32, 32, (T) => {
-    for (let k = 0; k < 4; k++) { const y = k * 8; T.rect(0, y, 32, 8, '#b4ab9b'); T.rect(0, y, 32, 2, '#ece6d6'); T.rect(0, y + 2, 32, 3, '#cfc7b6'); T.rect(0, y + 6, 32, 2, '#6a6258'); }
-    T.rect(0, 0, 2, 32, '#5a534a'); T.rect(30, 0, 2, 32, '#5a534a'); T.rect(2, 0, 1, 32, '#8a8276'); T.rect(29, 0, 1, 32, '#8a8276');
+  // marches en volume (etagesBloc de world3d.js) : rangées 0 à 7 = le dessus d'une marche (nez clair au sud),
+  // rangées 8 à 13 = sa contremarche dans l'ombre. Pierre, ou glace taillée poudrée de neige.
+  for (const [k, C] of [['etg_marche', ['#f4eee0', '#d6cebd', '#c4bcab', '#8f877a', '#6a6258', '#565047']], ['etg_marche_glace', ['#ffffff', '#dff0fa', '#c2e2f4', '#7fb4d8', '#5a94c0', '#3f78a8']]]) putImg(k, toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 8, C[2]); T.rect(0, 0, 32, 1, C[3]); T.rect(0, 1, 32, 4, C[1]); T.rect(0, 6, 32, 2, C[0]);
+    for (let q = 0; q < 9; q++) T.p(Math.floor(T.rnd() * 32), 1 + Math.floor(T.rnd() * 5), q % 2 ? C[2] : C[0]);
+    for (const x of [10, 21]) T.rect(x, 1, 1, 5, C[2]);
+    T.rect(0, 8, 32, 6, C[4]); T.rect(0, 8, 32, 1, C[5]); T.rect(0, 12, 32, 2, C[3]); for (const x of [5, 16, 27]) T.rect(x, 9, 1, 3, C[5]);
   }, 33));
+  // flancs de glace (24 rangées, comme la pierre) : blocs bleus translucides sous une lèvre de neige qui déborde
+  putImg('etg_face_glace', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 24, '#8cc4e8'); T.rect(0, 0, 32, 3, '#ffffff'); T.rect(0, 3, 32, 1, '#d8eefa');
+    for (const [x, w] of [[0, 3], [5, 4], [11, 2], [16, 5], [24, 3], [29, 3]]) T.rect(x, 4, w, 1 + (x % 2), '#f4fbff');
+    for (const [x, w] of [[0, 11], [12, 9], [22, 10]]) { T.rect(x, 6, w, 7, '#a8d6f2'); T.rect(x, 6, 1, 7, '#6aa8d4'); T.rect(x + 2, 7, 3, 1, '#e8f6ff'); T.p(x + 2, 8, '#e8f6ff'); T.rect(x, 13, w, 1, '#5a9cc8'); }
+    for (const [x, w] of [[0, 6], [7, 12], [20, 12]]) { T.rect(x, 14, w, 6, '#7ab8e0'); T.rect(x, 14, 1, 6, '#5a9cc8'); T.rect(x + 2, 15, 2, 1, '#c8e8fa'); }
+    T.rect(0, 20, 32, 2, '#5a9cc8'); T.rect(0, 22, 32, 2, '#3f78a8');
+  }, 43));
+  // sol de l'arène Glace : neige tassée, quelques traces et cristaux
+  putImg('floor_gymGlace', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#eef6fc');
+    for (let q = 0; q < 26; q++) { const x = Math.floor(T.rnd() * 30), y = Math.floor(T.rnd() * 31); T.rect(x, y, 2 + (q % 2), 1, q % 3 ? '#dbe9f4' : '#ffffff'); }
+    for (let q = 0; q < 5; q++) T.p(Math.floor(T.rnd() * 32), Math.floor(T.rnd() * 32), '#b8d4ea');
+  }, 45));
   // plateau du monte-charge : tôle striée, bande jaune et noire au bord
   putImg('dec_monte_charge', toile(32, 32, (T) => {
     T.rect(0, 0, 32, 32, '#8a929e'); T.cadre(0, 0, 32, 32, '#3a4048');
@@ -419,6 +439,13 @@ const SPR = {
     for (let j = 8; j < 46; j += 8) T.rect(2, j, 28, 1, '#a8804a'); T.disque(16, 22, 6, 6, '#a8804a'); T.disque(16, 22, 4, 4, '#e8c060');
   }],
   // Forge-Acier : leviers rouge et bleu
+  // arène Glace : pilier de glace (stalagmite à facettes, reflet)
+  pilier_glace: [32, 46, (T) => {
+    T.disque(16, 41, 12, 4, '#00000030');
+    for (let j = 4; j < 42; j++) { const w = Math.round(3 + (j - 4) * 0.27 + (j > 30 ? (j - 30) * 0.35 : 0)), c = 16; T.rect(c - w, j, w * 2, 1, '#8cc4e8'); T.rect(c - w, j, Math.max(1, Math.round(w * 0.7)), 1, '#bfe2f6'); T.rect(c + Math.round(w * 0.45), j, Math.max(1, w - Math.round(w * 0.45)), 1, '#5c9cc8'); T.p(c - w, j, '#3f78a8'); T.p(c + w - 1, j, '#2f6090'); }
+    T.ligne(16, 3, 13, 10, '#ffffff'); T.ligne(12, 12, 10, 26, '#ffffff'); T.ligne(13, 13, 12, 22, '#e8f6ff'); T.rect(15, 3, 2, 2, '#ffffff');
+    T.ligne(20, 16, 22, 34, '#3f78a8'); T.rect(5, 40, 22, 2, '#3f78a8'); T.rect(6, 38, 5, 2, '#f4fbff'); T.rect(20, 39, 5, 1, '#f4fbff');
+  }],
   levier_rouge: [32, 40, (T) => levier(T, '#c83a3a', '#ff8080')],
   levier_bleu: [32, 40, (T) => levier(T, '#2a5ac8', '#8ab0ff')],
   // Rosebrume : rosier, miroirs (deux sens), source et cristal

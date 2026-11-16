@@ -3,7 +3,7 @@
 // Rien n'est sauvegardé : la vraie partie n'est jamais touchée. Une barre d'outils permet de tester les nouveautés
 // (heure, Éclipse, badges, carte dévoilée, rencontres) et d'ouvrir l'éditeur de carte (labo/editeur.js).
 import { construireArene } from '../world/arenes-plan.js';
-import { planEssai } from '../world/etages.js';
+import { planEssai, planGlace } from '../world/etages.js';
 import { createMon, healFull } from '../core/mon.js';
 import { walkable, T } from '../world/tiles.js';
 import { nearestWalkable } from '../world/mapgen.js';
@@ -95,9 +95,11 @@ export function listerLieux(world) {
 
 /* ---------------- démarrage ---------------- */
 export async function startLabo({ game, world, view, ui, input, sound, setMode }) {
-  // salles d'essai, seulement dans Odyssée Test : la salle à plusieurs niveaux (world/etages.js) ; sa sortie ramène à Bourg-Aube
-  if (!world.maps['essai:niveaux']) {
-    const m = construireArene('essai:niveaux', null, planEssai(), 'Salle d\'essai : niveaux, marches, monte-charge').map;
+  // salles d'essai, seulement dans Odyssée Test (world/etages.js) : niveaux, marches, monte-charge ; arène Glace à gradins.
+  // Leur sortie ramène à Bourg-Aube.
+  for (const [id, def, nom] of [['essai:niveaux', planEssai(), 'Salle d\'essai : niveaux, marches, monte-charge'], ['essai:glace', planGlace(), 'Arène Glace à niveaux : le Glacier']]) {
+    if (world.maps[id]) continue;
+    const m = construireArene(id, null, def, nom).map;
     const t = Object.values(world.towns)[0], [x, y] = nearestWalkable(world.maps.monde, t.x + (t.w >> 1) + 0.5, t.y + (t.h >> 1) + 0.5);
     m.warp(m.exitX, m.exitY, { map: 'monde', x, y, dir: 'down' });
     world.maps[m.id] = m;

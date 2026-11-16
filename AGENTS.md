@@ -343,7 +343,12 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   `etagesBloc` de `world3d.js` monte ce que le bloc a posé à plat (marches en rampe, sprites à leurs pieds), ajoute flancs des paliers et tabliers ;
   un niveau = trois quarts de case à l'écran (`NIVEAU_CASES`) ; `animerEtages` (`arenes-jeu.js`) fait glisser les plateformes. Une case basse
   juste au nord d'un palier haut est cachée par lui : ne pas y faire passer le joueur. Salle d'essai (`planEssai`) : Odyssée Test → lieu
-  « Essais ». `node tools/test-odyssee-etages.mjs` (règles, tous les états de la salle d'essai). Le solveur des arènes ne connaît pas encore les niveaux.
+  « Essais ». Marches en volume (quatre par case : dessus, contremarche, joues en escalier ; `escalier` dans `etagesBloc`, textures `etg_marche*`,
+  flancs `etg_face*` de 24 px par niveau, `theme` du plan : pierre ou `glace`). Sur la glace d'une salle à niveaux, une glissade s'arrête contre
+  un gradin plus haut et tombe du bord d'un gradin sur celui du dessous (`chuteGlissade`, même règle dans `glisse` de `game.js` et dans le solveur
+  `resoudre`, qui respecte aussi marches et hauteurs fixes — pas encore passerelles ni plateformes). Arène Glace d'essai, le Glacier (`planGlace` :
+  trois gradins, piliers et congères placés par recherche, 15 glissades au plus court) : Odyssée Test → « Essais ».
+  `node tools/test-odyssee-etages.mjs` (règles, tous les états de la salle d'essai, le Glacier résolu sans impasse).
   Recherche de bugs : `node tools/fuzz-odyssee-combats.mjs [combats] [graine]` joue des combats au hasard dans le moteur (espèces, attaques, talents,
   objets, météo : aucune exception, PV et PP valides, tout combat finit) ; `node tools/audit-odyssee-monde.mjs` vérifie toutes les cartes (portes,
   habitants et objets au sol jamais l'un sur l'autre, objets et espèces qui existent, intérieurs et grottes accessibles) : à lancer quand on touche
