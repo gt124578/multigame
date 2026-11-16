@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<!-- Odyssée — PixelForge / Atelier 3D : voir un objet (sculpture ou bâtiment) comme dans le jeu, ou le faire tourner.
+     Servir la racine du dépôt en local, puis ouvrir /tools/pixelforge/atelier3d.html
+     État dans l'adresse (#m=sculpt:komainu&vue=jeu&D=32&z=3&contour=2…) : un lien = une vue.
+     Pilotable par script (atelier3d-capture.cjs) : window.atelier.regler({…}) puis window.atelier.image(). -->
+<title>PixelForge — Atelier 3D</title>
+<style>
+  :root { --fond: #1b1e24; --panneau: #252a33; --texte: #e8e4da; --doux: #9aa1ad; --acc: #e0b44a; }
+  html, body { margin: 0; height: 100%; background: var(--fond); color: var(--texte); font: 14px/1.35 system-ui, sans-serif; overflow: hidden; }
+  #vue { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; touch-action: none; }
+  #vue canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+  #ui { position: absolute; top: 8px; left: 8px; width: 270px; max-height: calc(100% - 16px); overflow: auto; background: var(--panneau); border-radius: 10px;
+        padding: 10px 12px; box-shadow: 0 4px 18px #0008; z-index: 2; }
+  #ui.ferme > :not(header) { display: none; }
+  #ui header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; cursor: pointer; user-select: none; }
+  #ui header span { color: var(--acc); }
+  label { display: block; margin-top: 8px; color: var(--doux); font-size: 12px; }
+  select, input, textarea, button { font: inherit; color: var(--texte); background: #1b1f27; border: 1px solid #3a4150; border-radius: 6px; padding: 4px 6px; box-sizing: border-box; }
+  select, textarea { width: 100%; }
+  textarea { height: 54px; font: 12px ui-monospace, monospace; }
+  .ligne { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .ligne > * { flex: 1; }
+  .seg button { flex: 1; padding: 4px 2px; }
+  .seg button.on { background: var(--acc); color: #1b1e24; border-color: var(--acc); font-weight: 600; }
+  button { cursor: pointer; }
+  #info { margin-top: 8px; font-size: 11px; color: var(--doux); white-space: pre-line; }
+  #aide { position: absolute; right: 10px; bottom: 8px; font-size: 11px; color: var(--doux); z-index: 1; text-align: right; }
+</style>
+<script type="importmap">{ "imports": { "three": "../../shared/vendor/three/three.module.min.js" } }</script>
+</head>
+<body>
+<div id="vue"></div>
+<div id="ui">
+  <header id="titre">PixelForge · Atelier 3D <span id="pli">▾</span></header>
+  <label>Objet</label>
+  <select id="m"></select>
+  <label>Options (JSON)</label>
+  <textarea id="o" spellcheck="false">{}</textarea>
+  <label>Vue</label>
+  <div class="ligne seg" data-k="vue"><button data-v="jeu">Jeu</button><button data-v="orbite">Orbite</button></div>
+  <label>Pixels par case</label>
+  <div class="ligne seg" data-k="D"><button data-v="32">32</button><button data-v="64">64</button><button data-v="128">128</button></div>
+  <label>Agrandissement</label>
+  <div class="ligne seg" data-k="z"><button data-v="auto">Auto</button><button data-v="1">×1</button><button data-v="2">×2</button><button data-v="3">×3</button><button data-v="4">×4</button><button data-v="6">×6</button></div>
+  <label>Contour pixel art</label>
+  <div class="ligne seg" data-k="contour"><button data-v="0">Aucun</button><button data-v="1">Silhouette</button><button data-v="2">+ creux</button></div>
+  <label>Couleurs de l'objet (palette réduite, pixels isolés nettoyés)</label>
+  <div class="ligne seg" data-k="pal"><button data-v="0">Toutes</button><button data-v="8">8</button><button data-v="12">12</button><button data-v="16">16</button></div>
+  <label>Ombrage</label>
+  <div class="ligne seg" data-k="ombrage"><button data-v="paliers">Paliers</button><button data-v="doux">Doux</button><button data-v="fil">Fil de fer</button></div>
+  <label>Sol</label>
+  <div class="ligne seg" data-k="sol"><button data-v="herbe">Herbe</button><button data-v="dalles">Dalles</button><button data-v="jeu">Jeu</button><button data-v="aucun">Aucun</button></div>
+  <label>Finesse de la sculpture (pas)</label>
+  <div class="ligne seg" data-k="pas"><button data-v="0.035">Brouillon</button><button data-v="0.022">Normal</button><button data-v="0.014">Fin</button></div>
+  <div class="ligne" style="margin-top:10px">
+    <label style="margin:0"><input type="checkbox" id="perso"> Dresseur à côté</label>
+    <label style="margin:0"><input type="checkbox" id="etire"> Étirer comme le jeu</label>
+  </div>
+  <div class="ligne" style="margin-top:10px">
+    <button id="recharger" title="relit les fichiers des modèles">↻ Recharger</button>
+    <button id="png">Image PNG</button>
+  </div>
+  <div id="info"></div>
+</div>
+<div id="aide">Orbite : glisser = tourner · molette / pincer = zoom · clic droit / deux doigts = déplacer</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from '../../shared/vendor/three/OrbitControls.js';
+
+const EL = 55 * Math.PI / 180, YS = Math.tan(EL), FOV_JEU = 13;
+const $ = (id) => document.getElementById(id);
+const DEF = { m: 'sculpt:komainu', o: '{}', vue: 'jeu', D: '64', z: 'auto', contour: '2', pal: '12', ombrage: 'paliers', sol: 'herbe', pas: '0.022', perso: '1', etire: '1', th: '0.6', ph: '0.95', r: '' };
+const E = { ...DEF };
+const lireHash = () => { for (const [k, v] of new URLSearchParams(location.hash.slice(1))) E[k] = v; };
+const ecrireHash = () => { const q = new URLSearchParams(); for (const k in E) if (E[k] !== DEF[k]) q.set(k, E[k]); try { history.replaceState(null, '', '#' + q.toString()); } catch (e) { /* page encadrée */ } };
+lireHash();
+
+/* ------------------------------------------------------------- moteur ----------------------------------------------- */
+const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.BasicShadowMap;
+const ecran = document.createElement('canvas'), ctx = ecran.getContext('2d'); $('vue').appendChild(ecran);
+const scene = new THREE.Scene();
+const hemi = new THREE.HemisphereLight(0xdfefff, 0x6a8a5a, 1.1); scene.add(hemi);
+const soleil = new THREE.DirectionalLight(0xfff2dc, 2.2); soleil.castShadow = true; soleil.shadow.mapSize.set(4096, 4096); soleil.shadow.bias = -0.0006;
+scene.add(soleil, soleil.target);
+const etire = new THREE.Group(); scene.add(etire);
+const racine = new THREE.Group(); etire.add(racine);
+// mêmes paliers de lumière que les bâtiments du jeu (batiments3d.js)
+const paliers = (() => { const t = new THREE.DataTexture(new Uint8Array([135, 180, 222, 255]), 4, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+// les sculptures n'ont pas de texture pour porter le contraste : cinq paliers plus marqués
+const paliersSculpt = (() => { const t = new THREE.DataTexture(new Uint8Array([62, 112, 165, 215, 250]), 5, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+
+/* ------------------------------------------------------------- modèles ---------------------------------------------- */
+let sculpt = null, batiments = null, versions = 0;
+async function chargerModules() {
+  versions++;
+  sculpt = { ...(await import('./sculpt/sculpt3d.js?v=' + versions)), ...(await import('./sculpt/modeles.js?v=' + versions)) };
+  try { batiments = await import('./modeles3d.js'); } catch (e) { batiments = null; }
+  const sel = $('m'); sel.innerHTML = '';
+  const grp = (titre, items) => { const g = document.createElement('optgroup'); g.label = titre; for (const [v, t] of items) { const o = document.createElement('option'); o.value = v; o.textContent = t; g.appendChild(o); } sel.appendChild(g); };
+  grp('Sculptures (formes fondues)', Object.entries(sculpt.CATALOGUE).map(([k, c]) => ['sculpt:' + k, c.titre]));
+  if (batiments) grp('Bâtiments et décors du jeu', Object.keys(batiments.EMPRISES).sort().map((k) => ['bat:' + k, k]));
+  sel.value = E.m;
+}
+const cacheMaille = new Map();
+function meshSculpture(nom, o, pas) {
+  const cle = nom + '|' + JSON.stringify(o) + '|' + pas + '|' + versions;
+  let m = cacheMaille.get(cle);
+  if (!m) {
+    const S = sculpt.sculpture(); sculpt.SCULPTURES[nom](S, o);
+    m = S.maille({ pas }); m.nbOps = S.ops.length; cacheMaille.set(cle, m);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(m.normales, 3));
+  const lin = new Float32Array(m.couleurs.length); for (let i = 0; i < lin.length; i++) lin[i] = Math.pow(m.couleurs[i], 2.2);
+  g.setAttribute('color', new THREE.BufferAttribute(lin, 3));
+  g.setAttribute('fini', new THREE.BufferAttribute(m.finis, 2));
+  g.setIndex(new THREE.BufferAttribute(m.indices, 1));
+  const mesh = new THREE.Mesh(g, materiau());
+  mesh.castShadow = true; mesh.receiveShadow = false;   // l'occlusion cuite suffit : pas de taches d'ombre portée sur soi
+  mesh.userData.info = `${m.nbOps} formes · ${m.nbTriangles.toLocaleString('fr')} triangles · maillage ${m.ms} ms`;
+  return mesh;
+}
+function materiau() {
+  if (E.ombrage === 'fil') return new THREE.MeshBasicMaterial({ vertexColors: true, wireframe: true });
+  if (E.ombrage === 'doux') return new THREE.MeshLambertMaterial({ vertexColors: true });
+  const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: paliersSculpt });
+  // ombres teintées : le sombre tire vers le bleu-violet, la lumière vers le jaune (rampes « hue shift » du pixel art)
+  // + reflet du soleil en deux crans nets sur les matières brillantes (bronze, or), lueur des matières éclairées de l'intérieur
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', 'attribute vec2 fini;\nvarying vec2 vFini;\n#include <common>')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFini = fini;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', 'varying vec2 vFini;\n#include <common>').replace('#include <opaque_fragment>', `
+    { float a = max(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)), 1e-3), l = dot(outgoingLight, vec3(0.299, 0.587, 0.114)) / a;
+      outgoingLight *= mix(vec3(0.84, 0.88, 1.14), vec3(1.07, 1.02, 0.88), smoothstep(0.7, 2.2, l));
+      #if NUM_DIR_LIGHTS > 0
+      vec3 hl = normalize(directionalLights[0].direction + normalize(vViewPosition));
+      float sp = pow(max(dot(normalize(normal), hl), 0.0), 18.0);
+      outgoingLight += vFini.x * (step(0.55, sp) * vec3(0.55, 0.5, 0.4) + step(0.2, sp) * vec3(0.22, 0.2, 0.15)) * diffuseColor.rgb * 2.0;
+      #endif
+      outgoingLight = mix(outgoingLight, diffuseColor.rgb * 1.15, vFini.y); }
+    #include <opaque_fragment>`);
+  };
+  m.customProgramCacheKey = () => 'teinte';
+  return m;
+}
+let objet = null, bornes = new THREE.Box3();
+async function construire() {
+  racine.clear(); objet = null;
+  let o = {}; try { o = JSON.parse(E.o || '{}'); } catch (e) { info('Options : JSON illisible'); }
+  const [type, nom] = E.m.split(':');
+  if (type === 'sculpt' && sculpt.SCULPTURES[nom]) objet = meshSculpture(nom, o, +E.pas);
+  else if (type === 'bat' && batiments) {
+    const { B } = batiments.atelier(+E.D);
+    if (B[nom]) { objet = B[nom](o); objet.traverse((c) => { if (c.isMesh) { c.castShadow = c.receiveShadow = true; if (E.ombrage === 'fil') c.material = new THREE.MeshBasicMaterial({ color: 0x9fd0ff, wireframe: true }); } }); objet.userData.info = 'bâtiment du jeu (batiments3d.js)'; }
+  }
+  if (!objet) { info('Objet introuvable : ' + E.m); return; }
+  racine.add(objet);
+  objet.updateMatrixWorld(true);
+  bornes.setFromObject(objet);
+  if (!isFinite(bornes.min.x) || !isFinite(bornes.max.y)) { info('Objet vide ou invalide (coordonnées NaN)'); racine.clear(); objet = null; window.done = true; return; }
+  etire.scale.y = E.etire === '1' ? YS : 1;
+  await poserSol(); poserPerso();
+}
+
+/* ------------------------------------------------------------- sol et dresseur ---------------------------------------- */
+let sol = null, ombreSol = null, perso = null, texPerso = null;
+function texturePixel(D, dessin) {
+  const c = document.createElement('canvas'); c.width = c.height = D; const g = c.getContext('2d'); dessin(g, D);
+  const t = new THREE.CanvasTexture(c); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+}
+const hash = (x, y, s = 0) => { let h = (x * 374761393 + y * 668265263 + s * 974711) ^ 0x5bd1e995; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+function texHerbe(D) { return texturePixel(D, (g, n) => { g.fillStyle = '#78b858'; g.fillRect(0, 0, n, n); for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const u = hash(x, y, 3); if (u < 0.1) { g.fillStyle = '#5e9c48'; g.fillRect(x, y, 1, 1); } else if (u > 0.94) { g.fillStyle = '#98d070'; g.fillRect(x, y, 1, 1); } } }); }
+function texDalles(D) { return texturePixel(D, (g, n) => { g.fillStyle = '#c9c1ae'; g.fillRect(0, 0, n, n); g.fillStyle = '#a69e8a'; g.fillRect(0, n - 1, n, 1); g.fillRect(n - 1, 0, 1, n); g.fillStyle = '#ddd6c4'; g.fillRect(0, 0, n - 1, 1); g.fillRect(0, 0, 1, n - 1); for (let y = 1; y < n - 1; y++) for (let x = 1; x < n - 1; x++) if (hash(x, y, 7) < 0.07) { g.fillStyle = '#b8b09c'; g.fillRect(x, y, 1, 1); } }); }
+async function texJeu(L) {
+  try {
+    const { rendreBloc, LUT, K, CELL } = await import('../../odyssee/js/render/solgen.js');
+    const SW = L, SH = L, MG = 2, kinds = new Uint8Array((SW + 2 * MG) * (SH + 2 * MG)).fill(K.G);
+    const fr = rendreBloc({ kinds, zw: SW + 2 * MG, zh: SH + 2 * MG, zx0: 200 - MG, zy0: 300 - MG, bw: SW, bh: SH, seed: 5 })[0];
+    const data = new Uint8Array(SW * CELL * SH * CELL * 4), u32 = new Uint32Array(data.buffer);
+    for (let i = 0; i < fr.length; i++) u32[i] = LUT[fr[i]];
+    const t = new THREE.DataTexture(data, SW * CELL, SH * CELL); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; t.flipY = false; t.needsUpdate = true;
+    return t;
+  } catch (e) { return null; }
+}
+async function poserSol() {
+  for (const m of [sol, ombreSol]) if (m) { scene.remove(m); m.geometry.dispose(); }
+  sol = ombreSol = null;
+  const c = bornes.getCenter(new THREE.Vector3()), L = Math.ceil(Math.max(bornes.max.x - bornes.min.x, bornes.max.z - bornes.min.z) + 10);
+  const x0 = Math.floor(c.x - L / 2), z0 = Math.floor(c.z - L / 2);
+  if (E.sol !== 'aucun') {
+    let tex = null;
+    if (E.sol === 'jeu') tex = await texJeu(L);
+    if (!tex) { tex = E.sol === 'dalles' ? texDalles(+E.D) : texHerbe(+E.D); tex.repeat.set(L, L); }
+    const g = new THREE.PlaneGeometry(L, L); g.rotateX(-Math.PI / 2);
+    if (E.sol === 'jeu') { const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i)); }
+    sol = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex })); sol.position.set(x0 + L / 2, 0, z0 + L / 2); sol.layers.set(1); scene.add(sol);
+  }
+  const g2 = new THREE.PlaneGeometry(L, L); g2.rotateX(-Math.PI / 2);
+  ombreSol = new THREE.Mesh(g2, new THREE.ShadowMaterial({ color: E.sol === 'dalles' ? 0x2a2418 : 0x0a2a14, opacity: E.sol === 'aucun' ? 0.32 : 0.38 }));
+  ombreSol.position.set(x0 + L / 2, 0.003, z0 + L / 2); ombreSol.receiveShadow = true; ombreSol.layers.set(1); scene.add(ombreSol);
+  rendre();
+}
+function poserPerso() {
+  if (perso) { etire.remove(perso); perso = null; }
+  if (E.perso !== '1') return;
+  const faire = () => {
+    // un dresseur du jeu (case de 64 px dessinée à densité 2 : 32 px d'écran = une case), pieds au sol, à gauche de l'objet
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: texPerso, alphaTest: 0.5 }));
+    m.position.set(bornes.min.x - 0.75, 0.5, bornes.max.z - 0.3); m.layers.set(1); perso = m; etire.add(m); rendre();
+  };
+  if (texPerso) return faire();
+  new THREE.TextureLoader().load('./sculpt/echelle.png', (t) => { t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; texPerso = t; faire(); });
+}
+
+/* ------------------------------------------------------------- caméras ---------------------------------------------- */
+const camJeu = new THREE.PerspectiveCamera(FOV_JEU, 1, 0.5, 800);
+const camOrb = new THREE.PerspectiveCamera(30, 1, 0.05, 500);
+const ctrl = new OrbitControls(camOrb, ecran); ctrl.enableDamping = false; ctrl.addEventListener('change', () => { if (E.vue === 'orbite') { rendre(); memoOrbite(); } });
+let memoT = 0; function memoOrbite() { clearTimeout(memoT); memoT = setTimeout(() => { const s = new THREE.Spherical().setFromVector3(camOrb.position.clone().sub(ctrl.target)); E.th = s.theta.toFixed(3); E.ph = s.phi.toFixed(3); E.r = s.radius.toFixed(2); ecrireHash(); }, 300); }
+function centreMonde() { const c = bornes.getCenter(new THREE.Vector3()); c.y *= etire.scale.y; return c; }
+function placerJeu(D) {
+  // la caméra du jeu : 55° d'inclinaison, champ de 13°, largeur resserrée de sin(55°) ; distance telle qu'une case fasse D pixels
+  const c = centreMonde(), coins = [];
+  for (const x of [bornes.min.x, bornes.max.x]) for (const y of [bornes.min.y, bornes.max.y]) for (const z of [bornes.min.z, bornes.max.z]) coins.push(new THREE.Vector3(x, y * etire.scale.y, z));
+  if (perso) coins.push(new THREE.Vector3(bornes.min.x - 1.3, 0, bornes.max.z), new THREE.Vector3(bornes.min.x - 1.3, YS * etire.scale.y / YS, bornes.max.z));
+  const viser = (IW, IH) => {
+    camJeu.aspect = IW / IH; camJeu.updateProjectionMatrix(); camJeu.projectionMatrix.elements[0] *= Math.sin(EL); camJeu.projectionMatrixInverse.copy(camJeu.projectionMatrix).invert();
+    const dist = (Math.sin(EL) * IH) / (2 * Math.tan(FOV_JEU * Math.PI / 360) * D);
+    camJeu.position.set(c.x, c.y + dist * Math.sin(EL), c.z + dist * Math.cos(EL)); camJeu.lookAt(c.x, c.y, c.z); camJeu.updateMatrixWorld();
+  };
+  viser(512, 512);
+  let ex = 0, ey = 0; for (const p of coins) { const q = p.clone().project(camJeu); ex = Math.max(ex, Math.abs(q.x) * 256); ey = Math.max(ey, Math.abs(q.y) * 256); }
+  const IW = Math.ceil(ex * 2 + D * 0.75) & ~1, IH = Math.ceil(ey * 2 + D * 0.75) & ~1;
+  viser(IW, IH);
+  return [IW, IH];
+}
+function placerOrbite(W, H) {
+  camOrb.aspect = W / H; camOrb.updateProjectionMatrix();
+  if (!placerOrbite.fait) {
+    const c = centreMonde(), R = E.r ? +E.r : bornes.getSize(new THREE.Vector3()).length() * 1.6 + 1;
+    ctrl.target.copy(c); camOrb.position.copy(c).add(new THREE.Vector3().setFromSphericalCoords(R, +E.ph, +E.th)); ctrl.update(); placerOrbite.fait = true;
+  }
+}
+
+/* ------------------------------------------------------------- contour pixel art ------------------------------------ */
+// passe de profondeur (objet seul) : profondeur sur 24 bits, alpha = objet présent
+const matProf = new THREE.ShaderMaterial({
+  vertexShader: '#include <common>\nvoid main(){ gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'void main(){ float d = gl_FragCoord.z; vec3 e = fract(d * vec3(1.0, 255.0, 65025.0)); e.xy -= e.yz / 255.0; gl_FragColor = vec4(e, 1.0); }',
+});
+/** palette réduite (k-moyennes) sur les pixels de l'objet, puis pixels isolés absorbés par leurs voisins */
+function palette(img, prof, W, H, K) {
+  const P = img.data, Q = prof.data, idx = [];
+  for (let i = 0; i < W * H; i++) if (Q[4 * i + 3] >= 128) idx.push(i);
+  if (idx.length < K) return;
+  const lum = (i) => P[4 * i] * 0.299 + P[4 * i + 1] * 0.587 + P[4 * i + 2] * 0.114;
+  const tri = idx.slice().sort((a, b) => lum(a) - lum(b));
+  let C = Array.from({ length: K }, (_, k) => { const i = tri[Math.floor(((k + 0.5) / K) * tri.length)]; return [P[4 * i], P[4 * i + 1], P[4 * i + 2]]; });
+  const lab = new Int32Array(W * H).fill(-1);
+  for (let it = 0; it < 10; it++) {
+    const S = Array.from({ length: K }, () => [0, 0, 0, 0]);
+    for (const i of idx) {
+      let best = 0, bd = 1e9;
+      for (let k = 0; k < K; k++) { const dr = P[4 * i] - C[k][0], dg = P[4 * i + 1] - C[k][1], db = P[4 * i + 2] - C[k][2], d = dr * dr * 0.3 + dg * dg * 0.59 + db * db * 0.11; if (d < bd) { bd = d; best = k; } }
+      lab[i] = best; const s = S[best]; s[0] += P[4 * i]; s[1] += P[4 * i + 1]; s[2] += P[4 * i + 2]; s[3]++;
+    }
+    C = C.map((c, k) => (S[k][3] ? [S[k][0] / S[k][3], S[k][1] / S[k][3], S[k][2] / S[k][3]] : c));
+  }
+  // nettoyage : un pixel seul de sa couleur prend celle que partagent au moins trois de ses voisins
+  for (let passe = 0; passe < 2; passe++) for (const i of idx) {
+    const x = i % W, y = (i / W) | 0, v = [];
+    if (x > 0) v.push(lab[i - 1]); if (x < W - 1) v.push(lab[i + 1]); if (y > 0) v.push(lab[i - W]); if (y < H - 1) v.push(lab[i + W]);
+    if (v.includes(lab[i])) continue;
+    const n = {}; for (const l of v) if (l >= 0) n[l] = (n[l] || 0) + 1;
+    for (const l in n) if (n[l] >= 3) lab[i] = +l;
+  }
+  for (const i of idx) { const c = C[lab[i]]; P[4 * i] = c[0]; P[4 * i + 1] = c[1]; P[4 * i + 2] = c[2]; }
+}
+function contour(img, prof, W, H, cam, mode) {
+  const P = img.data, Q = prof.data, n = W * H, z = new Float32Array(n), dans = new Uint8Array(n);
+  const near = cam.near, far = cam.far;
+  for (let i = 0; i < n; i++) {
+    if (Q[4 * i + 3] < 128) continue; dans[i] = 1;
+    const d = Q[4 * i] / 255 + Q[4 * i + 1] / 65025 + Q[4 * i + 2] / 16581375;
+    z[i] = (2 * near * far) / (far + near - (2 * d - 1) * (far - near));
+  }
+  const out = new Uint8ClampedArray(P);
+  const seuil = mode === 'jeu' ? 0.35 : 0.06;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x; if (!dans[i]) continue;
+    // la lumière vient d'en haut à gauche : bord éclairé plus doux (selout), bord à l'ombre plus franc
+    let bord = 0, creux = 0;
+    for (const [dx, dy, f] of [[-1, 0, 0.6], [0, -1, 0.6], [1, 0, 0.4], [0, 1, 0.4]]) {
+      const xx = x + dx, yy = y + dy, j = yy * W + xx;
+      if (xx < 0 || yy < 0 || xx >= W || yy >= H || !dans[j]) { bord = bord ? Math.min(bord, f) : f; continue; }
+      if (mode !== 'silhouette' && z[j] < z[i] - seuil * Math.max(1, z[i] * 0.02)) creux = 1;
+    }
+    let f = 1; if (bord) f = bord; else if (creux) f = 0.7;
+    if (f < 1) {
+      // assombrir en tirant vers le bleu-violet (les ombres du pixel art ne sont jamais grises)
+      const k = 4 * i, r = P[k], g = P[k + 1], b = P[k + 2];
+      out[k] = r * f * 0.92; out[k + 1] = g * f * 0.9; out[k + 2] = Math.min(255, b * f * 1.05 + 10 * (1 - f));
+    }
+  }
+  return new ImageData(out, W, H);
+}
+
+/* ------------------------------------------------------------- rendu ------------------------------------------------ */
+let enAttente = false;
+function rendre() { if (enAttente) return; enAttente = true; requestAnimationFrame(() => { enAttente = false; rendreMaintenant(); }); }
+function rendreMaintenant() {
+  if (!objet) return;
+  const D = +E.D, jeu = E.vue === 'jeu';
+  let Z = E.z === 'auto' ? (jeu ? 0 : 2) : +E.z;
+  let W, H, cam;
+  if (jeu) { [W, H] = placerJeu(D); cam = camJeu; if (!Z) Z = Math.max(1, Math.min(6, Math.floor(Math.min(innerWidth / W, innerHeight / H)))); }
+  else {
+    const px = Math.max(1, Math.round(4 / Math.max(1, Z / 1.5)));
+    const vw = innerWidth, vh = innerHeight; W = Math.ceil(vw / Z); H = Math.ceil(vh / Z); placerOrbite(W, H); cam = camOrb;
+  }
+  // soleil en haut à gauche, comme le jeu
+  const c = centreMonde();
+  soleil.position.set(c.x - 32, c.y + 56, c.z + 36); soleil.target.position.copy(c);
+  const R = Math.max(8, bornes.getSize(new THREE.Vector3()).length() * 1.5);
+  Object.assign(soleil.shadow.camera, { left: -R, right: R, top: R, bottom: -R, near: 1, far: 260 }); soleil.shadow.camera.updateProjectionMatrix();
+  renderer.setSize(W, H, false); renderer.setClearColor(E.sol === 'aucun' ? 0x000000 : 0x1b1e24, E.sol === 'aucun' ? 0 : 1);
+  cam.layers.enableAll(); renderer.render(scene, cam);
+  const g0 = document.createElement('canvas'); g0.width = W; g0.height = H; const c0 = g0.getContext('2d', { willReadFrequently: true }); c0.drawImage(renderer.domElement, 0, 0);
+  let img = c0.getImageData(0, 0, W, H);
+  if ((E.contour !== '0' || E.pal !== '0') && E.ombrage !== 'fil') {
+    const ombres = renderer.shadowMap.enabled; renderer.shadowMap.enabled = false;
+    scene.overrideMaterial = matProf; cam.layers.set(0); renderer.setClearColor(0, 0); renderer.render(scene, cam);
+    scene.overrideMaterial = null; cam.layers.enableAll(); renderer.shadowMap.enabled = ombres;
+    c0.clearRect(0, 0, W, H); c0.drawImage(renderer.domElement, 0, 0);
+    const prof = c0.getImageData(0, 0, W, H);
+    if (E.pal !== '0' && E.m.startsWith('sculpt:')) palette(img, prof, W, H, +E.pal);
+    if (E.contour !== '0') img = contour(img, prof, W, H, cam, E.contour === '1' ? 'silhouette' : jeu ? 'jeu' : 'orbite');
+    c0.putImageData(img, 0, 0);
+  } else c0.putImageData(img, 0, 0);
+  derniere = g0;
+  ecran.width = W * Z; ecran.height = H * Z;
+  if (!jeu) { ecran.style.width = innerWidth + 'px'; ecran.style.height = innerHeight + 'px'; } else { ecran.style.width = ecran.style.height = ''; }
+  ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, ecran.width, ecran.height); ctx.drawImage(g0, 0, 0, W * Z, H * Z);
+  info(`${objet.userData.info || ''}\nimage ${W} × ${H} px${jeu ? ` (une case = ${D} px)` : ''}`);
+  window.done = true;
+}
+let derniere = null;
+function info(t) { $('info').textContent = t; }
+
+/* ------------------------------------------------------------- interface -------------------------------------------- */
+function majUI() {
+  $('m').value = E.m; $('o').value = E.o; $('perso').checked = E.perso === '1'; $('etire').checked = E.etire === '1';
+  for (const s of document.querySelectorAll('.seg')) for (const b of s.children) b.classList.toggle('on', b.dataset.v === E[s.dataset.k]);
+  $('aide').style.display = E.vue === 'orbite' ? '' : 'none';
+  ctrl.enabled = E.vue === 'orbite';
+}
+async function appliquer(reconstruire = true) { ecrireHash(); majUI(); if (reconstruire) await construire(); else { etire.scale.y = E.etire === '1' ? YS : 1; poserPerso(); } rendre(); }
+for (const s of document.querySelectorAll('.seg')) s.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return; const k = s.dataset.k; E[k] = b.dataset.v;
+  if (k === 'vue') { placerOrbite.fait = false; if (E.vue === 'orbite' && E.etire === '1' && !location.hash.includes('etire')) E.etire = '0'; if (E.vue === 'jeu') E.etire = '1'; }
+  appliquer(['ombrage', 'pas', 'D', 'vue', 'sol'].includes(k));
+});
+$('m').addEventListener('change', () => { E.m = $('m').value; E.o = JSON.stringify(sculptOuBatDefaut()); placerOrbite.fait = false; E.r = ''; appliquer(); });
+const sculptOuBatDefaut = () => { const [t, n] = E.m.split(':'); return t === 'sculpt' ? (sculpt.CATALOGUE[n]?.o || {}) : {}; };
+$('o').addEventListener('change', () => { E.o = $('o').value; appliquer(); });
+$('perso').addEventListener('change', () => { E.perso = $('perso').checked ? '1' : '0'; appliquer(false); });
+$('etire').addEventListener('change', () => { E.etire = $('etire').checked ? '1' : '0'; placerOrbite.fait = false; appliquer(true); });
+$('recharger').addEventListener('click', async () => { cacheMaille.clear(); await chargerModules(); appliquer(); });
+$('png').addEventListener('click', () => { if (!derniere) return; const a = document.createElement('a'); a.download = E.m.replace(':', '_') + '_' + E.vue + '_' + E.D + '.png'; a.href = derniere.toDataURL('image/png'); a.click(); });
+$('titre').addEventListener('click', () => { $('ui').classList.toggle('ferme'); $('pli').textContent = $('ui').classList.contains('ferme') ? '▸' : '▾'; });
+addEventListener('resize', () => rendre());
+addEventListener('hashchange', () => { lireHash(); appliquer(); });
+if (innerWidth < 700) { $('ui').classList.add('ferme'); $('pli').textContent = '▸'; }
+
+/* ------------------------------------------------------------- pilotage par script ---------------------------------- */
+window.atelier = {
+  /** change l'état ({ m, o, vue, D, z, contour, … }) et attend le rendu */
+  async regler(etat) {
+    window.done = false;
+    for (const k in etat) E[k] = typeof etat[k] === 'object' ? JSON.stringify(etat[k]) : String(etat[k]);
+    if ('th' in etat || 'ph' in etat || 'r' in etat || 'vue' in etat || 'm' in etat) placerOrbite.fait = false;
+    try { await appliquer(); } catch (e) { info('Erreur : ' + e.message); throw e; }
+    await new Promise((r) => setTimeout(r, 30));
+    for (let t = 0; !window.done && t < 600; t++) await new Promise((r) => setTimeout(r, 30));
+    if (!window.done) throw new Error('rendu impossible : ' + $('info').textContent);
+    return E;
+  },
+  /** l'image rendue, à sa taille réelle (sans l'agrandissement d'affichage), en PNG */
+  image: () => derniere.toDataURL('image/png'),
+  etat: () => ({ ...E }),
+};
+
+await chargerModules();
+appliquer();
+</script>
+</body>
+</html>
