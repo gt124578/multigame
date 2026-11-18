@@ -1,6 +1,6 @@
 {
- "last_node_id": 17,
- "last_link_id": 16,
+ "last_node_id": 19,
+ "last_link_id": 18,
  "nodes": [
   {
    "id": 1,
@@ -10,8 +10,8 @@
     0
    ],
    "size": [
-    420,
-    360
+    440,
+    520
    ],
    "flags": {},
    "order": 0,
@@ -22,7 +22,7 @@
     "Node name for S&R": "Note"
    },
    "widgets_values": [
-    "ÉTAPE 1 — RÉFÉRENCE\n\nDécris le personnage dans le cadre « Personnage » (en anglais, c'est mieux compris). Le reste du texte fixe le style HeartGold et le fond magenta (facile à détourer).\n\n4 images par lancement (« batch_size »). Garde la meilleure : c'est elle qui sert de référence aux étapes 2 et 3.\n\nRapide (Lightning, 4 étapes, CFG 1) par défaut. Pour plus de qualité : contourne la LoRA Lightning (Ctrl+B) et mets 40 étapes, CFG 4.\n\nLoRA pixel art (Pixel Art Redmond) : facultative, contournée au départ ; télécharge-la puis Ctrl+B pour l'activer.\n\nSorties : ComfyUI/output/odyssee/"
+    "ÉTAPE 1 — RÉFÉRENCE (FLUX.2 Klein 4B)\n\nDécris le personnage dans le cadre vert, en anglais, à la place de « a girl with a red cap… ». Garde le début (hgsspx…) et la fin (…magenta background) : ce sont les mots des légendes de l'entraînement, la LoRA y répond le mieux.\n\nDeux formules :\n• portrait de combat (référence des étapes 2 et 3) : « hgsspx, pixel art battle trainer sprite, full body, front view, … »\n• planche de marche 4 × 4 directement : « hgsspx, pixel art overworld walking sprite sheet, 4x4 grid, rows facing down, left, right, up, 4 walking frames per row, small chibi character, … »\n\nLoRA HGSS : contournée tant qu'elle n'existe pas ; une fois entraînée, copie-la dans models/loras puis Ctrl+B. Force 0,8 à 1,1.\n\nRapide : 4 étapes, CFG 1. Modèle « base » (flux-2-klein-base-4b) : 20 étapes et CFG 5 dans les nœuds bleus.\n\nSorties : ComfyUI/output/odyssee/"
    ],
    "color": "#432",
    "bgcolor": "#653"
@@ -31,7 +31,7 @@
    "id": 2,
    "type": "UNETLoader",
    "pos": [
-    460,
+    480,
     0
    ],
    "size": [
@@ -56,7 +56,7 @@
     "Node name for S&R": "UNETLoader"
    },
    "widgets_values": [
-    "qwen_image_2512_fp8_e4m3fn.safetensors",
+    "flux-2-klein-4b.safetensors",
     "default"
    ],
    "title": "Modèle (diffusion_models)"
@@ -65,7 +65,7 @@
    "id": 3,
    "type": "CLIPLoader",
    "pos": [
-    460,
+    480,
     150
    ],
    "size": [
@@ -81,8 +81,7 @@
      "name": "CLIP",
      "type": "CLIP",
      "links": [
-      4,
-      5
+      2
      ],
      "slot_index": 0
     }
@@ -91,8 +90,8 @@
     "Node name for S&R": "CLIPLoader"
    },
    "widgets_values": [
-    "qwen_2.5_vl_7b_fp8_scaled.safetensors",
-    "qwen_image",
+    "qwen_3_4b.safetensors",
+    "flux2",
     "default"
    ],
    "title": "Encodeur de texte (text_encoders)"
@@ -101,7 +100,7 @@
    "id": 4,
    "type": "VAELoader",
    "pos": [
-    460,
+    480,
     300
    ],
    "size": [
@@ -117,7 +116,7 @@
      "name": "VAE",
      "type": "VAE",
      "links": [
-      11
+      13
      ],
      "slot_index": 0
     }
@@ -126,7 +125,7 @@
     "Node name for S&R": "VAELoader"
    },
    "widgets_values": [
-    "qwen_image_vae.safetensors"
+    "flux2-vae.safetensors"
    ],
    "title": "VAE (vae)"
   },
@@ -134,16 +133,16 @@
    "id": 5,
    "type": "LoraLoaderModelOnly",
    "pos": [
-    820,
+    840,
     0
    ],
    "size": [
-    320,
-    120
+    340,
+    90
    ],
    "flags": {},
    "order": 4,
-   "mode": 0,
+   "mode": 4,
    "inputs": [
     {
      "name": "model",
@@ -156,7 +155,7 @@
      "name": "MODEL",
      "type": "MODEL",
      "links": [
-      2
+      4
      ],
      "slot_index": 0
     }
@@ -165,57 +164,61 @@
     "Node name for S&R": "LoraLoaderModelOnly"
    },
    "widgets_values": [
-    "Qwen-Image-Lightning-4steps-V1.0.safetensors",
+    "hgss_klein4b.safetensors",
     1.0
    ],
-   "title": "Lightning : 4 étapes (désactiver → 40 étapes, CFG 4)"
+   "title": "LoRA HGSS (Ctrl+B pour l'activer une fois entraînée)",
+   "color": "#223",
+   "bgcolor": "#335"
   },
   {
    "id": 6,
-   "type": "LoraLoaderModelOnly",
+   "type": "CLIPTextEncode",
    "pos": [
-    820,
-    150
+    1220,
+    0
    ],
    "size": [
-    320,
-    120
+    460,
+    260
    ],
    "flags": {},
    "order": 5,
-   "mode": 4,
+   "mode": 0,
    "inputs": [
     {
-     "name": "model",
-     "type": "MODEL",
+     "name": "clip",
+     "type": "CLIP",
      "link": 2
     }
    ],
    "outputs": [
     {
-     "name": "MODEL",
-     "type": "MODEL",
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
      "links": [
-      3
+      3,
+      5
      ],
      "slot_index": 0
     }
    ],
    "properties": {
-    "Node name for S&R": "LoraLoaderModelOnly"
+    "Node name for S&R": "CLIPTextEncode"
    },
    "widgets_values": [
-    "pixel-art-redmond-qwen-image.safetensors",
-    0.8
+    "hgsspx, pixel art battle trainer sprite, full body, front view, a girl with a red cap, short brown hair, a white jacket over a black shirt, blue shorts and a yellow messenger bag, standing straight, Pokemon HeartGold SoulSilver style, flat magenta background"
    ],
-   "title": "LoRA pixel art (facultative : Ctrl+B pour l'activer)"
+   "title": "Personnage (à décrire ici)",
+   "color": "#232",
+   "bgcolor": "#353"
   },
   {
    "id": 7,
-   "type": "ModelSamplingAuraFlow",
+   "type": "ConditioningZeroOut",
    "pos": [
-    820,
-    300
+    1220,
+    290
    ],
    "size": [
     320,
@@ -226,15 +229,15 @@
    "mode": 0,
    "inputs": [
     {
-     "name": "model",
-     "type": "MODEL",
+     "name": "conditioning",
+     "type": "CONDITIONING",
      "link": 3
     }
    ],
    "outputs": [
     {
-     "name": "MODEL",
-     "type": "MODEL",
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
      "links": [
       6
      ],
@@ -242,100 +245,89 @@
     }
    ],
    "properties": {
-    "Node name for S&R": "ModelSamplingAuraFlow"
+    "Node name for S&R": "ConditioningZeroOut"
    },
-   "widgets_values": [
-    3.1
-   ]
+   "widgets_values": [],
+   "title": "Négatif vide (CFG 1)"
   },
   {
    "id": 8,
-   "type": "CLIPTextEncode",
+   "type": "EmptyFlux2LatentImage",
    "pos": [
-    1180,
-    0
+    1220,
+    400
    ],
    "size": [
-    460,
-    260
+    320,
+    120
    ],
    "flags": {},
    "order": 7,
    "mode": 0,
-   "inputs": [
-    {
-     "name": "clip",
-     "type": "CLIP",
-     "link": 4
-    }
-   ],
+   "inputs": [],
    "outputs": [
     {
-     "name": "CONDITIONING",
-     "type": "CONDITIONING",
+     "name": "LATENT",
+     "type": "LATENT",
      "links": [
-      7
+      11
      ],
      "slot_index": 0
     }
    ],
    "properties": {
-    "Node name for S&R": "CLIPTextEncode"
+    "Node name for S&R": "EmptyFlux2LatentImage"
    },
    "widgets_values": [
-    "Pixel art character design of a young pokemon trainer: a girl with a red cap, short brown hair, a white jacket over a black shirt, blue shorts and a yellow messenger bag. Full body from head to feet, standing straight, facing the viewer, front view, arms relaxed, about three heads tall. Style of the Pokemon HeartGold and SoulSilver sprites: clean dark 1-pixel outline, flat cel shading with two or three tones per color, limited palette, crisp square pixels, no anti-aliasing, no blur, no gradient. Single character, centered, plain solid magenta background (#FF00FF), no shadow on the ground, no text, no frame."
+    1024,
+    1024,
+    4
    ],
-   "title": "Personnage (à décrire ici)",
-   "color": "#232",
-   "bgcolor": "#353"
+   "title": "Taille et nombre d'images (même taille dans le planificateur)"
   },
   {
    "id": 9,
-   "type": "CLIPTextEncode",
+   "type": "Flux2Scheduler",
    "pos": [
-    1180,
-    290
+    1720,
+    0
    ],
    "size": [
-    460,
-    130
+    320,
+    120
    ],
    "flags": {},
    "order": 8,
    "mode": 0,
-   "inputs": [
-    {
-     "name": "clip",
-     "type": "CLIP",
-     "link": 5
-    }
-   ],
+   "inputs": [],
    "outputs": [
     {
-     "name": "CONDITIONING",
-     "type": "CONDITIONING",
+     "name": "SIGMAS",
+     "type": "SIGMAS",
      "links": [
-      8
+      10
      ],
      "slot_index": 0
     }
    ],
    "properties": {
-    "Node name for S&R": "CLIPTextEncode"
+    "Node name for S&R": "Flux2Scheduler"
    },
    "widgets_values": [
-    "blurry, anti-aliasing, gradient, photo, 3d render, realistic, painterly, soft shading, text, watermark, frame, several characters, cropped, cut off feet, shadow, busy background"
+    4,
+    1024,
+    1024
    ],
-   "title": "À éviter",
-   "color": "#322",
-   "bgcolor": "#533"
+   "title": "Étapes (4 ; base : 20)",
+   "color": "#223",
+   "bgcolor": "#335"
   },
   {
    "id": 10,
-   "type": "EmptySD3LatentImage",
+   "type": "CFGGuider",
    "pos": [
-    1180,
-    450
+    1720,
+    130
    ],
    "size": [
     320,
@@ -344,11 +336,62 @@
    "flags": {},
    "order": 9,
    "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 4
+    },
+    {
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": 5
+    },
+    {
+     "name": "negative",
+     "type": "CONDITIONING",
+     "link": 6
+    }
+   ],
+   "outputs": [
+    {
+     "name": "GUIDER",
+     "type": "GUIDER",
+     "links": [
+      8
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CFGGuider"
+   },
+   "widgets_values": [
+    1.0
+   ],
+   "title": "CFG (1 ; base : 5)",
+   "color": "#223",
+   "bgcolor": "#335"
+  },
+  {
+   "id": 11,
+   "type": "KSamplerSelect",
+   "pos": [
+    1720,
+    260
+   ],
+   "size": [
+    320,
+    120
+   ],
+   "flags": {},
+   "order": 10,
+   "mode": 0,
    "inputs": [],
    "outputs": [
     {
-     "name": "LATENT",
-     "type": "LATENT",
+     "name": "SAMPLER",
+     "type": "SAMPLER",
      "links": [
       9
      ],
@@ -356,80 +399,18 @@
     }
    ],
    "properties": {
-    "Node name for S&R": "EmptySD3LatentImage"
+    "Node name for S&R": "KSamplerSelect"
    },
    "widgets_values": [
-    1024,
-    1024,
-    4
-   ],
-   "title": "Taille et nombre d'images"
-  },
-  {
-   "id": 11,
-   "type": "KSampler",
-   "pos": [
-    1680,
-    0
-   ],
-   "size": [
-    320,
-    270
-   ],
-   "flags": {},
-   "order": 10,
-   "mode": 0,
-   "inputs": [
-    {
-     "name": "model",
-     "type": "MODEL",
-     "link": 6
-    },
-    {
-     "name": "positive",
-     "type": "CONDITIONING",
-     "link": 7
-    },
-    {
-     "name": "negative",
-     "type": "CONDITIONING",
-     "link": 8
-    },
-    {
-     "name": "latent_image",
-     "type": "LATENT",
-     "link": 9
-    }
-   ],
-   "outputs": [
-    {
-     "name": "LATENT",
-     "type": "LATENT",
-     "links": [
-      10
-     ],
-     "slot_index": 0
-    }
-   ],
-   "properties": {
-    "Node name for S&R": "KSampler"
-   },
-   "widgets_values": [
-    0,
-    "randomize",
-    4,
-    1.0,
-    "euler",
-    "simple",
-    1.0
+    "euler"
    ]
   },
   {
    "id": 12,
-   "type": "VAEDecode",
+   "type": "RandomNoise",
    "pos": [
-    1680,
-    300
+    1720,
+    350
    ],
    "size": [
     320,
@@ -438,82 +419,110 @@
    "flags": {},
    "order": 11,
    "mode": 0,
-   "inputs": [
-    {
-     "name": "samples",
-     "type": "LATENT",
-     "link": 10
-    },
-    {
-     "name": "vae",
-     "type": "VAE",
-     "link": 11
-    }
-   ],
+   "inputs": [],
    "outputs": [
     {
-     "name": "IMAGE",
-     "type": "IMAGE",
+     "name": "NOISE",
+     "type": "NOISE",
      "links": [
-      12,
-      13
+      7
      ],
      "slot_index": 0
     }
    ],
    "properties": {
-    "Node name for S&R": "VAEDecode"
+    "Node name for S&R": "RandomNoise"
    },
-   "widgets_values": []
+   "widgets_values": [
+    0,
+    "randomize"
+   ]
   },
   {
    "id": 13,
-   "type": "SaveImage",
+   "type": "SamplerCustomAdvanced",
    "pos": [
-    0,
-    420
+    2060,
+    0
    ],
    "size": [
-    300,
-    330
+    260,
+    130
    ],
    "flags": {},
    "order": 12,
    "mode": 0,
    "inputs": [
     {
-     "name": "images",
-     "type": "IMAGE",
-     "link": 12
+     "name": "noise",
+     "type": "NOISE",
+     "link": 7
+    },
+    {
+     "name": "guider",
+     "type": "GUIDER",
+     "link": 8
+    },
+    {
+     "name": "sampler",
+     "type": "SAMPLER",
+     "link": 9
+    },
+    {
+     "name": "sigmas",
+     "type": "SIGMAS",
+     "link": 10
+    },
+    {
+     "name": "latent_image",
+     "type": "LATENT",
+     "link": 11
     }
    ],
-   "outputs": [],
-   "properties": {
-    "Node name for S&R": "SaveImage"
-   },
-   "widgets_values": [
-    "odyssee/reference_brut"
+   "outputs": [
+    {
+     "name": "output",
+     "type": "LATENT",
+     "links": [
+      12
+     ],
+     "slot_index": 0
+    },
+    {
+     "name": "denoised_output",
+     "type": "LATENT",
+     "links": [],
+     "slot_index": 1
+    }
    ],
-   "title": "reference : image brute"
+   "properties": {
+    "Node name for S&R": "SamplerCustomAdvanced"
+   },
+   "widgets_values": []
   },
   {
    "id": 14,
-   "type": "PixelArtDetectorToImage",
+   "type": "VAEDecode",
    "pos": [
-    320,
-    420
+    2060,
+    160
    ],
    "size": [
-    300,
-    110
+    320,
+    120
    ],
    "flags": {},
    "order": 13,
    "mode": 0,
    "inputs": [
     {
-     "name": "images",
-     "type": "IMAGE",
+     "name": "samples",
+     "type": "LATENT",
+     "link": 12
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
      "link": 13
     }
    ],
@@ -529,24 +538,20 @@
     }
    ],
    "properties": {
-    "Node name for S&R": "PixelArtDetectorToImage"
+    "Node name for S&R": "VAEDecode"
    },
-   "widgets_values": [
-    true,
-    24
-   ],
-   "title": "Au pixel près (grille + palette)"
+   "widgets_values": []
   },
   {
    "id": 15,
    "type": "SaveImage",
    "pos": [
-    320,
-    550
+    0,
+    560
    ],
    "size": [
     300,
-    200
+    330
    ],
    "flags": {},
    "order": 14,
@@ -563,27 +568,27 @@
     "Node name for S&R": "SaveImage"
    },
    "widgets_values": [
-    "odyssee/reference_pixel"
+    "odyssee/reference_brut"
    ],
-   "title": "reference : à la vraie taille (à garder)"
+   "title": "reference : image brute"
   },
   {
    "id": 16,
-   "type": "ImageScaleBy",
+   "type": "PixelArtDetectorToImage",
    "pos": [
-    640,
-    420
+    320,
+    560
    ],
    "size": [
-    320,
-    120
+    300,
+    110
    ],
    "flags": {},
    "order": 15,
    "mode": 0,
    "inputs": [
     {
-     "name": "image",
+     "name": "images",
      "type": "IMAGE",
      "link": 15
     }
@@ -593,7 +598,78 @@
      "name": "IMAGE",
      "type": "IMAGE",
      "links": [
-      16
+      16,
+      17
+     ],
+     "slot_index": 0
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "PixelArtDetectorToImage"
+   },
+   "widgets_values": [
+    true,
+    24
+   ],
+   "title": "Au pixel près (grille + palette)"
+  },
+  {
+   "id": 17,
+   "type": "SaveImage",
+   "pos": [
+    320,
+    690
+   ],
+   "size": [
+    300,
+    200
+   ],
+   "flags": {},
+   "order": 16,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 16
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "odyssee/reference_pixel"
+   ],
+   "title": "reference : à la vraie taille (à garder)"
+  },
+  {
+   "id": 18,
+   "type": "ImageScaleBy",
+   "pos": [
+    640,
+    560
+   ],
+   "size": [
+    320,
+    120
+   ],
+   "flags": {},
+   "order": 17,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 17
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      18
      ],
      "slot_index": 0
     }
@@ -608,24 +684,24 @@
    "title": "Aperçu ×4"
   },
   {
-   "id": 17,
+   "id": 19,
    "type": "PreviewImage",
    "pos": [
     640,
-    530
+    670
    ],
    "size": [
     300,
     330
    ],
    "flags": {},
-   "order": 16,
+   "order": 18,
    "mode": 0,
    "inputs": [
     {
      "name": "images",
      "type": "IMAGE",
-     "link": 16
+     "link": 18
     }
    ],
    "outputs": [],
@@ -646,11 +722,11 @@
   ],
   [
    2,
-   5,
+   3,
    0,
    6,
    0,
-   "MODEL"
+   "CLIP"
   ],
   [
    3,
@@ -658,87 +734,87 @@
    0,
    7,
    0,
-   "MODEL"
+   "CONDITIONING"
   ],
   [
    4,
-   3,
-   0,
-   8,
-   0,
-   "CLIP"
-  ],
-  [
    5,
-   3,
    0,
-   9,
-   0,
-   "CLIP"
-  ],
-  [
-   6,
-   7,
-   0,
-   11,
+   10,
    0,
    "MODEL"
   ],
   [
-   7,
-   8,
+   5,
+   6,
    0,
-   11,
+   10,
    1,
    "CONDITIONING"
   ],
   [
-   8,
-   9,
+   6,
+   7,
    0,
-   11,
+   10,
    2,
    "CONDITIONING"
   ],
   [
-   9,
-   10,
-   0,
-   11,
-   3,
-   "LATENT"
-  ],
-  [
-   10,
-   11,
-   0,
+   7,
    12,
    0,
-   "LATENT"
+   13,
+   0,
+   "NOISE"
   ],
   [
-   11,
-   4,
+   8,
+   10,
    0,
-   12,
+   13,
    1,
-   "VAE"
+   "GUIDER"
+  ],
+  [
+   9,
+   11,
+   0,
+   13,
+   2,
+   "SAMPLER"
+  ],
+  [
+   10,
+   9,
+   0,
+   13,
+   3,
+   "SIGMAS"
+  ],
+  [
+   11,
+   8,
+   0,
+   13,
+   4,
+   "LATENT"
   ],
   [
    12,
-   12,
-   0,
    13,
-   0,
-   "IMAGE"
-  ],
-  [
-   13,
-   12,
    0,
    14,
    0,
-   "IMAGE"
+   "LATENT"
+  ],
+  [
+   13,
+   4,
+   0,
+   14,
+   1,
+   "VAE"
   ],
   [
    14,
@@ -763,16 +839,32 @@
    17,
    0,
    "IMAGE"
+  ],
+  [
+   17,
+   16,
+   0,
+   18,
+   0,
+   "IMAGE"
+  ],
+  [
+   18,
+   18,
+   0,
+   19,
+   0,
+   "IMAGE"
   ]
  ],
  "groups": [
   {
-   "title": "1. Le personnage de référence : de face, en pied (on en tire 4, on garde le meilleur)",
+   "title": "1. Le personnage de référence avec FLUX.2 Klein 4B et la LoRA HGSS (4 images par lancement)",
    "bounding": [
     -20,
     -60,
-    2300,
-    820
+    2380,
+    840
    ],
    "color": "#3f789e",
    "font_size": 24,

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """tools/comfyui/fabriquer.py — écrit les workflows ComfyUI des personnages d'Odyssée (format de l'interface, à glisser dans ComfyUI).
 
-  python3 tools/comfyui/fabriquer.py      → tools/comfyui/1-reference.json, 2-variations.json, 3-pixel-net.json
+  python3 tools/comfyui/fabriquer.py      → tools/comfyui/1-reference.json (FLUX.2 Klein 4B + LoRA HGSS),
+                                            1-reference-qwen.json (l'ancienne, Qwen-Image 2512), 2-variations.json, 3-pixel-net.json
 
 Les liens entre nœuds sont calculés ici (jamais écrits à la main), puis vérifiés : chaque entrée reliée a bien sa sortie.
 """
@@ -18,6 +19,13 @@ LORA_T2I = 'Qwen-Image-Lightning-4steps-V1.0.safetensors'
 LORA_EDIT = 'Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors'
 LORA_PIXEL = 'pixel-art-redmond-qwen-image.safetensors'          # Pixel Art Redmond (Qwen-Image 2512), facultative
 LORA_PLANCHE = 'pixel_4walk_32x48_qwen_image_edit_2511_v1.safetensors'  # planches de marche (Qwen-Image-Edit 2511), facultative
+
+# FLUX.2 Klein 4B (noms du modèle de workflow officiel de Comfy-Org)
+KLEIN_UNET = 'flux-2-klein-4b.safetensors'            # version rapide (4 étapes) ; la LoRA s'entraîne sur la « base » mais marche dessus
+KLEIN_CLIP = 'qwen_3_4b.safetensors'
+KLEIN_VAE = 'flux2-vae.safetensors'
+LORA_HGSS = 'hgss_klein4b.safetensors'                 # notre LoRA (entrainement/hgss_klein4b.yaml), à copier dans models/loras
+MOT = 'hgsspx'                                         # mot déclencheur du jeu de données
 
 STYLE = ('Style of the Pokemon HeartGold and SoulSilver sprites: clean dark 1-pixel outline, flat cel shading with two or three '
          'tones per color, limited palette, crisp square pixels, no anti-aliasing, no blur, no gradient. ')
@@ -103,7 +111,7 @@ def pixel_net(G, x, y, image, nom, couleurs=24):
     G.relier(z, 0, p, 'images')
 
 
-def workflow_reference():
+def workflow_reference_qwen():
     G = Graphe()
     G.groupe('1. Le personnage de référence : de face, en pied (on en tire 4, on garde le meilleur)', -20, -60, 2300, 820)
     G.note((0, 0), 'ÉTAPE 1 — RÉFÉRENCE\n\nDécris le personnage dans le cadre « Personnage » (en anglais, c\'est mieux compris). '
@@ -146,6 +154,53 @@ VARIANTES = [
      'Redraw the character from the image as a Pokemon HeartGold battle trainer sprite: full body, normal proportions, three-quarter '
      'view turned slightly to the left toward the opponent, confident battle pose, one hand holding a poke ball. ' + GARDER + STYLE + FOND),
 ]
+
+
+def workflow_reference():
+    """étape 1 sur FLUX.2 Klein 4B (rapide sur 12 Go), avec la LoRA HGSS entraînée par AI-Toolkit"""
+    G = Graphe()
+    G.groupe('1. Le personnage de référence avec FLUX.2 Klein 4B et la LoRA HGSS (4 images par lancement)', -20, -60, 2380, 840)
+    G.note((0, 0), 'ÉTAPE 1 — RÉFÉRENCE (FLUX.2 Klein 4B)\n\nDécris le personnage dans le cadre vert, en anglais, à la place '
+           'de « a girl with a red cap… ». Garde le début (hgsspx…) et la fin (…magenta background) : ce sont les mots des légendes '
+           'de l\'entraînement, la LoRA y répond le mieux.\n\nDeux formules :\n• portrait de combat (référence des étapes 2 et 3) : '
+           '« hgsspx, pixel art battle trainer sprite, full body, front view, … »\n• planche de marche 4 × 4 directement : '
+           '« hgsspx, pixel art overworld walking sprite sheet, 4x4 grid, rows facing down, left, right, up, 4 walking frames per row, '
+           'small chibi character, … »\n\nLoRA HGSS : contournée tant qu\'elle n\'existe pas ; une fois entraînée, copie-la dans '
+           'models/loras puis Ctrl+B. Force 0,8 à 1,1.\n\nRapide : 4 étapes, CFG 1. Modèle « base » (flux-2-klein-base-4b) : '
+           '20 étapes et CFG 5 dans les nœuds bleus.\n\nSorties : ComfyUI/output/odyssee/', (440, 520))
+    u = G.noeud('UNETLoader', (480, 0), [KLEIN_UNET, 'default'], sorties=[('MODEL', 'MODEL')], titre='Modèle (diffusion_models)')
+    c = G.noeud('CLIPLoader', (480, 150), [KLEIN_CLIP, 'flux2', 'default'], sorties=[('CLIP', 'CLIP')], titre='Encodeur de texte (text_encoders)')
+    v = G.noeud('VAELoader', (480, 300), [KLEIN_VAE], sorties=[('VAE', 'VAE')], titre='VAE (vae)')
+    l = G.noeud('LoraLoaderModelOnly', (840, 0), [LORA_HGSS, 1.0], entrees=[('model', 'MODEL')], sorties=[('MODEL', 'MODEL')],
+                titre='LoRA HGSS (Ctrl+B pour l\'activer une fois entraînée)', mode=4, taille=(340, 90), couleur=('#223', '#335'))
+    G.relier(u, 0, l, 'model')
+    pos = G.noeud('CLIPTextEncode', (1220, 0), [
+        MOT + ', pixel art battle trainer sprite, full body, front view, a girl with a red cap, short brown hair, a white jacket over '
+        'a black shirt, blue shorts and a yellow messenger bag, standing straight, Pokemon HeartGold SoulSilver style, flat magenta background'],
+        entrees=[('clip', 'CLIP')], sorties=[('CONDITIONING', 'CONDITIONING')], titre='Personnage (à décrire ici)', taille=(460, 260),
+        couleur=('#232', '#353'))
+    G.relier(c, 0, pos, 'clip')
+    zero = G.noeud('ConditioningZeroOut', (1220, 290), [], entrees=[('conditioning', 'CONDITIONING')],
+                   sorties=[('CONDITIONING', 'CONDITIONING')], titre='Négatif vide (CFG 1)')
+    G.relier(pos, 0, zero, 'conditioning')
+    lat = G.noeud('EmptyFlux2LatentImage', (1220, 400), [1024, 1024, 4], sorties=[('LATENT', 'LATENT')],
+                  titre='Taille et nombre d\'images (même taille dans le planificateur)')
+    bleu = ('#223', '#335')
+    sch = G.noeud('Flux2Scheduler', (1720, 0), [4, 1024, 1024], sorties=[('SIGMAS', 'SIGMAS')], titre='Étapes (4 ; base : 20)', couleur=bleu)
+    gd = G.noeud('CFGGuider', (1720, 130), [1.0], entrees=[('model', 'MODEL'), ('positive', 'CONDITIONING'), ('negative', 'CONDITIONING')],
+                 sorties=[('GUIDER', 'GUIDER')], titre='CFG (1 ; base : 5)', couleur=bleu)
+    G.relier(l, 0, gd, 'model'); G.relier(pos, 0, gd, 'positive'); G.relier(zero, 0, gd, 'negative')
+    ksel = G.noeud('KSamplerSelect', (1720, 260), ['euler'], sorties=[('SAMPLER', 'SAMPLER')])
+    nz = G.noeud('RandomNoise', (1720, 350), [0, 'randomize'], sorties=[('NOISE', 'NOISE')])
+    sa = G.noeud('SamplerCustomAdvanced', (2060, 0), [],
+                 entrees=[('noise', 'NOISE'), ('guider', 'GUIDER'), ('sampler', 'SAMPLER'), ('sigmas', 'SIGMAS'), ('latent_image', 'LATENT')],
+                 sorties=[('output', 'LATENT'), ('denoised_output', 'LATENT')], taille=(260, 130))
+    G.relier(nz, 0, sa, 'noise'); G.relier(gd, 0, sa, 'guider'); G.relier(ksel, 0, sa, 'sampler')
+    G.relier(sch, 0, sa, 'sigmas'); G.relier(lat, 0, sa, 'latent_image')
+    dec = G.noeud('VAEDecode', (2060, 160), [], entrees=[('samples', 'LATENT'), ('vae', 'VAE')], sorties=[('IMAGE', 'IMAGE')])
+    G.relier(sa, 0, dec, 'samples'); G.relier(v, 0, dec, 'vae')
+    pixel_net(G, 0, 560, (dec, 0), 'reference')
+    return G.json()
 
 
 def workflow_variations():
@@ -201,7 +256,8 @@ def workflow_pixel():
 
 
 if __name__ == '__main__':
-    for nom, f in (('1-reference', workflow_reference), ('2-variations', workflow_variations), ('3-pixel-net', workflow_pixel)):
+    for nom, f in (('1-reference', workflow_reference), ('1-reference-qwen', workflow_reference_qwen),
+                   ('2-variations', workflow_variations), ('3-pixel-net', workflow_pixel)):
         with open(os.path.join(DIR, nom + '.json'), 'w') as fh:
             json.dump(f(), fh, ensure_ascii=False, indent=1)
         print(nom)

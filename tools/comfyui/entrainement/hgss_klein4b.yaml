@@ -1,0 +1,88 @@
+# LoRA « style HGSS / Platine » pour FLUX.2 Klein 4B, réglée pour une carte de 12 Go (RTX 3080 Ti) et 64 Go de mémoire vive.
+# AI-Toolkit (ostris) : copie ce fichier dans C:\ai-toolkit\config\ puis lance lancer-entrainement.bat
+# (ou, dans l'interface d'AI-Toolkit : New Job → Advanced, colle ce fichier).
+# Les deux dossiers du jeu de données (marche\ et combat\ du zip lora_hgss_platine) vont dans C:\ai-toolkit\datasets\hgss\.
+job: extension
+config:
+  name: hgss_klein4b
+  process:
+    - type: diffusion_trainer
+      training_folder: output            # la LoRA sort dans C:\ai-toolkit\output\hgss_klein4b\
+      sqlite_db_path: ./aitk_db.db
+      device: cuda
+      trigger_word: null                 # le mot hgsspx est déjà en tête de chaque légende
+      performance_log_every: 10
+      network:
+        type: lora
+        linear: 32
+        linear_alpha: 32
+      save:
+        dtype: bf16
+        save_every: 250                  # une LoRA tous les 250 pas : garde la meilleure à l'œil, pas forcément la dernière
+        max_step_saves_to_keep: 8
+        save_format: diffusers
+        push_to_hub: false
+      datasets:
+        - folder_path: C:/ai-toolkit/datasets/hgss/marche
+          caption_ext: txt
+          caption_dropout_rate: 0.0      # 0 obligatoire : les légendes sont encodées une fois pour toutes (cache plus bas)
+          cache_latents_to_disk: true
+          cache_text_embeddings: true
+          resolution: [1024]             # 1024 seulement : un pixel du sprite = une case du modèle, sinon la grille se brouille
+          num_repeats: 1
+          flip_x: false                  # pas de miroir : les rangées gauche / droite de la planche doivent rester à leur place
+        - folder_path: C:/ai-toolkit/datasets/hgss/combat
+          caption_ext: txt
+          caption_dropout_rate: 0.0
+          cache_latents_to_disk: true
+          cache_text_embeddings: true
+          resolution: [1024]
+          num_repeats: 1
+          flip_x: false
+      train:
+        batch_size: 1
+        steps: 2000                      # les LoRA de style plafonnent souvent entre 750 et 1500 pas
+        gradient_accumulation: 1
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true
+        noise_scheduler: flowmatch
+        timestep_type: weighted
+        content_or_style: balanced
+        optimizer: adamw8bit
+        optimizer_params:
+          weight_decay: 0.0001
+        lr: 0.0001
+        cache_text_embeddings: true      # encode les 458 légendes au début puis libère l'encodeur de texte (gain de mémoire)
+        unload_text_encoder: false
+        dtype: bf16
+        ema_config:
+          use_ema: false
+        loss_type: mse
+      model:
+        arch: flux2_klein_4b
+        name_or_path: black-forest-labs/FLUX.2-klein-base-4B   # téléchargé tout seul depuis Hugging Face au premier lancement
+        quantize: true
+        qtype: qfloat8
+        quantize_te: true
+        qtype_te: qfloat8
+        low_vram: true                   # indispensable sur 12 Go
+        model_kwargs:
+          match_target_res: false
+      sample:
+        sampler: flowmatch
+        sample_every: 250
+        width: 1024
+        height: 1024
+        guidance_scale: 4
+        sample_steps: 25
+        seed: 42
+        walk_seed: false
+        neg: ''
+        samples:
+          - prompt: 'hgsspx, pixel art battle trainer sprite, full body, front view, a young ranger with a green jacket and a red scarf, Pokemon HeartGold SoulSilver style, flat magenta background'
+          - prompt: 'hgsspx, pixel art overworld walking sprite sheet, 4x4 grid, rows facing down, left, right, up, 4 walking frames per row, small chibi character, a girl with a red cap and a yellow bag, Pokemon HeartGold SoulSilver style, flat magenta background'
+          - prompt: 'hgsspx, pixel art battle trainer sprite, full body, front view, an old fisherman with a straw hat holding a fishing rod, Pokemon Platinum style, flat magenta background'
+meta:
+  name: hgss_klein4b
+  version: '1.0'

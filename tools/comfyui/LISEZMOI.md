@@ -1,11 +1,12 @@
 # Workflows ComfyUI pour les personnages d'Odyssée
 
-Trois workflows à glisser dans ComfyUI (ils sont écrits par `fabriquer.py` : modifier ce script, puis le relancer, plutôt
+Quatre workflows à glisser dans ComfyUI (ils sont écrits par `fabriquer.py` : modifier ce script, puis le relancer, plutôt
 que les fichiers JSON à la main).
 
 | Fichier | Rôle |
 |---|---|
-| `1-reference.json` | Le personnage de référence, de face et en pied, en style HeartGold sur fond magenta (Qwen-Image 2512, 4 images par lancement). |
+| `1-reference.json` | Le personnage de référence en style HeartGold sur fond magenta, avec FLUX.2 Klein 4B et notre LoRA HGSS (4 images par lancement, quelques secondes sur 12 Go). |
+| `1-reference-qwen.json` | L'ancienne étape 1 sur Qwen-Image 2512, sans LoRA HGSS. |
 | `2-variations.json` | À partir de la référence (ou d'une image du jeu) : sprite de terrain de face, profil gauche, de dos, et portrait de combat (Qwen-Image-Edit 2511). |
 | `3-pixel-net.json` | Le passage au pixel près seul, pour n'importe quelle image. |
 
@@ -29,11 +30,15 @@ Modèles :
 | `vae` | `qwen_image_vae.safetensors` | Comfy-Org/Qwen-Image_ComfyUI |
 | `loras` | `Qwen-Image-Lightning-4steps-V1.0.safetensors` | lightx2v/Qwen-Image-Lightning |
 | `loras` | `Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors` | lightx2v/Qwen-Image-Edit-2511-Lightning |
+| `diffusion_models` | `flux-2-klein-4b.safetensors` (rapide, 4 étapes ; `flux-2-klein-base-4b` pour 20 étapes) | Comfy-Org/flux2-klein |
+| `text_encoders` | `qwen_3_4b.safetensors` | Comfy-Org/flux2-klein |
+| `vae` | `flux2-vae.safetensors` | Comfy-Org/flux2-dev |
+| `loras` | `hgss_klein4b.safetensors` : notre LoRA, à entraîner (voir plus bas) | — |
 | `loras` (facultatif) | Pixel Art Redmond pour Qwen-Image 2512 | artificialguybr/PIXELART-REDMOND-QWENIMAGE |
 | `loras` (facultatif) | `pixel_4walk_32x48_qwen_image_edit_2511_v1.safetensors` (planche de marche 32 × 48 ; les fichiers `…_000001750`, `…_2000`, `…_2500` sont des étapes intermédiaires de l'entraînement, inutiles au départ) | svntax-dev (ou Leon1000)/pixel_spritesheet_4walk_combat_32x48_v1 |
 
 Si un nom de fichier diffère chez toi, le nœud s'affiche en rouge : choisis le bon fichier dans sa liste déroulante.
-Les deux LoRA facultatives sont **contournées** au départ (nœud grisé) : Ctrl+B dessus pour les activer.
+Les LoRA facultatives (et la LoRA HGSS tant qu'elle n'est pas entraînée) sont **contournées** au départ (nœud grisé) : Ctrl+B dessus pour les activer.
 
 ## Réglages
 
@@ -54,3 +59,28 @@ Les deux LoRA facultatives sont **contournées** au départ (nœud grisé) : Ctr
 
 Pour essayer sur le jeu : charger dans `2-variations.json` un portrait de `assets/graphics/portraits-combat/` (par exemple
 `aurele.png`) et regarder ce que donnent les sprites de terrain, à comparer avec `assets/graphics/persos64/aurele.png`.
+
+## Entraîner la LoRA HGSS (FLUX.2 Klein 4B, 12 Go)
+
+ComfyUI ne sait pas entraîner Klein de façon fiable : on passe par **AI-Toolkit** (ostris), une appli à part avec sa page web.
+Tout est prêt dans `entrainement/` :
+
+- `hgss_klein4b.yaml` : les réglages (Klein 4B base, quantifié en fp8, `low_vram`, 1024 px, rang 32, 2 000 pas,
+  une LoRA et 3 images d'essai tous les 250 pas) ;
+- `lancer-entrainement.bat` : lance l'entraînement sous Windows.
+
+1. Installer AI-Toolkit dans `C:\ai-toolkit` (suivre son README : `git clone`, `python -m venv venv`, torch, `pip install -r requirements.txt`).
+2. Jeu de données : dézipper `lora_hgss_platine.zip` et copier ses dossiers `marche\` et `combat\` dans
+   `C:\ai-toolkit\datasets\hgss\` (sans `natif\`). Chaque image garde son `.txt`.
+3. Copier `hgss_klein4b.yaml` dans `C:\ai-toolkit\config\`, puis double-cliquer sur `lancer-entrainement.bat`.
+   Le modèle (~15 Go) se télécharge tout seul au premier lancement. Autre chemin : interface d'AI-Toolkit
+   (`cd ui`, `npm run build_and_start`, http://localhost:8675), New Job → Advanced, coller le fichier.
+4. Les LoRA tombent dans `C:\ai-toolkit\output\hgss_klein4b\`, avec les images d'essai à côté (`samples\`). Choisir la
+   meilleure à l'œil (souvent entre 750 et 1 500 pas), la copier dans `ComfyUI\models\loras\hgss_klein4b.safetensors`,
+   puis dans `1-reference.json` : Ctrl+B sur le nœud LoRA HGSS.
+
+Durée sur une RTX 3080 Ti : environ 2 à 4 h pour 2 000 pas, plus 15 à 30 min au départ (encodage des 458 images et des légendes).
+Pendant ce temps, fermer ComfyUI et le navigateur. Si la mémoire manque : `resolution` ne baisse pas (la grille des pixels se
+brouillerait), baisser plutôt `linear` à 16, ou activer `layer_offloading` dans `model`.
+
+Un dossier ailleurs que `C:\ai-toolkit` : corriger les deux `folder_path` du `.yaml` et la ligne `cd` du `.bat`.
