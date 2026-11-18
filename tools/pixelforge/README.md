@@ -39,6 +39,12 @@ python3 -m http.server 8766          # à la racine du dépôt, puis http://loca
 node tools/pixelforge/atelier3d-capture.cjs /tmp/a3d 8766 '[{"nom":"k","m":"sculpt:komainu","D":64,"sol":"aucun"}]'
 ```
 
+Inclinaison (`k`, profondeur apparente d'un dessus ÷ hauteur d'une face) : `1` = la caméra du monde (55°, hauteurs
+étirées, comme les bâtiments) ; `0,35`, `0,5`, `0,7` = caméra plus basse, sans étirement, pour les objets rendus en sprites
+(statues, socles) que la vue du monde écrase. Les sculptures ont leur propre lumière (soleil franc, ciel faible) pour que les
+dessus soient nettement plus clairs que les faces, comme en pixel art ; les bâtiments gardent celle du jeu.
+Repères : `reperes` (cube d'une case à dessus doré et socle), `socleGym` (le socle de la statue d'arène refait en volume).
+
 La capture pilote la page (`window.atelier.regler({…})`, `window.atelier.image()`) et écrit un PNG par état :
 c'est ainsi que Claude regarde ce qu'il sculpte (vue du jeu, orbite à plusieurs angles) avant de le montrer.
 
@@ -72,3 +78,10 @@ lève la tête vers la balle (et donc vers la caméra), `o.regard` règle l'angl
 
 `python3 tools/pixelforge/demo2d.py <rendus de l'atelier> <sortie>` : rocher en aplats / en relief / celui du jeu, et
 les sculptures en sprites à côté des statues du jeu.
+
+## Revue de perspective des décors
+
+`python3 tools/pixelforge/audit_perspective.py [sortie.png]` : planche des sprites qui « font plat » (vus en élévation,
+sans dessus, alors que le monde est vu d'en haut), des cas limites et des bons exemples à imiter. Le classement est fait à
+l'œil et tenu dans le script (`GROUPES`). Exemple de correction : `sculpt/apercus/gymstatue_inclinaisons.png` (socle refait
+en volume à plusieurs inclinaisons, la créature d'origine posée dessus).

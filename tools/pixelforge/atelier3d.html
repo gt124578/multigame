@@ -44,6 +44,8 @@
   <div class="ligne seg" data-k="vue"><button data-v="jeu">Jeu</button><button data-v="orbite">Orbite</button></div>
   <label>Pixels par case</label>
   <div class="ligne seg" data-k="D"><button data-v="32">32</button><button data-v="64">64</button><button data-v="128">128</button></div>
+  <label>Inclinaison (profondeur des dessus ÷ hauteur des faces)</label>
+  <div class="ligne seg" data-k="k"><button data-v="0.35">0,35</button><button data-v="0.5">0,5</button><button data-v="0.7">0,7</button><button data-v="1" title="caméra du monde : 55°, hauteurs étirées">1 (monde)</button></div>
   <label>Agrandissement</label>
   <div class="ligne seg" data-k="z"><button data-v="auto">Auto</button><button data-v="1">×1</button><button data-v="2">×2</button><button data-v="3">×3</button><button data-v="4">×4</button><button data-v="6">×6</button></div>
   <label>Contour pixel art</label>
@@ -74,7 +76,11 @@ import { OrbitControls } from '../../shared/vendor/three/OrbitControls.js';
 
 const EL = 55 * Math.PI / 180, YS = Math.tan(EL), FOV_JEU = 13;
 const $ = (id) => document.getElementById(id);
-const DEF = { m: 'sculpt:komainu', o: '{}', vue: 'jeu', D: '64', z: 'auto', contour: '2', pal: '12', ombrage: 'paliers', sol: 'herbe', pas: '0.022', perso: '1', etire: '1', th: '0.6', ph: '0.95', r: '' };
+/** caméra « jeu » : k = 1, celle du monde (55°, hauteurs étirées de tan 55°, dessus aussi profonds qu'en vrai) ;
+ *  k < 1, caméra plus basse (atan k), sans étirement : un dessus de profondeur d paraît k × d, une face de hauteur h paraît h */
+const vueJeu = () => { const k = +E.k || 1; return k === 1 ? { th: EL, ax: Math.sin(EL), s: YS } : { th: Math.atan(k), ax: Math.cos(Math.atan(k)), s: 1 }; };
+const etirement = () => (E.vue === 'jeu' ? vueJeu().s : E.etire === '1' ? YS : 1);
+const DEF = { m: 'sculpt:komainu', o: '{}', vue: 'jeu', D: '64', z: 'auto', contour: '2', pal: '12', ombrage: 'paliers', sol: 'herbe', pas: '0.022', perso: '1', etire: '1', k: '1', th: '0.6', ph: '0.95', r: '' };
 const E = { ...DEF };
 const lireHash = () => { for (const [k, v] of new URLSearchParams(location.hash.slice(1))) E[k] = v; };
 const ecrireHash = () => { const q = new URLSearchParams(); for (const k in E) if (E[k] !== DEF[k]) q.set(k, E[k]); try { history.replaceState(null, '', '#' + q.toString()); } catch (e) { /* page encadrée */ } };
@@ -93,8 +99,8 @@ const etire = new THREE.Group(); scene.add(etire);
 const racine = new THREE.Group(); etire.add(racine);
 // mêmes paliers de lumière que les bâtiments du jeu (batiments3d.js)
 const paliers = (() => { const t = new THREE.DataTexture(new Uint8Array([135, 180, 222, 255]), 4, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
-// les sculptures n'ont pas de texture pour porter le contraste : cinq paliers plus marqués
-const paliersSculpt = (() => { const t = new THREE.DataTexture(new Uint8Array([62, 112, 165, 215, 250]), 5, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+// les sculptures n'ont pas de texture pour porter le contraste : cinq paliers marqués (dessus clair, face moyenne, côté sombre)
+const paliersSculpt = (() => { const t = new THREE.DataTexture(new Uint8Array([25, 50, 90, 120, 255]), 5, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
 
 /* ------------------------------------------------------------- modèles ---------------------------------------------- */
 let sculpt = null, batiments = null, versions = 0;
@@ -163,10 +169,14 @@ async function construire() {
   }
   if (!objet) { info('Objet introuvable : ' + E.m); return; }
   racine.add(objet);
+  // sculptures : soleil franc et ciel faible, pour des dessus nettement plus clairs que les faces (règle du pixel art) ;
+  // bâtiments : l'éclairage d'origine, proche de celui du jeu
+  const sc = type === 'sculpt';
+  hemi.intensity = sc ? 0.5 : 1.1; soleil.intensity = sc ? 4.0 : 2.2;
   objet.updateMatrixWorld(true);
   bornes.setFromObject(objet);
   if (!isFinite(bornes.min.x) || !isFinite(bornes.max.y)) { info('Objet vide ou invalide (coordonnées NaN)'); racine.clear(); objet = null; window.done = true; return; }
-  etire.scale.y = E.etire === '1' ? YS : 1;
+  etire.scale.y = etirement();
   await poserSol(); poserPerso();
 }
 
@@ -232,9 +242,10 @@ function placerJeu(D) {
   for (const x of [bornes.min.x, bornes.max.x]) for (const y of [bornes.min.y, bornes.max.y]) for (const z of [bornes.min.z, bornes.max.z]) coins.push(new THREE.Vector3(x, y * etire.scale.y, z));
   if (perso) coins.push(new THREE.Vector3(bornes.min.x - 1.3, 0, bornes.max.z), new THREE.Vector3(bornes.min.x - 1.3, YS * etire.scale.y / YS, bornes.max.z));
   const viser = (IW, IH) => {
-    camJeu.aspect = IW / IH; camJeu.updateProjectionMatrix(); camJeu.projectionMatrix.elements[0] *= Math.sin(EL); camJeu.projectionMatrixInverse.copy(camJeu.projectionMatrix).invert();
-    const dist = (Math.sin(EL) * IH) / (2 * Math.tan(FOV_JEU * Math.PI / 360) * D);
-    camJeu.position.set(c.x, c.y + dist * Math.sin(EL), c.z + dist * Math.cos(EL)); camJeu.lookAt(c.x, c.y, c.z); camJeu.updateMatrixWorld();
+    const { th, ax } = vueJeu();
+    camJeu.aspect = IW / IH; camJeu.updateProjectionMatrix(); camJeu.projectionMatrix.elements[0] *= ax; camJeu.projectionMatrixInverse.copy(camJeu.projectionMatrix).invert();
+    const dist = (ax * IH) / (2 * Math.tan(FOV_JEU * Math.PI / 360) * D);
+    camJeu.position.set(c.x, c.y + dist * Math.sin(th), c.z + dist * Math.cos(th)); camJeu.lookAt(c.x, c.y, c.z); camJeu.updateMatrixWorld();
   };
   viser(512, 512);
   let ex = 0, ey = 0; for (const p of coins) { const q = p.clone().project(camJeu); ex = Math.max(ex, Math.abs(q.x) * 256); ey = Math.max(ey, Math.abs(q.y) * 256); }
@@ -328,7 +339,7 @@ function rendreMaintenant() {
   }
   // soleil en haut à gauche, comme le jeu
   const c = centreMonde();
-  soleil.position.set(c.x - 32, c.y + 56, c.z + 36); soleil.target.position.copy(c);
+  soleil.position.set(c.x - 30, c.y + 64, c.z + 22);   // haut à gauche, assez haut pour que les dessus soient plus clairs que les faces soleil.target.position.copy(c);
   const R = Math.max(8, bornes.getSize(new THREE.Vector3()).length() * 1.5);
   Object.assign(soleil.shadow.camera, { left: -R, right: R, top: R, bottom: -R, near: 1, far: 260 }); soleil.shadow.camera.updateProjectionMatrix();
   renderer.setSize(W, H, false); renderer.setClearColor(E.sol === 'aucun' ? 0x000000 : 0x1b1e24, E.sol === 'aucun' ? 0 : 1);
@@ -362,11 +373,11 @@ function majUI() {
   $('aide').style.display = E.vue === 'orbite' ? '' : 'none';
   ctrl.enabled = E.vue === 'orbite';
 }
-async function appliquer(reconstruire = true) { ecrireHash(); majUI(); if (reconstruire) await construire(); else { etire.scale.y = E.etire === '1' ? YS : 1; poserPerso(); } rendre(); }
+async function appliquer(reconstruire = true) { ecrireHash(); majUI(); if (reconstruire) await construire(); else { etire.scale.y = etirement(); poserPerso(); } rendre(); }
 for (const s of document.querySelectorAll('.seg')) s.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return; const k = s.dataset.k; E[k] = b.dataset.v;
   if (k === 'vue') { placerOrbite.fait = false; if (E.vue === 'orbite' && E.etire === '1' && !location.hash.includes('etire')) E.etire = '0'; if (E.vue === 'jeu') E.etire = '1'; }
-  appliquer(['ombrage', 'pas', 'D', 'vue', 'sol'].includes(k));
+  appliquer(['ombrage', 'pas', 'D', 'vue', 'sol', 'k'].includes(k));
 });
 $('m').addEventListener('change', () => { E.m = $('m').value; E.o = JSON.stringify(sculptOuBatDefaut()); placerOrbite.fait = false; E.r = ''; appliquer(); });
 const sculptOuBatDefaut = () => { const [t, n] = E.m.split(':'); return t === 'sculpt' ? (sculpt.CATALOGUE[n]?.o || {}) : {}; };

@@ -198,10 +198,43 @@ export const SCULPTURES = {
   },
 };
 
+/** repères pour juger l'inclinaison : un cube d'une case (dalle) à côté d'un socle de statue */
+SCULPTURES.reperes = (S, o = {}) => {
+  matieres(S, o);
+  S.boite([-0.6, 0.5, 0], [0.5, 0.5, 0.5], { arrondi: 0.03, mat: 'pierreSombre', k: 0 });
+  S.boite([-0.6, 1.0, 0], [0.47, 0.02, 0.47], { op: 'peindre', mat: 'or', net: true, k: 0 });   // dessus doré : on voit sa profondeur
+  S.groupe({ t: [0.75, 0, 0] }, () => socle(S, { mat: 'pierre', l: 0.42, h: 0.6 }));
+};
+
+/** socle de statue d'arène refait en volume, aux mesures du sprite gymstatue (46 × 82 px à 64 px par case) :
+ *  plinthe, dé appareillé avec sa plaque, corniche — pour montrer ce que le sprite plat devient avec ses dessus */
+SCULPTURES.socleGym = (S, o = {}) => {
+  S.mat('granit', o.pierre || '#8c8c9a', { grain: 0.07, echelle: 18, patine: '#4a4a56' });
+  S.mat('plaque', '#d9b67c', { grain: 0.02, brillance: 0.4 });
+  S.mat('rivet', '#6a4a2a', { grain: 0 });
+  const G = 'granit';
+  S.boite([0, 0.07, 0], [0.36, 0.07, 0.24], { arrondi: 0.015, mat: G, k: 0 });
+  S.boite([0, 0.33, 0], [0.25, 0.19, 0.17], { arrondi: 0.012, mat: G, k: 0.005 });
+  S.boite([0, 0.595, 0], [0.295, 0.075, 0.21], { arrondi: 0.015, mat: G, k: 0.005 });
+  // joints de l'appareil : blocs de la plinthe, de la corniche et du dé
+  for (const x of [-0.12, 0.12]) {
+    S.boite([x, 0.07, 0], [0.006, 0.08, 0.26], { op: 'creuser', k: 0.004 });
+    S.boite([x * 0.82, 0.595, 0], [0.006, 0.08, 0.23], { op: 'creuser', k: 0.004 });
+  }
+  S.boite([0, 0.07, 0], [0.38, 0.08, 0.006], { op: 'creuser', k: 0.004 });
+  S.boite([0, 0.595, 0], [0.31, 0.08, 0.006], { op: 'creuser', k: 0.004 });
+  for (const y of [0.27, 0.4]) S.boite([0, y, 0], [0.27, 0.005, 0.19], { op: 'creuser', k: 0.003 });
+  // plaque de laiton et ses rivets
+  S.boite([0, 0.335, 0.175], [0.15, 0.085, 0.012], { arrondi: 0.008, mat: 'plaque', k: 0.004 });
+  for (const x of [-0.125, 0.125]) for (const y of [0.275, 0.395]) S.sphere([x, y, 0.188], 0.009, { mat: 'rivet', k: 0.002 });
+};
+
 /** liste pour l'atelier : nom → { titre, options par défaut } */
 export const CATALOGUE = {
   dresseur: { titre: 'Statue de dresseur (bronze)', o: {} },
   komainu: { titre: 'Komainu (gardien de temple)', o: {} },
   toro: { titre: 'Lanterne de pierre (tōrō)', o: {} },
   jarre: { titre: 'Jarre à frise (désert)', o: {} },
+  socleGym: { titre: 'Socle de statue d\'arène (refait en volume)', o: {} },
+  reperes: { titre: 'Repères : cube d\'une case et socle', o: {} },
 };
