@@ -69,12 +69,13 @@ Tout est prêt dans `entrainement/` :
   une LoRA et 3 images d'essai tous les 250 pas) ;
 - `lancer-entrainement.bat` : lance l'entraînement sous Windows.
 
-1. Installer AI-Toolkit dans `C:\ai-toolkit` (suivre son README : `git clone`, `python -m venv venv`, torch, `pip install -r requirements.txt`).
+1. Installer AI-Toolkit dans `C:\ai-toolkit` : `git clone https://github.com/ostris/ai-toolkit.git C:\ai-toolkit`, puis
+   double-clic sur `run_windows.bat` (il installe Python, torch pour la carte, Node.js, et ouvre http://localhost:8675).
 2. Jeu de données : dézipper `lora_hgss_platine.zip` et copier ses dossiers `marche\` et `combat\` dans
    `C:\ai-toolkit\datasets\hgss\` (sans `natif\`). Chaque image garde son `.txt`.
 3. Copier `hgss_klein4b.yaml` dans `C:\ai-toolkit\config\`, puis double-cliquer sur `lancer-entrainement.bat`.
-   Le modèle (~15 Go) se télécharge tout seul au premier lancement. Autre chemin : interface d'AI-Toolkit
-   (`cd ui`, `npm run build_and_start`, http://localhost:8675), New Job → Advanced, coller le fichier.
+   Le modèle (~15 Go) se télécharge tout seul au premier lancement. Autre chemin, plus pratique pour suivre : dans l'interface
+   (http://localhost:8675), New Job → Show Advanced, coller le contenu du fichier, Create Job puis ▶.
 4. Les LoRA tombent dans `C:\ai-toolkit\output\hgss_klein4b\`, avec les images d'essai à côté (`samples\`). Choisir la
    meilleure à l'œil (souvent entre 750 et 1 500 pas), la copier dans `ComfyUI\models\loras\hgss_klein4b.safetensors`,
    puis dans `1-reference.json` : Ctrl+B sur le nœud LoRA HGSS.
