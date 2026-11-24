@@ -2,7 +2,7 @@
 // Chaque commande déclare ses arguments (vérifiés à la compilation) et ce qu'elle fait sur le terrain `T`.
 // Une commande qui doit attendre rend une fonction : le script reprend quand elle rend true.
 
-import { DX, DY, OPPOSE } from './const.js';
+import { OPPOSE } from './const.js';
 
 const fini = () => true;
 
@@ -168,10 +168,9 @@ export const COMMANDES = {
   // ——— capacités de terrain ———
   commencer_surf: {
     exec: (T) => {
-      const j = T.joueur, nx = j.x + DX[j.dir], ny = j.y + DY[j.dir];
+      const j = T.joueur;
       T.mode = 'surf'; T.sortir({ type: 'mode', mode: 'surf' });
       j.lancer('saut', j.dir, 24, 1);
-      void nx; void ny;
       return () => !j.m;
     },
   },

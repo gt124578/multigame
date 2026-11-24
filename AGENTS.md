@@ -334,6 +334,12 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   montagnes déroulées dans une bande de roche générée avec le sol (`rendreRoche` de `solgen.js`, rangée sous l'image du bloc),
   ombrées gradin par gradin ; ravins à parois verticales (`geoRavin`, `r3fond` : profondeur du fondu au noir). Sans le paramètre,
   rien ne change.
+- Moteur de terrain façon HeartGold / SoulSilver (branche `moteur-hgss`, `odyssee/moteur/`, détails dans `odyssee/moteur/LISEZMOI.md`) :
+  moteur sans DOM (`engine/` : monde en blocs de 32 × 32 cases, zones à en-tête et événements, téléporteurs numérotés, langage de
+  scripts compilé, joueur à pas fixe de 1/60 s, PNJ, dresseurs), données écrites en texte (`donnees/auteur.js`, zone d'essai
+  `donnees/demo.js`), rendu three.js qui ne fait que lire le moteur (`render/`). `node tools/test-moteur-hgss.mjs` joue la zone
+  d'essai de bout en bout ; `node tools/capture-moteur-hgss.mjs "<paramètres>" <image.png> "<touches>"` (Playwright) en fait une capture.
+  Ne va pas sur `main` tant qu'Odyssée n'y est pas passé.
 - Odyssée, choix des graphismes (Options → Graphismes, `odyssee/js/gfx.js`) : sol du dehors (« odyssee » = sol généré, « classique » = tuiles d'origine, ou un pack de tuiles de 16 px dans `odyssee/img/gfx/<pack>/`, déclaré dans `PACKS`) et sprites des Pokémon (HeartGold / SoulSilver ou Noir & Blanc, `gen()` dans `assets.js`) ; écran « Crédits graphismes » (`CREDITS`). Le sol se lit au chargement (`loadArt` dans `main.js`, `setArt` dans `render/textures.js`). Pack « Lumineux » : `python3 tools/odyssee-pack-sol.py <planche 1.png de Team Aqua>`. Sprites Noir & Blanc 1 à 493 : copiés de PokeAPI/sprites dans `odyssee/img/pokeapi/pokemon/versions/generation-v/black-white/`. Toute tuile ou sprite ajouté doit être crédité (`CREDITS` et un `LISEZMOI.txt` à côté).
   Salles à plusieurs niveaux (`odyssee/js/world/etages.js`, pour les arènes dessinées dans un plan) : `niveaux` (une ligne de chiffres par ligne
   du plan : la hauteur de chaque case), légende `marche: sens` (une case de marches monte d'un niveau, on n'y passe que dans son axe) et

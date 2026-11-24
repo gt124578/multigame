@@ -19,11 +19,11 @@ import { COMMUN } from './commun.js';
 
 /** caméras par type de zone (comme les réglages de caméra des en-têtes de HGSS) */
 export const CAMERAS = {
-  dehors: { distance: 15, inclinaison: 52, fov: 22 },
-  ville: { distance: 15, inclinaison: 52, fov: 22 },
-  interieur: { distance: 12, inclinaison: 58, fov: 22 },
-  grotte: { distance: 13, inclinaison: 55, fov: 22 },
-  haut: { distance: 19, inclinaison: 46, fov: 22 },
+  dehors: { distance: 34, inclinaison: 50, fov: 22 },
+  ville: { distance: 34, inclinaison: 50, fov: 22 },
+  interieur: { distance: 26, inclinaison: 56, fov: 22 },
+  grotte: { distance: 30, inclinaison: 54, fov: 22 },
+  haut: { distance: 42, inclinaison: 46, fov: 22 },
 };
 
 const NOMS_OBJETS = { potion: 'une POTION', poke_ball: 'une POKé BALL', baie_oran: 'une BAIE ORAN', velo: 'le VÉLO', pokedex: 'le POKéDEX', antidote: 'un ANTIDOTE' };

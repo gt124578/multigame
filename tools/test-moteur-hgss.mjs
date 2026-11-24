@@ -322,6 +322,26 @@ console.log('Vélo, surf');
   ok('surf : proposé face à l\'eau avec la CS, on traverse, on débarque sur la terre');
 }
 
+console.log('Commandes de téléportation, PNJ libres');
+{
+  const T = nouveau(), j = T.joueur;
+  T.scripts.progs.set('MAISON_2F', compiler(DEMO.zones.MAISON_2F.scripts + '\nscript Voyage\n  fondu_noir\n  fondu_retour\n  secouer 20\n  teleporter_xy ROUTE_29 40 8 bas\n  message "Arrivé."\n  fin\n', 'MAISON_2F', COMMANDES));
+  T.lancerScript('MAISON_2F', 'Voyage');
+  lire(T);
+  assert.deepEqual([T.zone.id, j.x, j.y, j.dir], ['ROUTE_29', 40, 8, BAS]);
+  ok('script : fondu au noir et retour, secousse, téléportation vers un autre monde');
+  // 3 000 pas : les PNJ errants restent dans leur rayon et ne marchent jamais sur une case tenue
+  T.chargerMonde('jotho'); T.placerJoueur(70, 15, BAS); T.majZone(true);
+  const f = T.objet('fillette');
+  for (let i = 0; i < 3000; i++) {
+    T.pas({});
+    assert.ok(Math.abs(f.x - f.x0) <= f.rayon && Math.abs(f.y - f.y0) <= f.rayon, 'errance hors du rayon');
+    assert.ok(!T.M.bloquee(f.x, f.y) && !(f.x === j.x && f.y === j.y));
+    if (f.m) assert.ok(!(f.m.vx === j.x && f.m.vy === j.y) && !T.M.bloquee(f.m.vx, f.m.vy));
+  }
+  ok('PNJ errant : 3 000 pas sans sortir de son rayon ni entrer dans un mur ou sur le joueur');
+}
+
 console.log('Déterminisme, sauvegarde');
 {
   const jouer = (T) => {

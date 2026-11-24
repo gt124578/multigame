@@ -48,6 +48,8 @@ export const LEGENDE = {
   'R': { col: 1, sol: 'parquet', decor: 'etagere' },
   'V': { col: 1, sol: 'parquet', decor: 'tele' },
   'M': { col: 1, sol: 'labo', decor: 'machine' },
+  '|': { col: 1, sol: 'parquet' },   // suite d'un meuble de plusieurs cases (le dessin est sur la première)
+  '!': { col: 1, sol: 'labo' },
   'O': { col: 1, sol: 'parquet', decor: 'pc' },
   'X': { col: 1, sol: 'labo', decor: 'etagere' },
   'Q': { col: 1, sol: 'labo', decor: 'table_balls' },

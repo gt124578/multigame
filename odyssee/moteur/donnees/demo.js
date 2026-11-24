@@ -152,10 +152,10 @@ const BX = 64;
 // ——— intérieurs ———
 const MAISON_1F = bloc({ plan: piece([
   'WWWWWWWWWW',
-  'WVkk:::REW',
+  'WVk|:::REW',
   'W::::::::W',
-  'W::tt::::W',
-  'W::tt::::W',
+  'W::t|::::W',
+  'W::||::::W',
   'W::::::::W',
   'W::::m:::W',
   'WWWWWWWWWW',
@@ -166,14 +166,14 @@ const MAISON_2F = bloc({ plan: piece([
   'W::::::::W',
   'W::::::::W',
   'WB:::::::W',
-  'WB:::::::W',
+  'W|:::::::W',
   'WWWWWWWWWW',
 ]) });
 const LABO = bloc({ plan: piece([
   'WWWWWWWWWWWWWW',
-  'WXXMM::::MMXXW',
+  'WX!M!::::M!X!W',
   'WLLLLLLLLLLLLW',
-  'WLLLLLLLLQQLLW',
+  'WLLLLLLLLQ!LLW',
   'WLLLLLLLLLLLLW',
   'WLLLLLLLLLLLLW',
   'WXLLLLLLLLLLXW',
@@ -183,10 +183,10 @@ const LABO = bloc({ plan: piece([
 ], 9, 9) });
 const VOISIN = bloc({ plan: piece([
   'WWWWWWWWWW',
-  'WRR::::VkW',
+  'WR|::::VkW',
   'W::::::::W',
-  'W::tt::::W',
-  'W::tt::::W',
+  'W::t|::::W',
+  'W::||::::W',
   'W:::m::::W',
   'WWWWWWWWWW',
 ]) });

@@ -30,6 +30,10 @@ ProposerSurf_Non:
   liberer
   fin
 
+script MessageSauvegarde
+  message "{JOUEUR} sauvegarde la partie."
+  fin
+
 script PasDeVeloIci
   message "Impossible d'utiliser le VÉLO ici."
   liberer
