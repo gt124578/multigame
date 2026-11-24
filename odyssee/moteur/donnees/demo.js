@@ -141,9 +141,9 @@ export const BOURG = bloc({
   ],
   legende: { 'p': { col: 1, sol: 'herbe', decor: 'panneau' } },
   batiments: [
-    { x: 3, y: 4, l: 8, p: 5, modele: 'labo', toit: 'gris', porte: 4 },
-    { x: 17, y: 5, l: 7, p: 4, modele: 'maison', toit: 'rouge', porte: 3 },
-    { x: 8, y: 17, l: 6, p: 4, modele: 'maison', toit: 'bleu', porte: 3 },
+    { x: 3, y: 4, l: 8, p: 5, modele: 'labo', toit: 'gris', porte: 4, m3d: 'wk_labo' },
+    { x: 17, y: 5, l: 7, p: 4, modele: 'maison', toit: 'rouge', porte: 3, m3d: 'wk_hhouse' },
+    { x: 8, y: 17, l: 6, p: 4, modele: 'maison', toit: 'bleu', porte: 3, m3d: 'wk_h01' },
   ],
 });
 // Bourg Geon est le troisième bloc : x de 64 à 95

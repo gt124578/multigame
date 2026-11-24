@@ -1,8 +1,29 @@
 # Moteur de terrain façon HeartGold / SoulSilver
 
-Branche `moteur-hgss`. Banc d'essai : `odyssee/moteur/index.html` (`?nouveau` pour repartir de zéro, `?debug`,
-`?zone=ROUTE_30&x=79&y=46` pour partir ailleurs, `?demo` pour la petite zone d'essai, `?pack=odyssee` pour les images
-d'Odyssée au lieu des textures HGSS). Tests : `node tools/test-moteur-hgss.mjs`.
+Branche `moteur-hgss`. Banc d'essai : `odyssee/moteur.html` (à côté du jeu, pour que les écrans d'Odyssée y trouvent
+leurs images ; `odyssee/moteur/index.html` y renvoie). `?nouveau` pour repartir de zéro, `?debug`, `?zone=MAUVILLE&x=39&y=38`
+pour partir ailleurs, `?zoom=2.5` pour voir une ville entière, `?demo` pour la petite zone d'essai, `?pack=odyssee` pour les
+images d'Odyssée au lieu des textures et bâtiments HGSS. Tests : `node tools/test-moteur-hgss.mjs`.
+
+## Combats, équipe, sac, son : ceux d'Odyssée (`odyssee.js`)
+
+Le terrain crée et soigne ses POKéMON par `T.pokemon` (le pont y branche `createMon` et `healFull`), émet
+`{ type: 'combat' }` et attend `terminerCombat(victoire)` : le pont joue le combat avec `Battle` et `BattleView`
+(sauvages, dresseurs, champion, capture, expérience, évolution, K.O.). Menu sur Tab / M : l'équipe et le sac
+d'Odyssée (objets de soin). Musique et bruitages : `Sound` d'Odyssée. Les objets du terrain portent les identifiants
+d'Odyssée (`poke-ball`, `oran-berry`…) : le sac est le même partout.
+
+## Vrais bâtiments et vraies positions
+
+- `render/nsbmd.js` lit les modèles 3D de la DS (archives NARC, modèles NSBMD : nœuds, bytecode de rendu, matériaux,
+  listes d'affichage du processeur 3D, textures dans les 7 formats). `render/modeles3d.js` en fait des objets three.js.
+  L'archive des bâtiments du dehors (`bm_field.narc`) est lue **à la volée** dans le dépôt public de la décompilation
+  (pret/pokeheartgold, commit épinglé) : rien n'est copié ici. Sans réseau : les boîtes d'avant.
+- `donnees/johto-dehors.js` : le dehors aux **positions réelles** du jeu (matrice et événements des zones de la
+  décompilation, relevés à la main) : portes, personnages, panneaux, déclencheurs, postes de garde. Les bâtiments sont
+  posés par leur porte avec l'emprise de leur modèle (`MODELES` de `donnees/peintre.js`, mesurés sur les modèles).
+  Le sol, lui, n'est pas dans ces données (il est dans la ROM) : il est redessiné autour, d'après le jeu.
+- Captures sans réseau : `PRET=<clone de pokeheartgold> PDSMS=<clone de Pokemon-DS-Map-Studio> node tools/capture-moteur-hgss.mjs …`.
 
 ## Le début de HeartGold / SoulSilver (`donnees/johto.js`)
 

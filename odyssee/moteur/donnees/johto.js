@@ -11,20 +11,10 @@
 
 import { bloc, mondeSimple, SOLS } from './auteur.js';
 import { BAS, HAUT, GAUCHE, DROITE } from '../engine/const.js';
-import { DEMO, BOURG, ROUTE_B, MAISON_1F, MAISON_2F, LABO, VOISIN } from './demo.js';
-
-const T32 = 'T'.repeat(32);
+import { DEMO, MAISON_1F, MAISON_2F, LABO, VOISIN } from './demo.js';
+import { BLOCS_DEHORS, MONDE_JOHTO, ZONES_DEHORS } from './johto-dehors.js';
 
 // ——— outils ———
-/** décale tous les événements d'une zone (pour reprendre une zone de la démo à une autre place de la matrice) */
-function decaler(z, dx, dy) {
-  const d = (e) => ({ ...e, x: e.x + dx, y: e.y + dy });
-  return { ...z, warps: (z.warps || []).map(d), panneaux: (z.panneaux || []).map(d), declencheurs: (z.declencheurs || []).map(d), objets: (z.objets || []).map(d) };
-}
-/** un panneau « arbre à baies » sur chaque arbre à baies d'un bloc */
-function baies(b, ox, oy, baie = 'oran-berry') {
-  return b.decor.filter((d) => d.type === 'baies').map((d) => ({ x: ox + d.x, y: oy + d.y, script: 'ArbreBaies', baie }));
-}
 /** une pièce au centre d'un bloc vide */
 function piece(lignes, ox, oy) {
   const plan = [];
@@ -33,219 +23,6 @@ function piece(lignes, ox, oy) {
 }
 /** coordonnées d'une case d'une pièce */
 const pc = (ox, oy) => (x, y) => ({ x: x + ox, y: y + oy });
-
-// ——— dehors ———
-const ROUTE29_OUEST = bloc({
-  strict: true,
-  plan: [
-    T32, T32,
-    'TTTTTTTTTTTT......TTTTTTTTTTTTTT',
-    'TTTTTTTTTTTT......TTTTTTTTTTTTTT',
-    'TTTT""""TTTT......TTTT""""""TTTT',
-    'TTTT""""..............""""""TTTT',
-    'TTTT""""..............""""""TTTT',
-    'TTTT..........p...........,.TTTT',
-    'TTTT........................TTTT',
-    'TTvvvvvvvvvv.....vvvvvvvvvvvvvTT',
-    'TT............................TT',
-    'TT....A..............A........TT',
-    '================================',
-    '================================',
-    'TT............................TT',
-    'TT....""""""""""""".......TT..TT',
-    'TT....""""""""""""".......TT..TT',
-    'TT....""""""""""""".......TT..TT',
-    'TT............................TT',
-    'TTTT.........TT.........TTTTTTTT',
-    'TTTTTT.......TT.........TTTTTTTT',
-    'TTTTTTTTT..........TTTTTTTTTTTTT',
-    ...Array(10).fill(T32),
-  ],
-  batiments: [{ x: 12, y: 0, l: 6, p: 3, modele: 'poste', toit: 'vert', porte: 2 }],
-});
-
-const GRIOTTE = bloc({
-  strict: true,
-  plan: [
-    'TTTTTTTTTTTTTT....TTTTTTTTTTTTTT',
-    'TTTTTTTTTTTTTT....TTTTTTTTTTTTTT',
-    'TT............PPPP............TT',
-    'TT............PPPP............TT',
-    'TT............PPPP............TT',
-    'TT............PPPP............TT',
-    'TT............PPPP............TT',
-    'TT............PPPP............TT',
-    'TT..PPPPP.....PPPP.....PPPPP..TT',
-    'TT..PPPPP.....PPPP.....PPPPP..TT',
-    'TT.....P......PPPP.......P....TT',
-    'TT.....P......PPPP.......P....TT',
-    'TT.....PPPPPPPPPPPPPPPPPPPPPPPPP',
-    'TT.....PPPPPPPPPPPPPPPPPPPPPPPPP',
-    'TT................P...........TT',
-    'TT................P...........TT',
-    'TT................P...........TT',
-    'TT..PPPPP.........P....PPPPP..TT',
-    'TT..PPPPP.........P....p......TT',
-    'TT................P...........TT',
-    'TT................P...........TT',
-    'TTSSSSSSSSSSSSSSSSSSSSSSSSSSSSTT',
-    'TTSSSSSSSSSSSSSSSSSSSSSSSSSSSSTT',
-    ...Array(9).fill('w'.repeat(32)),
-  ],
-  batiments: [
-    { x: 3, y: 4, l: 6, p: 4, modele: 'centre', toit: 'rouge', porte: 3 },
-    { x: 22, y: 4, l: 6, p: 4, modele: 'boutique', toit: 'bleu', porte: 3 },
-    { x: 3, y: 14, l: 5, p: 3, modele: 'maison', toit: 'vert', porte: 2 },
-    { x: 22, y: 14, l: 5, p: 3, modele: 'maison', toit: 'rouge', porte: 2 },
-  ],
-});
-
-const ROUTE30_SUD = bloc({
-  strict: true,
-  plan: [
-    'TTTTTTTTTTTTTT====TTTTTTTTTTTTTT',
-    'TTTTTTTTTTTTTT====TTTTTTTTTTTTTT',
-    'TTTT""""""....====....""""""TTTT',
-    'TTTT""""""....====....""""""TTTT',
-    'TTTT""""""....====....""""""TTTT',
-    'TTTT..........====..........TTTT',
-    'TTTT..A.......====.......A..TTTT',
-    'TTTTTTTTTT....====....TTTTTTTTTT',
-    'TTTTTTTTTT....====....TTTTTTTTTT',
-    'TTTT.......vvv====vvv.......TTTT',
-    'TTTT..........====........""TTTT',
-    'TTTT..p.......====........""TTTT',
-    'TTTT""""""....====..""""""..TTTT',
-    'TTTT""""""....====..""""""..TTTT',
-    'TTTT""""""....====..""""""..TTTT',
-    'TTTT..........====..........TTTT',
-    'TTTT..........====..........TTTT',
-    'TTTT..........====..........TTTT',
-    'TTTTTT........====........TTTTTT',
-    'TTTTTT........====........TTTTTT',
-    'TTTT..........====..........TTTT',
-    'TTTT..........====..........TTTT',
-    'TTTT""""""....====....""""""TTTT',
-    'TTTT""""""....====....""""""TTTT',
-    'TTTT""""""....====....""""""TTTT',
-    'TTTT..........====..........TTTT',
-    'TTTT..........====..........TTTT',
-    'TTTT..........====..........TTTT',
-    'TTTTTTTTTT....====....TTTTTTTTTT',
-    'TTTTTTTTTT....====....TTTTTTTTTT',
-    'TTTTTTTTTTTTTT====TTTTTTTTTTTTTT',
-    'TTTTTTTTTTTTTT====TTTTTTTTTTTTTT',
-  ],
-  batiments: [{ x: 22, y: 16, l: 5, p: 3, modele: 'maison', toit: 'rouge', porte: 2 }],
-});
-
-const ROUTE30_NORD = bloc({
-  strict: true,
-  plan: [
-    T32, T32,
-    'TTTTTTTTTTTTTT====......TTTTTTTT',
-    'TTTTTTTTTTTTTT====......TTTTTTTT',
-    'TTTTTTTT......====..........TTTT',
-    'TTTTTTTT......====..........TTTT',
-    'TTTTTTTT..""""====FF........TTTT',
-    'TTTTTTTT..""""====FF..p.....TTTT',
-    'TTTT..........====..........TTTT',
-    'TTTT..........====..........TTTT',
-    '==================..........TTTT',
-    '==================..........TTTT',
-    'TTTT""""......====......""""TTTT',
-    'TTTT""""......====......""""TTTT',
-    'TTTT""""......====......""""TTTT',
-    'TTTT..........====..........TTTT',
-    'TTTTvvvvvvvvvv====vvvvvvvvvvTTTT',
-    'TTTT..........====..........TTTT',
-    'TTTT....o.....====.....A....TTTT',
-    'TTTT..........====..........TTTT',
-    'TTTTTTTT......====......TTTTTTTT',
-    'TTTTTTTT""""..====..""""TTTTTTTT',
-    'TTTTTTTT""""..====..""""TTTTTTTT',
-    'TTTTTTTT......====......TTTTTTTT',
-    'TTTT..........====..........TTTT',
-    'TTTT..........====..........TTTT',
-    'TTTT..p.......====..........TTTT',
-    'TTTT..........====..........TTTT',
-    'TTTTTTTTTT....====....TTTTTTTTTT',
-    'TTTTTTTTTT....====....TTTTTTTTTT',
-    'TTTTTTTTTTTTTT====TTTTTTTTTTTTTT',
-    'TTTTTTTTTTTTTT====TTTTTTTTTTTTTT',
-  ],
-  batiments: [{ x: 19, y: 1, l: 5, p: 3, modele: 'maison', toit: 'bleu', porte: 2 }],
-});
-
-const ROUTE31 = bloc({
-  strict: true,
-  plan: [
-    T32, T32, T32,
-    'TTTT.....TTTTTTTTTTTTTTTTTTTTTTT',
-    'TTTT.....TTTTTTTTTTT.....TTTTTTT',
-    'TTTT.....TTTTTTTTTTT.....TTTTTTT',
-    'TTTTTT.TTTTTTTTTTTTT.....TTTTTTT',
-    'TTTT..........""""".......TTTTTT',
-    'TTTT..........""""".......TTTTTT',
-    'TTTT..........""""".........TTTT',
-    'TTTT..............==============',
-    'TTTT..............==============',
-    'TTTT..A.....""""".=.........TTTT',
-    'TTTT........""""".=....p....TTTT',
-    '===================.........TTTT',
-    '===================.........TTTT',
-    'TTTT..........""""""........TTTT',
-    'TTTT..........""""""........TTTT',
-    'TTTTTTTTTT..................TTTT',
-    'TTTTTTTTTT.....TTTTTTT......TTTT',
-    ...Array(12).fill(T32),
-  ],
-  batiments: [{ x: 20, y: 3, l: 5, p: 2, modele: 'grotte', porte: 2 }],
-});
-
-const MAUVILLE = bloc({
-  strict: true,
-  plan: [
-    T32, T32,
-    'TTwwwwwwww..........wwwwwwwwwwTT',
-    'TTwwwwwwww..........wwwwwwwwwwTT',
-    'TTwwwwwwww..........wwwwwwwwwwTT',
-    'TTwwwwwwww..........wwwwwwwwwwTT',
-    'TTwwwwwwww..........wwwwwwwwwwTT',
-    'TTwwwwwwwwwwww__wwwwwwwwwwwwwwTT',
-    'TTwwwwwwwwwwww__wwwwwwwwwwwwwwTT',
-    'TT............PP..............TT',
-    'TT............PP..............TT',
-    'TT..PPPPPPPPPPPPPPPPPPPPPPPP..TT',
-    'TT..P...........P.........P...TT',
-    'TT..P...........P.........P...TT',
-    'TT..P...........P.........PPPPPP',
-    'TT..PPPPPPPPPPPPPPPPPPPPPPPPPPPP',
-    'TT..P...........P.........P...TT',
-    'TT..P...........P.........P...TT',
-    'TT..P...........P.........P...TT',
-    'TT..PPPPPPPPPPPPPPPPPPPPPPPP..TT',
-    'TT............................TT',
-    'TT..FF....................FF..TT',
-    'TT............................TT',
-    'TT............................TT',
-    'TT............................TT',
-    'TT............................TT',
-    'TT....FF..............FF......TT',
-    'TTTT........................TTTT',
-    'TTTTTT....................TTTTTT',
-    T32, T32, T32,
-  ],
-  batiments: [
-    { x: 12, y: 2, l: 6, p: 4, modele: 'tour', toit: 'brun', porte: 3 },
-    { x: 6, y: 12, l: 5, p: 3, modele: 'centre', toit: 'rouge', porte: 2 },
-    { x: 18, y: 12, l: 4, p: 3, modele: 'boutique', toit: 'bleu', porte: 1 },
-    { x: 6, y: 16, l: 6, p: 3, modele: 'arene', toit: 'gris', porte: 2 },
-    { x: 18, y: 16, l: 6, p: 3, modele: 'ecole', toit: 'vert', porte: 2 },
-    { x: 5, y: 21, l: 5, p: 3, modele: 'maison', toit: 'rouge', porte: 2 },
-    { x: 20, y: 21, l: 5, p: 3, modele: 'maison', toit: 'bleu', porte: 2 },
-  ],
-});
 
 // ——— intérieurs ———
 const CENTRE = bloc({ plan: piece([
@@ -282,6 +59,17 @@ const POSTE = bloc({ plan: piece([
   'WWWWWWWWWW',
 ], 11, 10) });
 const Po = pc(11, 10);
+
+// poste de garde traversé d'ouest en est : un tapis de chaque côté
+const POSTE_EO = bloc({ plan: piece([
+  'WWWWWWWWWWWW',
+  'W;;;;;;;;;;W',
+  'W;;;;;;;;;;W',
+  '[;;;;;;;;;;]',
+  'W;;;;;;;;;;W',
+  'WWWWWWWWWWWW',
+], 10, 10), legende: { '[': { sol: 'tapis', mb: 15 }, ']': { sol: 'tapis', mb: 16 } } });
+const PE = pc(10, 10);
 
 const TOUR_1 = bloc({ plan: piece([
   'WWWWWWWWWWWW',
@@ -360,9 +148,6 @@ const ANTRE = bloc({ plan: antre(), legende: { v: { sol: 'grotte', mb: 8 } } });
 const V = pc(11, 10);   // pièces de la démo (maisons) : même décalage
 
 // ——— zones ———
-const DX = 96, DY = 64;   // la démo plaçait Bourg Geon et la Route 29 (est) en haut à gauche de sa matrice
-const bourgDemo = decaler(DEMO.zones.BOURG_GEON, DX, DY);
-const routeDemo = decaler(DEMO.zones.ROUTE_29, DX, DY);
 
 /** une maison habitée (pièce de la démo « voisin »), un habitant et un script */
 const maison = (nom, vers, n, habitant, script, musique = 'maison') => ({
@@ -403,7 +188,29 @@ script Vendeur
 
 const ZONES = {
   // — Bourg Geon et ses maisons : ceux de la démo —
-  BOURG_GEON: bourgDemo,
+  BOURG_GEON: { ...DEMO.zones.BOURG_GEON, scripts: DEMO.zones.BOURG_GEON.scripts + `
+script PanneauLabo
+  message "LABO POKéMON DU PR ORME"
+  fin
+script BoiteJoueur
+  message "Maison de {JOUEUR}"
+  fin
+script BoiteRival
+  message "Maison de la famille de PAULIN"
+  fin
+script Costaud
+  regarder_joueur
+  message "On sent le vent de la mer, ici. C'est revigorant !"
+  liberer
+  fin
+` },
+  MAISON_RIVAL: maison('Bourg Geon', 'BOURG_GEON', 3, { sprite: 'dame', script: 'MereRival' }, `
+script MereRival
+  regarder_joueur
+  message "Mon fils PAULIN est parti à l'aventure avant toi.\\nIl ne tient pas en place !"
+  liberer
+  fin
+`),
   MAISON_1F: DEMO.zones.MAISON_1F,
   MAISON_2F: DEMO.zones.MAISON_2F,
   LABO_ORME: DEMO.zones.LABO_ORME,
@@ -417,24 +224,55 @@ const ZONES = {
         { espece: 'Rattata', poids: 20, niveaux: [2, 3] }, { espece: 'Hoothoot', poids: 10, niveaux: [2, 3] },
       ] },
     },
-    warps: [{ x: 96 + 14, y: 64 + 2, vers: 'POSTE_46', n: 0 }],
-    panneaux: [
-      ...routeDemo.panneaux.filter((p) => p.x >= 128),
-      { x: 96 + 14, y: 64 + 7, depuis: HAUT, script: 'PanneauR29' },
-      ...baies(ROUTE29_OUEST, 96, 64, 'oran-berry'),
-    ],
-    objets: [
-      ...routeDemo.objets.filter((o) => o.x >= 128),
-      { id: 'randonneuse', x: 96 + 20, y: 64 + 16, sprite: 'randonneuse', mouvement: 'errance_gd', rayon: 3, script: 'Randonneuse' },
-      { id: 'objet_r29', type: 'objet', x: 96 + 28, y: 64 + 16, sprite: 'objet', objet: 'potion', drapeau: 'OBJ_R29_OUEST' },
-    ],
-    scripts: DEMO.zones.ROUTE_29.scripts + `
+    scripts: `
+script PanneauR29Est
+  message "ROUTE 29\\n→ BOURG GEON"
+  fin
+script GaminR29
+  regarder_joueur
+  message "Les rebords, on les saute vers le bas.\\nPour remonter, il faut faire le tour !"
+  liberer
+  fin
+script CostaudR29
+  regarder_joueur
+  message "Ce poste mène à la ROUTE 46. Elle est fermée pour l'instant."
+  liberer
+  fin
+script MonsieurR29
+  regarder_joueur
+  message "Tu veux attraper des POKéMON ? Marche dans les hautes herbes !"
+  liberer
+  fin
 script PanneauR29
   message "ROUTE 29\\nVILLE GRIOTTE ← → BOURG GEON\\nLa ROUTE 46 est au nord, par le poste."
   fin
 script Randonneuse
   regarder_joueur
   message "Les baies repoussent si tu marches un peu.\\nReviens les cueillir !"
+  liberer
+  fin
+`,
+  },
+  POSTE_31: {
+    nom: 'Route 31', annonce: false, musique: 'route30', camera: 'interieur', interieur: true, velo: false,
+    warps: [{ ...PE(0, 3), vers: 'MAUVILLE', n: 7 }, { ...PE(11, 3), vers: 'ROUTE_31', n: 1 }],
+    objets: [{ id: 'garde', ...PE(5, 1), sprite: 'garde', dir: BAS, script: 'GardePoste31' }],
+    scripts: `
+script GardePoste31
+  regarder_joueur
+  message "À l'ouest, MAUVILLE. À l'est, la ROUTE 31."
+  liberer
+  fin
+`,
+  },
+  POSTE_36: {
+    nom: 'Mauville', annonce: false, musique: 'mauville', camera: 'interieur', interieur: true, velo: false,
+    warps: [{ ...PE(11, 3), vers: 'MAUVILLE', n: 9 }],
+    objets: [{ id: 'garde', ...PE(2, 3), sprite: 'garde', dir: DROITE, script: 'GardePoste36' }],
+    scripts: `
+script GardePoste36
+  regarder_joueur
+  message "Un arbre étrange bloque la ROUTE 36. On ne passe pas !"
   liberer
   fin
 `,
@@ -454,18 +292,6 @@ script GardePoste
   VILLE_GRIOTTE: {
     nom: 'Ville Griotte', musique: 'griotte', camera: 'ville',
     rencontres: { eau: { taux: 10, especes: [{ espece: 'Tentacool', niveaux: [15, 20] }, { espece: 'Ptitard', niveaux: [15, 20] }] } },
-    warps: [
-      { x: 64 + 6, y: 64 + 7, vers: 'CENTRE_GRIOTTE', n: 0 },
-      { x: 64 + 25, y: 64 + 7, vers: 'BOUTIQUE_GRIOTTE', n: 0 },
-      { x: 64 + 5, y: 64 + 16, vers: 'MAISON_GRIOTTE', n: 0 },
-      { x: 64 + 24, y: 64 + 16, vers: 'MAISON_GUIDE', n: 0 },
-    ],
-    panneaux: [{ x: 64 + 23, y: 64 + 18, depuis: HAUT, script: 'PanneauGriotte' }],
-    objets: [
-      { id: 'guide', x: 64 + 28, y: 64 + 11, sprite: 'vieil_homme', dir: DROITE, mouvement: 'regard_hb', script: 'Guide' },
-      { id: 'fillette', x: 64 + 12, y: 64 + 16, sprite: 'fillette2', mouvement: 'errance', rayon: 3, script: 'FilletteGriotte' },
-      { id: 'pecheur', x: 64 + 10, y: 64 + 22, sprite: 'pecheur', dir: BAS, script: 'PecheurGriotte' },
-    ],
     scripts: `
 script PanneauGriotte
   message "VILLE GRIOTTE\\nLa ville au parfum de fleurs."
@@ -492,6 +318,14 @@ script PecheurGriotte
   message "Avec SURF, on va sur la mer.\\nMais il faut d'abord le trouver !"
   liberer
   fin
+script PanneauGuide
+  message "Maison du GUIDE"
+  fin
+script PassanteGriotte
+  regarder_joueur
+  message "Le CENTRE POKéMON soigne tes POKéMON gratuitement !"
+  liberer
+  fin
 `,
   },
   CENTRE_GRIOTTE: centre('Ville Griotte', 'VILLE_GRIOTTE', 0),
@@ -500,6 +334,13 @@ script PecheurGriotte
 script Dame
   regarder_joueur
   message "Mon mari est parti pêcher. Il rentre toujours bredouille !"
+  liberer
+  fin
+`),
+  MAISON_GRIOTTE_SE: maison('Ville Griotte', 'VILLE_GRIOTTE', 4, { sprite: 'marin', script: 'MarinGriotte' }, `
+script MarinGriotte
+  regarder_joueur
+  message "Les bateaux ne passent plus par ici depuis longtemps."
   liberer
   fin
 `),
@@ -519,26 +360,6 @@ script Enfant
         { espece: 'Roucool', poids: 20, niveaux: [3, 4] }, { espece: 'Rattata', poids: 15, niveaux: [3, 4] }, { espece: 'Mimigal', poids: 5, niveaux: [3, 3] },
       ] },
     },
-    warps: [
-      { x: 64 + 24, y: 32 + 18, vers: 'MAISON_BAIES', n: 0 },
-      { x: 64 + 21, y: 0 + 3, vers: 'M_POKEMON', n: 0 },
-    ],
-    panneaux: [
-      { x: 64 + 6, y: 32 + 11, depuis: HAUT, script: 'PanneauR30' },
-      { x: 64 + 22, y: 7, depuis: HAUT, script: 'PanneauMPokemon' },
-      { x: 64 + 6, y: 26, depuis: HAUT, script: 'PanneauR30Nord' },
-      ...baies(ROUTE30_SUD, 64, 32, 'pecha-berry'),
-      ...baies(ROUTE30_NORD, 64, 0, 'cheri-berry'),
-    ],
-    objets: [
-      { id: 'joey', x: 64 + 9, y: 32 + 20, sprite: 'gamin', dir: DROITE, nom: 'Gamin Joey',
-        dresseur: { portee: 5, script: 'Joey_Defi', apres: 'Joey_Apres', equipe: [{ espece: 'Rattata', niveau: 4 }] } },
-      { id: 'mikey', x: 64 + 22, y: 32 + 25, sprite: 'gamin', dir: GAUCHE, nom: 'Gamin Mikey',
-        dresseur: { portee: 5, script: 'Mikey_Defi', apres: 'Mikey_Apres', equipe: [{ espece: 'Roucool', niveau: 2 }, { espece: 'Rattata', niveau: 4 }] } },
-      { id: 'don', x: 64 + 11, y: 24, sprite: 'insectomane', dir: DROITE, nom: 'Insectomane Don',
-        dresseur: { portee: 3, script: 'Don_Defi', apres: 'Don_Apres', equipe: [{ espece: 'Chenipan', niveau: 3 }, { espece: 'Chenipan', niveau: 3 }] } },
-      { id: 'objet_r30', type: 'objet', x: 64 + 26, y: 32 + 3, sprite: 'objet', objet: 'antidote', drapeau: 'OBJ_R30_ANTIDOTE' },
-    ],
     scripts: `
 script PanneauR30
   message "ROUTE 30\\nMAUVILLE ↑ ↓ VILLE GRIOTTE"
@@ -580,6 +401,24 @@ script Don_Defi
 script Don_Apres
   regarder_joueur
   message "Les insectes évoluent vite, tu sais."
+  liberer
+  fin
+script PanneauR30Conseil
+  message "CONSEIL DU DRESSEUR\\nRegarde bien qui te regarde : un dresseur te défie dès qu'il te voit."
+  fin
+script MonsieurR30
+  regarder_joueur
+  message "M. POKéMON habite au bout de la route. Un drôle de type !"
+  liberer
+  fin
+script FilleR30
+  regarder_joueur
+  message "J'aime regarder les combats des autres dresseurs."
+  liberer
+  fin
+script GaminR30
+  regarder_joueur
+  message "Les arbres à baies donnent des fruits différents."
   liberer
   fin
 `,
@@ -626,15 +465,6 @@ MPokemon_Deja:
         { espece: 'Rattata', poids: 20, niveaux: [4, 5] }, { espece: 'Chenipan', poids: 15, niveaux: [4, 4] }, { espece: 'Mimigal', poids: 10, niveaux: [4, 4] },
       ] },
     },
-    warps: [{ x: 32 + 22, y: 4, vers: 'ANTRE_NOIR', n: 0 }],
-    panneaux: [{ x: 32 + 23, y: 13, depuis: HAUT, script: 'PanneauR31' }, ...baies(ROUTE31, 32, 0, 'oran-berry')],
-    objets: [
-      { id: 'wade', x: 32 + 13, y: 7, sprite: 'insectomane', dir: BAS, nom: 'Insectomane Wade',
-        dresseur: { portee: 3, script: 'Wade_Defi', apres: 'Wade_Apres', equipe: [{ espece: 'Chenipan', niveau: 2 }, { espece: 'Aspicot', niveau: 3 }, { espece: 'Chrysacier', niveau: 4 }] } },
-      { id: 'arbre', type: 'arbre_coupe', x: 32 + 6, y: 6, sprite: 'arbre_coupe' },
-      { id: 'cache', type: 'objet', x: 32 + 5, y: 4, sprite: 'objet', objet: 'super-potion', drapeau: 'OBJ_R31_CACHE' },
-      { id: 'montagnard', x: 32 + 22, y: 6, sprite: 'montagnard', dir: BAS, script: 'Montagnard' },
-    ],
     scripts: `
 script PanneauR31
   message "ROUTE 31\\n← MAUVILLE"
@@ -655,6 +485,19 @@ script Montagnard
   message "L'ANTRE NOIR est si sombre… Il faudrait FLASH."
   liberer
   fin
+script PanneauAntre
+  message "ANTRE NOIR"
+  fin
+script CostaudR31
+  regarder_joueur
+  message "Tu vas à MAUVILLE ? Passe par le poste à l'ouest."
+  liberer
+  fin
+script GaminR31
+  regarder_joueur
+  message "Mon CHÉTIFLOR se balance tout le temps !"
+  liberer
+  fin
 `,
   },
   ANTRE_NOIR: {
@@ -667,21 +510,6 @@ script Montagnard
   MAUVILLE: {
     nom: 'Mauville', musique: 'mauville', camera: 'ville',
     rencontres: { eau: { taux: 10, especes: [{ espece: 'Ptitard', niveaux: [10, 15] }, { espece: 'Magicarpe', niveaux: [5, 10] }] } },
-    warps: [
-      { x: 15, y: 5, vers: 'TOUR_1F', n: 0 },
-      { x: 8, y: 14, vers: 'CENTRE_MAUVILLE', n: 0 },
-      { x: 19, y: 14, vers: 'BOUTIQUE_MAUVILLE', n: 0 },
-      { x: 8, y: 18, vers: 'ARENE_MAUVILLE', n: 0 },
-      { x: 20, y: 18, vers: 'ECOLE', n: 0 },
-      { x: 7, y: 23, vers: 'MAISON_MAUVILLE_1', n: 0 },
-      { x: 22, y: 23, vers: 'MAISON_MAUVILLE_2', n: 0 },
-    ],
-    panneaux: [],
-    objets: [
-      { id: 'vieux', x: 13, y: 9, sprite: 'vieil_homme', dir: BAS, script: 'VieuxTour' },
-      { id: 'passante', x: 24, y: 20, sprite: 'habitante', mouvement: 'errance', rayon: 3, script: 'Passante' },
-      { id: 'gamin', x: 14, y: 24, sprite: 'enfant', mouvement: 'errance', rayon: 2, script: 'GaminMauville' },
-    ],
     scripts: `
 script VieuxTour
   regarder_joueur
@@ -696,6 +524,33 @@ script Passante
 script GaminMauville
   regarder_joueur
   message "À l'ÉCOLE, on apprend les types des POKéMON !"
+  liberer
+  fin
+script PanneauEcole
+  message "ÉCOLE DES DRESSEURS"
+  fin
+script PanneauMauville
+  message "MAUVILLE\\nLa ville au parfum de nostalgie."
+  fin
+script PanneauArene
+  message "ARÈNE POKéMON DE MAUVILLE\\nChampion : ALBERT"
+  fin
+script PanneauTour
+  message "TOUR CHÉTIFLOR\\nOn y forme les POKéMON."
+  fin
+script MonsieurMauville
+  regarder_joueur
+  message "Le pilier de la TOUR CHÉTIFLOR bouge tout seul, dit-on."
+  liberer
+  fin
+script CostaudMauville
+  regarder_joueur
+  message "J'ai perdu contre ALBERT. Ses oiseaux sont trop rapides !"
+  liberer
+  fin
+script Jongleur
+  regarder_joueur
+  message "Je m'entraîne à jongler avec des POKé BALLS. Hop !"
   liberer
   fin
 `,
@@ -873,31 +728,24 @@ script Eleve
   },
 };
 
+for (const [id, z] of Object.entries(ZONES_DEHORS)) ZONES[id] = { ...ZONES[id], ...z };
+
 const interieur = (bloc, zone) => mondeSimple(bloc, zone);
 
 export const JOHTO = {
   sols: SOLS,
   blocs: {
-    bourg: BOURG, route29_est: ROUTE_B, route29_ouest: ROUTE29_OUEST, griotte: GRIOTTE, route30_sud: ROUTE30_SUD, route30_nord: ROUTE30_NORD,
-    route31: ROUTE31, mauville: MAUVILLE,
-    maison_1f: MAISON_1F, maison_2f: MAISON_2F, labo: LABO, voisin: VOISIN, centre: CENTRE, boutique: BOUTIQUE, poste: POSTE,
+    ...BLOCS_DEHORS,
+    maison_1f: MAISON_1F, maison_2f: MAISON_2F, labo: LABO, voisin: VOISIN, centre: CENTRE, boutique: BOUTIQUE, poste: POSTE, poste_eo: POSTE_EO,
     tour_1: TOUR_1, tour_2: TOUR_2, tour_3: TOUR_3, arene: ARENE, ecole: ECOLE, antre: ANTRE,
   },
   mondes: {
-    johto: {
-      largeur: 6, hauteur: 3,
-      blocs: ['mauville', 'route31', 'route30_nord', null, null, null,
-        null, null, 'route30_sud', null, null, null,
-        null, null, 'griotte', 'route29_ouest', 'route29_est', 'bourg'],
-      zones: ['MAUVILLE', 'ROUTE_31', 'ROUTE_30', null, null, null,
-        null, null, 'ROUTE_30', null, null, null,
-        null, null, 'VILLE_GRIOTTE', 'ROUTE_29', 'ROUTE_29', 'BOURG_GEON'],
-    },
+    johto: MONDE_JOHTO,
     maison_1f: interieur('maison_1f', 'MAISON_1F'), maison_2f: interieur('maison_2f', 'MAISON_2F'),
-    labo: interieur('labo', 'LABO_ORME'), voisin: interieur('voisin', 'MAISON_VOISIN'),
-    poste_46: interieur('poste', 'POSTE_46'),
+    labo: interieur('labo', 'LABO_ORME'), voisin: interieur('voisin', 'MAISON_VOISIN'), maison_rival: interieur('voisin', 'MAISON_RIVAL'),
+    poste_46: interieur('poste', 'POSTE_46'), poste_31: interieur('poste_eo', 'POSTE_31'), poste_36: interieur('poste_eo', 'POSTE_36'),
     centre_griotte: interieur('centre', 'CENTRE_GRIOTTE'), boutique_griotte: interieur('boutique', 'BOUTIQUE_GRIOTTE'),
-    maison_griotte: interieur('voisin', 'MAISON_GRIOTTE'), maison_guide: interieur('voisin', 'MAISON_GUIDE'),
+    maison_griotte: interieur('voisin', 'MAISON_GRIOTTE'), maison_guide: interieur('voisin', 'MAISON_GUIDE'), maison_griotte_se: interieur('voisin', 'MAISON_GRIOTTE_SE'),
     maison_baies: interieur('voisin', 'MAISON_BAIES'), m_pokemon: interieur('voisin', 'M_POKEMON'),
     antre_noir: interieur('antre', 'ANTRE_NOIR'),
     centre_mauville: interieur('centre', 'CENTRE_MAUVILLE'), boutique_mauville: interieur('boutique', 'BOUTIQUE_MAUVILLE'),
@@ -907,5 +755,4 @@ export const JOHTO = {
   },
   zones: ZONES,
 };
-/** départ d'une nouvelle partie : dans la chambre */
 export const DEPART = { zone: 'MAISON_2F', x: 14, y: 13, dir: BAS };

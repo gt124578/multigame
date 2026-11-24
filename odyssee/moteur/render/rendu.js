@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { BLOC, MB } from '../engine/const.js';
 import { chargerTout, facade, toit, texture, PACK_HGSS } from './textures.js';
+import { Batiments3D, PRET } from './modeles3d.js';
 
 /** un niveau de hauteur = trois quarts de case, comme dans Odyssée */
 export const NIV = 0.75;
@@ -19,11 +20,14 @@ export class Rendu {
   constructor(canvas, T, opts = {}) {
     this.T = T;
     this.pack = opts.pack === 'odyssee' ? null : PACK_HGSS;
+    // vrais bâtiments de HGSS (lus sur pret) : quand ils arrivent, les blocs sont refaits avec eux
+    this.b3d = new Batiments3D();
+    if (this.pack) this.b3d.charger(opts.pret || PRET).then((ok) => { if (ok) this.refaire = true; });
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.renderer.setClearColor(0x000000);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(22, 4 / 3, 0.5, 300);
+    this.camera = new THREE.PerspectiveCamera(22, 4 / 3, 0.5, 600);
     this.blocs = new Map();          // indice du bloc → groupe
     this.sprites = new Map();        // objet du terrain → meshes
     this.mondeId = null;
@@ -63,6 +67,7 @@ export class Rendu {
     this.scene.remove(g);
     // géométries toujours ; matériaux propres au bloc (« mat »), et leurs images si elles lui sont propres (« tout »)
     g.traverse((o) => {
+      if (o.userData.partage) return;
       o.geometry?.dispose();
       const p = o.userData.propre;
       if (!p) return;
@@ -178,6 +183,16 @@ export class Rendu {
     const g = new THREE.Group();
     const x = x0 + b.x, z = y0 + b.y, l = b.l, p = b.p;
     const h = this.T.M.hauteurCase(x, z + p - 1) * NIV;
+    // le vrai modèle de HGSS : centré sur la porte, façade sur le bord sud de l'emprise
+    if (b.m3d && this.b3d.a(b.m3d)) {
+      const o = this.b3d.objet(b.m3d), bt = this.b3d.boite(b.m3d);
+      // origine du modèle donnée par les données (posé par sa porte), sinon centré sur la porte
+      if (b.ox !== undefined) o.position.set(x0 + b.ox, h, y0 + b.oz);
+      else o.position.set(b.porte !== undefined ? x + b.porte + 0.5 : x + l / 2 - (bt.min[0] + bt.max[0]) / 2, h, z + p - bt.max[2]);
+      if (b.rot) o.rotation.y = -b.rot * Math.PI / 180;
+      g.add(o);
+      return g;
+    }
     const H = HAUT_BAT[b.modele] ?? 1.8;
     const fac = facade(b, l, H, this.A.facade);
     const mats = [new THREE.MeshBasicMaterial({ color: 0xb8ae98 }), new THREE.MeshBasicMaterial({ color: 0xb8ae98 }),
@@ -283,6 +298,7 @@ export class Rendu {
 
   dessiner(temps) {
     const T = this.T;
+    if (this.refaire) { this.refaire = false; for (const g of this.blocs.values()) this.defaire(g); this.blocs.clear(); }
     this.majBlocs();
     const vus = new Set([T.joueur, ...T.objets]);
     for (const [o, s] of this.sprites) if (!vus.has(o)) { this.defaireSprite(s); this.sprites.delete(o); }
@@ -297,7 +313,8 @@ export class Rendu {
     const c = T.camera, incl = THREE.MathUtils.degToRad(c.inclinaison);
     const cible = new THREE.Vector3(c.x, c.z * NIV + 0.5, c.y);
     const sec = T.secousse > 0 ? Math.sin(temps / 20) * 0.08 : 0;
-    this.camera.position.set(cible.x + sec, cible.y + Math.sin(incl) * c.distance, cible.z + Math.cos(incl) * c.distance);
+    const dist = c.distance * (this.zoom || 1);
+    this.camera.position.set(cible.x + sec, cible.y + Math.sin(incl) * dist, cible.z + Math.cos(incl) * dist);
     this.camera.fov = c.fov; this.camera.updateProjectionMatrix();
     this.camera.lookAt(cible.x + sec, cible.y, cible.z);
     this.renderer.render(this.scene, this.camera);

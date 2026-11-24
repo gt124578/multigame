@@ -27,10 +27,17 @@ if (process.env.PDSMS) await p.route('https://raw.githubusercontent.com/Trifindo
   try { r.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: await readFile(f) }); }
   catch { r.fulfill({ status: 404, body: '' }); }
 });
+// décompilation de HGSS (bâtiments) : depuis un clone local si PRET=<dossier du clone>
+if (process.env.PRET) await p.route('https://raw.githubusercontent.com/pret/pokeheartgold/**', async (r) => {
+  const u = decodeURIComponent(new URL(r.request().url()).pathname);
+  const f = path.join(process.env.PRET, u.replace(/^\/pret\/pokeheartgold\/[0-9a-f]+\//, ''));
+  try { r.fulfill({ status: 200, contentType: 'application/octet-stream', headers: { 'access-control-allow-origin': '*' }, body: await readFile(f) }); }
+  catch { r.fulfill({ status: 404, body: '' }); }
+});
 const logs = [];
 p.on('console', (m) => logs.push(m.type() + ': ' + m.text()));
 p.on('pageerror', (e) => logs.push('ERREUR: ' + e.message));
-await p.goto('http://depot.local/odyssee/moteur.html?' + params);
+await p.goto(params.startsWith('/') ? 'http://depot.local' + params : 'http://depot.local/odyssee/moteur.html?' + params);
 await p.waitForTimeout(2500);
 for (const a of actions.split(',').filter(Boolean)) {
   const i = a.indexOf(':'), k = i < 0 ? a : a.slice(0, i), ms = i < 0 ? '' : a.slice(i + 1);

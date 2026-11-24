@@ -72,6 +72,7 @@ addEventListener('resize', taille); taille();
 $('chargement').remove();
 if (Q.has('debug')) { window.__moteur = { T, R, pont }; $('debug').style.display = 'block'; }
 pont.musique(T.musique);
+if (Q.has('zoom')) R.zoom = +Q.get('zoom');   // vue élargie (regarder une ville entière)
 
 // ——— interface : elle reflète l'état du moteur ———
 let tZone = 0;
