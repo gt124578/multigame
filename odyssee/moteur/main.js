@@ -6,10 +6,13 @@
 import { Terrain } from './engine/terrain.js';
 import { PAS_PAR_SECONDE } from './engine/const.js';
 import { DEMO } from './donnees/demo.js';
+import { JOHTO, DEPART } from './donnees/johto.js';
 import { Rendu } from './render/rendu.js';
 
 const Q = new URLSearchParams(location.search);
-const CLE = 'odyssee-moteur-hgss';
+const DONNEES = Q.has('demo') ? DEMO : JOHTO;
+const DEBUT = Q.has('demo') ? { zone: 'MAISON_2F', x: 14, y: 13 } : DEPART;
+const CLE = 'odyssee-moteur-hgss' + (Q.has('demo') ? '-demo' : '-johto');
 const $ = (id) => document.getElementById(id);
 
 // ——— touches : on mémorise les appuis entre deux pas pour n'en perdre aucun ———
@@ -58,13 +61,13 @@ const SONS = { heurt: () => bip(90, 0.09, 'square', 0.06), texte: () => bip(880,
   soin: () => bip(700, 0.3, 'sine', 0.06) };
 
 // ——— démarrage ———
-const T = new Terrain(DEMO, { graine: (Math.random() * 2 ** 31) | 0 });
+const T = new Terrain(DONNEES, { graine: (Math.random() * 2 ** 31) | 0 });
 const sauvegarde = !Q.has('nouveau') && localStorage.getItem(CLE);
 if (Q.get('zone')) T.demarrer({ zone: Q.get('zone'), x: Q.has('x') ? +Q.get('x') : undefined, y: Q.has('y') ? +Q.get('y') : undefined });
-else if (sauvegarde) { try { T.demarrer({ sauvegarde }); } catch (e) { console.warn('sauvegarde illisible', e); T.demarrer({ zone: 'MAISON_2F', x: 14, y: 13 }); } }
-else T.demarrer({ zone: 'MAISON_2F', x: 14, y: 13 });
+else if (sauvegarde) { try { T.demarrer({ sauvegarde }); } catch (e) { console.warn('sauvegarde illisible', e); T.demarrer(DEBUT); } }
+else T.demarrer(DEBUT);
 
-const R = new Rendu($('gl'), T);
+const R = new Rendu($('gl'), T, { pack: Q.get('pack') || 'hgss' });
 await R.charger();
 const taille = () => { const c = $('cadre'); R.taille(c.clientWidth, c.clientHeight); };
 addEventListener('resize', taille); taille();
@@ -86,9 +89,14 @@ function ui(temps) {
     $('texte').textContent = u.texte.slice(0, u.vus);
     $('boite').querySelector('.suite').style.display = u.vus >= u.texte.length && !u.lu && !u.choix ? 'inline' : 'none';
   }
-  const c = u?.choix;
-  $('choix').style.display = c ? 'block' : 'none';
+  const c = u?.choix, bq = u?.boutique;
+  $('choix').style.display = c || bq ? 'block' : 'none';
   if (c) $('choix').innerHTML = c.options.map((o, i) => `<div class="${i === c.i ? 'sel' : ''}">${o}</div>`).join('');
+  if (bq) {
+    const lignes = [...bq.articles.map((a) => `${a.nom}<span style="float:right;margin-left:2em">${a.prix} ₽</span>`), 'QUITTER'];
+    $('choix').innerHTML = `<div style="font-size:0.8em;opacity:0.75">Argent : ${T.etat.argent} ₽</div>`
+      + lignes.map((l, i) => `<div class="${i === bq.i ? 'sel' : ''}">${l}</div>`).join('');
+  }
   $('noir').style.opacity = T.noir;
 }
 function ouvrirCombat(e) {

@@ -1,7 +1,25 @@
 # Moteur de terrain façon HeartGold / SoulSilver
 
 Branche `moteur-hgss`. Banc d'essai : `odyssee/moteur/index.html` (`?nouveau` pour repartir de zéro, `?debug`,
-`?zone=ROUTE_29&x=40&y=8` pour partir ailleurs). Tests : `node tools/test-moteur-hgss.mjs`.
+`?zone=ROUTE_30&x=79&y=46` pour partir ailleurs, `?demo` pour la petite zone d'essai, `?pack=odyssee` pour les images
+d'Odyssée au lieu des textures HGSS). Tests : `node tools/test-moteur-hgss.mjs`.
+
+## Le début de HeartGold / SoulSilver (`donnees/johto.js`)
+
+Bourg Geon → Route 29 (et le poste de la Route 46) → Ville Griotte → Route 30 (M. POKéMON) → Route 31 (Antre Noir) →
+Mauville (Tour Chétiflor sur trois étages, arène d'Albert, école, Centre, boutique, maisons) : 8 blocs de dehors dans
+une matrice de 6 × 3, 21 cartes d'intérieur (un même bloc sert à plusieurs zones : Centres, boutiques, maisons).
+Les plans sont **redessinés à la main** d'après la disposition des lieux ; rien n'est extrait de la ROM.
+
+- `engine/audit.js` parcourt tout ce qu'un joueur peut atteindre et vérifie que chaque porte, PNJ et panneau est
+  atteignable et qu'on revient toujours au départ (aucun piège sans retour). Les tests le font sur toute la région,
+  puis jouent le parcours complet : POKéMON du labo, dresseurs en chemin, soins, achats, baies qui repoussent, ŒUF de
+  M. POKéMON, CS COUPE, arbre coupé qui repousse, trois étages de la Tour, BADGE ZÉPHYR, K.O. et reprise au Centre.
+- Textures HGSS : celles que **Pokémon DS Map Studio** publie sur son dépôt GitHub (Trifindo), lues **à la volée**
+  par le navigateur au chargement (`PACK_HGSS` de `render/textures.js`, commit épinglé) ; aucune n'est copiée dans
+  ce dépôt. Les images de 16 px sont agrandies en 32 px ; une texture de 32 px couvre 2 × 2 cases (16 texels par case,
+  la densité des personnages HGSS). Sans réseau, chaque image manquante est remplacée par celle d'Odyssée.
+  Captures sans réseau : `PDSMS=<clone de Pokemon-DS-Map-Studio> node tools/capture-moteur-hgss.mjs …`.
 
 Le but n'est pas l'image mais la charpente : une organisation aussi stricte que celle du jeu DS, où l'on ajoute
 une ville, un PNJ ou une quête **en écrivant des données et des scripts**, sans toucher au code du moteur.
@@ -98,6 +116,8 @@ d'arrivée : deux personnages ne se croisent jamais. À la fin de chaque pas du 
 Les PNJ ne bougent seuls qu'à moins de 24 cases du joueur et jamais pendant un script.
 
 ## Ce qui reste à brancher
+
+- Les rencontres en grotte (tout le sol de l'Antre Noir), le noir de l'Antre Noir sans FLASH.
 
 - Le combat : le terrain émet `{ type: 'combat', … }` et attend `terrain.terminerCombat(victoire)` ; il suffit d'y
   brancher le moteur de combat d'Odyssée (`odyssee/js/core/battle.js`).

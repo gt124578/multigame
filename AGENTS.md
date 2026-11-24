@@ -338,7 +338,10 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   moteur sans DOM (`engine/` : monde en blocs de 32 × 32 cases, zones à en-tête et événements, téléporteurs numérotés, langage de
   scripts compilé, joueur à pas fixe de 1/60 s, PNJ, dresseurs), données écrites en texte (`donnees/auteur.js`, zone d'essai
   `donnees/demo.js`), rendu three.js qui ne fait que lire le moteur (`render/`). `node tools/test-moteur-hgss.mjs` joue la zone
-  d'essai de bout en bout ; `node tools/capture-moteur-hgss.mjs "<paramètres>" <image.png> "<touches>"` (Playwright) en fait une capture.
+  d'essai et le début de HGSS redessiné (`donnees/johto.js` : Bourg Geon → Mauville, audit `engine/audit.js` de toute la région
+  puis parcours complet jusqu'au premier badge) ; `node tools/capture-moteur-hgss.mjs "<paramètres>" <image.png> "<touches>"`
+  (Playwright, `PDSMS=<clone>` pour servir les textures sans réseau) en fait une capture. Textures HGSS lues à la volée
+  sur le dépôt de Pokémon DS Map Studio (`PACK_HGSS` de `render/textures.js`) : ne jamais les copier dans ce dépôt.
   Ne va pas sur `main` tant qu'Odyssée n'y est pas passé.
 - Odyssée, choix des graphismes (Options → Graphismes, `odyssee/js/gfx.js`) : sol du dehors (« odyssee » = sol généré, « classique » = tuiles d'origine, ou un pack de tuiles de 16 px dans `odyssee/img/gfx/<pack>/`, déclaré dans `PACKS`) et sprites des Pokémon (HeartGold / SoulSilver ou Noir & Blanc, `gen()` dans `assets.js`) ; écran « Crédits graphismes » (`CREDITS`). Le sol se lit au chargement (`loadArt` dans `main.js`, `setArt` dans `render/textures.js`). Pack « Lumineux » : `python3 tools/odyssee-pack-sol.py <planche 1.png de Team Aqua>`. Sprites Noir & Blanc 1 à 493 : copiés de PokeAPI/sprites dans `odyssee/img/pokeapi/pokemon/versions/generation-v/black-white/`. Toute tuile ou sprite ajouté doit être crédité (`CREDITS` et un `LISEZMOI.txt` à côté).
   Salles à plusieurs niveaux (`odyssee/js/world/etages.js`, pour les arènes dessinées dans un plan) : `niveaux` (une ligne de chiffres par ligne

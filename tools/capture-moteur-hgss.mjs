@@ -20,6 +20,13 @@ await p.route('http://depot.local/**', async (r) => {
   try { r.fulfill({ status: 200, contentType: TYPES[path.extname(f)] || 'application/octet-stream', body: await readFile(f) }); }
   catch { r.fulfill({ status: 404, body: '' }); }
 });
+// textures de Pokémon DS Map Studio : depuis un clone local si PDSMS=<dossier du clone> (pas de réseau dans les tests)
+if (process.env.PDSMS) await p.route('https://raw.githubusercontent.com/Trifindo/Pokemon-DS-Map-Studio/**', async (r) => {
+  const u = decodeURIComponent(new URL(r.request().url()).pathname);
+  const f = path.join(process.env.PDSMS, u.replace(/^\/Trifindo\/Pokemon-DS-Map-Studio\/[0-9a-f]+\//, ''));
+  try { r.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: await readFile(f) }); }
+  catch { r.fulfill({ status: 404, body: '' }); }
+});
 const logs = [];
 p.on('console', (m) => logs.push(m.type() + ': ' + m.text()));
 p.on('pageerror', (e) => logs.push('ERREUR: ' + e.message));

@@ -2,18 +2,23 @@
 // blocs construits à l'approche (3 × 3 autour du joueur) et défaits au loin, sprites des objets, caméra de la zone.
 import * as THREE from 'three';
 import { BLOC, MB } from '../engine/const.js';
-import { chargerTout, facade, toit, texture } from './textures.js';
+import { chargerTout, facade, toit, texture, PACK_HGSS } from './textures.js';
 
 /** un niveau de hauteur = trois quarts de case, comme dans Odyssée */
 export const NIV = 0.75;
 /** hauteur ajoutée aux cases qui se dressent (murs des maisons, parois des grottes) */
 const DRESSE = { mur: 1.6, paroi: 1.0 };
+/** objets du terrain dessinés comme du décor (pas de planche de marche) */
+const DECOR_OBJET = { objet: 'objet', arbre_coupe: 'arbre_coupe' };
+/** hauteur des murs de chaque sorte de bâtiment, en cases */
+const HAUT_BAT = { labo: 2.2, grotte: 1.6, maison: 1.8, centre: 2.0, boutique: 1.8, arene: 2.2, ecole: 2.0, tour: 2.4, poste: 1.6 };
 /** pieds des personnages : un peu au sud du centre de la case */
 const PIEDS = 0.78;
 
 export class Rendu {
-  constructor(canvas, T) {
+  constructor(canvas, T, opts = {}) {
     this.T = T;
+    this.pack = opts.pack === 'odyssee' ? null : PACK_HGSS;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.renderer.setClearColor(0x000000);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -26,8 +31,8 @@ export class Rendu {
   }
   async charger() {
     const persos = new Set(['player_m', 'player_f']);
-    for (const z of Object.values(this.T.d.zones)) for (const o of z.objets || []) if (o.sprite && o.sprite !== 'objet') persos.add(o.sprite);
-    this.A = await chargerTout(this.T.d.sols, [...persos]);
+    for (const z of Object.values(this.T.d.zones)) for (const o of z.objets || []) if (o.sprite && !DECOR_OBJET[o.type]) persos.add(o.sprite);
+    this.A = await chargerTout(this.T.d.sols, [...persos], this.pack);
     this.matSol = new THREE.MeshBasicMaterial({ map: this.A.atlas.tex, vertexColors: true });
     this.matEau = new THREE.MeshBasicMaterial({ map: this.A.eau });
     this.ombre = new THREE.Mesh(new THREE.CircleGeometry(0.32, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false }));
@@ -101,7 +106,7 @@ export class Rendu {
       const [p, u, ix] = cible === 'eau' ? [EP, EU, EI] : [P, U, I];
       const n = p.length / 3;
       for (const q of pts) p.push(...q);
-      if (cible === 'eau') u.push(0, 0, 1, 0, 1, 1, 0, 1);
+      if (cible === 'eau') { const [u0, v0, u1, v1] = r; u.push(u0, v0, u1, v0, u1, v1, u0, v1); }
       else { const [u0, v0, u1, v1] = r; u.push(u0, v0, u1, v0, u1, v1, u0, v1); C.push(c, c, c, c, c, c, c, c, c, c, c, c); }
       ix.push(n, n + 1, n + 2, n, n + 2, n + 3);
     };
@@ -114,8 +119,12 @@ export class Rendu {
       let ys = top;
       if (M.mb(x, y) === MB.MARCHES) ys = Math.min(top, Math.max(0, this.dessus(x, y + 1)));
       const pts = [[x, ys, y + 1], [x + 1, ys, y + 1], [x + 1, top, y], [x, top, y]];
-      if (s === 'eau' || s === 'eau_profonde') quad(pts, null, 1, 'eau');
-      else quad(pts, uv(s));
+      if (s === 'eau' || s === 'eau_profonde') {
+        // eau du pack HGSS : une image pour 2 × 2 cases
+        const q = this.pack ? [(x & 1) / 2, 1 - ((y & 1) + 1) / 2, (x & 1) / 2 + 0.5, 1 - (y & 1) / 2] : [0, 0, 1, 1];
+        quad(pts, q, 1, 'eau');
+      }
+      else quad(pts, uv(s, x, y));
       // parois vers le sud, l'est et l'ouest (le nord ne se voit pas)
       const face = this.dresse(x, y, s) ? 'face_' + s : (s === 'grotte' ? 'face_paroi' : s.startsWith('herbe') || s === 'fleurs' ? 'face_terre' : 'face_falaise');
       for (const [dx, dy, c] of [[0, 1, 0.85], [1, 0, 0.7], [-1, 0, 0.7]]) {
@@ -169,8 +178,8 @@ export class Rendu {
     const g = new THREE.Group();
     const x = x0 + b.x, z = y0 + b.y, l = b.l, p = b.p;
     const h = this.T.M.hauteurCase(x, z + p - 1) * NIV;
-    const H = b.modele === 'labo' ? 2.2 : b.modele === 'grotte' ? 1.6 : 1.8;
-    const fac = facade(b, l, H);
+    const H = HAUT_BAT[b.modele] ?? 1.8;
+    const fac = facade(b, l, H, this.A.facade);
     const mats = [new THREE.MeshBasicMaterial({ color: 0xb8ae98 }), new THREE.MeshBasicMaterial({ color: 0xb8ae98 }),
       new THREE.MeshBasicMaterial({ color: 0x8a826e }), new THREE.MeshBasicMaterial({ color: 0x8a826e }),
       new THREE.MeshBasicMaterial({ map: fac }), new THREE.MeshBasicMaterial({ color: 0x8a826e })];
@@ -178,7 +187,17 @@ export class Rendu {
     corps.position.set(x + l / 2, h + H / 2, z + (p - 0.4) / 2 + 0.4);
     corps.userData.propre = 'tout';
     g.add(corps);
-    if (b.modele !== 'grotte') {
+    if (b.modele === 'tour') {
+      // tour : un second étage en retrait, puis le toit
+      const e = new THREE.Mesh(new THREE.BoxGeometry(l - 2, 1.4, p - 1.6), new THREE.MeshBasicMaterial({ color: 0x6a4a30 }));
+      e.position.set(x + l / 2, h + H + 0.9, z + (p - 0.4) / 2 + 0.6);
+      e.userData.propre = 'mat';
+      g.add(e);
+      const t = new THREE.Mesh(new THREE.ConeGeometry(Math.max(l, p) * 0.5, 1.4, 4), new THREE.MeshBasicMaterial({ color: 0x4e3420 }));
+      t.rotation.y = Math.PI / 4; t.position.set(x + l / 2, h + H + 2.3, z + (p - 0.4) / 2 + 0.6);
+      t.userData.propre = 'mat';
+      g.add(t);
+    } else if (b.modele !== 'grotte') {
       // toit à deux pans, faîtage est-ouest
       const R = 1.1, a = -0.15, zN = z + 0.1, zS = z + p + 0.15, zm = (zN + zS) / 2, y1 = h + H, y2 = y1 + R;
       const pos = [x + a, y1, zS, x + l - a, y1, zS, x + l - a, y2, zm, x + a, y2, zm,
@@ -207,8 +226,8 @@ export class Rendu {
     if (s) return s;
     const g = new THREE.Group();
     let mat, n = 1, l = 2, h = 2;
-    if (o.def?.type === 'objet') {
-      const D = this.A.decor.objet; mat = new THREE.MeshBasicMaterial({ map: D.tex, transparent: true, alphaTest: 0.5 }); l = D.l; h = D.h;
+    if (DECOR_OBJET[o.def?.type]) {
+      const D = this.A.decor[DECOR_OBJET[o.def.type]]; mat = new THREE.MeshBasicMaterial({ map: D.tex, transparent: true, alphaTest: 0.5 }); l = D.l; h = D.h;
     } else {
       const im = this.A.persos[o.sprite] || this.A.persos.player_m;
       const t = texture(im); n = im.width / 32;
