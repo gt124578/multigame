@@ -37,7 +37,7 @@ export class Rendu {
     this.matEau = new THREE.MeshBasicMaterial({ map: this.A.eau });
     this.ombre = new THREE.Mesh(new THREE.CircleGeometry(0.32, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false }));
     this.ombre.rotation.x = -Math.PI / 2; this.ombre.scale.set(1, 0.55, 1);
-    const im = new Image(); im.src = '../img/sol16/hautes_herbes_front.png';
+    const im = new Image(); im.src = new URL('../../img/sol16/hautes_herbes_front.png', import.meta.url).href;
     await new Promise((ok) => { im.onload = ok; im.onerror = ok; });
     this.texHerbe = texture(im);
     const cv = document.createElement('canvas'); cv.width = 16; cv.height = 16;

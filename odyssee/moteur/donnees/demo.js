@@ -238,7 +238,7 @@ export const DEMO = {
       objets: [
         { id: 'pecheur', x: BX + 26, y: 22, sprite: 'pecheur', dir: DROITE, mouvement: 'regard_gd', script: 'Pecheur' },
         { id: 'fillette', x: BX + 15, y: 15, sprite: 'fillette', mouvement: 'errance', rayon: 3, script: 'Fillette' },
-        { id: 'baie_ile', type: 'objet', x: BX + 31, y: 24, sprite: 'objet', objet: 'baie_oran', drapeau: 'OBJ_BOURG_BAIE' },
+        { id: 'baie_ile', type: 'objet', x: BX + 31, y: 24, sprite: 'objet', objet: 'oran-berry', drapeau: 'OBJ_BOURG_BAIE' },
       ],
       scripts: `
 script PanneauBourg
@@ -460,7 +460,7 @@ Voisin_Deja:
     GROTTE_GLACE: {
       nom: 'Grotte Glacée', musique: 'grotte', camera: 'grotte', velo: false, interieur: true,
       warps: [{ x: 14, y: 14, vers: 'ROUTE_29', n: 0 }],
-      objets: [{ id: 'pokeball', type: 'objet', x: 17, y: 5, sprite: 'objet', objet: 'poke_ball', drapeau: 'OBJ_GROTTE_BALL' }],
+      objets: [{ id: 'pokeball', type: 'objet', x: 17, y: 5, sprite: 'objet', objet: 'poke-ball', drapeau: 'OBJ_GROTTE_BALL' }],
     },
   },
 };

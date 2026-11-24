@@ -119,7 +119,7 @@ export const COMMANDES = {
       const v = `BAIE_${p.zone}_${p.x}_${p.y}`;
       const der = T.etat.vars[v];
       if (der !== undefined && T.etat.pas - der < (p.repousse ?? 300)) { T.etat.vars.RESULTAT = 0; return; }
-      const b = p.baie || 'baie_oran', q = p.quantite ?? 2;
+      const b = p.baie || 'oran-berry', q = p.quantite ?? 2;
       T.etat.vars[v] = T.etat.pas;
       T.etat.sac[b] = (T.etat.sac[b] ?? 0) + q;
       T.etat.vars.RESULTAT = 1;
@@ -139,13 +139,14 @@ export const COMMANDES = {
   donner_pokemon: {
     args: 'mot nombre',
     exec: (T, ctx, [sp, niv]) => {
-      T.etat.equipe.push({ espece: sp, niveau: niv, pv: 1, pvMax: 1 });
+      const m = T.pokemon.creer(sp, niv);
+      if (T.etat.equipe.length < 6) T.etat.equipe.push(m); else T.etat.boite.push(m);
       T.sortir({ type: 'son', nom: 'fanfare' });
-      return T.message(`{JOUEUR} reçoit ${sp} !`);
+      return T.message(`{JOUEUR} reçoit ${sp} !${T.etat.equipe.includes(m) ? '' : '\nIl est envoyé dans le PC.'}`);
     },
   },
   compter_equipe: { exec: (T) => { T.etat.vars.RESULTAT = T.etat.equipe.length; } },
-  soigner: { exec: (T) => { for (const p of T.etat.equipe) p.pv = p.pvMax; T.sortir({ type: 'son', nom: 'soin' }); return T.attendre(60); } },
+  soigner: { exec: (T) => { for (const p of T.etat.equipe) T.pokemon.soigner(p); T.sortir({ type: 'son', nom: 'soin' }); return T.attendre(60); } },
   point_de_soin: { exec: (T) => { T.etat.soin = { zone: T.zone.id, x: T.joueur.x, y: T.joueur.y }; } },
   ramasser: {
     exec: (T, ctx) => {
@@ -163,7 +164,7 @@ export const COMMANDES = {
       if (!o?.def.dresseur) throw new Error(`script ${ctx.nom} : combat_dresseur sans dresseur`);
       const d = o.def.dresseur;
       const prix = d.prix ?? 40 * Math.max(1, ...(d.equipe || []).map((p) => p.niveau || 1));
-      return T.combat({ type: 'dresseur', objet: o.id, nom: o.def.nom || o.id, equipe: d.equipe || [], prix }, (victoire) => {
+      return T.combat({ type: 'dresseur', objet: o.id, nom: o.def.nom || o.id, sprite: o.sprite, champion: !!d.champion, equipe: d.equipe || [], prix }, (victoire) => {
         if (victoire) { T.etat.drapeaux.add(T.drapeauDresseur(o)); T.etat.argent += prix; }
       });
     },

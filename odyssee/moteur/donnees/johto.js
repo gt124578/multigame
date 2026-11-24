@@ -22,7 +22,7 @@ function decaler(z, dx, dy) {
   return { ...z, warps: (z.warps || []).map(d), panneaux: (z.panneaux || []).map(d), declencheurs: (z.declencheurs || []).map(d), objets: (z.objets || []).map(d) };
 }
 /** un panneau « arbre à baies » sur chaque arbre à baies d'un bloc */
-function baies(b, ox, oy, baie = 'baie_oran') {
+function baies(b, ox, oy, baie = 'oran-berry') {
   return b.decor.filter((d) => d.type === 'baies').map((d) => ({ x: ox + d.x, y: oy + d.y, script: 'ArbreBaies', baie }));
 }
 /** une pièce au centre d'un bloc vide */
@@ -421,7 +421,7 @@ const ZONES = {
     panneaux: [
       ...routeDemo.panneaux.filter((p) => p.x >= 128),
       { x: 96 + 14, y: 64 + 7, depuis: HAUT, script: 'PanneauR29' },
-      ...baies(ROUTE29_OUEST, 96, 64, 'baie_oran'),
+      ...baies(ROUTE29_OUEST, 96, 64, 'oran-berry'),
     ],
     objets: [
       ...routeDemo.objets.filter((o) => o.x >= 128),
@@ -495,7 +495,7 @@ script PecheurGriotte
 `,
   },
   CENTRE_GRIOTTE: centre('Ville Griotte', 'VILLE_GRIOTTE', 0),
-  BOUTIQUE_GRIOTTE: boutique('Ville Griotte', 'VILLE_GRIOTTE', 1, 'potion antidote anti_para poke_ball'),
+  BOUTIQUE_GRIOTTE: boutique('Ville Griotte', 'VILLE_GRIOTTE', 1, 'potion antidote paralyze-heal poke-ball'),
   MAISON_GRIOTTE: maison('Ville Griotte', 'VILLE_GRIOTTE', 2, { sprite: 'dame', script: 'Dame' }, `
 script Dame
   regarder_joueur
@@ -527,8 +527,8 @@ script Enfant
       { x: 64 + 6, y: 32 + 11, depuis: HAUT, script: 'PanneauR30' },
       { x: 64 + 22, y: 7, depuis: HAUT, script: 'PanneauMPokemon' },
       { x: 64 + 6, y: 26, depuis: HAUT, script: 'PanneauR30Nord' },
-      ...baies(ROUTE30_SUD, 64, 32, 'baie_pecha'),
-      ...baies(ROUTE30_NORD, 64, 0, 'baie_ceriz'),
+      ...baies(ROUTE30_SUD, 64, 32, 'pecha-berry'),
+      ...baies(ROUTE30_NORD, 64, 0, 'cheri-berry'),
     ],
     objets: [
       { id: 'joey', x: 64 + 9, y: 32 + 20, sprite: 'gamin', dir: DROITE, nom: 'Gamin Joey',
@@ -589,7 +589,7 @@ script Jardinier
   regarder_joueur
   si drapeau A_BAIES_R30 aller Jardinier_Deja
   message "Tu connais les baies ? Tiens, goûte celles-ci !"
-  donner_objet baie_oran 3
+  donner_objet oran-berry 3
   drapeau A_BAIES_R30
   liberer
   fin
@@ -627,12 +627,12 @@ MPokemon_Deja:
       ] },
     },
     warps: [{ x: 32 + 22, y: 4, vers: 'ANTRE_NOIR', n: 0 }],
-    panneaux: [{ x: 32 + 23, y: 13, depuis: HAUT, script: 'PanneauR31' }, ...baies(ROUTE31, 32, 0, 'baie_oran')],
+    panneaux: [{ x: 32 + 23, y: 13, depuis: HAUT, script: 'PanneauR31' }, ...baies(ROUTE31, 32, 0, 'oran-berry')],
     objets: [
       { id: 'wade', x: 32 + 13, y: 7, sprite: 'insectomane', dir: BAS, nom: 'Insectomane Wade',
         dresseur: { portee: 3, script: 'Wade_Defi', apres: 'Wade_Apres', equipe: [{ espece: 'Chenipan', niveau: 2 }, { espece: 'Aspicot', niveau: 3 }, { espece: 'Chrysacier', niveau: 4 }] } },
       { id: 'arbre', type: 'arbre_coupe', x: 32 + 6, y: 6, sprite: 'arbre_coupe' },
-      { id: 'cache', type: 'objet', x: 32 + 5, y: 4, sprite: 'objet', objet: 'super_potion', drapeau: 'OBJ_R31_CACHE' },
+      { id: 'cache', type: 'objet', x: 32 + 5, y: 4, sprite: 'objet', objet: 'super-potion', drapeau: 'OBJ_R31_CACHE' },
       { id: 'montagnard', x: 32 + 22, y: 6, sprite: 'montagnard', dir: BAS, script: 'Montagnard' },
     ],
     scripts: `
@@ -661,7 +661,7 @@ script Montagnard
     nom: 'Antre Noir', musique: 'grotte', camera: 'grotte', velo: false, interieur: true,
     rencontres: { herbe: null },
     warps: [{ x: 14, y: 14, vers: 'ROUTE_31', n: 0 }],
-    objets: [{ id: 'objet_antre', type: 'objet', x: 6, y: 4, sprite: 'objet', objet: 'reveil', drapeau: 'OBJ_ANTRE' }],
+    objets: [{ id: 'objet_antre', type: 'objet', x: 6, y: 4, sprite: 'objet', objet: 'awakening', drapeau: 'OBJ_ANTRE' }],
   },
 
   MAUVILLE: {
@@ -701,7 +701,7 @@ script GaminMauville
 `,
   },
   CENTRE_MAUVILLE: centre('Mauville', 'MAUVILLE', 1),
-  BOUTIQUE_MAUVILLE: boutique('Mauville', 'MAUVILLE', 2, 'potion super_potion antidote anti_para reveil repousse poke_ball'),
+  BOUTIQUE_MAUVILLE: boutique('Mauville', 'MAUVILLE', 2, 'potion super-potion antidote paralyze-heal awakening repel poke-ball'),
   MAISON_MAUVILLE_1: maison('Mauville', 'MAUVILLE', 5, { sprite: 'kimono', script: 'Kimono' }, `
 script Kimono
   regarder_joueur
@@ -789,7 +789,7 @@ script Li_Apres
     warps: [{ ...Ar(7, 9), vers: 'MAUVILLE', n: 3 }],
     objets: [
       { id: 'albert', ...Ar(6, 1), sprite: 'montagnard', dir: BAS, nom: 'Champion Albert',
-        dresseur: { portee: 0, script: 'Albert_Defi', apres: 'Albert_Apres', prix: 900, equipe: [{ espece: 'Roucool', niveau: 9 }, { espece: 'Roucoups', niveau: 13 }] } },
+        dresseur: { portee: 0, champion: true, script: 'Albert_Defi', apres: 'Albert_Apres', prix: 900, equipe: [{ espece: 'Roucool', niveau: 9 }, { espece: 'Roucoups', niveau: 13 }] } },
       { id: 'ornitho_1', ...Ar(3, 6), sprite: 'topdresseur', dir: DROITE, nom: 'Ornithologue Rod',
         dresseur: { portee: 3, script: 'Rod_Defi', apres: 'Rod_Apres', equipe: [{ espece: 'Roucool', niveau: 7 }, { espece: 'Roucool', niveau: 7 }] } },
       { id: 'ornitho_2', ...Ar(10, 4), sprite: 'topdresseuse', dir: GAUCHE, nom: 'Ornithologue Abe',
@@ -861,7 +861,7 @@ script Professeur
   liberer
   fin
 Professeur_Deja:
-  message "Un arbre coupé repousse quand tu quittes la zone."
+  message "Un arbre coupé repel quand tu quittes la zone."
   liberer
   fin
 script Eleve

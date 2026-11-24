@@ -3,8 +3,9 @@
 // Tout est provisoire : le moteur ne dépend d'aucune de ces images, on les remplacera par les dessins d'Odyssée.
 import * as THREE from 'three';
 
-const IMG = '../img/';
-const OW = '../../assets/graphics/hgss/ow/';
+// adresses relatives à ce fichier (la page peut être n'importe où)
+const IMG = new URL('../../img/', import.meta.url).href;
+const OW = new URL('../../../assets/graphics/hgss/ow/', import.meta.url).href;
 
 /**
  * Pack « hgss » : les textures de HeartGold / SoulSilver publiées par Pokémon DS Map Studio (Trifindo), lues À LA VOLÉE

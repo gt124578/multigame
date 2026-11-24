@@ -1,6 +1,6 @@
 // Capture d'écran du banc d'essai du moteur façon HGSS dans Chrome (Playwright), après une suite de touches.
 // Les fichiers du dépôt sont servis par Playwright lui-même (aucun serveur à lancer).
-//   node tools/capture-moteur-hgss.mjs "<paramètres>" <image.png> ["Touche:ms,w:ms,…"]
+//   node tools/capture-moteur-hgss.mjs "<paramètres>" <image.png> ["Touche:ms,w:ms,js:<code encodeURIComponent>,…"]
 //   ex. node tools/capture-moteur-hgss.mjs "nouveau&debug" /tmp/a.png "ArrowDown:400,w:500"
 // PLAYWRIGHT=<chemin du module> et CHROME_PATH=<chrome> si besoin.
 import { readFile } from 'node:fs/promises';
@@ -30,11 +30,12 @@ if (process.env.PDSMS) await p.route('https://raw.githubusercontent.com/Trifindo
 const logs = [];
 p.on('console', (m) => logs.push(m.type() + ': ' + m.text()));
 p.on('pageerror', (e) => logs.push('ERREUR: ' + e.message));
-await p.goto('http://depot.local/odyssee/moteur/index.html?' + params);
+await p.goto('http://depot.local/odyssee/moteur.html?' + params);
 await p.waitForTimeout(2500);
 for (const a of actions.split(',').filter(Boolean)) {
-  const [k, ms] = a.split(':');
+  const i = a.indexOf(':'), k = i < 0 ? a : a.slice(0, i), ms = i < 0 ? '' : a.slice(i + 1);
   if (k === 'w') { await p.waitForTimeout(+ms); continue; }
+  if (k === 'js') { console.log('js →', await p.evaluate(decodeURIComponent(ms))); continue; }   // js:<code encodé> (avec ?debug : window.__moteur)
   await p.keyboard.down(k); await p.waitForTimeout(+(ms || 100)); await p.keyboard.up(k); await p.waitForTimeout(80);
 }
 await p.screenshot({ path: out });

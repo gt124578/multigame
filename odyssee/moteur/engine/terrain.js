@@ -28,16 +28,17 @@ export const CAMERAS = {
 
 /** objets connus : nom (avec article) et prix ; un paquet de données peut en ajouter (`objets`) */
 export const OBJETS = {
+  // identifiants des objets = ceux d'Odyssée (et de PokeAPI) : le sac du terrain est le sac des combats
   potion: { nom: 'une POTION', court: 'POTION', prix: 300 },
-  super_potion: { nom: 'une SUPER POTION', court: 'SUPER POTION', prix: 700 },
+  'super-potion': { nom: 'une SUPER POTION', court: 'SUPER POTION', prix: 700 },
   antidote: { nom: 'un ANTIDOTE', court: 'ANTIDOTE', prix: 100 },
-  anti_para: { nom: 'un ANTI-PARA', court: 'ANTI-PARA', prix: 200 },
-  reveil: { nom: 'un RÉVEIL', court: 'RÉVEIL', prix: 250 },
-  repousse: { nom: 'un REPOUSSE', court: 'REPOUSSE', prix: 350 },
-  poke_ball: { nom: 'une POKé BALL', court: 'POKé BALL', prix: 200 },
-  baie_oran: { nom: 'une BAIE ORAN', court: 'BAIE ORAN' },
-  baie_ceriz: { nom: 'une BAIE CERIZ', court: 'BAIE CERIZ' },
-  baie_pecha: { nom: 'une BAIE PECHA', court: 'BAIE PECHA' },
+  'paralyze-heal': { nom: 'un ANTI-PARA', court: 'ANTI-PARA', prix: 200 },
+  awakening: { nom: 'un RÉVEIL', court: 'RÉVEIL', prix: 250 },
+  repel: { nom: 'un REPOUSSE', court: 'REPOUSSE', prix: 350 },
+  'poke-ball': { nom: 'une POKé BALL', court: 'POKé BALL', prix: 200 },
+  'oran-berry': { nom: 'une BAIE ORAN', court: 'BAIE ORAN' },
+  'cheri-berry': { nom: 'une BAIE CERIZ', court: 'BAIE CERIZ' },
+  'pecha-berry': { nom: 'une BAIE PECHA', court: 'BAIE PECHA' },
   velo: { nom: 'le VÉLO', court: 'VÉLO' },
   pokedex: { nom: 'le POKéDEX', court: 'POKéDEX' },
   oeuf_mystere: { nom: "l'ŒUF MYSTÈRE", court: 'ŒUF MYSTÈRE' },
@@ -63,6 +64,15 @@ export class Terrain {
       soin: null, pas: 0, argent: opts.argent ?? 3000,
     };
     this.objetsConnus = { ...OBJETS, ...(donnees.objets || {}) };
+    this.etat.boite = [];
+    /**
+     * Les POKéMON eux-mêmes ne sont pas l'affaire du terrain : il les crée et les soigne par ces deux fonctions.
+     * Par défaut, de simples fiches (tests) ; le banc d'essai y branche les POKéMON et les combats d'Odyssée.
+     */
+    this.pokemon = opts.pokemon || {
+      creer: (espece, niveau) => ({ espece, niveau, pv: 1, pvMax: 1 }),
+      soigner: (m) => { m.pv = m.pvMax; },
+    };
     this.sorties = [];           // événements pour le rendu (sons, musique, zone, combat…)
     this.ctxs = [];              // scripts en cours
     this.verrous = 0;
@@ -487,7 +497,7 @@ export class Terrain {
   }
   tomberKo() {
     const s = this.etat.soin;
-    for (const p of this.etat.equipe) p.pv = p.pvMax;
+    for (const p of this.etat.equipe) this.pokemon.soigner(p);
     if (s) this.teleporter({ zone: s.zone, x: s.x, y: s.y, dir: 0 });
   }
 
@@ -581,14 +591,14 @@ export class Terrain {
   sauvegarder() {
     const j = this.joueur;
     return JSON.stringify({
-      v: 1, t: this.t, drapeaux: [...this.etat.drapeaux].sort(), vars: this.etat.vars, sac: this.etat.sac, equipe: this.etat.equipe, argent: this.etat.argent,
+      v: 1, t: this.t, drapeaux: [...this.etat.drapeaux].sort(), vars: this.etat.vars, sac: this.etat.sac, equipe: this.etat.equipe, boite: this.etat.boite, argent: this.etat.argent,
       joueur: this.etat.joueur, soin: this.etat.soin, pas: this.etat.pas, mode: this.mode, rng: this.rng.etat(),
       position: { zone: this.zone.id, x: j.x, y: j.y, dir: j.dir },
     });
   }
   charger(json) {
     const s = typeof json === 'string' ? JSON.parse(json) : json;
-    Object.assign(this.etat, { drapeaux: new Set(s.drapeaux), vars: s.vars, sac: s.sac, equipe: s.equipe, joueur: s.joueur, soin: s.soin, pas: s.pas, argent: s.argent ?? 3000 });
+    Object.assign(this.etat, { drapeaux: new Set(s.drapeaux), vars: s.vars, sac: s.sac, equipe: s.equipe, joueur: s.joueur, soin: s.soin, pas: s.pas, argent: s.argent ?? 3000, boite: s.boite || [] });
     this.t = s.t; this.rng.fixer(s.rng); this.mode = s.mode;
     const p = s.position;
     this.chargerMonde(this.d.mondeDeZone[p.zone]);

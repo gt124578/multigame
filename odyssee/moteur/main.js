@@ -1,5 +1,6 @@
-// odyssee/moteur/main.js — banc d'essai : le moteur de terrain (engine/), la zone d'essai (donnees/demo.js) et le
-// rendu three.js (render/). Le moteur avance à pas fixe (60 par seconde) ; l'écran ne fait que le montrer.
+// odyssee/moteur/main.js — banc d'essai (page odyssee/moteur.html) : le moteur de terrain (engine/), le début de HGSS
+// redessiné (donnees/johto.js), le rendu three.js (render/) et, par odyssee.js, les combats, l'équipe, le sac, la
+// musique et les bruitages d'Odyssée. Le moteur avance à pas fixe (60 par seconde) ; l'écran ne fait que le montrer.
 //   ?nouveau            nouvelle partie (ignore la sauvegarde)
 //   ?zone=ID&x=..&y=..  départ ailleurs
 //   ?debug              window.__moteur (terrain, rendu) et infos affichées
@@ -8,6 +9,7 @@ import { PAS_PAR_SECONDE } from './engine/const.js';
 import { DEMO } from './donnees/demo.js';
 import { JOHTO, DEPART } from './donnees/johto.js';
 import { Rendu } from './render/rendu.js';
+import { PontOdyssee } from './odyssee.js';
 
 const Q = new URLSearchParams(location.search);
 const DONNEES = Q.has('demo') ? DEMO : JOHTO;
@@ -20,14 +22,14 @@ const TOUCHES = {
   ArrowUp: 'haut', ArrowDown: 'bas', ArrowLeft: 'gauche', ArrowRight: 'droite', KeyW: 'haut', KeyS: 'bas', KeyA: 'gauche', KeyD: 'droite',
   KeyZ: 'haut', KeyQ: 'gauche',
   Space: 'a', Enter: 'a', KeyF: 'a', KeyK: 'a', Escape: 'b', Backspace: 'b', KeyX: 'b', KeyL: 'b',
-  ShiftLeft: 'course', ShiftRight: 'course', KeyV: 'velo', KeyO: 'sauver', F3: 'debug', KeyG: 'qualite',
+  ShiftLeft: 'course', ShiftRight: 'course', KeyV: 'velo', KeyO: 'sauver', F3: 'debug', KeyG: 'qualite', Tab: 'menu', KeyM: 'menu',
 };
 const DIRS = ['haut', 'bas', 'gauche', 'droite'];
 const tenues = new Set(), ordre = [], appuis = new Set();
 addEventListener('keydown', (e) => {
   const k = TOUCHES[e.code]; if (!k) return;
   e.preventDefault();
-  if (e.repeat) return;
+  if (e.repeat || pont?.occupe) return;   // un écran d'Odyssée (combat, menu) a les touches
   tenues.add(k); appuis.add(k);
   if (DIRS.includes(k)) { ordre.splice(ordre.indexOf(k) >>> 0, ordre.includes(k) ? 1 : 0); ordre.push(k); }
 });
@@ -44,43 +46,41 @@ function entrees() {
   return e;
 }
 
-// ——— sons : quelques bips en attendant les vrais ———
-let audio = null;
-function bip(f, d = 0.06, type = 'square', v = 0.05) {
-  try {
-    audio ||= new AudioContext();
-    const o = audio.createOscillator(), g = audio.createGain();
-    o.type = type; o.frequency.value = f; g.gain.value = v;
-    g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + d);
-    o.connect(g).connect(audio.destination); o.start(); o.stop(audio.currentTime + d);
-  } catch { /* pas de son */ }
-}
-const SONS = { heurt: () => bip(90, 0.09, 'square', 0.06), texte: () => bip(880, 0.03), choix: () => bip(990, 0.04), porte: () => bip(330, 0.12, 'triangle', 0.08),
-  escalier: () => bip(260, 0.12, 'triangle', 0.08), saut: () => bip(520, 0.1, 'triangle', 0.06), exclamation: () => { bip(1200, 0.06); setTimeout(() => bip(1500, 0.08), 70); },
-  objet: () => { bip(660, 0.08); setTimeout(() => bip(880, 0.12), 90); }, fanfare: () => [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => bip(f, 0.12, 'triangle', 0.07), i * 110)),
-  soin: () => bip(700, 0.3, 'sine', 0.06) };
-
 // ——— démarrage ———
-const T = new Terrain(DONNEES, { graine: (Math.random() * 2 ** 31) | 0 });
+// les POKéMON du terrain sont ceux d'Odyssée (le pont est créé juste après le terrain, d'où ces renvois)
+let pont = null;
+const T = new Terrain(DONNEES, { graine: (Math.random() * 2 ** 31) | 0, pokemon: {
+  creer: (nom, niveau) => pont.pokemon.creer(nom, niveau),
+  soigner: (m) => pont.pokemon.soigner(m),
+} });
+pont = new PontOdyssee($('ui'), T);
+pont.surSauvegarde = () => localStorage.setItem(CLE, T.sauvegarder());
+const taillePx = () => {
+  document.documentElement.style.setProperty('--px', Math.max(2, Math.round(innerHeight / 270)) + 'px');
+  document.documentElement.style.setProperty('--bp', (innerHeight / 192) + 'px');
+};
+addEventListener('resize', taillePx); taillePx();
 const sauvegarde = !Q.has('nouveau') && localStorage.getItem(CLE);
 if (Q.get('zone')) T.demarrer({ zone: Q.get('zone'), x: Q.has('x') ? +Q.get('x') : undefined, y: Q.has('y') ? +Q.get('y') : undefined });
 else if (sauvegarde) { try { T.demarrer({ sauvegarde }); } catch (e) { console.warn('sauvegarde illisible', e); T.demarrer(DEBUT); } }
 else T.demarrer(DEBUT);
 
-const R = new Rendu($('gl'), T, { pack: Q.get('pack') || 'hgss' });
+const R = new Rendu($('vue'), T, { pack: Q.get('pack') || 'hgss' });
 await R.charger();
 const taille = () => { const c = $('cadre'); R.taille(c.clientWidth, c.clientHeight); };
 addEventListener('resize', taille); taille();
 $('chargement').remove();
-if (Q.has('debug')) { window.__moteur = { T, R }; $('debug').style.display = 'block'; }
+if (Q.has('debug')) { window.__moteur = { T, R, pont }; $('debug').style.display = 'block'; }
+pont.musique(T.musique);
 
 // ——— interface : elle reflète l'état du moteur ———
 let tZone = 0;
 function ui(temps) {
   for (const e of T.vider()) {
-    if (e.type === 'son') SONS[e.nom]?.();
+    if (e.type === 'son') pont.son(e.nom);
+    if (e.type === 'musique') pont.musique(e.nom);
     if (e.type === 'zone' && e.annonce) { $('zone').textContent = e.nom; $('zone').classList.add('vu'); tZone = temps + 2600; }
-    if (e.type === 'combat') ouvrirCombat(e);
+    if (e.type === 'combat') pont.combat(e).then((r) => { vider(); T.terminerCombat(r !== 'lose'); }, (err) => { console.error(err); T.terminerCombat(true); });
   }
   if (tZone && temps > tZone) { $('zone').classList.remove('vu'); tZone = 0; }
   const u = T.ui;
@@ -99,24 +99,8 @@ function ui(temps) {
   }
   $('noir').style.opacity = T.noir;
 }
-function ouvrirCombat(e) {
-  const el = $('combat');
-  el.style.display = 'flex';
-  el.innerHTML = e.genre === 'sauvage'
-    ? `<div>Un ${e.espece} sauvage (N. ${e.niveau}) apparaît !</div><small>Le combat n'est pas branché sur ce banc d'essai.<br>A : gagner · B : perdre</small>`
-    : `<div>${e.nom} veut se battre !</div><small>A : gagner · B : perdre</small>`;
-  combatOuvert = true;
-}
-let combatOuvert = false;
-function majCombat() {
-  if (!combatOuvert) return false;
-  if (appuis.has('a') || appuis.has('b')) {
-    const v = appuis.has('a'); appuis.clear();
-    $('combat').style.display = 'none'; combatOuvert = false;
-    T.terminerCombat(v);
-  }
-  return true;
-}
+/** les touches enfoncées pendant un écran d'Odyssée ne doivent pas faire marcher le joueur au retour */
+function vider() { tenues.clear(); ordre.length = 0; appuis.clear(); }
 
 // ——— boucle : pas fixes, au plus 6 par image (un onglet revenu de veille ne rattrape pas des minutes) ———
 const DT = 1000 / PAS_PAR_SECONDE;
@@ -126,9 +110,10 @@ function boucle(temps) {
   if (appuis.has('sauver')) { appuis.delete('sauver'); if (!T.ctxs.length && !T.transition && !T.joueur.m) { localStorage.setItem(CLE, T.sauvegarder()); T.lancerScript(T.zone.id, 'MessageSauvegarde'); } }
   if (appuis.has('debug')) { appuis.delete('debug'); const d = $('debug'); d.style.display = d.style.display === 'block' ? 'none' : 'block'; }
   if (appuis.has('qualite')) { appuis.delete('qualite'); R.qualite = R.qualite === 'ds' ? 'net' : 'ds'; taille(); }
+  if (appuis.has('menu')) { appuis.delete('menu'); if (!T.ctxs.length && !T.transition && !T.joueur.m && !T.ui && !T.combatEnCours) pont.menu().then(vider); }
   try {
     while (reste >= DT) {
-      if (!majCombat()) { const t0 = performance.now(); T.pas(entrees()); coutPas = coutPas * 0.95 + (performance.now() - t0) * 0.05; }
+      if (!pont.occupe) { const t0 = performance.now(); T.pas(entrees()); coutPas = coutPas * 0.95 + (performance.now() - t0) * 0.05; }
       reste -= DT;
     }
     R.dessiner(temps);
