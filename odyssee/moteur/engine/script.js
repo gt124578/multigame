@@ -162,6 +162,7 @@ export class Contexte {
     this.objet = opts.objet || null;        // objet qui a lancé le script (PNJ, dresseur)
     this.dresseur = opts.dresseur || null;
     this.nom = opts.nom || '?';
+    this.params = opts.params || null;     // paramètres de l'événement (panneau : baie, variable…)
     this.verrou = false;
   }
 }

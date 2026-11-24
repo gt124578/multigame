@@ -9,6 +9,8 @@ const { compiler } = await import(B + 'engine/script.js');
 const { COMMANDES } = await import(B + 'engine/commandes.js');
 const { valider, preparer } = await import(B + 'engine/carte.js');
 const { MB, VITESSE, HAUT, BAS, GAUCHE, DROITE } = await import(B + 'engine/const.js');
+const { JOHTO, DEPART } = await import(B + 'donnees/johto.js');
+const { auditer } = await import(B + 'engine/audit.js');
 
 let n = 0;
 const ok = (nom) => { n++; console.log('  ✓ ' + nom); };
@@ -39,6 +41,7 @@ function lire(T, reponses = [], max = 6000) {
   for (let i = 0; i < max; i++) {
     if (T.combatEnCours) T.terminerCombat(true);
     if (calme(T)) return;
+    if (T.ui?.boutique) { T.pas({ b: true }); continue; }
     if (T.ui?.choix && T.ui.vus >= T.ui.texte.length) {
       const k = reponses.shift() ?? 0;
       for (let d = 0; d < k; d++) { T.pas({ dir: BAS }); T.pas({}); }
@@ -56,7 +59,7 @@ async function aller(T, tx, ty, e = {}) {
   while (file.length && !prev.has(k(tx, ty))) {
     const f2 = [];
     for (const [x, y] of file) for (let d = 0; d < 4; d++) {
-      const r = testerPas(M, { x, y }, d, { objets: T.objets.filter((o) => !o.def.mouvement || o.def.mouvement === 'fixe' || o.def.dresseur) });
+      const r = testerPas(M, { x, y }, d, { objets: T.objets.filter((o) => o.visible && (!o.def.mouvement || o.def.mouvement === 'fixe' || o.def.dresseur)) });
       if (!r.ok) continue;
       const [nx, ny] = r.vers;
       if (M.props(nx, ny).glisse) continue;
@@ -363,6 +366,131 @@ console.log('Déterminisme, sauvegarde');
   assert.deepEqual([c.joueur.x, c.joueur.y, c.zone.id], [partie.joueur.x, partie.joueur.y, partie.zone.id]);
   assert.ok(!c.objet('baie_ile') || c.objet('baie_ile').visible === partie.objet('baie_ile').visible);
   ok('sauvegarde → chargement → même sauvegarde (drapeaux, variables, sac, équipe, position)');
+}
+
+// ————————————————————————————————————————————————————————————————————————————————————————————————
+console.log('Début de HeartGold / SoulSilver : audit de la région');
+{
+  const r = auditer(JOHTO, DEPART);
+  assert.deepEqual(r.erreurs, []);
+  assert.ok(r.mondes >= 20 && r.warps >= 40, `${r.mondes} mondes, ${r.warps} téléporteurs`);
+  ok(`${r.cases} cases atteintes dans ${r.mondes} cartes, ${r.warps} téléporteurs : tout est atteignable et l'on revient toujours au départ`);
+  const sansCoupe = auditer(JOHTO, DEPART, { surf: true, coupe: false });
+  assert.ok(sansCoupe.erreurs.some((e) => e.includes('cache')), 'sans COUPE, l\'objet derrière l\'arbre est hors d\'atteinte');
+  // piège : l'arbre de la route 31 remplacé par un rebord qui monte dans le recoin (on y saute, on n'en sort plus)
+  const r31 = JOHTO.blocs.route31, k = 6 * 32 + 6;
+  const piege = { ...JOHTO, blocs: { ...JOHTO.blocs, route31: { ...r31, mb: r31.mb.map((v, i) => (i === k ? MB.REBORD_HAUT : v)) } },
+    zones: { ...JOHTO.zones, ROUTE_31: { ...JOHTO.zones.ROUTE_31, objets: JOHTO.zones.ROUTE_31.objets.filter((o) => o.id !== 'arbre') } } };
+  const rp = auditer(piege, DEPART);
+  assert.ok(rp.erreurs.some((e) => e.includes('on ne revient pas')), 'piège sans retour repéré');
+  ok('l\'audit repère un objet hors d\'atteinte (sans COUPE) et un recoin dont on ne ressort pas (rebord)');
+}
+
+console.log('Début de HeartGold / SoulSilver : de Bourg Geon à Mauville');
+{
+  const T = new Terrain(JOHTO, { graine: 11 });
+  T.demarrer(DEPART);
+  const j = T.joueur;
+  const voyager = async (x, y) => {
+    for (let k = 0; k < 60; k++) {
+      if (!calme(T)) { lire(T); continue; }
+      if (j.x === x && j.y === y) return;
+      try { await aller(T, x, y); } catch (e) { if (k > 50) throw e; tenir(T, null, 30); }
+    }
+    assert.deepEqual([j.x, j.y], [x, y], 'arrivé');
+  };
+  const entrer = (dir, zone) => { pas(T, dir); attendre(T, () => T.zone?.id === zone && !T.transition && !j.m, 400); lire(T); };
+  // maison, labo
+  await voyager(19, 12); entrer(HAUT, 'MAISON_1F');
+  await voyager(16, 16); tenir(T, null, 3); entrer(BAS, 'BOURG_GEON');
+  assert.deepEqual([j.x, j.y], [180, 73]);
+  await voyager(167, 73); pas(T, HAUT); attendre(T, () => T.zone?.id === 'LABO_ORME' && !T.transition, 400); lire(T, [2]);
+  assert.deepEqual(T.etat.equipe.map((p) => p.espece), ['Kaiminus']);
+  await voyager(15, 17); tenir(T, null, 3); entrer(BAS, 'BOURG_GEON');
+  ok('chambre → cuisine → bourg → labo : un POKéMON reçu');
+  // route 29 jusqu'au Centre de Ville Griotte
+  const argent0 = T.etat.argent;
+  await voyager(70, 72);
+  assert.equal(T.zone.id, 'VILLE_GRIOTTE');
+  assert.ok(T.etat.drapeaux.has('DRESSEUR_ROUTE_29_gamin'), 'le gamin de la route 29 a défié le joueur au passage');
+  assert.ok(T.etat.argent > argent0, 'la victoire rapporte de l\'argent');
+  ok('Route 29 traversée jusqu\'à Ville Griotte (dresseur battu en chemin, argent gagné)');
+  entrer(HAUT, 'CENTRE_GRIOTTE');
+  T.etat.equipe[0].pv = 0;
+  await voyager(15, 13); parler(T, HAUT); lire(T, [0]);
+  assert.equal(T.etat.equipe[0].pv, T.etat.equipe[0].pvMax);
+  assert.deepEqual(T.etat.soin, { zone: 'CENTRE_GRIOTTE', x: 15, y: 13 });
+  await voyager(16, 17); tenir(T, null, 3); entrer(BAS, 'VILLE_GRIOTTE');
+  ok('Centre POKéMON : l\'infirmière soigne, de l\'autre côté du comptoir, et retient le lieu de reprise');
+  // boutique
+  await voyager(89, 72); entrer(HAUT, 'BOUTIQUE_GRIOTTE');
+  await voyager(14, 13); parler(T, GAUCHE);
+  attendre(T, () => T.ui?.boutique, 600, { a: true });
+  const avant = T.etat.argent, potions = T.etat.sac.potion ?? 0;
+  T.pas({ a: true }); T.pas({}); T.pas({ a: true }); T.pas({});
+  tenir(T, BAS, 1); T.pas({}); tenir(T, BAS, 1); T.pas({}); tenir(T, BAS, 1); T.pas({}); T.pas({ a: true }); T.pas({});   // une POKé BALL
+  T.pas({ b: true }); lire(T);
+  assert.equal(T.etat.sac.potion, potions + 2); assert.equal(T.etat.sac.poke_ball, 1);
+  assert.equal(T.etat.argent, avant - 2 * 300 - 200);
+  T.etat.argent = 50;
+  await voyager(14, 13); parler(T, GAUCHE); attendre(T, () => T.ui?.boutique, 600, { a: true });
+  T.pas({ a: true }); assert.equal(T.etat.argent, 50, 'pas assez d\'argent : rien n\'est vendu');
+  T.pas({ b: true }); lire(T); T.etat.argent = 3000;
+  await voyager(16, 16); tenir(T, null, 3); entrer(BAS, 'VILLE_GRIOTTE');
+  ok('boutique : deux POTIONS et une POKé BALL achetées, prix déduits ; refus quand l\'argent manque');
+  // route 30 : M. POKéMON, baies
+  await voyager(85, 4); entrer(HAUT, 'M_POKEMON');
+  await voyager(17, 13); parler(T, HAUT); lire(T);
+  assert.equal(T.etat.sac.oeuf_mystere, 1);
+  await voyager(15, 15); tenir(T, null, 3); entrer(BAS, 'ROUTE_30');
+  await voyager(87, 19); parler(T, HAUT); lire(T);
+  assert.equal(T.etat.sac.baie_ceriz, 2);
+  parler(T, HAUT); assert.match(T.ui.texte, /plus de baies/); lire(T);
+  for (let i = 0; i < 160; i++) { pas(T, BAS); pas(T, HAUT); if (!calme(T)) lire(T); }
+  await voyager(87, 19); parler(T, HAUT); lire(T);
+  assert.equal(T.etat.sac.baie_ceriz, 4, 'les baies ont repoussé');
+  ok('Route 30 : l\'ŒUF de M. POKéMON ; un arbre à baies vide repousse après 300 pas');
+  // route 31 → Mauville, école (COUPE), retour couper l'arbre
+  await voyager(20, 19); entrer(HAUT, 'ECOLE');
+  await voyager(17, 12); parler(T, GAUCHE); lire(T);
+  assert.ok(T.etat.drapeaux.has('CS_COUPE'));
+  await voyager(15, 16); tenir(T, null, 3); entrer(BAS, 'MAUVILLE');
+  await voyager(38, 7); parler(T, HAUT); lire(T, [0]);
+  assert.ok(!T.objet('arbre').visible);
+  await voyager(37, 5); parler(T, HAUT); lire(T);
+  assert.equal(T.etat.sac.super_potion, 1);
+  await voyager(54, 5); entrer(HAUT, 'ANTRE_NOIR');
+  await voyager(14, 14); tenir(T, null, 3); entrer(BAS, 'ROUTE_31');
+  assert.ok(T.objet('arbre').visible, 'l\'arbre coupé a repoussé en changeant de carte');
+  ok('Route 31 : CS COUPE à l\'école de Mauville, l\'arbre se coupe, l\'objet caché se ramasse, l\'arbre repousse');
+  // Tour Chétiflor : trois étages
+  await voyager(15, 6); entrer(HAUT, 'TOUR_1F');
+  await voyager(20, 12); entrer(HAUT, 'TOUR_2F');
+  assert.deepEqual([j.x, j.y], [20, 12]);
+  await voyager(11, 15); entrer(BAS, 'TOUR_3F');
+  assert.deepEqual([j.x, j.y], [11, 17]);
+  await voyager(15, 12); parler(T, HAUT); lire(T);
+  assert.ok(T.etat.drapeaux.has('CS_FLASH'));
+  await voyager(11, 17); entrer(HAUT, 'TOUR_2F');
+  await voyager(20, 12); entrer(HAUT, 'TOUR_1F');
+  await voyager(15, 17); tenir(T, null, 3); entrer(BAS, 'MAUVILLE');
+  ok('Tour Chétiflor : échelles sur trois étages, Sage LI battu, CS FLASH');
+  // arène
+  const argent1 = T.etat.argent;
+  await voyager(8, 19); entrer(HAUT, 'ARENE_MAUVILLE');
+  await voyager(15, 10); parler(T, HAUT); lire(T);
+  assert.ok(T.etat.drapeaux.has('BADGE_ZEPHYR'));
+  assert.ok(T.etat.argent >= argent1 + 900);
+  ok('Arène de Mauville : ALBERT battu, BADGE ZÉPHYR et 900 ₽');
+  // K.O. : retour au dernier Centre
+  await voyager(16, 17); tenir(T, null, 3); entrer(BAS, 'MAUVILLE');
+  T.combat({ type: 'sauvage', espece: 'Rattata', niveau: 2 }); T.terminerCombat(false);
+  attendre(T, () => !T.transition, 400);
+  assert.deepEqual([T.zone.id, j.x, j.y], ['CENTRE_GRIOTTE', 15, 13]);
+  ok('K.O. : on se réveille au dernier Centre POKéMON visité, POKéMON soignés');
+  const s = T.sauvegarder(), T2 = new Terrain(JOHTO, { graine: 11 }); T2.demarrer({ sauvegarde: s });
+  assert.equal(T2.sauvegarder(), s);
+  ok('sauvegarde de fin de parcours relue à l\'identique');
 }
 
 console.log(`\n${n} vérifications passées.`);

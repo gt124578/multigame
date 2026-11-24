@@ -26,7 +26,25 @@ export const CAMERAS = {
   haut: { distance: 42, inclinaison: 46, fov: 22 },
 };
 
-const NOMS_OBJETS = { potion: 'une POTION', poke_ball: 'une POKé BALL', baie_oran: 'une BAIE ORAN', velo: 'le VÉLO', pokedex: 'le POKéDEX', antidote: 'un ANTIDOTE' };
+/** objets connus : nom (avec article) et prix ; un paquet de données peut en ajouter (`objets`) */
+export const OBJETS = {
+  potion: { nom: 'une POTION', court: 'POTION', prix: 300 },
+  super_potion: { nom: 'une SUPER POTION', court: 'SUPER POTION', prix: 700 },
+  antidote: { nom: 'un ANTIDOTE', court: 'ANTIDOTE', prix: 100 },
+  anti_para: { nom: 'un ANTI-PARA', court: 'ANTI-PARA', prix: 200 },
+  reveil: { nom: 'un RÉVEIL', court: 'RÉVEIL', prix: 250 },
+  repousse: { nom: 'un REPOUSSE', court: 'REPOUSSE', prix: 350 },
+  poke_ball: { nom: 'une POKé BALL', court: 'POKé BALL', prix: 200 },
+  baie_oran: { nom: 'une BAIE ORAN', court: 'BAIE ORAN' },
+  baie_ceriz: { nom: 'une BAIE CERIZ', court: 'BAIE CERIZ' },
+  baie_pecha: { nom: 'une BAIE PECHA', court: 'BAIE PECHA' },
+  velo: { nom: 'le VÉLO', court: 'VÉLO' },
+  pokedex: { nom: 'le POKéDEX', court: 'POKéDEX' },
+  oeuf_mystere: { nom: "l'ŒUF MYSTÈRE", court: 'ŒUF MYSTÈRE' },
+  carte: { nom: 'la CARTE', court: 'CARTE' },
+};
+/** objets du terrain qui ont un script par défaut */
+const SCRIPT_TYPE = { objet: 'RamasserObjet', arbre_coupe: 'ArbreCoupe' };
 
 export class Terrain {
   constructor(donnees, opts = {}) {
@@ -42,8 +60,9 @@ export class Terrain {
     this.t = 0;
     this.etat = {
       drapeaux: new Set(), vars: {}, sac: {}, equipe: [], joueur: { nom: opts.nom || 'LUTH', sprite: opts.sprite || 'player_m' },
-      soin: null, pas: 0,
+      soin: null, pas: 0, argent: opts.argent ?? 3000,
     };
+    this.objetsConnus = { ...OBJETS, ...(donnees.objets || {}) };
     this.sorties = [];           // événements pour le rendu (sons, musique, zone, combat…)
     this.ctxs = [];              // scripts en cours
     this.verrous = 0;
@@ -93,12 +112,14 @@ export class Terrain {
   majVisibles() {
     for (const o of this.objets || []) {
       if (o.cacheScript) continue;
-      const d = o.def;
-      o.visible = !(d.drapeau && this.etat.drapeaux.has(d.drapeau)) && !(d.siDrapeau && !this.etat.drapeaux.has(d.siDrapeau));
+      const d = o.def, f = this.drapeauObjet(o);
+      o.visible = !(f && this.etat.drapeaux.has(f)) && !(d.siDrapeau && !this.etat.drapeaux.has(d.siDrapeau));
     }
   }
   objet(id) { return this.objets.find((o) => o.id === id) || null; }
-  nomObjet(n) { return NOMS_OBJETS[n] || n.toUpperCase(); }
+  nomObjet(n) { return this.objetsConnus[n]?.nom || n.toUpperCase(); }
+  /** drapeau qui cache un objet : le sien, ou TMP_ pour un arbre à couper (il repousse au changement de carte) */
+  drapeauObjet(o) { return o.def.drapeau || (o.def.type === 'arbre_coupe' ? `TMP_COUPE_${o.zone}_${o.id}` : null); }
   drapeauDresseur(o) { return o.def.dresseur.drapeau || `DRESSEUR_${o.zone}_${o.id}`; }
   sortir(e) { this.sorties.push(e); }
   vider() { const s = this.sorties; this.sorties = []; return s; }
@@ -138,7 +159,7 @@ export class Terrain {
 
   // ——— boîte de texte ———
   message(s) {
-    const texte = s.replace(/\{JOUEUR\}/g, this.etat.joueur.nom).replace(/\{VAR:(\w+)\}/g, (m, v) => String(this.etat.vars[v] ?? 0));
+    const texte = s.replace(/\{JOUEUR\}/g, this.etat.joueur.nom).replace(/\{ARGENT\}/g, String(this.etat.argent)).replace(/\{VAR:(\w+)\}/g, (m, v) => String(this.etat.vars[v] ?? 0));
     this.ui = { texte, vus: 0, choix: null };
     this.sortir({ type: 'message', texte });
     return () => this.ui === null || this.ui.lu;
@@ -150,12 +171,39 @@ export class Terrain {
     return () => !this.ui || !this.ui.choix;
   }
   fermerMessage() { this.ui = null; }
+  /** boutique : liste d'articles, A achète un exemplaire, B ferme */
+  boutique(objets) {
+    const articles = objets.map((n) => {
+      const o = this.objetsConnus[n];
+      if (!o?.prix) throw new Error(`boutique : ${n} n'a pas de prix`);
+      return { objet: n, nom: o.court || n, prix: o.prix };
+    });
+    this.ui = { texte: 'Que désirez-vous ?', vus: 99, boutique: { articles, i: 0 } };
+    return () => !this.ui || !this.ui.boutique;
+  }
+  acheter(i) {
+    const a = this.ui.boutique.articles[i];
+    if (this.etat.argent < a.prix) { this.sortir({ type: 'son', nom: 'heurt' }); this.ui.boutique.refus = this.t; return false; }
+    this.etat.argent -= a.prix;
+    this.etat.sac[a.objet] = (this.etat.sac[a.objet] ?? 0) + 1;
+    this.sortir({ type: 'son', nom: 'objet' });
+    return true;
+  }
   majUI(e) {
     const u = this.ui;
     if (u.lu && !u.choix) return false;
     if (u.vus < u.texte.length) {
       u.vus = Math.min(u.texte.length, u.vus + 1);
       if (e.a || e.b) u.vus = u.texte.length;   // A ou B : tout le texte d'un coup
+      return true;
+    }
+    if (u.boutique) {
+      const b = u.boutique, n = b.articles.length + 1;   // + « Quitter »
+      if (e.dir === 0 && this.dirPrec !== 0) b.i = (b.i + n - 1) % n;
+      if (e.dir === 1 && this.dirPrec !== 1) b.i = (b.i + 1) % n;
+      this.dirPrec = e.dir;
+      if (e.a && b.i < b.articles.length) this.acheter(b.i);
+      else if (e.b || e.a) { u.boutique = null; u.lu = true; this.sortir({ type: 'son', nom: 'choix' }); }
       return true;
     }
     if (u.choix) {
@@ -261,11 +309,11 @@ export class Terrain {
         if (!battu) { this.defi(o, false); return; }
         if (d.dresseur.apres) { this.lancerScript(o.zone, d.dresseur.apres, { objet: o }); return; }
       }
-      const s = d.script || (d.type === 'objet' ? 'RamasserObjet' : null);
+      const s = d.script || SCRIPT_TYPE[d.type] || null;
       if (s) { this.lancerScript(o.zone, s, { objet: o }); return; }
     }
     const p = this.M.panneau(fx, fy);
-    if (p && (p.depuis === undefined || p.depuis === j.dir)) { this.lancerScript(p.zone, p.script); return; }
+    if (p && (p.depuis === undefined || p.depuis === j.dir)) { this.lancerScript(p.zone, p.script, { params: p }); return; }
     // eau devant : proposer de surfer
     if (this.mode !== 'surf' && this.M.props(fx, fy).surf && !this.M.bloquee(fx, fy) && this.etat.drapeaux.has('CS_SURF') && !objetEn(this.objets, fx, fy))
       this.lancerScript(this.zone.id, 'ProposerSurf');
@@ -533,14 +581,14 @@ export class Terrain {
   sauvegarder() {
     const j = this.joueur;
     return JSON.stringify({
-      v: 1, t: this.t, drapeaux: [...this.etat.drapeaux].sort(), vars: this.etat.vars, sac: this.etat.sac, equipe: this.etat.equipe,
+      v: 1, t: this.t, drapeaux: [...this.etat.drapeaux].sort(), vars: this.etat.vars, sac: this.etat.sac, equipe: this.etat.equipe, argent: this.etat.argent,
       joueur: this.etat.joueur, soin: this.etat.soin, pas: this.etat.pas, mode: this.mode, rng: this.rng.etat(),
       position: { zone: this.zone.id, x: j.x, y: j.y, dir: j.dir },
     });
   }
   charger(json) {
     const s = typeof json === 'string' ? JSON.parse(json) : json;
-    Object.assign(this.etat, { drapeaux: new Set(s.drapeaux), vars: s.vars, sac: s.sac, equipe: s.equipe, joueur: s.joueur, soin: s.soin, pas: s.pas });
+    Object.assign(this.etat, { drapeaux: new Set(s.drapeaux), vars: s.vars, sac: s.sac, equipe: s.equipe, joueur: s.joueur, soin: s.soin, pas: s.pas, argent: s.argent ?? 3000 });
     this.t = s.t; this.rng.fixer(s.rng); this.mode = s.mode;
     const p = s.position;
     this.chargerMonde(this.d.mondeDeZone[p.zone]);

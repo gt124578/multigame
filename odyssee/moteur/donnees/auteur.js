@@ -27,6 +27,8 @@ export const LEGENDE = {
   'b': { col: 1, sol: 'herbe', decor: 'barriere' },
   'o': { col: 1, sol: 'herbe', decor: 'rocher' },
   'p': { col: 1, sol: 'herbe', decor: 'panneau' },
+  'A': { col: 1, sol: 'herbe', decor: 'baies' },        // arbre à baies (son panneau est ajouté par la zone)
+  'H': { col: 1, sol: 'herbe', decor: 'haie' },
   'l': { col: 1, sol: 'pave', decor: 'boite' },
   'v': { sol: 'rebord', mb: MB.REBORD_BAS },
   '<': { sol: 'rebord', mb: MB.REBORD_GAUCHE },
@@ -71,15 +73,15 @@ export const LEGENDE = {
  *               sur la dernière rangée)
  *   decor     : décor posé à la main ({ type, x, y, … })
  */
-export function bloc({ plan, hauteurs = [], legende = {}, batiments = [], decor = [] }) {
+export function bloc({ plan, hauteurs = [], legende = {}, batiments = [], decor = [], strict = false }) {
   const L = { ...LEGENDE, ...legende };
   const N = BLOC * BLOC;
   const col = new Array(N).fill(1), mb = new Array(N).fill(0), h = new Array(N).fill(0), sol = new Array(N).fill(0);
   const dec = [...decor];
-  if (plan.length > BLOC) throw new Error(`plan de ${plan.length} lignes (32 au plus)`);
+  if (plan.length > BLOC || (strict && plan.length !== BLOC)) throw new Error(`plan de ${plan.length} lignes (${strict ? 'exactement' : 'au plus'} 32)`);
   for (let y = 0; y < BLOC; y++) {
     const ligne = plan[y] || '';
-    if (ligne.length > BLOC) throw new Error(`ligne ${y} : ${ligne.length} caractères (32 au plus) : « ${ligne} »`);
+    if (ligne.length > BLOC || (strict && ligne.length !== BLOC)) throw new Error(`ligne ${y} : ${ligne.length} caractères (${strict ? 'exactement' : 'au plus'} 32) : « ${ligne} »`);
     for (let x = 0; x < BLOC; x++) {
       const c = ligne[x] ?? ' ';
       const e = L[c];

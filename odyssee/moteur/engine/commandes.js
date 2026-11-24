@@ -109,6 +109,32 @@ export const COMMANDES = {
       return T.message(`{JOUEUR} obtient ${q > 1 ? q + ' × ' : ''}${T.nomObjet(n)} !`);
     },
   },
+  boutique: { args: '*', exec: (T, ctx, objets) => T.boutique(objets) },
+  donner_argent: { args: 'nombre', exec: (T, ctx, [n]) => { T.etat.argent += n; T.sortir({ type: 'son', nom: 'objet' }); } },
+  compter_argent: { exec: (T) => { T.etat.vars.RESULTAT = T.etat.argent; } },
+  /** arbre à baies (paramètres du panneau : baie, quantite) ; repousse après 300 pas ; RESULTAT = 1 si cueilli */
+  cueillir: {
+    exec: (T, ctx) => {
+      const p = ctx.params || {};
+      const v = `BAIE_${p.zone}_${p.x}_${p.y}`;
+      const der = T.etat.vars[v];
+      if (der !== undefined && T.etat.pas - der < (p.repousse ?? 300)) { T.etat.vars.RESULTAT = 0; return; }
+      const b = p.baie || 'baie_oran', q = p.quantite ?? 2;
+      T.etat.vars[v] = T.etat.pas;
+      T.etat.sac[b] = (T.etat.sac[b] ?? 0) + q;
+      T.etat.vars.RESULTAT = 1;
+      T.sortir({ type: 'son', nom: 'objet' });
+      return T.message(`{JOUEUR} cueille ${q} × ${T.objetsConnus[b]?.court || b} !`);
+    },
+  },
+  /** l'objet qui a lancé le script disparaît (arbre coupé, rocher brisé) : son drapeau le garde caché */
+  retirer: {
+    exec: (T, ctx) => {
+      const o = ctx.objet, f = T.drapeauObjet(o);
+      if (f) T.etat.drapeaux.add(f);
+      o.visible = false;
+    },
+  },
   compter_objet: { args: 'mot', exec: (T, ctx, [n]) => { T.etat.vars.RESULTAT = T.etat.sac[n] ?? 0; } },
   donner_pokemon: {
     args: 'mot nombre',
@@ -120,7 +146,7 @@ export const COMMANDES = {
   },
   compter_equipe: { exec: (T) => { T.etat.vars.RESULTAT = T.etat.equipe.length; } },
   soigner: { exec: (T) => { for (const p of T.etat.equipe) p.pv = p.pvMax; T.sortir({ type: 'son', nom: 'soin' }); return T.attendre(60); } },
-  point_de_soin: { exec: (T) => { T.etat.soin = { zone: T.zone.id, x: T.joueur.x, y: T.joueur.y + 1 }; } },
+  point_de_soin: { exec: (T) => { T.etat.soin = { zone: T.zone.id, x: T.joueur.x, y: T.joueur.y }; } },
   ramasser: {
     exec: (T, ctx) => {
       const o = ctx.objet, d = o.def;
@@ -135,8 +161,10 @@ export const COMMANDES = {
     exec: (T, ctx) => {
       const o = ctx.dresseur || ctx.objet;
       if (!o?.def.dresseur) throw new Error(`script ${ctx.nom} : combat_dresseur sans dresseur`);
-      return T.combat({ type: 'dresseur', objet: o.id, nom: o.def.nom || o.id, equipe: o.def.dresseur.equipe || [] }, (victoire) => {
-        if (victoire) T.etat.drapeaux.add(T.drapeauDresseur(o));
+      const d = o.def.dresseur;
+      const prix = d.prix ?? 40 * Math.max(1, ...(d.equipe || []).map((p) => p.niveau || 1));
+      return T.combat({ type: 'dresseur', objet: o.id, nom: o.def.nom || o.id, equipe: d.equipe || [], prix }, (victoire) => {
+        if (victoire) { T.etat.drapeaux.add(T.drapeauDresseur(o)); T.etat.argent += prix; }
       });
     },
   },

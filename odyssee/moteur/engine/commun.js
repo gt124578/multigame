@@ -34,6 +34,53 @@ script MessageSauvegarde
   message "{JOUEUR} sauvegarde la partie."
   fin
 
+# Arbre à baies (un panneau sur l'arbre, paramètres : baie, quantite, repousse)
+script ArbreBaies
+  cueillir
+  si resultat = 1 aller ArbreBaies_Fin
+  message "Il n'y a plus de baies.\\nElles repousseront."
+ArbreBaies_Fin:
+  liberer
+  fin
+
+# Petit arbre qu'on coupe avec COUPE ; il repousse quand on change de carte
+script ArbreCoupe
+  si non drapeau CS_COUPE aller ArbreCoupe_Non
+  message "Cet arbre peut être coupé !\\nUtiliser COUPE ?"
+  oui_non
+  si resultat = 0 aller ArbreCoupe_Fin
+  fermer_message
+  son coupe
+  retirer
+  aller ArbreCoupe_Fin
+ArbreCoupe_Non:
+  message "Cet arbre a l'air coupable."
+ArbreCoupe_Fin:
+  liberer
+  fin
+
+# Infirmière d'un Centre POKéMON
+script Infirmiere
+  regarder_joueur
+  message "Bienvenue au Centre POKéMON !\\nVoulez-vous soigner vos POKéMON ?"
+  oui_non
+  si resultat = 0 aller Infirmiere_Non
+  message "Je prends vos POKéMON un instant."
+  soigner
+  point_de_soin
+  message "Vos POKéMON sont en pleine forme !\\nÀ bientôt !"
+  liberer
+  fin
+Infirmiere_Non:
+  message "À bientôt !"
+  liberer
+  fin
+
+# Vendeur d'une boutique (les articles sont dans les paramètres du script de la zone)
+script PCdeLeo
+  message "{JOUEUR} allume le PC.\\nLe système de stockage n'est pas encore branché."
+  fin
+
 script PasDeVeloIci
   message "Impossible d'utiliser le VÉLO ici."
   liberer

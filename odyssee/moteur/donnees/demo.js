@@ -19,7 +19,7 @@ const OX = 11, OY = 10;
 const P = (x, y) => ({ x: x + OX, y: y + OY });   // coordonnées d'une pièce
 
 // ——— dehors : route 29 (deux blocs) puis Bourg Geon ———
-const ROUTE_A = bloc({
+export const ROUTE_A = bloc({
   plan: [
     'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
     'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
@@ -67,7 +67,7 @@ const ROUTE_A = bloc({
   batiments: [{ x: 4, y: 3, l: 3, p: 2, modele: 'grotte', porte: 1 }],
 });
 
-const ROUTE_B = bloc({
+export const ROUTE_B = bloc({
   plan: [
     'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
     'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
@@ -104,7 +104,7 @@ const ROUTE_B = bloc({
   ],
 });
 
-const BOURG = bloc({
+export const BOURG = bloc({
   plan: [
     'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
     'TTTTTTTTTTTTTTTTTTTTTTTTTTTSS~~~',
@@ -150,7 +150,7 @@ const BOURG = bloc({
 const BX = 64;
 
 // ——— intérieurs ———
-const MAISON_1F = bloc({ plan: piece([
+export const MAISON_1F = bloc({ plan: piece([
   'WWWWWWWWWW',
   'WVk|:::REW',
   'W::::::::W',
@@ -160,7 +160,7 @@ const MAISON_1F = bloc({ plan: piece([
   'W::::m:::W',
   'WWWWWWWWWW',
 ]) });
-const MAISON_2F = bloc({ plan: piece([
+export const MAISON_2F = bloc({ plan: piece([
   'WWWWWWWWWW',
   'WOR::::VEW',
   'W::::::::W',
@@ -169,7 +169,7 @@ const MAISON_2F = bloc({ plan: piece([
   'W|:::::::W',
   'WWWWWWWWWW',
 ]) });
-const LABO = bloc({ plan: piece([
+export const LABO = bloc({ plan: piece([
   'WWWWWWWWWWWWWW',
   'WX!M!::::M!X!W',
   'WLLLLLLLLLLLLW',
@@ -181,7 +181,7 @@ const LABO = bloc({ plan: piece([
   'WLLLLLmLLLLLLW',
   'WWWWWWWWWWWWWW',
 ], 9, 9) });
-const VOISIN = bloc({ plan: piece([
+export const VOISIN = bloc({ plan: piece([
   'WWWWWWWWWW',
   'WR|::::VkW',
   'W::::::::W',
@@ -190,7 +190,7 @@ const VOISIN = bloc({ plan: piece([
   'W:::m::::W',
   'WWWWWWWWWW',
 ]) });
-const GROTTE = bloc({ plan: [
+export const GROTTE = bloc({ plan: [
   'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG',
   'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG',
   'GGGGGggggggggggggggggggggggGGGGG',
