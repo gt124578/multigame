@@ -22,14 +22,16 @@ const TOUCHES = {
   ArrowUp: 'haut', ArrowDown: 'bas', ArrowLeft: 'gauche', ArrowRight: 'droite', KeyW: 'haut', KeyS: 'bas', KeyA: 'gauche', KeyD: 'droite',
   KeyZ: 'haut', KeyQ: 'gauche',
   Space: 'a', Enter: 'a', KeyF: 'a', KeyK: 'a', Escape: 'b', Backspace: 'b', KeyX: 'b', KeyL: 'b',
-  ShiftLeft: 'course', ShiftRight: 'course', KeyV: 'velo', KeyO: 'sauver', F3: 'debug', KeyG: 'qualite', Tab: 'menu', KeyM: 'menu',
+  ShiftLeft: 'course', ShiftRight: 'course', CapsLock: 'toujours', KeyV: 'velo', KeyO: 'sauver', F3: 'debug', KeyG: 'qualite', Tab: 'menu', KeyM: 'menu',
 };
 const DIRS = ['haut', 'bas', 'gauche', 'droite'];
 const tenues = new Set(), ordre = [], appuis = new Set();
+let courseAuto = false;
 addEventListener('keydown', (e) => {
   const k = TOUCHES[e.code]; if (!k) return;
   e.preventDefault();
   if (e.repeat || pont?.occupe) return;   // un écran d'Odyssée (combat, menu) a les touches
+  if (k === 'toujours') { courseAuto = !courseAuto; return; }
   tenues.add(k); appuis.add(k);
   if (DIRS.includes(k)) { ordre.splice(ordre.indexOf(k) >>> 0, ordre.includes(k) ? 1 : 0); ordre.push(k); }
 });
@@ -41,7 +43,8 @@ addEventListener('keyup', (e) => {
 addEventListener('blur', () => { tenues.clear(); ordre.length = 0; });
 function entrees() {
   const d = ordre.length ? DIRS.indexOf(ordre[ordre.length - 1]) : null;
-  const e = { dir: d, a: appuis.has('a'), b: appuis.has('b'), course: tenues.has('course'), velo: appuis.has('velo') };
+  // courir : Maj, ou B tenu en marchant (comme sur DS) ; CapsLock fait courir tout le temps
+  const e = { dir: d, a: appuis.has('a'), b: appuis.has('b'), course: tenues.has('course') || (d !== null && tenues.has('b')) || courseAuto, velo: appuis.has('velo') };
   appuis.delete('a'); appuis.delete('b'); appuis.delete('velo');
   return e;
 }

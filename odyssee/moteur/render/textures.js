@@ -13,9 +13,12 @@ const OW = new URL('../../../assets/graphics/hgss/ow/', import.meta.url).href;
  * (au plus proche) dans l'atlas. Si une image ne vient pas (hors ligne), on reprend celle d'Odyssée.
  * Une entrée = une image, ou des calques [{ f, crop: [x, y, l, h], dest: [x, y, l, h] }] dans une case de 32 px.
  */
-export const PDSMS = 'https://raw.githubusercontent.com/Trifindo/Pokemon-DS-Map-Studio/ac30b653e5b090ce116278ed6ba9758fff956673/src/main/resources/tilesets/Heart_Gold_-_Soul_Silver/';
-const OW_ = 'Tileset_2_-_Overworld/', NB = 'Tileset_25_-_New_Bark_Town_Houses_(by_Monkeyboy0)/';
+export const PDSMS_RACINE = 'https://raw.githubusercontent.com/Trifindo/Pokemon-DS-Map-Studio/ac30b653e5b090ce116278ed6ba9758fff956673/src/main/resources/tilesets/';
+export const PDSMS = PDSMS_RACINE + 'Heart_Gold_-_Soul_Silver/';
+const OW_ = 'Tileset_2_-_Overworld/', NB = 'Tileset_25_-_New_Bark_Town_Houses_(by_Monkeyboy0)/', GL = 'Tileset_76_-_Ice_Path/';
 const H = (f) => PDSMS + encodeURI(f);
+// les sols des Centres et des boutiques de HGSS ne sont pas publiés : ceux de Platine en attendant
+const PT = (f) => PDSMS_RACINE + encodeURI('Platinum/Tileset_20_-_House_Indoor/' + f);
 export const PACK_HGSS = {
   sols: {
     herbe: H(OW_ + 'grass01.png'), herbe2: H(OW_ + 'grass01.png'), hautes_herbes: H(OW_ + 'egrass.png'),
@@ -24,13 +27,21 @@ export const PACK_HGSS = {
     eau: H(OW_ + 'sea_un.png'), eau_profonde: H(OW_ + 'sea_un.png'),
     rebord: [{ f: H(OW_ + 'grass01.png') }, { f: H(OW_ + 'allpeak.png'), crop: [0, 20, 32, 12], dest: [0, 18, 32, 14] }],
     falaise: H(OW_ + 'cliff01.png'), marches: H(OW_ + 'slope_slope.png'), ponton: H(OW_ + 'bridge_c.png'),
-    carrelage: H(NB + 'la_yukab.png'),
+    // intérieurs
+    parquet: H(NB + 'la_yukad.png'), carrelage: H(NB + 'la_yukab.png'), labo: H(NB + 'la_yukaa.png'),
+    sol_centre: PT('labo_01.png'), sol_boutique: PT('floor03.png'), plancher: PT('floor01_mat.png'),
+    // glace (Chemin de Glace de HGSS : une image de 64 px pour 4 × 4 cases) et sol de l'arène d'Acajou
+    glace: H(GL + 'ice_fe01.png'), neige: H(GL + 'droad01.png'),
   },
-  faces: { falaise: H(OW_ + 'wall01_d.png'), terre: H(OW_ + 'wall01_g.png'), mur: H(NB + 'la_walla.png') },
+  faces: {
+    falaise: H(OW_ + 'wall01_d.png'), terre: H(OW_ + 'wall01_g.png'), mur: H(NB + 'la_walla.png'),
+    mur_centre: PT('wall01_mat.png'), mur_boutique: PT('wall01_mat.png'), mur_labo: H(NB + 'la_walla.png'), mur_glace: H(GL + 'dwall01_s.png'),
+  },
   eau: H(OW_ + 'sea_un.png'),
   decor: {
     arbre: [H(OW_ + 'tree01.png'), 32], pin: [H(OW_ + 'treekn.png'), 32], rocher: [H(OW_ + 'rock01.png'), 24],
     barriere: [{ f: H(OW_ + 'fence_a.png'), crop: [0, 0, 32, 16] }, 32],
+    cristal: [H(GL + 'drock01.png'), 32],
   },
   facade: { mur: H(NB + 'la_walla.png'), fenetre: H(NB + 'la_wina.png') },
 };
@@ -43,9 +54,12 @@ export const SOL_IMG = {
   carrelage: 'sol32/floor_white.png', labo: 'sol/floor_lab.png', tapis: 'sol/mat.png', glace: 'sol32/ice.png',
   grotte: 'sol32/cave0.png', paroi: 'sol/cavetop.png', rebord: 'sol32/ledge.png', falaise: 'sol32/cliffR.png',
   marches: 'sol32/stairs.png', ponton: 'sol32/dock0.png',
+  sol_centre: 'sol32/floor_white.png', sol_boutique: 'sol32/floor_white.png', plancher: 'sol32/floor_wood.png', neige: 'sol32/ice.png',
+  mur_centre: 'sol/walltop.png', mur_boutique: 'sol/walltop.png', mur_labo: 'sol/walltop.png', mur_glace: 'sol/cavetop.png',
 };
 /** faces verticales */
-export const FACE_IMG = { mur: 'sol/wall_in.png', paroi: 'sol/cavewall.png', falaise: 'sol32/cliffR.png', terre: 'sol32/cliffG.png' };
+export const FACE_IMG = { mur: 'sol/wall_in.png', paroi: 'sol/cavewall.png', falaise: 'sol32/cliffR.png', terre: 'sol32/cliffG.png',
+  mur_centre: 'sol/wall_in.png', mur_boutique: 'sol/wall_in.png', mur_labo: 'sol/wall_in.png', mur_glace: 'sol/cavewall.png' };
 export const EAU_IMG = ['sol32/water0.png', 'sol32/water1.png', 'sol32/water2.png', 'sol32/water3.png'];
 
 /** décor → [image, pixels par case] (les dessins « version 2 » d'Odyssée : 32 px par case) */
@@ -55,6 +69,7 @@ export const DECOR_IMG = {
   table: ['mobilier/table.png', 32], cuisine: ['mobilier/kitchen.png', 32], lit: ['mobilier/bed.png', 32], etagere: ['mobilier/shelf.png', 32],
   tele: ['mobilier/tv.png', 32], machine: ['mobilier/labmachine.png', 32], pc: ['mobilier/pc.png', 32], table_balls: ['mobilier/startertable.png', 32],
   comptoir: ['mobilier/counterseg.png', 32], arbre_coupe: ['nature/cuttree.png', 32], baies: ['nature/tree2.png', 32], haie: ['nature/bush.png', 32],
+  cristal: ['nature/rock.png', 32],
 };
 
 export function charger(src) {
@@ -104,34 +119,33 @@ async function canevas(entree, l = 32, h = 32) {
 }
 
 export async function chargerTout(sols, spritesPersos, pack = null) {
-  const C = 36, M = 2, par = 8;
+  // chaque sol occupe une case de 64 px de l'atlas (marge de 2 px recopiée : pas de lignes entre les cases) ;
+  // une image de HGSS de 16 px couvre une case du terrain, de 32 px 2 × 2 cases, de 64 px 4 × 4 cases (16 texels par case)
+  const T = 64, M = 2, C = T + 2 * M, par = 8;
   const noms = [...new Set([...sols.filter((n) => n !== 'vide'), ...Object.keys(FACE_IMG).map((n) => 'face_' + n)])];
   const lignes = Math.ceil(noms.length / par);
   const cv = document.createElement('canvas'); cv.width = par * C; cv.height = lignes * C;
   const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
-  const pos = {}, echelle = {};
+  const pos = {}, cases = {};
   await Promise.all(noms.map(async (n, i) => {
     const x = (i % par) * C, y = ((i / par) | 0) * C;
     pos[n] = [x + M, y + M];
-    const p = pack && (n.startsWith('face_') ? pack.faces[n.slice(5)] : pack.sols[n]);
-    // la tuile au centre, et sa marge : la tuile étirée (pas de lignes entre les cases)
-    const cv = p ? await canevas(p) : null;
-    // une texture HGSS de 32 px couvre 2 × 2 cases (16 texels par case, comme les personnages)
-    if (cv && typeof p === 'string' && cv.source32) echelle[n] = 2;
-    const src = cv || await (async () => { const f = n.startsWith('face_') ? FACE_IMG[n.slice(5)] : SOL_IMG[n]; return f ? charger(IMG + f) : null; })();
+    const face = n.startsWith('face_');
+    const p = pack && (face ? pack.faces[n.slice(5)] : pack.sols[n]);
+    let src = null;
+    if (typeof p === 'string') { src = await charger(p); if (src && !face) cases[n] = Math.max(1, Math.min(4, src.width / 16)); }
+    else if (p) src = await canevas(p);
+    if (!src) { const f = face ? FACE_IMG[n.slice(5)] : SOL_IMG[n]; src = f ? await charger(IMG + f) : null; }
     if (!src) { g.fillStyle = '#f0f'; g.fillRect(x, y, C, C); return; }
     g.drawImage(src, x, y, C, C);
-    g.drawImage(src, x + M, y + M, 32, 32);
+    g.drawImage(src, x + M, y + M, T, T);
   }));
   const tex = texture(cv);
-  /** coordonnées de texture d'un sol ; (x, y) : case, pour les textures qui couvrent 2 × 2 cases */
+  /** coordonnées de texture d'un sol pour la case (x, y) : la part de l'image qui lui revient */
   const uv = (n, x = 0, y = 0) => {
-    const p = pos[n] || pos.herbe;
-    if (echelle[n] === 2) {
-      const qx = p[0] + (x & 1) * 16, qy = p[1] + (y & 1) * 16;
-      return [qx / cv.width, 1 - (qy + 16) / cv.height, (qx + 16) / cv.width, 1 - qy / cv.height];
-    }
-    return [p[0] / cv.width, 1 - (p[1] + 32) / cv.height, (p[0] + 32) / cv.width, 1 - p[1] / cv.height];
+    const p = pos[n] || pos.herbe, k = cases[n] || 1, c = T / k;
+    const qx = p[0] + (((x % k) + k) % k) * c, qy = p[1] + (((y % k) + k) % k) * c;
+    return [qx / cv.width, 1 - (qy + c) / cv.height, (qx + c) / cv.width, 1 - qy / cv.height];
   };
   // eau animée : quatre images empilées
   const ecv = document.createElement('canvas'); ecv.width = 32; ecv.height = 128;

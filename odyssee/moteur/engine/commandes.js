@@ -164,7 +164,7 @@ export const COMMANDES = {
       if (!o?.def.dresseur) throw new Error(`script ${ctx.nom} : combat_dresseur sans dresseur`);
       const d = o.def.dresseur;
       const prix = d.prix ?? 40 * Math.max(1, ...(d.equipe || []).map((p) => p.niveau || 1));
-      return T.combat({ type: 'dresseur', objet: o.id, nom: o.def.nom || o.id, sprite: o.sprite, champion: !!d.champion, equipe: d.equipe || [], prix }, (victoire) => {
+      return T.combat({ type: 'dresseur', objet: o.id, nom: o.def.nom || o.id, sprite: o.sprite, portrait: d.portrait, champion: !!d.champion, equipe: d.equipe || [], prix }, (victoire) => {
         if (victoire) { T.etat.drapeaux.add(T.drapeauDresseur(o)); T.etat.argent += prix; }
       });
     },

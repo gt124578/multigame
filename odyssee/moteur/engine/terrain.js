@@ -10,7 +10,7 @@
 //   5. les PNJ libres (errance, regards), seulement près du joueur ;
 //   6. les scripts de niveau (« map scripts ») quand tout est calme ; la caméra.
 
-import { DX, DY, OPPOSE, PROPS, VITESSE, rng as RNG } from './const.js';
+import { DX, DY, OPPOSE, PROPS, VITESSE, ELAN_VELO, rng as RNG } from './const.js';
 import { Monde, preparer, valider } from './carte.js';
 import { ObjetTerrain, objetEn, testerPas, devant } from './objets.js';
 import { Scripts, Contexte, avancer } from './script.js';
@@ -81,6 +81,7 @@ export class Terrain {
     this.transition = null; this.noir = 0; this.fonduVers = 0; this.fonduPas = 0;
     this.secousse = 0;
     this.mode = 'marche';        // marche, velo, surf
+    this.elan = 0;               // pas faits d'affilée à vélo dans le même sens (le vélo accélère)
     this.continu = false;        // le joueur enchaîne les pas (pas de demi-tour sur place)
     this.camera = null;
     this.compteurRencontre = 0;
@@ -265,7 +266,7 @@ export class Terrain {
 
   // ——— le joueur ———
   vitesseJoueur(ent) {
-    if (this.mode === 'velo') return VITESSE.velo;
+    if (this.mode === 'velo') return ELAN_VELO[Math.min(this.elan, ELAN_VELO.length - 1)];
     if (this.mode === 'surf') return VITESSE.surf;
     const p = this.M.props(this.joueur.x, this.joueur.y);
     const z = this.zone;
@@ -278,9 +279,11 @@ export class Terrain {
     if (ent.velo) { this.basculerVelo(); return; }
     if (ent.a) { this.interagir(); if (this.ctxs.length || this.ui) return; }
     const d = ent.dir;
-    if (d === null) { this.continu = false; return; }
-    // appui bref depuis l'arrêt : on se tourne seulement (comme sur DS)
-    if (d !== j.dir && !this.continu) {
+    if (d === null) { this.continu = false; this.elan = 0; return; }
+    // à vélo, changer de sens coupe l'élan (on repart doucement), mais on tourne sans s'arrêter
+    if (this.mode === 'velo' && d !== j.dir) this.elan = 0;
+    // appui bref depuis l'arrêt : on se tourne seulement (comme sur DS ; pas à vélo)
+    if (d !== j.dir && !this.continu && this.mode !== 'velo') {
       j.lancer('tour', d, VITESSE.demiTour);
       return;
     }
@@ -291,6 +294,7 @@ export class Terrain {
     }
     const r = testerPas(this.M, j, d, { surf: this.mode === 'surf', velo: this.mode === 'velo', objets: this.objets });
     if (!r.ok) {
+      this.elan = 0;
       j.lancer('surplace', d, VITESSE.heurt);
       if (this.tHeurt === undefined || this.t - this.tHeurt >= VITESSE.heurt) { this.sortir({ type: 'son', nom: 'heurt' }); this.tHeurt = this.t; }
       this.continu = true;
@@ -301,7 +305,8 @@ export class Terrain {
     else {
       const v = this.vitesseJoueur(ent);
       j.lancer('pas', d, v);
-      j.course = v === VITESSE.course;
+      j.course = v === VITESSE.course && this.mode === 'marche';
+      if (this.mode === 'velo') this.elan++;
       if (r.debarque) j.debarque = true;
     }
     this.continu = true;
@@ -339,7 +344,11 @@ export class Terrain {
   }
   changerMode(m) {
     if (this.mode === m) return;
-    this.mode = m; this.sortir({ type: 'mode', mode: m });
+    const avant = this.mode;
+    this.mode = m; this.elan = 0; this.sortir({ type: 'mode', mode: m });
+    // le vélo a sa musique ; on retrouve celle de la zone en descendant
+    if (m === 'velo') this.sortir({ type: 'musique', nom: 'velo' });
+    else if (avant === 'velo' && this.musique) this.sortir({ type: 'musique', nom: this.musique });
   }
 
   /** fait avancer un objet ; pour le joueur, gère la fin de chaque pas */
@@ -560,7 +569,7 @@ export class Terrain {
     this.zone = z;
     if (z.velo === false && this.mode === 'velo') this.changerMode('marche');
     if (!avant || avant.nom !== z.nom) this.sortir({ type: 'zone', zone: z.id, nom: z.nom, annonce: z.annonce !== false && !!avant });
-    if (!avant || avant.musique !== z.musique) { this.musique = z.musique; this.sortir({ type: 'musique', nom: z.musique }); }
+    if (!avant || avant.musique !== z.musique) { this.musique = z.musique; if (this.mode !== 'velo') this.sortir({ type: 'musique', nom: z.musique }); }
   }
   lancerNiveau(quand) {
     const n = this.zone?.niveau;

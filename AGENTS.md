@@ -341,7 +341,8 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   d'essai et le début de HGSS redessiné (`donnees/johto.js` : Bourg Geon → Mauville, audit `engine/audit.js` de toute la région
   puis parcours complet jusqu'au premier badge) ; `node tools/capture-moteur-hgss.mjs "<paramètres>" <image.png> "<touches>"`
   (Playwright, `PDSMS=<clone>` et `PRET=<clone>` pour servir textures et bâtiments sans réseau) en fait une capture ; page :
-  `odyssee/moteur.html` (combats, équipe, sac et son d'Odyssée par `odyssee/moteur/odyssee.js`). Textures HGSS lues à la volée
+  `odyssee/moteur.html` (combats, équipe, sac et son d'Odyssée par `odyssee/moteur/odyssee.js`). Intérieurs de HGSS aux
+  coordonnées du jeu, meubles de `bm_room.narc` lus à la volée, et Arène d'Acajou en glace : `donnees/interieurs.js`. Textures HGSS lues à la volée
   sur le dépôt de Pokémon DS Map Studio (`PACK_HGSS` de `render/textures.js`), vrais bâtiments lus à la volée sur pret/pokeheartgold
   (`render/nsbmd.js`, `render/modeles3d.js`) : ne jamais les copier dans ce dépôt. Dehors aux positions réelles du jeu :
   `donnees/johto-dehors.js` (posé avec `donnees/peintre.js`).

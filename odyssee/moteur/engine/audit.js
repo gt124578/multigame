@@ -5,6 +5,7 @@
 //   - chaque objet (PNJ, objet au sol, dresseur) a une case voisine atteignable (ou de l'autre côté d'un comptoir) ;
 //   - chaque panneau se lit depuis une case atteignable, dans le bon sens ;
 //   - depuis toute case atteinte, on peut revenir au départ (aucun piège sans retour).
+// Les téléportations écrites dans les scripts (« teleporter ZONE n ») comptent comme des passages depuis leur zone.
 // C'est l'équivalent, pour ce moteur, de test-odyssee-coherence : à lancer après chaque retouche de carte.
 
 import { DX, DY, PROPS } from './const.js';
@@ -43,6 +44,11 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
     }
     return [mid, dest.x, dest.y];
   };
+  // téléportations des scripts : zone → [{ vers, n }]
+  const tps = {};
+  for (const [zid, z] of Object.entries(d.zones))
+    for (const m of (z.scripts || '').matchAll(/^\s*teleporter\s+(\w+)\s+(\d+)/gm)) (tps[zid] ||= []).push({ vers: m[1], n: +m[2] });
+  const tpFaits = new Set();
   const M0 = d.mondeDeZone[depart.zone];
   ajouter(null, M0, depart.x, depart.y);
   while (file.length) {
@@ -50,6 +56,8 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
     const M = monde(m), ici = cle(m, x, y), pIci = M.props(x, y);
     const w = M.warp(x, y);
     if (w) warpsVus.add(`${w.zone}#${w.indice}`);
+    const zid = M.zone(x, y)?.id;
+    if (tps[zid] && !tpFaits.has(zid)) { tpFaits.add(zid); for (const t of tps[zid]) ajouter(ici, ...arrivee(t)); }
     for (let dir = 0; dir < 4; dir++) {
       // tapis de sortie
       if (w && pIci.tapis === dir) { ajouter(ici, ...arrivee(w)); continue; }

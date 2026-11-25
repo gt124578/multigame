@@ -343,6 +343,8 @@ script MamanAppelle
   exclamation maman
   regarder maman droite
   message "Ah, {JOUEUR} ! Le PR ORME te cherchait.\\nIl a besoin d'aide au LABO."
+  message "Tiens, prends tes CHAUSSURES DE COURSE.\\nGarde B (Maj) enfoncé pour courir deux fois plus vite !"
+  drapeau CHAUSSURES
   var MAMAN_ACCUEIL 1
   liberer
   fin

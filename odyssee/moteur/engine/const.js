@@ -22,10 +22,13 @@ export const dirDe = (nom) => {
 export const PAS_PAR_SECONDE = 60;
 
 /** durée d'un déplacement d'une case, en pas (marche HGSS : 16 images à 60 i/s) */
+/** vélo de HGSS : il démarre doucement et prend de l'élan pas après pas (durée de chaque pas, puis la croisière) */
+export const ELAN_VELO = [12, 8, 6, 4];
+
 export const VITESSE = {
   marche: 16,
   course: 8,
-  velo: 4,
+  velo: 4,       // vitesse de croisière du vélo (après l'élan)
   surf: 8,
   glisse: 4,      // glace, tapis roulants
   pnj: 16,

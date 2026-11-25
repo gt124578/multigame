@@ -11,7 +11,11 @@
 
 import { bloc, mondeSimple, SOLS } from './auteur.js';
 import { BAS, HAUT, GAUCHE, DROITE } from '../engine/const.js';
-import { DEMO, MAISON_1F, MAISON_2F, LABO, VOISIN } from './demo.js';
+import { DEMO } from './demo.js';
+import {
+  MAISON_1F, MAISON_2F, LABO, MAISON, CENTRE, CENTRE_B1F, BOUTIQUE, ACAJOU_1, ACAJOU_2, ACAJOU_3,
+  ZONES_INTERIEURS, ZONES_ACAJOU, maisonHGSS, centreHGSS, boutiqueHGSS,
+} from './interieurs.js';
 import { BLOCS_DEHORS, MONDE_JOHTO, ZONES_DEHORS } from './johto-dehors.js';
 
 // ——— outils ———
@@ -25,30 +29,7 @@ function piece(lignes, ox, oy) {
 const pc = (ox, oy) => (x, y) => ({ x: x + ox, y: y + oy });
 
 // ——— intérieurs ———
-const CENTRE = bloc({ plan: piece([
-  'WWWWWWWWWWWWWW',
-  'W;;;;;;;;;;;OW',
-  'W;;;cccccc;;;W',
-  'W;;;;;;;;;;;;W',
-  'W;;;;;;;;;;;;W',
-  'W;t|;;;;;;;t|W',
-  'W;||;;;;;;;||W',
-  'W;;;;;;m;;;;;W',
-  'WWWWWWWWWWWWWW',
-], 9, 10), legende: { c: { col: 1, sol: 'carrelage', mb: 24, decor: 'comptoir' }, O: { col: 1, sol: 'carrelage', decor: 'pc' } } });
-const C = pc(9, 10);
-
-const BOUTIQUE = bloc({ plan: piece([
-  'WWWWWWWWWW',
-  'W;R|R|R|;W',
-  'W|;;;;;;;W',
-  'W;c;;;;;;W',
-  'W;c;;;;;;W',
-  'W|;;;;;;;W',
-  'W;;;;m;;;W',
-  'WWWWWWWWWW',
-], 11, 10), legende: { c: { col: 1, sol: 'carrelage', mb: 24, decor: 'comptoir' } } });
-const Bq = pc(11, 10);
+// Centre POKéMON, boutique et maisons : intérieurs de HGSS aux coordonnées du jeu (interieurs.js)
 
 const POSTE = bloc({ plan: piece([
   'WWWWWWWWWW',
@@ -149,42 +130,8 @@ const V = pc(11, 10);   // pièces de la démo (maisons) : même décalage
 
 // ——— zones ———
 
-/** une maison habitée (pièce de la démo « voisin »), un habitant et un script */
-const maison = (nom, vers, n, habitant, script, musique = 'maison') => ({
-  nom, annonce: false, musique, camera: 'interieur', interieur: true, velo: false,
-  warps: [{ ...V(4, 5), vers, n }],
-  objets: [{ id: 'habitant', ...V(6, 2), dir: BAS, mouvement: 'regard_alea', ...habitant }],
-  scripts: script,
-});
-const centre = (nom, vers, n) => ({
-  nom, annonce: false, musique: 'centre', camera: 'interieur', interieur: true, velo: false,
-  warps: [{ ...C(7, 7), vers, n }],
-  panneaux: [{ ...C(12, 1), depuis: HAUT, script: 'PCdeLeo' }],
-  objets: [
-    { id: 'infirmiere', ...C(6, 1), sprite: 'nurse', dir: BAS, script: 'Infirmiere' },
-    { id: 'visiteur', ...C(10, 4), sprite: 'topdresseur', mouvement: 'errance', rayon: 1, script: 'Visiteur' },
-  ],
-  scripts: `
-script Visiteur
-  regarder_joueur
-  message "L'infirmière soigne tes POKéMON gratuitement.\\nC'est aussi ici que tu repars si tu es K.O."
-  liberer
-  fin
-`,
-});
-const boutique = (nom, vers, n, articles) => ({
-  nom, annonce: false, musique: 'boutique', camera: 'interieur', interieur: true, velo: false,
-  warps: [{ ...Bq(5, 6), vers, n }],
-  objets: [{ id: 'vendeur', ...Bq(1, 3), sprite: 'vendeur', dir: DROITE, script: 'Vendeur' }],
-  scripts: `
-script Vendeur
-  message "Bienvenue ! Que puis-je pour vous ?"
-  boutique ${articles}
-  message "Merci, à bientôt !"
-  liberer
-  fin
-`,
-});
+const maison = maisonHGSS;
+const boutique = boutiqueHGSS;
 
 const ZONES = {
   // — Bourg Geon et ses maisons : ceux de la démo —
@@ -211,10 +158,11 @@ script MereRival
   liberer
   fin
 `),
-  MAISON_1F: DEMO.zones.MAISON_1F,
-  MAISON_2F: DEMO.zones.MAISON_2F,
-  LABO_ORME: DEMO.zones.LABO_ORME,
-  MAISON_VOISIN: DEMO.zones.MAISON_VOISIN,
+  MAISON_1F: ZONES_INTERIEURS.MAISON_1F,
+  MAISON_2F: ZONES_INTERIEURS.MAISON_2F,
+  LABO_ORME: ZONES_INTERIEURS.LABO_ORME,
+  MAISON_VOISIN: { ...DEMO.zones.MAISON_VOISIN, warps: [{ x: 4, y: 8, vers: 'BOURG_GEON', n: 2 }],
+    objets: [{ ...DEMO.zones.MAISON_VOISIN.objets[0], x: 5, y: 5 }] },
 
   ROUTE_29: {
     nom: 'Route 29', musique: 'route29', camera: 'dehors',
@@ -328,7 +276,7 @@ script PassanteGriotte
   fin
 `,
   },
-  CENTRE_GRIOTTE: centre('Ville Griotte', 'VILLE_GRIOTTE', 0),
+  ...centreHGSS('CENTRE_GRIOTTE', 'Ville Griotte', 'VILLE_GRIOTTE', 0),
   BOUTIQUE_GRIOTTE: boutique('Ville Griotte', 'VILLE_GRIOTTE', 1, 'potion antidote paralyze-heal poke-ball'),
   MAISON_GRIOTTE: maison('Ville Griotte', 'VILLE_GRIOTTE', 2, { sprite: 'dame', script: 'Dame' }, `
 script Dame
@@ -555,7 +503,28 @@ script Jongleur
   fin
 `,
   },
-  CENTRE_MAUVILLE: centre('Mauville', 'MAUVILLE', 1),
+  ...centreHGSS('CENTRE_MAUVILLE', 'Mauville', 'MAUVILLE', 1, {
+    // l'Arène d'Acajou est construite seule pour l'instant : un voyageur y emmène
+    objets: [{ id: 'voyageur', x: 3, y: 9, sprite: 'montagnard', dir: BAS, script: 'VersAcajou' }],
+    scripts: `
+script VersAcajou
+  regarder_joueur
+  message "Je viens d'ACAJOU, au pied du LAC COLÈRE.\\nSon ARÈNE est en glace : on y glisse partout !"
+  message "Veux-tu que je t'y emmène ?"
+  oui_non
+  si resultat = 0 aller VersAcajou_Non
+  message "Accroche-toi !"
+  fondu_noir
+  teleporter ARENE_ACAJOU_1 0
+  liberer
+  fin
+VersAcajou_Non:
+  message "Quand tu veux !"
+  liberer
+  fin
+`,
+  }),
+  ...ZONES_ACAJOU,
   BOUTIQUE_MAUVILLE: boutique('Mauville', 'MAUVILLE', 2, 'potion super-potion antidote paralyze-heal awakening repel poke-ball'),
   MAISON_MAUVILLE_1: maison('Mauville', 'MAUVILLE', 5, { sprite: 'kimono', script: 'Kimono' }, `
 script Kimono
@@ -736,7 +705,8 @@ export const JOHTO = {
   sols: SOLS,
   blocs: {
     ...BLOCS_DEHORS,
-    maison_1f: MAISON_1F, maison_2f: MAISON_2F, labo: LABO, voisin: VOISIN, centre: CENTRE, boutique: BOUTIQUE, poste: POSTE, poste_eo: POSTE_EO,
+    maison_1f: MAISON_1F, maison_2f: MAISON_2F, labo: LABO, voisin: MAISON, centre: CENTRE, centre_b1f: CENTRE_B1F, boutique: BOUTIQUE,
+    poste: POSTE, poste_eo: POSTE_EO, acajou_1: ACAJOU_1, acajou_2: ACAJOU_2, acajou_3: ACAJOU_3,
     tour_1: TOUR_1, tour_2: TOUR_2, tour_3: TOUR_3, arene: ARENE, ecole: ECOLE, antre: ANTRE,
   },
   mondes: {
@@ -744,15 +714,16 @@ export const JOHTO = {
     maison_1f: interieur('maison_1f', 'MAISON_1F'), maison_2f: interieur('maison_2f', 'MAISON_2F'),
     labo: interieur('labo', 'LABO_ORME'), voisin: interieur('voisin', 'MAISON_VOISIN'), maison_rival: interieur('voisin', 'MAISON_RIVAL'),
     poste_46: interieur('poste', 'POSTE_46'), poste_31: interieur('poste_eo', 'POSTE_31'), poste_36: interieur('poste_eo', 'POSTE_36'),
-    centre_griotte: interieur('centre', 'CENTRE_GRIOTTE'), boutique_griotte: interieur('boutique', 'BOUTIQUE_GRIOTTE'),
+    centre_griotte: interieur('centre', 'CENTRE_GRIOTTE'), centre_griotte_b1f: interieur('centre_b1f', 'CENTRE_GRIOTTE_B1F'), boutique_griotte: interieur('boutique', 'BOUTIQUE_GRIOTTE'),
     maison_griotte: interieur('voisin', 'MAISON_GRIOTTE'), maison_guide: interieur('voisin', 'MAISON_GUIDE'), maison_griotte_se: interieur('voisin', 'MAISON_GRIOTTE_SE'),
     maison_baies: interieur('voisin', 'MAISON_BAIES'), m_pokemon: interieur('voisin', 'M_POKEMON'),
     antre_noir: interieur('antre', 'ANTRE_NOIR'),
-    centre_mauville: interieur('centre', 'CENTRE_MAUVILLE'), boutique_mauville: interieur('boutique', 'BOUTIQUE_MAUVILLE'),
+    centre_mauville: interieur('centre', 'CENTRE_MAUVILLE'), centre_mauville_b1f: interieur('centre_b1f', 'CENTRE_MAUVILLE_B1F'), boutique_mauville: interieur('boutique', 'BOUTIQUE_MAUVILLE'),
     maison_mauville_1: interieur('voisin', 'MAISON_MAUVILLE_1'), maison_mauville_2: interieur('voisin', 'MAISON_MAUVILLE_2'),
     tour_1f: interieur('tour_1', 'TOUR_1F'), tour_2f: interieur('tour_2', 'TOUR_2F'), tour_3f: interieur('tour_3', 'TOUR_3F'),
     arene_mauville: interieur('arene', 'ARENE_MAUVILLE'), ecole: interieur('ecole', 'ECOLE'),
+    acajou_1: interieur('acajou_1', 'ARENE_ACAJOU_1'), acajou_2: interieur('acajou_2', 'ARENE_ACAJOU_2'), acajou_3: interieur('acajou_3', 'ARENE_ACAJOU_3'),
   },
   zones: ZONES,
 };
-export const DEPART = { zone: 'MAISON_2F', x: 14, y: 13, dir: BAS };
+export const DEPART = { zone: 'MAISON_2F', x: 5, y: 7, dir: BAS };

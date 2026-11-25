@@ -1,28 +1,30 @@
 // odyssee/moteur/render/modeles3d.js — les vrais bâtiments de HeartGold / SoulSilver en three.js.
-// L'archive des bâtiments du dehors (bm_field.narc) est lue à la volée dans le dépôt public de la décompilation
+// Les archives des bâtiments du dehors (bm_field.narc) et des meubles (bm_room.narc) sont lues à la volée dans le dépôt public de la décompilation
 // pret/pokeheartgold (commit épinglé) : rien n'est copié ici. Sans réseau, le rendu garde ses boîtes.
 import * as THREE from 'three';
 import { lireNarc, lireNsbmd } from './nsbmd.js';
 
 export const PRET = 'https://raw.githubusercontent.com/pret/pokeheartgold/8946577385ef0e3b1a29f2f56c03db20fd675cb0/';
-/** adresse de l'archive ; `?pret=<adresse>` pour une autre copie */
+/** archives lues : les bâtiments du dehors et les meubles des intérieurs ; `?pret=<adresse>` pour une autre copie */
 export const ADRESSE_BATIMENTS = 'files/fielddata/build_model/bm_field.narc';
+export const ADRESSE_MEUBLES = 'files/fielddata/build_model/bm_room.narc';
 
 export class Batiments3D {
-  constructor() { this.fichiers = null; this.parNom = new Map(); this.cache = new Map(); this.pret = false; }
-  /** charge l'archive (une fois) ; rend true si les modèles sont disponibles */
-  async charger(base) {
-    try {
-      const r = await fetch(base + ADRESSE_BATIMENTS);
-      if (!r.ok) throw new Error(r.status);
-      const buf = new Uint8Array(await r.arrayBuffer());
-      this.fichiers = lireNarc(buf);
-      this.fichiers.forEach((f, i) => {
-        // le nom du modèle est dans le dictionnaire du bloc MDL0 : on le lit sans tout décoder
-        try { const m = lireNsbmd(f); for (const md of m.modeles) this.parNom.set(md.nom, { i, fichier: m, modele: md }); } catch { /* fichier sans modèle */ }
-      });
-      this.pret = true;
-    } catch (e) { console.warn('bâtiments HGSS indisponibles :', e.message || e); }
+  constructor() { this.parNom = new Map(); this.cache = new Map(); this.pret = false; }
+  /** charge les archives (une fois) ; rend true si au moins l'une est disponible */
+  async charger(base, adresses = [ADRESSE_BATIMENTS, ADRESSE_MEUBLES]) {
+    await Promise.all(adresses.map(async (a) => {
+      try {
+        const r = await fetch(base + a);
+        if (!r.ok) throw new Error(r.status);
+        const fichiers = lireNarc(new Uint8Array(await r.arrayBuffer()));
+        fichiers.forEach((f, i) => {
+          // le nom du modèle est dans le dictionnaire du bloc MDL0 ; le premier venu garde son nom
+          try { const m = lireNsbmd(f); for (const md of m.modeles) if (!this.parNom.has(md.nom)) this.parNom.set(md.nom, { i, fichier: m, modele: md }); } catch { /* fichier sans modèle */ }
+        });
+        this.pret = true;
+      } catch (e) { console.warn('modèles HGSS indisponibles (' + a + ') :', e.message || e); }
+    }));
     return this.pret;
   }
   a(nom) { return this.parNom.has(nom); }

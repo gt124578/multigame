@@ -7,7 +7,9 @@ import { BLOC, MB } from '../engine/const.js';
 
 /** sols connus du rendu (indice = valeur stockée dans le bloc) */
 export const SOLS = ['vide', 'herbe', 'herbe2', 'hautes_herbes', 'chemin', 'eau', 'sable', 'fleurs', 'parquet', 'mur', 'tapis',
-  'glace', 'grotte', 'paroi', 'rebord', 'falaise', 'marches', 'pave', 'carrelage', 'ponton', 'eau_profonde', 'labo'];
+  'glace', 'grotte', 'paroi', 'rebord', 'falaise', 'marches', 'pave', 'carrelage', 'ponton', 'eau_profonde', 'labo',
+  // ajoutés ensuite (toujours à la fin : les blocs stockent l'indice)
+  'sol_centre', 'sol_boutique', 'plancher', 'neige', 'mur_centre', 'mur_boutique', 'mur_labo', 'mur_glace'];
 const S = Object.fromEntries(SOLS.map((n, i) => [n, i]));
 
 /** légende commune ; chaque zone peut en ajouter */
@@ -65,6 +67,16 @@ export const LEGENDE = {
 };
 
 /**
+ * Légendes des intérieurs dessinés comme dans HGSS : `W` le mur (papier peint du lieu, seul le mur du fond se dresse),
+ * `.` le sol du lieu, `m` le tapis de sortie, `E` un escalier (téléporteur), `#` une case bloquée sous un meuble.
+ * Les meubles eux-mêmes (modèles de HGSS) se posent avec `meubles` : leur emprise devient bloquée.
+ */
+export const piecesHGSS = (sol, mur, plus = {}) => ({
+  'W': { col: 1, sol: mur }, '.': { sol }, 'm': { sol, mb: MB.TAPIS_BAS }, 'E': { sol, mb: MB.ESCALIER },
+  '#': { col: 1, sol }, ' ': { col: 1, sol: 'vide' }, ...plus,
+});
+
+/**
  * Construit un bloc à partir d'un plan.
  *   plan      : lignes de texte (32 au plus, complétées par du vide)
  *   hauteurs  : lignes de chiffres (optionnel ; une case sans chiffre = 0)
@@ -72,8 +84,12 @@ export const LEGENDE = {
  *   batiments : [{ x, y, l, p, modele, toit, porte: dx }] — emprise bloquée, porte = case PORTE (dx depuis la gauche,
  *               sur la dernière rangée)
  *   decor     : décor posé à la main ({ type, x, y, … })
+ *   meubles   : [{ m, x, y, l, p, mur, libre, repli }] — un modèle de l'archive des meubles de HGSS posé sur l'emprise
+ *               (l × p cases, coin nord-ouest en x, y) ; l'emprise est bloquée, sauf `libre` (tapis, coussins) et `mur`
+ *               (accroché au mur du fond : fenêtre, horloge…) ; `repli` : le dessin d'Odyssée si le modèle manque
+ *   caisses   : [{ x, y, l, p, haut, couleurs, comptoir }] — comptoirs bâtis (bloqués ; `comptoir` : on parle par-dessus)
  */
-export function bloc({ plan, hauteurs = [], legende = {}, batiments = [], decor = [], strict = false }) {
+export function bloc({ plan, hauteurs = [], legende = {}, batiments = [], decor = [], meubles = [], caisses = [], strict = false }) {
   const L = { ...LEGENDE, ...legende };
   const N = BLOC * BLOC;
   const col = new Array(N).fill(1), mb = new Array(N).fill(0), h = new Array(N).fill(0), sol = new Array(N).fill(0);
@@ -103,6 +119,17 @@ export function bloc({ plan, hauteurs = [], legende = {}, batiments = [], decor 
       col[k] = 0; mb[k] = MB.PORTE;
     }
     dec.push({ type: 'batiment', ...b });
+  }
+  for (const m of meubles) {
+    if (!m.mur && !m.libre)
+      for (let y = m.y; y < m.y + (m.p ?? 1); y++) for (let x = m.x; x < m.x + (m.l ?? 1); x++) col[y * BLOC + x] = 1;
+    dec.push({ type: 'meuble', ...m });
+  }
+  for (const c of caisses) {
+    for (let y = c.y; y < c.y + (c.p ?? 1); y++) for (let x = c.x; x < c.x + (c.l ?? 1); x++) {
+      const k = y * BLOC + x; col[k] = 1; if (c.comptoir) mb[k] = MB.COMPTOIR;
+    }
+    dec.push({ type: 'caisse', ...c });
   }
   return { col, mb, h, sol, decor: dec };
 }

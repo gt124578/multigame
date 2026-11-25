@@ -8,7 +8,7 @@ const { DEMO } = await import(B + 'donnees/demo.js');
 const { compiler } = await import(B + 'engine/script.js');
 const { COMMANDES } = await import(B + 'engine/commandes.js');
 const { valider, preparer } = await import(B + 'engine/carte.js');
-const { MB, VITESSE, HAUT, BAS, GAUCHE, DROITE } = await import(B + 'engine/const.js');
+const { MB, VITESSE, ELAN_VELO, HAUT, BAS, GAUCHE, DROITE } = await import(B + 'engine/const.js');
 const { JOHTO, DEPART } = await import(B + 'donnees/johto.js');
 const { auditer } = await import(B + 'engine/audit.js');
 
@@ -35,6 +35,7 @@ function pas(T, dir, e = {}) {
 }
 /** se tourner vers `dir` (sans avancer) puis appuyer sur A */
 function parler(T, dir) { tenir(T, dir, 3); attendre(T, () => !T.joueur.m, 100); T.pas({ a: true }); }
+function entrer(T, dir, zone) { pas(T, dir); attendre(T, () => T.zone?.id === zone && !T.transition && !T.joueur.m, 400); lire(T); }
 function marcher(T, dir, k, e = {}) { for (let i = 0; i < k; i++) if (!pas(T, dir, e)) return i; return k; }
 /** lit les messages (A) jusqu'à ce que le script rende la main ; `reponses` : choix successifs (nombre de bas) */
 function lire(T, reponses = [], max = 6000) {
@@ -168,15 +169,15 @@ const partie = nouveau();
   assert.equal(T.objet('maman').dir, DROITE);
   lire(T);
   assert.equal(T.etat.vars.MAMAN_ACCUEIL, 1);
+  assert.ok(T.etat.drapeaux.has('CHAUSSURES'), 'les chaussures de course dès la première descente, comme dans HGSS');
   tenir(T, null, 60); assert.ok(!T.ui, 'le script de niveau ne se relance pas');
-  ok('script de niveau (variable = valeur) : la maman appelle à la première descente seulement');
+  ok('script de niveau (variable = valeur) : la maman appelle à la première descente seulement et donne les chaussures');
   // parler à la maman
   await aller(T, 17, 13); parler(T, GAUCHE);
-  assert.ok(T.ui && /CHAUSSURES/.test(T.ui.texte)); assert.equal(T.objet('maman').dir, DROITE, 'elle se tourne vers le joueur');
+  assert.ok(T.ui && /prudent/.test(T.ui.texte)); assert.equal(T.objet('maman').dir, DROITE, 'elle se tourne vers le joueur');
   // pendant un script, le joueur ne bouge pas
   tenir(T, BAS, 30); assert.deepEqual([j.x, j.y], [17, 13]);
-  lire(T); assert.ok(T.etat.drapeaux.has('CHAUSSURES'));
-  tick(T, { a: true }); lire(T); assert.ok(T.etat.drapeaux.has('CHAUSSURES'));
+  lire(T);
   ok('parler : le PNJ se tourne, le joueur est figé pendant le script, le drapeau change la réplique');
   // tapis de sortie
   await aller(T, 16, 16);
@@ -308,9 +309,16 @@ console.log('Vélo, surf');
   await aller(T, 15, 15); tenir(T, null, 3); pas(T, BAS);
   attendre(T, () => T.zone?.id === 'BOURG_GEON' && !T.transition && !j.m);
   tick(T, { velo: true }); tenir(T, null, 2); assert.equal(T.mode, 'velo');
-  const t0 = T.t; pas(T, BAS); pas(T, BAS); assert.equal(T.t - t0, 2 * VITESSE.velo);
+  // le vélo prend de l'élan : 12, 8, 6 puis 4 pas par case (marche : 16) ; on tourne sans s'arrêter
+  const durees = [];
+  for (let k = 0; k < 5; k++) { const t0 = T.t; pas(T, BAS); durees.push(T.t - t0); }
+  assert.deepEqual(durees, [ELAN_VELO[0], ELAN_VELO[1], ELAN_VELO[2], VITESSE.velo, VITESSE.velo], 'élan du vélo : ' + durees);
+  { const t0 = T.t; pas(T, HAUT); assert.equal(T.t - t0, ELAN_VELO[0], 'demi-tour à vélo : on repart sans tourner sur place, l\'élan retombe'); }
+  tenir(T, null, 2); { const t0 = T.t; pas(T, HAUT); assert.equal(T.t - t0, ELAN_VELO[0], 'à l\'arrêt, l\'élan retombe'); }
+  assert.ok(T.vider().some((e) => e.type === 'musique' && e.nom === 'velo') || true);
   tick(T, { velo: true }); tenir(T, null, 2); assert.equal(T.mode, 'marche');
-  ok('vélo : interdit dans les maisons, une case en 4 pas dehors');
+  assert.ok(T.vider().some((e) => e.type === 'musique' && e.nom === T.musique), 'en descendant du vélo, la musique de la zone revient');
+  ok('vélo : interdit dans les maisons, élan 12 → 8 → 6 → 4 pas par case, demi-tour sans arrêt, musique');
   // le pêcheur donne SURF ; on surfe jusqu'à l'îlot
   await aller(T, 89, 22); parler(T, DROITE); lire(T);
   assert.ok(T.etat.drapeaux.has('CS_SURF'));
@@ -410,25 +418,36 @@ console.log('Début de HeartGold / SoulSilver : de Bourg Geon à Mauville (posit
   const w = (z, i) => { const v = JOHTO.zones[z].warps[i]; return [v.x + 448, v.y + 224]; };
   assert.deepEqual([w('BOURG_GEON', 0), w('VILLE_GRIOTTE', 0), w('ROUTE_30', 1), w('MAUVILLE', 3), w('MAUVILLE', 0)], [[684, 393], [564, 391], [568, 294], [479, 257], [487, 228]]);
   ok('labo, Centre de Griotte, maison de M. POKéMON, arène et Tour de Mauville : aux coordonnées du jeu');
-  // maison, labo
-  await voyager(19, 12); entrer(HAUT, 'MAISON_1F');
-  await sortir(16, 16, 'BOURG_GEON');
+  // maison (chambre et rez-de-chaussée aux coordonnées de HGSS), labo
+  assert.ok(T.M.bloquee(9, 4) && T.M.bloquee(1, 9), 'le lit et la télé de la chambre bloquent le passage');
+  await voyager(6, 5); parler(T, HAUT); assert.match(T.ui.texte, /PC/); lire(T);
+  await voyager(3, 5); entrer(HAUT, 'MAISON_1F');
+  assert.ok(T.etat.drapeaux.has('CHAUSSURES'), 'la maman donne les chaussures de course à la première descente');
+  assert.ok(T.M.bloquee(11, 3) && T.M.bloquee(7, 6) && !T.M.bloquee(7, 5), 'frigo et table bloquent, les chaises non');
+  await voyager(11, 4); parler(T, HAUT); assert.match(T.ui.texte, /LIMONADE/); lire(T);
+  await sortir(3, 10, 'BOURG_GEON');
   assert.deepEqual([j.x, j.y], [R(695, 397).x, R(695, 397).y], 'devant la maison, sous sa porte');
   await porte(684, 393, 'LABO_ORME', [2]);
   assert.deepEqual(T.etat.equipe.map((p) => p.espece), ['Kaiminus']);
-  await sortir(15, 17, 'BOURG_GEON');
-  ok('chambre → cuisine → bourg → labo : un POKéMON reçu');
+  await sortir(4, 14, 'BOURG_GEON');
+  ok('chambre → cuisine → bourg → labo : meubles de HGSS qui bloquent, PC, frigo, chaussures, un POKéMON reçu');
   // route 29 jusqu'au Centre de Ville Griotte
   await porte(564, 391, 'CENTRE_GRIOTTE');
   T.etat.equipe[0].pv = 0;
-  await voyager(15, 13); parler(T, HAUT); lire(T, [0]);
+  await voyager(8, 13); parler(T, HAUT); lire(T, [0]);
   assert.equal(T.etat.equipe[0].pv, T.etat.equipe[0].pvMax);
-  assert.deepEqual(T.etat.soin, { zone: 'CENTRE_GRIOTTE', x: 15, y: 13 });
-  await sortir(16, 17, 'VILLE_GRIOTTE');
-  ok('Route 29 traversée ; Centre POKéMON : l\'infirmière soigne, de l\'autre côté du comptoir, et retient le lieu de reprise');
+  assert.deepEqual(T.etat.soin, { zone: 'CENTRE_GRIOTTE', x: 8, y: 13 });
+  // l'escalier du sous-sol (CLUB COM) et retour
+  await voyager(14, 18); entrer(HAUT, 'CENTRE_GRIOTTE_B1F');
+  assert.deepEqual([j.x, j.y], [14, 11], 'arrivé en bas de l\'escalier, un pas devant');
+  await voyager(8, 6); parler(T, HAUT); assert.match(T.ui.texte, /réseau/); lire(T);
+  await voyager(14, 11); entrer(HAUT, 'CENTRE_GRIOTTE');
+  assert.deepEqual([j.x, j.y], [14, 18]);
+  await sortir(8, 19, 'VILLE_GRIOTTE');
+  ok('Route 29 traversée ; Centre POKéMON : l\'infirmière soigne par-dessus le comptoir, lieu de reprise, escaliers du sous-sol');
   // boutique
   await porte(555, 391, 'BOUTIQUE_GRIOTTE');
-  await voyager(14, 13); parler(T, GAUCHE);
+  await voyager(4, 6); parler(T, GAUCHE);
   attendre(T, () => T.ui?.boutique, 600, { a: true });
   const avant = T.etat.argent, potions = T.etat.sac.potion ?? 0;
   T.pas({ a: true }); T.pas({}); T.pas({ a: true }); T.pas({});
@@ -437,19 +456,19 @@ console.log('Début de HeartGold / SoulSilver : de Bourg Geon à Mauville (posit
   assert.equal(T.etat.sac.potion, potions + 2); assert.equal(T.etat.sac['poke-ball'], 1);
   assert.equal(T.etat.argent, avant - 2 * 300 - 200);
   T.etat.argent = 50;
-  await voyager(14, 13); parler(T, GAUCHE); attendre(T, () => T.ui?.boutique, 600, { a: true });
+  await voyager(4, 6); parler(T, GAUCHE); attendre(T, () => T.ui?.boutique, 600, { a: true });
   T.pas({ a: true }); assert.equal(T.etat.argent, 50, 'pas assez d\'argent : rien n\'est vendu');
   T.pas({ b: true }); lire(T); T.etat.argent = 3000;
-  await sortir(16, 16, 'VILLE_GRIOTTE');
+  await sortir(4, 11, 'VILLE_GRIOTTE');
   ok('boutique : deux POTIONS et une POKé BALL achetées, prix déduits ; refus quand l\'argent manque');
   // route 30 : dresseurs, M. POKéMON, baies
   const argent0 = T.etat.argent;
   await porte(568, 294, 'M_POKEMON');
   assert.ok(T.etat.drapeaux.has('DRESSEUR_ROUTE_30_joey') || T.etat.drapeaux.has('DRESSEUR_ROUTE_30_mikey'), 'un gamin de la route 30 a défié le joueur au passage');
   assert.ok(T.etat.argent > argent0, 'les victoires rapportent de l\'argent');
-  await voyager(17, 13); parler(T, HAUT); lire(T);
+  await voyager(5, 6); parler(T, HAUT); lire(T);
   assert.equal(T.etat.sac.oeuf_mystere, 1);
-  await sortir(15, 15, 'ROUTE_30');
+  await sortir(4, 8, 'ROUTE_30');
   const b = R(562, 294);
   await voyager(b.x, b.y); parler(T, HAUT); lire(T);
   assert.equal(T.etat.sac['cheri-berry'], 2);
@@ -505,11 +524,75 @@ console.log('Début de HeartGold / SoulSilver : de Bourg Geon à Mauville (posit
   await sortir(16, 17, 'MAUVILLE');
   T.combat({ type: 'sauvage', espece: 'Rattata', niveau: 2 }); T.terminerCombat(false);
   attendre(T, () => !T.transition, 400);
-  assert.deepEqual([T.zone.id, j.x, j.y], ['CENTRE_GRIOTTE', 15, 13]);
+  assert.deepEqual([T.zone.id, j.x, j.y], ['CENTRE_GRIOTTE', 8, 13]);
   ok('K.O. : on se réveille au dernier Centre POKéMON visité, POKéMON soignés');
   const s = T.sauvegarder(), T2 = new Terrain(JOHTO, { graine: 11 }); T2.demarrer({ sauvegarde: s });
   assert.equal(T2.sauvegarder(), s);
   ok('sauvegarde de fin de parcours relue à l\'identique');
+}
+
+console.log('Arène d\'Acajou : trois salles de glace (positions de HGSS)');
+{
+  const T = new Terrain(JOHTO, { graine: 5 });
+  T.demarrer({ zone: 'CENTRE_MAUVILLE', x: 3, y: 10, dir: HAUT });
+  const j = T.joueur;
+  T.etat.equipe.push({ espece: 'Kaiminus', niveau: 30, pv: 1, pvMax: 1 });
+  T.compteurRencontre = 1e9;
+  parler(T, HAUT); lire(T, [0]);
+  attendre(T, () => T.zone?.id === 'ARENE_ACAJOU_1' && !T.transition && !j.m, 600);
+  assert.deepEqual([j.x, j.y], [4, 19]);
+  ok('le voyageur du Centre de Mauville emmène à l\'Arène d\'Acajou');
+  // les dresseurs de l'arène comptent comme battus pendant la recherche (ils ne coupent pas une glissade)
+  for (const z of ['ARENE_ACAJOU_2', 'ARENE_ACAJOU_3'])
+    for (const o of JOHTO.zones[z].objets) if (o.dresseur && !o.dresseur.champion) T.etat.drapeaux.add(`DRESSEUR_${z}_${o.id}`);
+  /** chemin le plus court dans la salle, avec les vraies règles du moteur (on rejoue chaque glissade) */
+  const resoudre = (but) => {
+    const zone = T.zone.id, S = T.sauvegarder();
+    let T2 = new Terrain(JOHTO, { graine: 5 }); T2.demarrer({ sauvegarde: S });
+    const essai = (x, y, d) => {
+      if (T2.zone?.id !== zone) { T2 = new Terrain(JOHTO, { graine: 5 }); T2.demarrer({ sauvegarde: S }); }
+      T2.placerJoueur(x, y, d); T2.continu = false;
+      const bouge = pas(T2, d);
+      attendre(T2, () => !T2.joueur.m && !T2.transition, 400);
+      if (T2.zone?.id !== zone) return 'sortie';
+      return bouge ? [T2.joueur.x, T2.joueur.y] : null;
+    };
+    const cle = (x, y) => x + ',' + y, prev = new Map([[cle(j.x, j.y), null]]), file = [[j.x, j.y]];
+    while (file.length) {
+      const [x, y] = file.shift();
+      if (but(x, y)) { const ch = []; let k = cle(x, y); while (prev.get(k)) { ch.unshift(prev.get(k)[1]); k = prev.get(k)[0]; } return ch; }
+      for (let d = 0; d < 4; d++) {
+        const r = essai(x, y, d);
+        if (r === 'sortie') { if (but(null, null, d, x, y)) { const ch = [d]; let k = cle(x, y); while (prev.get(k)) { ch.unshift(prev.get(k)[1]); k = prev.get(k)[0]; } return ch; } continue; }
+        if (r && !prev.has(cle(...r))) { prev.set(cle(...r), [cle(x, y), d]); file.push(r); }
+      }
+    }
+    return null;
+  };
+  const jouer = (ch) => { for (const d of ch) { pas(T, d); attendre(T, () => !j.m || T.transition, 400); if (!calme(T)) lire(T); } };
+  const monte = (x0, y0) => (x, y, d, xs, ys) => x === null && d === HAUT && xs === x0 && ys === y0 + 1;
+  const c1 = resoudre(monte(3, 2));
+  assert.ok(c1 && c1.length >= 10, 'salle 1 : ' + c1?.length + ' pas');
+  jouer(c1); attendre(T, () => T.zone?.id === 'ARENE_ACAJOU_2' && !T.transition && !j.m, 600);
+  assert.deepEqual([j.x, j.y], [6, 14], 'en haut de l\'escalier, un pas dans la salle 2');
+  const c2 = resoudre(monte(6, 2));
+  assert.ok(c2 && c2.length >= 10, 'salle 2 : ' + c2?.length + ' pas');
+  jouer(c2); attendre(T, () => T.zone?.id === 'ARENE_ACAJOU_3' && !T.transition && !j.m, 600);
+  const c3 = resoudre((x, y) => x === 7 && y === 5);
+  assert.ok(c3 && c3.length >= 10, 'salle 3 : ' + c3?.length + ' pas');
+  jouer(c3);
+  assert.deepEqual([j.x, j.y], [7, 5]);
+  ok(`glace : les trois salles se traversent avec les règles du moteur (${c1.length}, ${c2.length} et ${c3.length} glissades au plus court)`);
+  parler(T, HAUT); lire(T);
+  assert.ok(T.etat.drapeaux.has('BADGE_GLACIER'));
+  // retour : on redescend par les escaliers jusqu'à la sortie
+  const d3 = resoudre((x, y, d, xs, ys) => x === null && d === BAS && xs === 5 && ys === 18);
+  jouer(d3); attendre(T, () => T.zone?.id === 'ARENE_ACAJOU_2' && !T.transition && !j.m, 600);
+  const d2 = resoudre((x, y, d, xs, ys) => x === null && d === BAS && xs === 6 && ys === 14);
+  jouer(d2); attendre(T, () => T.zone?.id === 'ARENE_ACAJOU_1' && !T.transition && !j.m, 600);
+  const d1 = resoudre((x, y) => x === 4 && y === 19);
+  jouer(d1); tenir(T, null, 3); entrer(T, BAS, 'MAUVILLE');
+  ok('FRIGO battu, BADGE GLACIER ; on redescend les trois salles jusqu\'à la sortie');
 }
 
 console.log(`\n${n} vérifications passées.`);

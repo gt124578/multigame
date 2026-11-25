@@ -7,8 +7,10 @@ import { Batiments3D, PRET } from './modeles3d.js';
 
 /** un niveau de hauteur = trois quarts de case, comme dans Odyssée */
 export const NIV = 0.75;
-/** hauteur ajoutée aux cases qui se dressent (murs des maisons, parois des grottes) */
-const DRESSE = { mur: 1.6, paroi: 1.0 };
+/** hauteur ajoutée aux cases qui se dressent (murs des intérieurs, parois des grottes) */
+const DRESSE = { mur: 2.0, paroi: 1.0 };
+/** murs des intérieurs (papier peint selon le lieu) : comme dans HGSS, seul le mur du fond se dresse, le reste est noir */
+const estMur = (s) => s === 'mur' || s?.startsWith('mur_');
 /** objets du terrain dessinés comme du décor (pas de planche de marche) */
 const DECOR_OBJET = { objet: 'objet', arbre_coupe: 'arbre_coupe' };
 /** hauteur des murs de chaque sorte de bâtiment, en cases */
@@ -34,7 +36,7 @@ export class Rendu {
     this.qualite = 'net';
   }
   async charger() {
-    const persos = new Set(['player_m', 'player_f']);
+    const persos = new Set(['player_m', 'player_f', 'player_m_velo', 'player_f_velo']);
     for (const z of Object.values(this.T.d.zones)) for (const o of z.objets || []) if (o.sprite && !DECOR_OBJET[o.type]) persos.add(o.sprite);
     this.A = await chargerTout(this.T.d.sols, [...persos], this.pack);
     this.matSol = new THREE.MeshBasicMaterial({ map: this.A.atlas.tex, vertexColors: true });
@@ -97,10 +99,12 @@ export class Rendu {
   }
   /** un mur se dresse, sauf la rangée du bas d'une pièce (sol praticable juste au nord) : on voit dans la pièce */
   dresse(x, y, s) {
-    const d = DRESSE[s] || 0;
-    if (!d || s !== 'mur') return d;
-    const M = this.T.M, n = this.T.d.sols[M.sol(x, y - 1)];
-    return M.dedans(x, y - 1) && !M.bloquee(x, y - 1) && n !== 'vide' ? 0 : d;
+    if (estMur(s)) {
+      // le mur se dresse quand il donne sur le sol de la pièce, au sud
+      const M = this.T.M, sud = this.T.d.sols[M.sol(x, y + 1)];
+      return M.dedans(x, y + 1) && sud !== 'vide' && !estMur(sud) ? DRESSE.mur : 0;
+    }
+    return DRESSE[s] || 0;
   }
   construireBloc(bx, by) {
     const T = this.T, M = T.M, sols = T.d.sols, uv = this.A.atlas.uv;
@@ -116,9 +120,13 @@ export class Rendu {
       ix.push(n, n + 1, n + 2, n, n + 2, n + 3);
     };
     const x0 = bx * BLOC, y0 = by * BLOC;
+    // sous un escalier qui descend, le sol est ouvert : on voit les marches s'enfoncer
+    const creux = new Set();
+    for (const d of M.blocs[by * M.lb + bx].decor) if (d.type === 'meuble' && d.creux)
+      for (let yy = d.y; yy < d.y + (d.p ?? 1); yy++) for (let xx = d.x; xx < d.x + (d.l ?? 1); xx++) creux.add(yy * BLOC + xx);
     for (let ly = 0; ly < BLOC; ly++) for (let lx = 0; lx < BLOC; lx++) {
       const x = x0 + lx, y = y0 + ly, s = sols[M.sol(x, y)];
-      if (s === 'vide') continue;
+      if (s === 'vide' || (creux.has(ly * BLOC + lx) && !estMur(s))) continue;
       const top = this.dessus(x, y);
       // dessus ; une case de marches descend vers sa voisine du sud
       let ys = top;
@@ -129,10 +137,12 @@ export class Rendu {
         const q = this.pack ? [(x & 1) / 2, 1 - ((y & 1) + 1) / 2, (x & 1) / 2 + 0.5, 1 - (y & 1) / 2] : [0, 0, 1, 1];
         quad(pts, q, 1, 'eau');
       }
-      else quad(pts, uv(s, x, y));
-      // parois vers le sud, l'est et l'ouest (le nord ne se voit pas)
+      else quad(pts, uv(s, x, y), estMur(s) ? 0 : 1);   // le dessus des murs est noir, comme le vide
+      // parois vers le sud, l'est et l'ouest (le nord ne se voit pas) ; les murs : papier peint au sud, noir sur les côtés
       const face = this.dresse(x, y, s) ? 'face_' + s : (s === 'grotte' ? 'face_paroi' : s.startsWith('herbe') || s === 'fleurs' ? 'face_terre' : 'face_falaise');
-      for (const [dx, dy, c] of [[0, 1, 0.85], [1, 0, 0.7], [-1, 0, 0.7]]) {
+      const mur = estMur(s);
+      for (const [dx, dy, c0] of [[0, 1, 0.85], [1, 0, 0.7], [-1, 0, 0.7]]) {
+        const c = mur ? (dy === 1 ? 1 : 0) : c0;
         const nt = Math.max(0, this.dessus(x + dx, y + dy));
         if (nt >= top - 1e-6) continue;
         if (M.mb(x, y) === MB.MARCHES && dy === 1) continue;
@@ -160,24 +170,69 @@ export class Rendu {
     const b = M.blocs[by * M.lb + bx];
     const parType = {};
     for (const d of b.decor) if (d.type !== 'batiment') (parType[d.type] ||= []).push(d);
-    const incl = THREE.MathUtils.degToRad(this.inclinaison());
+    const incl = THREE.MathUtils.degToRad(this.inclinaison()), k = this.etirement();
     for (const [type, liste] of Object.entries(parType)) {
+      if (type === 'meuble' || type === 'caisse') continue;
       const D = this.A.decor[type];
       if (!D) continue;
       const pg = new THREE.PlaneGeometry(D.l, D.h); pg.translate(0, D.h / 2, 0);
       const mat = new THREE.MeshBasicMaterial({ map: D.tex, transparent: true, alphaTest: 0.5 });
       const im = new THREE.InstancedMesh(pg, mat, liste.length);
-      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-incl, 0, 0));
-      liste.forEach((d, k) => {
+      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Vector3(1, k, 1);
+      liste.forEach((d, i) => {
         const x = x0 + d.x, y = y0 + d.y, h = M.hauteurCase(x, y) * NIV;
-        m4.compose(new THREE.Vector3(x + 0.5, h, y + PIEDS), q, new THREE.Vector3(1, 1, 1));
-        im.setMatrixAt(k, m4);
+        m4.compose(new THREE.Vector3(x + 0.5, h, y + PIEDS), q, e);
+        im.setMatrixAt(i, m4);
       });
       im.userData.propre = 'mat';
       g.add(im);
     }
     for (const d of b.decor) if (d.type === 'batiment') g.add(this.batiment(d, x0, y0));
+    for (const d of b.decor) if (d.type === 'meuble') { const o = this.meuble(d, x0, y0, incl); if (o) g.add(o); }
+    for (const d of b.decor) if (d.type === 'caisse') g.add(this.caisse(d, x0, y0));
     return g;
+  }
+  /**
+   * un meuble de HGSS (archive des meubles) posé sur son emprise : centré dessus, au sol de la case ;
+   * `mur` : accroché au mur du fond (fenêtre, horloge, carte), sur la face sud de la case de mur
+   */
+  meuble(d, x0, y0, incl) {
+    const M = this.T.M, x = x0 + d.x, y = y0 + d.y, l = d.l ?? 1, p = d.p ?? 1;
+    const h = M.hauteurCase(x, y) * NIV + (d.dy ?? 0);
+    // accroché au mur : les modèles muraux de HGSS ont leur origine 0,13 case derrière leur face ; un rien devant le mur
+    const cx = x + l / 2 + (d.dx ?? 0), cz = (d.mur ? y + 1 + 0.16 : y + p / 2) + (d.dz ?? 0);
+    if (this.b3d.a(d.m)) {
+      const o = this.b3d.objet(d.m);
+      o.position.set(cx, h, cz);
+      if (d.rot) o.rotation.y = -d.rot * Math.PI / 180;
+      return o;
+    }
+    // sans les modèles (hors ligne) : le dessin d'Odyssée, s'il y en a un
+    const D = d.repli && this.A.decor[d.repli];
+    if (!D) return null;
+    const pg = new THREE.PlaneGeometry(D.l, D.h); pg.translate(0, D.h / 2, 0);
+    const o = new THREE.Mesh(pg, new THREE.MeshBasicMaterial({ map: D.tex, transparent: true, alphaTest: 0.5 }));
+    o.position.set(cx, h, y + p - 1 + PIEDS); o.scale.y = this.etirement();
+    o.userData.propre = 'mat';
+    return o;
+  }
+  /** un comptoir (Centre, boutique, guichet) : une caisse aux couleurs du lieu ; il fait partie de la carte dans HGSS */
+  caisse(d, x0, y0) {
+    const x = x0 + d.x, y = y0 + d.y, l = d.l ?? 1, p = d.p ?? 1, H = d.haut ?? 0.8;
+    const [dessus, face, bande] = d.couleurs || ['#f4efe6', '#d84040', '#ffffff'];
+    const cv = document.createElement('canvas'); cv.width = 16 * l; cv.height = 16;
+    const gc = cv.getContext('2d');
+    gc.fillStyle = face; gc.fillRect(0, 0, cv.width, 16);
+    gc.fillStyle = bande; gc.fillRect(0, 2, cv.width, 2);
+    gc.fillStyle = 'rgba(0,0,0,0.25)'; gc.fillRect(0, 14, cv.width, 2);
+    for (let i = 1; i < l; i++) { gc.fillStyle = 'rgba(0,0,0,0.12)'; gc.fillRect(i * 16, 5, 1, 9); }
+    const t = texture(cv);
+    const cote = new THREE.MeshBasicMaterial({ color: new THREE.Color(face).multiplyScalar(0.7) });
+    const mats = [cote, cote, new THREE.MeshBasicMaterial({ color: dessus }), cote, new THREE.MeshBasicMaterial({ map: t }), cote];
+    const m = new THREE.Mesh(new THREE.BoxGeometry(l, H, p - 0.1), mats);
+    m.position.set(x + l / 2, this.T.M.hauteurCase(x, y) * NIV + H / 2, y + (p + 0.1) / 2);
+    m.userData.propre = 'tout';
+    return m;
   }
   batiment(b, x0, y0) {
     const g = new THREE.Group();
@@ -234,6 +289,12 @@ export class Rendu {
     return g;
   }
   inclinaison() { return this.T.camera?.inclinaison ?? 52; }
+  /**
+   * Les personnages et le décor plat sont des plans DEBOUT (comme sur DS), étirés en hauteur de 1 / cos(inclinaison) :
+   * vus par la caméra plongeante, ils gardent leur taille de dessin, et un personnage devant un comptoir ou un meuble
+   * ne s'y enfonce plus (un plan penché vers la caméra traversait ce qui est derrière lui).
+   */
+  etirement() { return 1 / Math.cos(THREE.MathUtils.degToRad(this.inclinaison())); }
 
   // ——— objets ———
   sprite(o) {
@@ -249,6 +310,10 @@ export class Rendu {
       t.repeat.set(1 / n, 1);
       mat = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.5 });
     }
+    // à vélo : la planche du vélo (même ordre que la marche)
+    let matVelo = null, nVelo = 0;
+    const imV = o === this.T.joueur && this.A.persos[(o.sprite || 'player_m') + '_velo'];
+    if (imV) { const t = texture(imV); nVelo = imV.width / 32; t.repeat.set(1 / nVelo, 1); matVelo = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.5 }); }
     const pg = new THREE.PlaneGeometry(l, h); pg.translate(0, h / 2, 0);
     const corps = new THREE.Mesh(pg, mat);
     const ombre = this.ombre.clone();
@@ -259,13 +324,14 @@ export class Rendu {
     vague.rotation.x = -Math.PI / 2; vague.scale.set(1, 0.6, 1);
     g.add(ombre, corps, herbe, bulle, vague);
     this.scene.add(g);
-    s = { g, corps, ombre, herbe, bulle, vague, n };
+    s = { g, corps, ombre, herbe, bulle, vague, n, mat: corps.material, matVelo, nVelo };
     this.sprites.set(o, s);
     return s;
   }
   defaireSprite(s) {
     this.scene.remove(s.g);
-    s.g.traverse((o) => { if (o.geometry && o !== s.ombre) o.geometry.dispose(); if (o.material && o !== s.ombre) { if (o.material.map && o === s.corps) o.material.map.dispose(); o.material.dispose(); } });
+    s.g.traverse((o) => { if (o.geometry && o !== s.ombre) o.geometry.dispose(); if (o.material && o !== s.ombre && o !== s.corps) o.material.dispose(); });
+    for (const m of [s.mat, s.matVelo]) if (m) { m.map?.dispose(); m.dispose(); }
   }
   placerSprite(o, joueur) {
     const T = this.T, M = T.M, s = this.sprite(o);
@@ -279,21 +345,27 @@ export class Rendu {
     const surf = joueur && T.mode === 'surf';
     const y = h * NIV;
     s.g.position.set(o.px + 0.5, y, o.py + PIEDS);
-    const incl = THREE.MathUtils.degToRad(this.inclinaison());
-    s.corps.rotation.x = -incl; s.herbe.rotation.x = -incl; s.bulle.rotation.x = -incl;
+    const k = this.etirement();
+    s.corps.scale.y = k; s.herbe.scale.y = k; s.bulle.scale.y = k;
     s.corps.position.y = o.saut + (surf ? 0.15 : 0);
     s.ombre.position.set(0, 0.02, -0.25);
     s.ombre.visible = !surf;
     s.vague.visible = surf; s.vague.position.set(0, 0.03, -0.25);
     if (s.n > 1) {
-      let idx = o.dir * 4 + o.frame;
-      if (joueur && (o.course || T.mode === 'velo') && s.n >= 32 && o.m) idx += 16;
-      s.corps.material.map.offset.x = idx / s.n;
+      // planches de HGSS : haut, bas, gauche ; la droite est la gauche en miroir (comme sur DS)
+      const velo = joueur && T.mode === 'velo' && s.matVelo;
+      const mat = velo ? s.matVelo : s.mat, n = velo ? s.nVelo : s.n;
+      if (s.corps.material !== mat) s.corps.material = mat;
+      const droite = o.dir === 3;
+      let idx = (droite ? 2 : o.dir) * 4 + o.frame;
+      if (!velo && joueur && o.course && n >= 32 && o.m) idx += 16;
+      mat.map.repeat.x = (droite ? -1 : 1) / n;
+      mat.map.offset.x = (droite ? idx + 1 : idx) / n;
     }
     // hautes herbes : le bas du personnage passe derrière les brins
     const enHerbe = !o.m && M.mb(o.x, o.y) === MB.HERBE && o.def?.type !== 'objet';
     s.herbe.visible = enHerbe; s.herbe.position.set(0, 0.01, 0.02);
-    s.bulle.visible = !!o.bulle; s.bulle.position.set(0, 2.05 + o.saut, -1.4);
+    s.bulle.visible = !!o.bulle; s.bulle.position.set(0, (1.75 + o.saut) * k, 0.05);
   }
 
   dessiner(temps) {

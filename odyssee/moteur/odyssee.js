@@ -24,7 +24,7 @@ export function espece(nom) {
 
 /** musique de chaque zone (noms du terrain) → thème d'Odyssée */
 const MUSIQUES = { bourg: 'town', griotte: 'town', mauville: 'city', route: 'route', route29: 'route', route30: 'route', maison: 'house',
-  labo: 'lab', centre: 'center', boutique: 'mart', arene: 'gym', grotte: 'cave', tour: 'tower' };
+  labo: 'lab', centre: 'center', boutique: 'mart', arene: 'gym', grotte: 'cave', tour: 'tower', velo: 'island', glace: 'snow' };
 /** bruitages du terrain → bruitages d'Odyssée */
 const SONS = { heurt: 'bump', texte: 'blip', choix: 'select', porte: 'door', escalier: 'exit', saut: 'ledge', objet: 'item', fanfare: 'badge',
   soin: 'heal', coupe: 'cut', exclamation: 'encounter' };
@@ -89,7 +89,7 @@ export class PontOdyssee {
       if (sauvage) this.markSeen(foe.sp);
       const battle = new Battle({
         player: { name: st.name, party: st.party, bag: st.bag, mega: false },
-        foe: sauvage ? { name: 'sauvage', party: [foe] } : { name: desc.nom, party: equipe, trainer: { name: desc.nom, bs: desc.sprite || 'topdresseur' } },
+        foe: sauvage ? { name: 'sauvage', party: [foe] } : { name: desc.nom, party: equipe, trainer: { name: desc.nom, bs: desc.portrait || desc.sprite || 'topdresseur' } },
         cap: this.levelCap(),
       });
       this.sound.stopMusic?.(0.1); this.sound.current = null;

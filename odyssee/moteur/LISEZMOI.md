@@ -25,11 +25,30 @@ d'Odyssée (`poke-ball`, `oran-berry`…) : le sac est le même partout.
   Le sol, lui, n'est pas dans ces données (il est dans la ROM) : il est redessiné autour, d'après le jeu.
 - Captures sans réseau : `PRET=<clone de pokeheartgold> PDSMS=<clone de Pokemon-DS-Map-Studio> node tools/capture-moteur-hgss.mjs …`.
 
+## Intérieurs de HGSS (`donnees/interieurs.js`)
+
+- Maison du joueur (chambre et rez-de-chaussée), labo du Pr Orme, maison habitée, Centre POKéMON et son sous-sol
+  (CLUB COM), boutique : aux **coordonnées du jeu** (taille des pièces, portes, escaliers, personnages et points
+  d'intérêt relevés dans les événements des zones de la décompilation).
+- Meubles : les **vrais modèles** de l'archive `bm_room.narc` (lit, télé, évier, frigo, PC, escaliers, machine de
+  soin, rayons de la boutique, statues d'arène…), lus à la volée comme les bâtiments. Dans un plan : `meubles:
+  [{ m, x, y, l, p, mur, libre, creux, repli }]` (emprise bloquée sauf `libre` ; `mur` : accroché au mur du fond ;
+  `creux` : le sol s'ouvre dessous, pour les escaliers qui descendent ; `repli` : dessin d'Odyssée hors ligne).
+  Les comptoirs font partie de la carte dans HGSS : `caisses: [{ x, y, l, p, comptoir, couleurs }]`.
+- Rendu façon HGSS : seul le mur du fond se dresse (papier peint du lieu), le reste est noir. Sols et papiers peints
+  de HGSS (maisons, labo, glace) ; Centre et boutique : textures de Platine en attendant (celles de HGSS ne sont pas
+  publiées). Personnages et décor plat : plans debout étirés de 1 / cos(inclinaison) (même taille à l'écran ; un
+  personnage devant un comptoir ne s'y enfonce plus). Les planches de HGSS n'ont que la gauche : la droite est en miroir.
+- **Arène d'Acajou** (FRIGO, BADGE GLACIER) : trois salles de glace reliées par des escaliers, dresseurs, blocs de
+  glace, FRIGO et passages aux positions du jeu ; les énigmes ont été cherchées par un solveur autour de ces positions
+  (pas d'impasse). On y va par le voyageur du Centre de Mauville (ou `?zone=ARENE_ACAJOU_1`). Le test la traverse avec
+  les règles du moteur et bat FRIGO.
+
 ## Le début de HeartGold / SoulSilver (`donnees/johto.js`)
 
 Bourg Geon → Route 29 (et le poste de la Route 46) → Ville Griotte → Route 30 (M. POKéMON) → Route 31 (Antre Noir) →
 Mauville (Tour Chétiflor sur trois étages, arène d'Albert, école, Centre, boutique, maisons) : 8 blocs de dehors dans
-une matrice de 6 × 3, 21 cartes d'intérieur (un même bloc sert à plusieurs zones : Centres, boutiques, maisons).
+une matrice de 6 × 3, une trentaine de cartes d'intérieur (un même bloc sert à plusieurs zones : Centres, boutiques, maisons).
 Les plans sont **redessinés à la main** d'après la disposition des lieux ; rien n'est extrait de la ROM.
 
 - `engine/audit.js` parcourt tout ce qu'un joueur peut atteindre et vérifie que chaque porte, PNJ et panneau est
@@ -129,8 +148,11 @@ tourner_joueur_vers dos_au_joueur` (+ celles du défi des dresseurs). Pas de mou
 
 ## Déplacements (pas fixe de 1/60 s)
 
-Marche 16 pas par case, course 8 (avec le drapeau `CHAUSSURES`), vélo 4, surf 8, glace et tapis roulants 4, saut d'un
-rebord 32 pas pour deux cases. Appui bref depuis l'arrêt : demi-tour sur place (8 pas) ; en marchant, on change de
+Marche 16 pas par case, course 8 (deux fois plus vite, avec le drapeau `CHAUSSURES`, donné par la maman à la première
+descente ; Maj, B tenu ou CapsLock pour courir tout le temps), vélo comme dans HGSS : il prend de l'élan (12, 8, 6 puis
+4 pas par case, `ELAN_VELO`), l'élan retombe à l'arrêt, contre un mur ou en changeant de sens, on tourne sans
+s'arrêter, interdit en intérieur, sa musique et sa planche de sprites (`player_m_velo`). Surf 8, glace et tapis
+roulants 4, saut d'un rebord 32 pas pour deux cases. Appui bref depuis l'arrêt : demi-tour sur place (8 pas) ; en marchant, on change de
 sens sans s'arrêter. Mur : pas sur place et son de heurt. Un objet qui bouge tient sa case de départ **et** sa case
 d'arrivée : deux personnages ne se croisent jamais. À la fin de chaque pas du joueur, dans l'ordre : porte / escalier
 / trou, changement de zone, déclencheurs au sol, glace et tapis roulants, regard des dresseurs, rencontres.
@@ -140,9 +162,7 @@ Les PNJ ne bougent seuls qu'à moins de 24 cases du joueur et jamais pendant un 
 
 - Les rencontres en grotte (tout le sol de l'Antre Noir), le noir de l'Antre Noir sans FLASH.
 
-- Le combat : le terrain émet `{ type: 'combat', … }` et attend `terrain.terminerCombat(victoire)` ; il suffit d'y
-  brancher le moteur de combat d'Odyssée (`odyssee/js/core/battle.js`).
-- Les menus (sac, équipe, Pokédex, carte), le son et la musique, les sprites de vélo et de surf.
+- Le Pokédex et la carte dans le menu, le sprite de surf.
 - Un éditeur qui écrive ce format (l'éditeur d'Odyssée Test peut exporter des blocs) et la conversion de la carte
   actuelle d'Odyssée en blocs et en zones.
 - Les ponts et passerelles à deux étages (une case praticable dessus et dessous), à ajouter comme comportement.
