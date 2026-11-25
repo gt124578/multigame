@@ -16,8 +16,14 @@ import { ITEMS, applyItem, canUseOn, itemName } from '../js/core/items.js';
 const PAR_NOM = {};
 for (const [id, s] of Object.entries(SPECIES)) if (s?.n && !PAR_NOM[s.n]) PAR_NOM[s.n] = +id;
 /** numéro d'une espèce d'après son nom français (celui des données du terrain) */
+const PAR_SLUG = {};
+for (const [id, s] of Object.entries(SPECIES)) if (s?.k && !PAR_SLUG[s.k]) PAR_SLUG[s.k] = +id;
 export function espece(nom) {
-  const id = PAR_NOM[nom];
+  // nom français (données à nous) ou identifiant du jeu (« nidoran-f », équipes de trainers.json)
+  // un numéro national (variables des scripts du jeu) est déjà l'identifiant d'Odyssée
+  if (/^\d+$/.test(String(nom)) && SPECIES[+nom]) return +nom;
+  const n = String(nom), bas = n.toLowerCase();
+  const id = PAR_NOM[nom] || PAR_SLUG[n] || PAR_SLUG[bas] || PAR_NOM[n.toUpperCase()];
   if (!id) throw new Error(`espèce inconnue : ${nom}`);
   return id;
 }
@@ -39,6 +45,13 @@ export class PontOdyssee {
     this.bv = new BattleView(this);
     this.dex = { seen: [], caught: [], seenCount: {} };
     this.occupe = false;
+    // le jeu HGSS en anglais : espèces, attaques et objets prennent les noms anglais du jeu dans les combats et les menus
+    const N = T.d.noms;
+    if (T.d.langue === 'en' && N) {
+      N.especes?.forEach((n, i) => { if (i && n && SPECIES[i]) SPECIES[i].n = n; });
+      N.attaques?.forEach((n, i) => { if (i && n && MOVES[i]) MOVES[i].n = n; });
+      for (const [k, o] of Object.entries(N.objets || {})) if (ITEMS[k]) ITEMS[k].name = o.nom;
+    }
     // le premier appui débloque le son (règle des navigateurs)
     const debloquer = () => this.sound.init();
     addEventListener('keydown', debloquer); addEventListener('pointerdown', debloquer);

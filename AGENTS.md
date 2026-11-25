@@ -336,21 +336,20 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   rien ne change.
 - Moteur de terrain façon HeartGold / SoulSilver (branche `moteur-hgss`, `odyssee/moteur/`, détails dans `odyssee/moteur/LISEZMOI.md`) :
   moteur sans DOM (`engine/` : monde en blocs de 32 × 32 cases, zones à en-tête et événements, téléporteurs numérotés, langage de
-  scripts compilé, joueur à pas fixe de 1/60 s, PNJ, dresseurs), données écrites en texte (`donnees/auteur.js`, zone d'essai
-  `donnees/demo.js`), rendu three.js qui ne fait que lire le moteur (`render/`). `node tools/test-moteur-hgss.mjs` joue la zone
-  d'essai et le début de HGSS redessiné (`donnees/johto.js` : Bourg Geon → Mauville, puis `donnees/ecorcia.js` : Route 32,
-  Caves Jumelles, Route 33, Écorcia, Puits Ramoloss et l'arène d'HECTOR avec ses chariots, `zone.rails` ; audit `engine/audit.js`
-  de toute la région, parcours complet jusqu'au deuxième badge et au rival, toutes les positions de l'énigme des chariots) ;
-  caméra de la DS (`CAMERAS` d'`engine/terrain.js`, valeurs de `field_camera.c`) ; `node tools/capture-moteur-hgss.mjs "<paramètres>" <image.png> "<touches>"`
-  (Playwright, `PDSMS=<clone>` et `PRET=<clone>` pour servir textures et bâtiments sans réseau) en fait une capture ; page :
-  `odyssee/moteur.html` (combats, équipe, sac et son d'Odyssée par `odyssee/moteur/odyssee.js`). Intérieurs de HGSS aux
-  coordonnées du jeu, meubles de `bm_room.narc` lus à la volée, et Arène d'Acajou en glace : `donnees/interieurs.js` ; la ville
-  d'Acajou : `donnees/acajou.js`. Arène de Frimapic de Platine, construite au chargement depuis les fichiers du jeu publiés par
-  pret/pokeplatinum (carte, relief BDHC, événements, modèle et textures ; `donnees/platine.js`, `render/platine3d.js`, glace à pentes
-  `glissePente` de `engine/terrain.js`) : le test lit un clone local (`PLAT=<clone>`), les captures aussi. Textures HGSS lues à la volée
-  sur le dépôt de Pokémon DS Map Studio (`PACK_HGSS` de `render/textures.js`), vrais bâtiments lus à la volée sur pret/pokeheartgold
-  (`render/nsbmd.js`, `render/modeles3d.js`) : ne jamais les copier dans ce dépôt. Dehors aux positions réelles du jeu :
-  `donnees/johto-dehors.js` (posé avec `donnees/peintre.js`).
+  scripts compilé, joueur à pas fixe de 1/60 s, PNJ, dresseurs), zone d'essai (`donnees/demo.js`, `?demo`), rendu three.js qui ne
+  fait que lire le moteur (`render/`). Le jeu, c'est HGSS lu à la volée dans la décompilation pret/pokeheartgold (commit épinglé
+  `PRET_HG`, rien n'est copié ici) : cartes, matrice du dehors d'un seul tenant (Johto et Kanto), en-têtes (`donnees/hgss.js`),
+  événements et **scripts du jeu traduits** dans le langage du moteur (`donnees/evenements-hg.js`), cartes chargées en route,
+  noms anglais, rencontres, nouvelle partie (`donnees/jeu-hg.js`), chariots d'Azalea (`donnees/gymmicks.js`), modèles des cartes
+  et personnages (`render/hgss3d.js`), carte de la région sur C (`render/carte-region.js`). `node tools/test-moteur-hgss.mjs`
+  (`PRET=<clone>`, sinon `/tmp/ext/pret`) : zone d'essai, toutes les cartes compilées, audit du jeu entier, début joué avec les
+  vrais scripts jusqu'à Cherrygrove, Frimapic ; caméra d'Odyssée (55°) ; `node tools/capture-moteur-hgss.mjs "<paramètres>" <image.png> "<touches>"`
+  (Playwright, `PDSMS=<clone>`, `PRET=<clone>`, `PLAT=<clone>` pour tout servir sans réseau) en fait une capture ; page :
+  `odyssee/moteur.html` (combats, équipe, sac et son d'Odyssée par `odyssee/moteur/odyssee.js`). Arène de Frimapic de Platine,
+  construite au chargement depuis les fichiers du jeu publiés par pret/pokeplatinum (`donnees/platine.js`, `render/platine3d.js`,
+  glace à pentes `glissePente` de `engine/terrain.js`), par une dresseuse au Centre de Mahogany Town. Textures HGSS lues à la volée
+  sur le dépôt de Pokémon DS Map Studio (`PACK_HGSS` de `render/textures.js`), modèles lus à la volée sur pret/pokeheartgold
+  (`render/nsbmd.js`, `render/modeles3d.js`) : ne jamais les copier dans ce dépôt.
   Ne va pas sur `main` tant qu'Odyssée n'y est pas passé.
 - Odyssée, choix des graphismes (Options → Graphismes, `odyssee/js/gfx.js`) : sol du dehors (« odyssee » = sol généré, « classique » = tuiles d'origine, ou un pack de tuiles de 16 px dans `odyssee/img/gfx/<pack>/`, déclaré dans `PACKS`) et sprites des Pokémon (HeartGold / SoulSilver ou Noir & Blanc, `gen()` dans `assets.js`) ; écran « Crédits graphismes » (`CREDITS`). Le sol se lit au chargement (`loadArt` dans `main.js`, `setArt` dans `render/textures.js`). Pack « Lumineux » : `python3 tools/odyssee-pack-sol.py <planche 1.png de Team Aqua>`. Sprites Noir & Blanc 1 à 493 : copiés de PokeAPI/sprites dans `odyssee/img/pokeapi/pokemon/versions/generation-v/black-white/`. Toute tuile ou sprite ajouté doit être crédité (`CREDITS` et un `LISEZMOI.txt` à côté).
   Salles à plusieurs niveaux (`odyssee/js/world/etages.js`, pour les arènes dessinées dans un plan) : `niveaux` (une ligne de chiffres par ligne

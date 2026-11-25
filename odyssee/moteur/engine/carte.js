@@ -129,6 +129,8 @@ export function valider(donnees, scriptsConnus = () => null) {
   const dansZone = (M, z, x, y) => M.zone(x, y)?.id === z;
   for (const [zid, z] of Object.entries(d.zones)) {
     const mid = d.mondeDeZone[zid];
+    // une carte qui arrivera plus tard (chargée à la demande) n'a encore ni monde ni événements
+    if (z.aCharger) continue;
     if (!mid) { err.push(`zone ${zid} : posée dans aucun monde`); continue; }
     const M = mondes[mid]; if (!M) continue;
     const noms = scriptsConnus(z);
@@ -139,19 +141,21 @@ export function valider(donnees, scriptsConnus = () => null) {
     (z.warps || []).forEach((w, i) => {
       const q = `téléporteur ${i} (${w.x},${w.y})`;
       if (!dansZone(M, zid, w.x, w.y)) err.push(`${zid} : ${q} hors de la zone`);
+      if (w.vers === null) return;          // porte qui ne mène nulle part (carte absente des données)
       const cible = d.zones[w.vers];
       if (!cible) { err.push(`${zid} : ${q} vers une zone inconnue ${w.vers}`); return; }
+      if (cible.aCharger) return;           // la carte d'en face arrivera plus tard
       const wc = (cible.warps || [])[w.n ?? 0];
       if (!wc) { err.push(`${zid} : ${q} vers ${w.vers}#${w.n ?? 0}, qui n'existe pas`); return; }
       const Mc = mondes[d.mondeDeZone[w.vers]];
       if (Mc && Mc.bloquee(wc.x, wc.y)) err.push(`${zid} : ${q} dépose sur une case bloquée de ${w.vers} (${wc.x},${wc.y})`);
       const p = PROPS[M.mb(w.x, w.y)];
-      if (!p.warp && !p.tapis) err.push(`${zid} : ${q} sur une case sans porte, escalier ni tapis`);
+      if (!p.warp && p.tapis === null) err.push(`${zid} : ${q} sur une case sans porte, escalier ni tapis`);
     });
     for (const o of z.objets || []) {
       const q = `objet ${o.id} (${o.x},${o.y})`;
       if (!dansZone(M, zid, o.x, o.y)) err.push(`${zid} : ${q} hors de la zone`);
-      if (M.bloquee(o.x, o.y) && !o.traversable) err.push(`${zid} : ${q} sur une case bloquée`);
+      if (M.bloquee(o.x, o.y) && !o.traversable && !o.drapeau && (o.script || o.dresseur)) err.push(`${zid} : ${q} sur une case bloquée`);
       script(q, o.script);
       if (o.dresseur) script(q, o.dresseur.script);
     }

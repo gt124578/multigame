@@ -1,8 +1,8 @@
 # Moteur de terrain façon HeartGold / SoulSilver
 
 Branche `moteur-hgss`. Banc d'essai : `odyssee/moteur.html` (à côté du jeu, pour que les écrans d'Odyssée y trouvent
-leurs images ; `odyssee/moteur/index.html` y renvoie). `?nouveau` pour repartir de zéro, `?debug`, `?zone=MAUVILLE&x=39&y=38`
-pour partir ailleurs, `?zoom=2.5` pour voir une ville entière, `?demo` pour la petite zone d'essai, `?pack=odyssee` pour les
+leurs images ; `odyssee/moteur/index.html` y renvoie). `?nouveau` pour repartir de zéro, `?debug`, `?zone=VIOLET&x=…&y=…`
+pour partir ailleurs (identifiants de `map_headers.h`), `?zoom=2.5` pour voir une ville entière, `?demo` pour la petite zone d'essai, `?pack=odyssee` pour les
 images d'Odyssée au lieu des textures et bâtiments HGSS. Tests : `node tools/test-moteur-hgss.mjs`.
 
 ## Combats, équipe, sac, son : ceux d'Odyssée (`odyssee.js`)
@@ -13,43 +13,46 @@ Le terrain crée et soigne ses POKéMON par `T.pokemon` (le pont y branche `crea
 d'Odyssée (objets de soin). Musique et bruitages : `Sound` d'Odyssée. Les objets du terrain portent les identifiants
 d'Odyssée (`poke-ball`, `oran-berry`…) : le sac est le même partout.
 
-## Vrais bâtiments et vraies positions
+## Le jeu, lu dans la décompilation (`donnees/hgss.js`, `donnees/evenements-hg.js`, `donnees/jeu-hg.js`)
 
-- `render/nsbmd.js` lit les modèles 3D de la DS (archives NARC, modèles NSBMD : nœuds, bytecode de rendu, matériaux,
-  listes d'affichage du processeur 3D, textures dans les 7 formats). `render/modeles3d.js` en fait des objets three.js.
-  L'archive des bâtiments du dehors (`bm_field.narc`) est lue **à la volée** dans le dépôt public de la décompilation
-  (pret/pokeheartgold, commit épinglé) : rien n'est copié ici. Sans réseau : les boîtes d'avant.
-- `donnees/johto-dehors.js` : le dehors aux **positions réelles** du jeu (matrice et événements des zones de la
-  décompilation, relevés à la main) : portes, personnages, panneaux, déclencheurs, postes de garde. Les bâtiments sont
-  posés par leur porte avec l'emprise de leur modèle (`MODELES` de `donnees/peintre.js`, mesurés sur les modèles).
-  Le sol, lui, n'est pas dans ces données (il est dans la ROM) : il est redessiné autour, d'après le jeu.
+La décompilation de HeartGold / SoulSilver (pret/pokeheartgold, commit épinglé `PRET_HG`) publie les données du jeu
+lui-même. La page les lit **à la volée** dans ce dépôt public (gardées ensuite par le navigateur, cache `moteur-hgss-pret`) ;
+**rien n'est copié ici**. On joue donc le vrai début du jeu, en anglais, dans un seul monde comme sur la console :
+- `hgss.js` : les cartes (`land_data`, 676 cartes : permissions, accessoires, modèle, relief BDHC), la matrice du dehors
+  (`map_matrix_0000_EVERYWHERE`, 47 × 17 blocs : Johto et Kanto d'un seul tenant, sans chargement), les en-têtes
+  (`map_headers.h` : événements, messages, scripts, musique, type, vélo, lieu, rencontres) ; `comportementHG` traduit
+  les comportements de case (herbes, eau, rebords, portes, tapis, escaliers, glace, comptoirs `0x80`…).
+- `evenements-hg.js` : les événements de chaque carte (personnages et leur drapeau, dresseurs et leurs équipes de
+  `trainers.json`, objets, panneaux, déclencheurs, téléporteurs) et **la traduction de ses scripts** (`scr_seq/*.s`)
+  dans le langage du moteur : conditions, drapeaux, variables, menus, mouvements, cadeaux, combats, tampons de texte
+  (`{STRVAR_1 …, k}` → `{Tk}`, rempli par `tampon k joueur|rival|equipe|espece|objet|nombre|poche`), commandes des arènes
+  (`AzaleaGymSpinarak` → `chariot`…). Toutes les cartes se compilent ; un personnage qu'un script nomme mais qui n'est
+  pas posé est ignoré (`objetsFantomes`).
+- `jeu-hg.js` : `jeuHG(lire)` rend les données de départ (toutes les cartes connues par leur nom anglais — New Bark
+  Town, Route 29, Azalea Town… — et le dehors entier) et `chargerCarte(id)`, qui apporte en route les événements, les
+  scripts (et les scripts de niveau, `_hdr.s`) et, pour un intérieur, ses blocs. Le moteur attend dans le noir qu'une
+  carte arrive (`T.chargeur`, `ajouterDonnees`) ; la page charge en avance celles d'à côté. Nouvelle partie :
+  drapeaux et variables de `scr_seq_0149` ; noms anglais des espèces, attaques et objets (`msg_0237`, `msg_0750`,
+  `msg_0222`), repris aussi par les écrans d'Odyssée ; POKéMON sauvages de `gs_enc_data.json` (version HeartGold,
+  selon l'heure : matin, jour, nuit ; poids des emplacements du jeu). `AJOUTS` : ce qu'on pose en plus (les chariots
+  de l'arène d'Azalea, la dresseuse de Sinnoh). Les scripts du jeu traversent (`scriptsTraversent`) : dans HGSS, un
+  mouvement de script ne teste pas les collisions.
+- `gymmicks.js` : les mécanismes que le jeu code en C (`src/field/gymmick/`) : les 12 stations, routes et aiguillages
+  des chariots Spinarak de l'arène d'Azalea.
+- Rendu (`render/hgss3d.js`) : le vrai modèle 3D de chaque carte (NSBMD avec le jeu de textures de sa zone) et ses
+  accessoires (`bm_field` dehors, `bm_room` dedans) ; personnages du jeu (`mm:NOM`, modèles `mmodel` décodés en
+  planches à la demande, `planche`). Tout est lu à la volée.
+- Carte de la région (touche C, `render/carte-region.js`) : tirée du monde chargé (une case = un point : eau, herbes,
+  arbres et murs, chemins, villes en rouge), le joueur clignote à sa place (à la porte de son bâtiment s'il est
+  dedans), les flèches promènent le curseur et donnent le nom du lieu.
+- Caméra : celle d'Odyssée et de HGSS (inclinaison 55°, champ 13°, cases carrées à l'écran).
 - Captures sans réseau : `PRET=<clone de pokeheartgold> PDSMS=<clone de Pokemon-DS-Map-Studio> node tools/capture-moteur-hgss.mjs …`.
-
-## Intérieurs de HGSS (`donnees/interieurs.js`)
-
-- Maison du joueur (chambre et rez-de-chaussée), labo du Pr Orme, maison habitée, Centre POKéMON et son sous-sol
-  (CLUB COM), boutique : aux **coordonnées du jeu** (taille des pièces, portes, escaliers, personnages et points
-  d'intérêt relevés dans les événements des zones de la décompilation).
-- Meubles : les **vrais modèles** de l'archive `bm_room.narc` (lit, télé, évier, frigo, PC, escaliers, machine de
-  soin, rayons de la boutique, statues d'arène…), lus à la volée comme les bâtiments. Dans un plan : `meubles:
-  [{ m, x, y, l, p, mur, libre, creux, repli }]` (emprise bloquée sauf `libre` ; `mur` : accroché au mur du fond ;
-  `creux` : le sol s'ouvre dessous, pour les escaliers qui descendent ; `repli` : dessin d'Odyssée hors ligne).
-  Les comptoirs font partie de la carte dans HGSS : `caisses: [{ x, y, l, p, comptoir, couleurs }]`.
-- Rendu façon HGSS : seul le mur du fond se dresse (papier peint du lieu), le reste est noir. Sols et papiers peints
-  de HGSS (maisons, labo, glace) ; Centre et boutique : textures de Platine en attendant (celles de HGSS ne sont pas
-  publiées). Personnages et décor plat : plans debout étirés de 1 / cos(inclinaison) (même taille à l'écran ; un
-  personnage devant un comptoir ne s'y enfonce plus). Les planches de HGSS n'ont que la gauche : la droite est en miroir.
-- **Arène d'Acajou** (FRIGO, BADGE GLACIER) : trois salles de glace reliées par des escaliers, dresseurs, blocs de
-  glace, FRIGO et passages aux positions du jeu ; les énigmes ont été cherchées par un solveur autour de ces positions
-  (pas d'impasse). On y va par le voyageur du Centre de Mauville (ou `?zone=ARENE_ACAJOU_1`). Le test la traverse avec
-  les règles du moteur et bat FRIGO.
-
-## Acajou (`donnees/acajou.js`)
-
-Un bloc de la matrice de Johto (x 512 à 543, z 160 à 191) aux positions réelles : portes de l'arène, du Centre, de la
-boutique de souvenirs et de la maison de l'est, panneaux et habitants relevés dans les événements de la zone T28 ; vrais
-modèles (`ch_gym`, `ch_h01`, `pc`, poste de la Route 43). Les routes 42 à 44 manquent encore : un voyageur relie les
-Centres de Mauville et d'Acajou.
+- Tests (`node tools/test-moteur-hgss.mjs`, `PRET=<clone>`) : toutes les cartes compilées, audit du jeu entier depuis
+  la chambre (de New Bark Town à Blackthorn City à pied), puis le début joué avec les vrais scripts : la mère d'ETHAN,
+  le Prof. Elm et la machine aux Poké Balls, le Pokégear, la passante de la sortie ouest, la Route 29 et ses sauvages,
+  le vieil homme de Cherrygrove et ses Running Shoes ; les chariots de l'arène d'Azalea.
+- Pour l'instant à côté : les écrans propres au jeu (Pokégear, boîte de choix du starter dessinée, surnom), les
+  commandes de script que le moteur ne connaît pas (sautées), les combats doubles.
 
 ## Arène de Frimapic, Pokémon Platine (`donnees/platine.js`, `render/platine3d.js`)
 
@@ -57,7 +60,7 @@ Centres de Mauville et d'Acajou.
 de la page, `frimapic()` lit dans son dépôt (commit épinglé, rien n'est copié ici) :
 - la carte `map_data_234` : grille de collisions et de comportements (glace, cases bloquées dans un axe, sortie) et
   relief BDHC (plaques et pentes à 45° ; hauteur et sens de la pente au centre de chaque case, en demi-cases) ;
-- les événements de la salle (GLADYS, guide, 6 Topdresseurs avec leur portée et leur regard, 19 boules de neige,
+- les événements de la salle (Candice, guide, 6 Topdresseurs avec leur portée et leur regard, 19 boules de neige,
   statues, sortie) ;
 - pour le rendu : le modèle 3D de la salle avec son jeu de textures (`map_texture_set_027.nsbtx`, lu par `lireNsbtx`),
   les accessoires posés par la carte (statues, tapis) et le modèle de la boule de neige.
@@ -65,43 +68,8 @@ Règles de la glace à pentes reprises du code du jeu (`player_move.c`) : `gliss
 de 0 à 3, +1 par case de descente, −1 par case de montée ; sans vitesse on recule d'une case et on s'arrête ; une boule
 de neige se brise si on la heurte avec de la vitesse (au moins 1), elle revient quand on ressort. Un monde peut déclarer
 `pentes` (pas de mur entre deux hauteurs) et `niv` (hauteur d'un niveau en cases). Accès : une dresseuse de Sinnoh au
-Centre d'Acajou. Le test lit un clone local (`PLAT=<clone>`, sinon `/tmp/ext/plat`), cherche le chemin jusqu'à GLADYS
+Centre de Mahogany Town (`MAHOGANY_POKECENTER_1F`). Le test lit un clone local (`PLAT=<clone>`, sinon `/tmp/ext/plat`), cherche le chemin jusqu'à Candice
 avec les règles du moteur (34 coups, 8 boules brisées) et le rejoue dans une vraie partie.
-
-## Jusqu'à la deuxième arène : Route 32 → Écorcia (`donnees/ecorcia.js`)
-
-Pour éprouver le moteur sur un vrai morceau de jeu : Route 32 (poste des Ruines d'Alpha, enclos à couper, étang des
-pêcheurs, Centre POKéMON), Caves Jumelles (96 cases de long), Route 33, Écorcia (Centre, boutique, maison de FARGAS,
-charbonnerie, poste du Bois aux Chênes), Puits Ramoloss (entrée et 1er sous-sol) et l'arène d'HECTOR. Le dehors
-continue la matrice de Johto (`johto-dehors.js`, origine en (384, 224), 11 × 8 blocs).
-- Repris de la décompilation : portes, personnages, dresseurs (équipes de `trainers.json`), objets, panneaux et
-  « coord events » de chaque zone, l'enchaînement des scripts (l'homme du tournant qui arrête qui n'a pas le BADGE
-  ZÉPHYR ; FARGAS qui part au puits, le garde qui s'en va ; trois SBIRES et PROTON ; les RAMOLOSS qui reviennent ;
-  le rival à la sortie ouest, son équipe selon le POKéMON de départ) et l'**énigme de l'arène** telle que le jeu la code
-  (`src/field/gymmick/azalea.c`) : 12 stations, 4 chariots MIMIGAL, 2 aiguillages, tracés à 1/8 de case par image.
-- Moteur : `zone.rails` et les commandes `rails_depart`, `aiguillage n`, `chariot s` (le joueur monte d'un pas, suit
-  le tracé, descend au bout ; les chariots sont des objets `traversable`) ; rencontres sur tout le sol des grottes
-  (table `sol`) ; `combat_dresseur <objet>` depuis un déclencheur ; `placer_relatif` ; `marcher_vers <objet> x y [vite]`
-  (plus court chemin qui contourne le joueur). L'audit suit les chariots (toutes positions des aiguillages).
-- Les tests jouent tout le trajet depuis Mauville jusqu'au BADGE ESSAIM et au rival, et explorent tous les états de
-  l'énigme (île, chariots, aiguillages) : HECTOR est atteignable, et de chaque état on peut redescendre à la porte.
-
-## Le début de HeartGold / SoulSilver (`donnees/johto.js`)
-
-Bourg Geon → Route 29 (et le poste de la Route 46) → Ville Griotte → Route 30 (M. POKéMON) → Route 31 (Antre Noir) →
-Mauville (Tour Chétiflor sur trois étages, arène d'Albert, école, Centre, boutique, maisons) : 8 blocs de dehors dans
-une matrice de 6 × 3, une trentaine de cartes d'intérieur (un même bloc sert à plusieurs zones : Centres, boutiques, maisons).
-Les plans sont **redessinés à la main** d'après la disposition des lieux ; rien n'est extrait de la ROM.
-
-- `engine/audit.js` parcourt tout ce qu'un joueur peut atteindre et vérifie que chaque porte, PNJ et panneau est
-  atteignable et qu'on revient toujours au départ (aucun piège sans retour). Les tests le font sur toute la région,
-  puis jouent le parcours complet : POKéMON du labo, dresseurs en chemin, soins, achats, baies qui repoussent, ŒUF de
-  M. POKéMON, CS COUPE, arbre coupé qui repousse, trois étages de la Tour, BADGE ZÉPHYR, K.O. et reprise au Centre.
-- Textures HGSS : celles que **Pokémon DS Map Studio** publie sur son dépôt GitHub (Trifindo), lues **à la volée**
-  par le navigateur au chargement (`PACK_HGSS` de `render/textures.js`, commit épinglé) ; aucune n'est copiée dans
-  ce dépôt. Les images de 16 px sont agrandies en 32 px ; une texture de 32 px couvre 2 × 2 cases (16 texels par case,
-  la densité des personnages HGSS). Sans réseau, chaque image manquante est remplacée par celle d'Odyssée.
-  Captures sans réseau : `PDSMS=<clone de Pokemon-DS-Map-Studio> node tools/capture-moteur-hgss.mjs …`.
 
 Le but n'est pas l'image mais la charpente : une organisation aussi stricte que celle du jeu DS, où l'on ajoute
 une ville, un PNJ ou une quête **en écrivant des données et des scripts**, sans toucher au code du moteur.
@@ -122,6 +90,8 @@ engine/      le moteur, sans DOM (tourne dans Node pour les tests)
 donnees/     les données
   auteur.js    écrire un bloc en texte (légende → permission, comportement, sol, décor ; bâtiments → emprise + porte)
   demo.js      zone d'essai : bourg, route en deux blocs, maison sur deux étages, labo, maison voisine, grotte de glace
+  hgss.js, evenements-hg.js, jeu-hg.js, gymmicks.js   le jeu HGSS lu dans la décompilation (ci-dessus)
+  platine.js   l'Arène de Frimapic (Platine)
 render/      le rendu three.js : il LIT le moteur, ne décide de rien
 main.js      la page : touches, boucle à pas fixe, boîte de texte, écran de combat factice
 ```
@@ -137,7 +107,7 @@ main.js      la page : touches, boucle à pas fixe, boîte de texte, écran de c
   celle de la DS, relevée dans `field_camera.c` de la décompilation de Platine — distance 666,92 unités soit 41,68
   cases, inclinaison 59,05°, champ vertical 2 × 8,09°, 16 cases de large à l'écran ; `proche` : celle des endroits
   resserrés), `velo`, `course`, `rencontres` (`herbe`, `eau`, `sol` pour tout le sol d'une grotte : taux et espèces
-  pondérées), `scripts` (source), `niveau` (scripts de niveau), `rails` (chariots de l'arène d'Écorcia) et les événements :
+  pondérées), `scripts` (source), `niveau` (scripts de niveau), `rails` (chariots de l'arène d'Azalea) et les événements :
   - `objets` : PNJ (`sprite`, `dir`, `mouvement` : `fixe`, `regard_alea`, `regard_hb`, `regard_gd`, `tourne`, `errance`,
     `errance_hb`, `errance_gd`, `route` ; `rayon` ; `script`), dresseurs (`dresseur: { portee, script, apres, equipe }`),
     objets au sol (`type: 'objet'`, `objet`, `drapeau`). `drapeau` : caché tant que ce drapeau est levé ;
@@ -192,22 +162,20 @@ tourner_joueur_vers dos_au_joueur placer_relatif marcher_vers rails_depart aigui
 
 ## Déplacements (pas fixe de 1/60 s)
 
-Marche 16 pas par case, course 8 (deux fois plus vite, avec le drapeau `CHAUSSURES`, donné par la maman à la première
-descente ; Maj, B tenu ou CapsLock pour courir tout le temps), vélo comme dans HGSS : il prend de l'élan (12, 8, 6 puis
+Marche 16 pas par case, course 8 (deux fois plus vite, avec le drapeau `CHAUSSURES` : dans le jeu, les Running Shoes
+du vieil homme de Cherrygrove City ; Maj, B tenu ou CapsLock pour courir tout le temps), vélo comme dans HGSS : il prend de l'élan (12, 8, 6 puis
 4 pas par case, `ELAN_VELO`), l'élan retombe à l'arrêt, contre un mur ou en changeant de sens, on tourne sans
 s'arrêter, interdit en intérieur, sa musique et sa planche de sprites (`player_m_velo`). Surf 8, glace et tapis
 roulants 4, saut d'un rebord 32 pas pour deux cases. Appui bref depuis l'arrêt : demi-tour sur place (8 pas) ; en marchant, on change de
 sens sans s'arrêter. Mur : pas sur place et son de heurt. Un objet qui bouge tient sa case de départ **et** sa case
 d'arrivée : deux personnages ne se croisent jamais. À la fin de chaque pas du joueur, dans l'ordre : porte / escalier
 / trou, changement de zone, déclencheurs au sol, glace et tapis roulants, regard des dresseurs, rencontres.
-Les PNJ ne bougent seuls qu'à moins de 24 cases du joueur et jamais pendant un script.
+Vélo : la touche V (avec le Bicycle du jeu, ou `?tout`). Les PNJ ne bougent seuls qu'à moins de 24 cases du joueur et jamais pendant un script.
 
 ## Ce qui reste à brancher
 
-- Le noir de l'Antre Noir sans FLASH ; les combats doubles (les jumelles de l'arène d'Écorcia se battent en simple).
-- La suite : Bois aux Chênes (et l'apprenti du charbonnier), les étages bas des Caves Jumelles et du Puits.
-
-- Le Pokédex et la carte dans le menu, le sprite de surf.
+- Le noir de Dark Cave sans Flash ; les combats doubles ; les commandes de script encore inconnues du traducteur.
+- Le Pokédex et le Pokégear dans le menu, le sprite de surf.
 - Un éditeur qui écrive ce format (l'éditeur d'Odyssée Test peut exporter des blocs) et la conversion de la carte
   actuelle d'Odyssée en blocs et en zones.
 - Les ponts et passerelles à deux étages (une case praticable dessus et dessous), à ajouter comme comportement.

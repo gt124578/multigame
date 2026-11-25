@@ -50,7 +50,7 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
   // téléportations des scripts : zone → [{ vers, n }]
   const tps = {};
   for (const [zid, z] of Object.entries(d.zones))
-    for (const m of (z.scripts || '').matchAll(/^\s*teleporter\s+(\w+)\s+(\d+)/gm)) (tps[zid] ||= []).push({ vers: m[1], n: +m[2] });
+    for (const m of (z.scripts || '').matchAll(/^\s*teleporter\s+(\w+)\s+(\d+)/gm)) if (d.zones[m[1]]?.warps?.[+m[2]]) (tps[zid] ||= []).push({ vers: m[1], n: +m[2] });
   const tpFaits = new Set();
   // chariots sur rails : de la case où l'on monte à celle où l'on descend, pour chaque position des aiguillages
   // (plus large que le jeu, où il faut aussi qu'un chariot attende : le test de l'arène rejoue l'énigme exacte)
@@ -82,7 +82,7 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
     for (const [ax, ay] of rails[zid]?.get(`${x},${y}`) || []) ajouter(ici, m, ax, ay);
     for (let dir = 0; dir < 4; dir++) {
       // tapis de sortie
-      if (w && pIci.tapis === dir) { ajouter(ici, ...arrivee(w)); continue; }
+      if (w && pIci.tapis === dir) { if (d.zones[w.vers]?.warps?.[w.n ?? 0]) ajouter(ici, ...arrivee(w)); continue; }
       const surf = pIci.surf;
       let r = testerPas(M, { x, y }, dir, { surf, objets: fixes(M) });
       if (!r.ok && r.raison === 'eau' && capacites.surf) r = { ok: true, type: 'pas', vers: [x + DX[dir], y + DY[dir]] };
@@ -95,7 +95,12 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
         [nx, ny] = g.vers;
       }
       const wc = M.warp(nx, ny);
-      if (wc && M.props(nx, ny).warp) { warpsVus.add(`${wc.zone}#${wc.indice}`); ajouter(ici, ...arrivee(wc)); continue; }
+      if (wc && M.props(nx, ny).warp) {
+        warpsVus.add(`${wc.zone}#${wc.indice}`);
+        // un téléporteur du jeu qui ne mène nulle part (ou vers une carte absente) : une case comme une autre
+        if (!wc.vers || !d.zones[wc.vers]?.warps?.[wc.n ?? 0]) continue;
+        ajouter(ici, ...arrivee(wc)); continue;
+      }
       ajouter(ici, m, nx, ny);
     }
   }
@@ -117,6 +122,9 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
     (z.warps || []).forEach((w, i) => { if (!warpsVus.has(`${zid}#${i}`)) erreurs.push(`${zid} : téléporteur ${i} (${w.x},${w.y}) jamais atteint`); });
     for (const o of z.objets || []) {
       if (o.traversable) continue;
+      // un acteur de scène (sans script, ou caché par un drapeau tant que la scène n'a pas lieu) : le script l'amène
+      if (!o.script && !o.dresseur && o.type !== 'objet') continue;
+      if (o.drapeau && o.type !== 'objet' && !o.dresseur && o.drapeau !== 'FLAG_NOTHING' && /^FLAG_HIDE/.test(o.drapeau)) continue;
       let ok = false;
       for (let dir = 0; dir < 4 && !ok; dir++) {
         const ax = o.x + DX[dir], ay = o.y + DY[dir];
@@ -131,5 +139,8 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
       if (!dirs.some((dir) => atteint(mid, p.x - DX[dir], p.y - DY[dir]))) erreurs.push(`${zid} : panneau (${p.x},${p.y}) illisible`);
     }
   }
-  return { erreurs, cases: vus.size, mondes: Object.keys(mondes).length, warps: warpsVus.size };
+  // les zones où l'on a posé le pied (pour un jeu entier, où tout n'est pas ouvert depuis le départ)
+  const zones = new Set();
+  for (const k of vus) { const [m, x, y] = k.split('|'); const z = monde(m).zone(+x, +y)?.id; if (z) zones.add(z); }
+  return { erreurs, cases: vus.size, mondes: Object.keys(mondes).length, warps: warpsVus.size, zones };
 }

@@ -12,8 +12,13 @@ function cible(T, ctx, id) {
   if (id === 'joueur') return T.joueur;
   if (id === 'moi' || id === undefined) return ctx.objet;
   const o = T.objet(id);
-  if (!o) throw new Error(`script ${ctx.nom} : objet inconnu « ${id} »`);
-  return o;
+  if (o) return o;
+  // un personnage que le jeu cache encore ou qu'on n'a pas posé : les commandes sur lui ne font rien
+  if (T.objetsFantomes !== false) {
+    if (!(T.absentsVus ||= new Set()).has(id)) { T.absentsVus.add(id); console.warn(`script ${ctx.nom} : objet absent « ${id} »`); }
+    return { id, x: 0, y: 0, file: [], m: null, def: {}, fantome: true };
+  }
+  throw new Error(`script ${ctx.nom} : objet inconnu « ${id} »`);
 }
 
 /** direction de a vers b (cases voisines ou alignées) */
@@ -141,7 +146,7 @@ export const COMMANDES = {
     exec: (T, ctx, [n, q = 1]) => {
       T.etat.sac[n] = (T.etat.sac[n] ?? 0) + q;
       T.sortir({ type: 'son', nom: 'objet' });
-      return T.message(`{JOUEUR} obtient ${q > 1 ? q + ' × ' : ''}${T.nomObjet(n)} !`);
+      return T.message(T.d.langue === 'en' ? `{JOUEUR} obtained ${q > 1 ? q + ' × ' : 'the '}${T.nomObjet(n, true)}!` : `{JOUEUR} obtient ${q > 1 ? q + ' × ' : ''}${T.nomObjet(n)} !`);
     },
   },
   boutique: { args: '*', exec: (T, ctx, objets) => T.boutique(objets) },
@@ -159,7 +164,7 @@ export const COMMANDES = {
       T.etat.sac[b] = (T.etat.sac[b] ?? 0) + q;
       T.etat.vars.RESULTAT = 1;
       T.sortir({ type: 'son', nom: 'objet' });
-      return T.message(`{JOUEUR} cueille ${q} × ${T.objetsConnus[b]?.court || b} !`);
+      return T.message(T.d.langue === 'en' ? `{JOUEUR} picked ${q} ${T.objetsConnus[b]?.court || b}!` : `{JOUEUR} cueille ${q} × ${T.objetsConnus[b]?.court || b} !`);
     },
   },
   /** l'objet qui a lancé le script disparaît (arbre coupé, rocher brisé) : son drapeau le garde caché */
@@ -177,7 +182,15 @@ export const COMMANDES = {
       const m = T.pokemon.creer(sp, niv);
       if (T.etat.equipe.length < 6) T.etat.equipe.push(m); else T.etat.boite.push(m);
       T.sortir({ type: 'son', nom: 'fanfare' });
-      return T.message(`{JOUEUR} reçoit ${sp} !${T.etat.equipe.includes(m) ? '' : '\nIl est envoyé dans le PC.'}`);
+      return T.message(T.d.langue === 'en' ? `{JOUEUR} received ${T.nomEspece(m.sp ?? sp)}!${T.etat.equipe.includes(m) ? '' : '\nIt was sent to the PC.'}` : `{JOUEUR} reçoit ${sp} !${T.etat.equipe.includes(m) ? '' : '\nIl est envoyé dans le PC.'}`);
+    },
+  },
+  /** POKéMON reçu sans message du moteur (le script du jeu a le sien) */
+  recevoir_pokemon: {
+    args: 'mot nombre',
+    exec: (T, ctx, [sp, niv]) => {
+      const m = T.pokemon.creer(/^VAR_/.test(sp) ? T.etat.vars[sp] ?? 0 : sp, niv);
+      if (T.etat.equipe.length < 6) T.etat.equipe.push(m); else T.etat.boite.push(m);
     },
   },
   compter_equipe: { exec: (T) => { T.etat.vars.RESULTAT = T.etat.equipe.length; } },
@@ -190,7 +203,7 @@ export const COMMANDES = {
       if (d.drapeau) T.etat.drapeaux.add(d.drapeau);
       o.visible = false;
       T.sortir({ type: 'son', nom: 'objet' });
-      return T.message(`{JOUEUR} trouve ${T.nomObjet(d.objet)} !`);
+      return T.message(T.d.langue === 'en' ? `{JOUEUR} found ${/^[aeiou]/i.test(T.nomObjet(d.objet, true)) ? 'an' : 'a'} ${T.nomObjet(d.objet, true)}!` : `{JOUEUR} trouve ${T.nomObjet(d.objet)} !`);
     },
   },
   combat_dresseur: {
@@ -205,6 +218,47 @@ export const COMMANDES = {
       });
     },
   },
+  /** combat contre un dresseur du jeu (équipe de trainers.json) : `combat_hg TRAINER_X` ; drapeau DRESSEUR_X si gagné */
+  combat_hg: {
+    args: 'mot',
+    exec: (T, ctx, [id]) => {
+      const d = T.d.dresseursHG?.[id];
+      if (!d) return;
+      const prix = 40 * Math.max(1, ...d.equipe.map((p) => p.niveau || 1));
+      return T.combat({ type: 'dresseur', objet: ctx.objet?.id || null, nom: d.nom, sprite: ctx.objet?.sprite, equipe: d.equipe, prix }, (victoire) => {
+        if (victoire) { T.etat.drapeaux.add('DRESSEUR_' + id); T.etat.argent += prix; }
+      });
+    },
+  },
+  // ——— commandes des scripts du jeu (traduits par donnees/evenements-hg.js) ———
+  position_joueur: { args: 'mot mot', exec: (T, ctx, [vx, vy]) => { T.etat.vars[vx] = T.joueur.x; T.etat.vars[vy] = T.joueur.y; } },
+  position_objet: { args: 'mot mot mot', exec: (T, ctx, [id, vx, vy]) => { const o = cible(T, ctx, id); T.etat.vars[vx] = o.x; T.etat.vars[vy] = o.y; } },
+  direction_joueur: { args: 'mot', exec: (T, ctx, [v]) => { T.etat.vars[v] = T.joueur.dir; } },
+  /** oui ou non après un message ; VAR = 0 pour oui, 1 pour non (comme GetMenuChoice du jeu) */
+  oui_non_var: { args: 'mot', exec: (T, ctx, [v]) => T.choix(['Oui', 'Non'], (i) => { T.etat.vars[v] = i; T.etat.vars.RESULTAT = i === 0 ? 1 : 0; }) },
+  /** menu : VAR reçoit la valeur de la ligne choisie (« 0,1,2 ») */
+  choix_var: { args: 'mot mot *', exec: (T, ctx, [v, vals, ...opts]) => { const vs = String(vals).split(','); return T.choix(opts.map(String), (i) => { T.etat.vars[v] = +vs[i]; T.etat.vars.RESULTAT = i; }); } },
+  avoir_objet: { args: 'mot nombre mot', exec: (T, ctx, [n, q, v]) => { T.etat.vars[v] = (T.etat.sac[n] ?? 0) >= q ? 1 : 0; } },
+  retirer_objet: { args: 'mot nombre', exec: (T, ctx, [n, q]) => { T.etat.sac[n] = Math.max(0, (T.etat.sac[n] ?? 0) - q); } },
+  /** tampon de texte k ({Tk} dans les messages) : joueur, rival, equipe (rang), espece, objet, nombre, poche */
+  tampon: {
+    args: 'nombre mot texte',
+    exec: (T, ctx, [k, type, a]) => {
+      const v = (x) => (/^VAR_/.test(x) ? T.etat.vars[x] ?? 0 : x);
+      const m = type === 'equipe' ? T.etat.equipe[+v(a) || 0] : null;
+      const POCHES = ['Items', 'Medicine', 'Poké Balls', 'TMs & HMs', 'Berries', 'Mail', 'Battle Items', 'Key Items'];
+      (T.tampons ||= [])[k] = type === 'joueur' ? T.etat.joueur.nom
+        : type === 'rival' ? T.etat.joueur.rival || T.d.nomRival || 'SILVER'
+          : type === 'equipe' ? (m ? T.nomEspece(m.sp) : '')
+            : type === 'espece' ? T.nomEspece(v(a))
+              : type === 'objet' ? T.nomObjet(String(v(a)), true)
+                : type === 'poche' ? POCHES[+v(a)] || ''
+                  : String(v(a));
+    },
+  },
+  nombre_equipe: { args: 'mot', exec: (T, ctx, [v]) => { T.etat.vars[v] = T.etat.equipe.length; } },
+  /** VAR ← 1 si le drapeau est levé, 0 sinon (CheckBadge, CheckFlag du jeu) */
+  tester_drapeau: { args: 'mot mot', exec: (T, ctx, [v, f]) => { T.etat.vars[v] = T.etat.drapeaux.has(f) ? 1 : 0; } },
   combat_sauvage: {
     args: 'mot nombre',
     exec: (T, ctx, [sp, niv]) => T.combat({ type: 'sauvage', espece: sp, niveau: niv }),

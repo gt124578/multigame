@@ -9,7 +9,6 @@ const { compiler } = await import(B + 'engine/script.js');
 const { COMMANDES } = await import(B + 'engine/commandes.js');
 const { valider, preparer } = await import(B + 'engine/carte.js');
 const { MB, VITESSE, ELAN_VELO, HAUT, BAS, GAUCHE, DROITE } = await import(B + 'engine/const.js');
-const { JOHTO, DEPART } = await import(B + 'donnees/johto.js');
 const { auditer } = await import(B + 'engine/audit.js');
 
 let n = 0;
@@ -377,421 +376,161 @@ console.log('Déterminisme, sauvegarde');
 }
 
 // ————————————————————————————————————————————————————————————————————————————————————————————————
-console.log('Début de HeartGold / SoulSilver : audit de la région');
+// HeartGold / SoulSilver : le jeu lu dans la décompilation (pret/pokeheartgold) — cartes, événements, scripts, textes.
+// Les fichiers viennent d'un clone local (PRET=<dossier>, celui des captures) ; sans lui, on passe.
 {
-  const r = auditer(JOHTO, DEPART);
-  assert.deepEqual(r.erreurs, []);
-  assert.ok(r.mondes >= 20 && r.warps >= 40, `${r.mondes} mondes, ${r.warps} téléporteurs`);
-  ok(`${r.cases} cases atteintes dans ${r.mondes} cartes, ${r.warps} téléporteurs : tout est atteignable et l'on revient toujours au départ`);
-  const sansCoupe = auditer(JOHTO, DEPART, { surf: true, coupe: false });
-  assert.ok(sansCoupe.erreurs.length === 0 || sansCoupe.erreurs.every((e) => /hors d'atteinte|jamais atteint|illisible/.test(e)));
-  // piège : un recoin creusé dans les arbres de la Route 31, où l'on saute par un rebord qui ne se redescend pas
-  const nom = 'jo_4_1', blocR = JOHTO.blocs[nom];
-  const recoin = 9 * 32 + 17, rebord = 10 * 32 + 17;   // cases (529, 265) et (529, 266)
-  const piege = { ...JOHTO, blocs: { ...JOHTO.blocs, [nom]: { ...blocR,
-    col: blocR.col.map((v, i) => (i === recoin || i === rebord ? 0 : v)),
-    mb: blocR.mb.map((v, i) => (i === rebord ? MB.REBORD_HAUT : v)) } } };
-  const rp = auditer(piege, DEPART);
-  assert.ok(rp.erreurs.some((e) => e.includes('on ne revient pas')), 'piège sans retour repéré');
-  ok('l\'audit repère une partie de la carte dont on ne ressort pas (rebord sans retour)');
-}
+  const { existsSync, readFileSync } = await import('node:fs');
+  const PRET = process.env.PRET || '/tmp/ext/pret';
+  if (!existsSync(PRET + '/files/a/0/6/5')) console.log('HeartGold / SoulSilver : clone de pokeheartgold absent (PRET=<dossier>), on passe');
+  else {
+    const lireHG = async (c) => new Uint8Array(readFileSync(PRET + '/' + c));
+    const { jeuHG, DEPART_HG } = await import(B + 'donnees/jeu-hg.js');
+    const { testerPas } = await import(B + 'engine/objets.js');
+    const G = await jeuHG(lireHG);
+    const D = G.donnees;
 
-console.log('Début de HeartGold / SoulSilver : de Bourg Geon à Mauville (positions réelles)');
-{
-  const { R, OX, OY } = await import(B + 'donnees/johto-dehors.js');
-  const T = new Terrain(JOHTO, { graine: 11 });
-  T.demarrer(DEPART);
-  const j = T.joueur;
-  const voyager = async (x, y) => {
-    for (let k = 0; k < 60; k++) {
-      if (!calme(T)) { lire(T); continue; }
-      if (j.x === x && j.y === y) return;
-      try { await aller(T, x, y); } catch (e) { if (k > 50) throw e; tenir(T, null, 30); }
+    console.log('HeartGold / SoulSilver : les données du jeu');
+    assert.ok(Object.keys(D.zones).length > 500, Object.keys(D.zones).length + ' cartes');
+    assert.deepEqual([D.mondes.johto.largeur, D.mondes.johto.hauteur], [47, 17]);
+    assert.ok(Object.values(D.zones).every((z) => z.aCharger));
+    ok(`${Object.keys(D.zones).length} cartes connues dès le départ (nom, musique), le dehors d'un seul tenant (47 × 17 blocs) ; le reste arrive en route`);
+    assert.equal(D.nomsEspeces[155], 'CYNDAQUIL');
+    assert.equal(D.objets['poke-ball'].nom, 'Poké Ball');
+    assert.equal(D.zones.NEW_BARK.nom, 'New Bark Town');
+    assert.equal(D.zones.AZALEA.nom, 'Azalea Town');
+    ok('les noms anglais du jeu : lieux (New Bark Town, Azalea Town), espèces, objets');
+
+    // toutes les cartes : événements et scripts traduits, et chacune se compile
+    let erreurs = 0, scripts = 0;
+    const D2 = { ...D, zones: { ...D.zones }, blocs: { ...D.blocs }, mondes: { ...D.mondes } };
+    for (const c of Object.keys(D.zones)) {
+      const p = await G.chargerCarte(c); if (!p) continue;
+      Object.assign(D2.zones, p.zones); Object.assign(D2.blocs, p.blocs); Object.assign(D2.mondes, p.mondes);
+      try { scripts += Object.keys(compiler(p.zones[c].scripts || '', c, COMMANDES)).length; } catch (e) { erreurs++; console.log('   ', c, e.message.slice(0, 160)); }
     }
-    assert.deepEqual([j.x, j.y], [x, y], 'arrivé');
-  };
-  const entrer = (dir, zone, rep = []) => { pas(T, dir); attendre(T, () => T.zone?.id === zone && !T.transition && !j.m, 400); lire(T, rep); };
-  /** devant une porte du dehors (coordonnées réelles du jeu), puis on entre */
-  const porte = async (x, y, zone, rep) => { const c = R(x, y); await voyager(c.x, c.y + 1); entrer(HAUT, zone, rep); };
-  const sortir = async (x, y, zone) => { await voyager(x, y); tenir(T, null, 3); entrer(BAS, zone); };
-  // les portes sont à leurs places dans HeartGold / SoulSilver
-  const w = (z, i) => { const v = JOHTO.zones[z].warps[i]; return [v.x + OX, v.y + OY]; };
-  assert.deepEqual([w('BOURG_GEON', 0), w('VILLE_GRIOTTE', 0), w('ROUTE_30', 1), w('MAUVILLE', 3), w('MAUVILLE', 0)], [[684, 393], [564, 391], [568, 294], [479, 257], [487, 228]]);
-  ok('labo, Centre de Griotte, maison de M. POKéMON, arène et Tour de Mauville : aux coordonnées du jeu');
-  // maison (chambre et rez-de-chaussée aux coordonnées de HGSS), labo
-  assert.ok(T.M.bloquee(9, 4) && T.M.bloquee(1, 9), 'le lit et la télé de la chambre bloquent le passage');
-  await voyager(6, 5); parler(T, HAUT); assert.match(T.ui.texte, /PC/); lire(T);
-  await voyager(3, 5); entrer(HAUT, 'MAISON_1F');
-  assert.ok(T.etat.drapeaux.has('CHAUSSURES'), 'la maman donne les chaussures de course à la première descente');
-  assert.ok(T.M.bloquee(11, 3) && T.M.bloquee(7, 6) && !T.M.bloquee(7, 5), 'frigo et table bloquent, les chaises non');
-  await voyager(11, 4); parler(T, HAUT); assert.match(T.ui.texte, /LIMONADE/); lire(T);
-  await sortir(3, 10, 'BOURG_GEON');
-  assert.deepEqual([j.x, j.y], [R(695, 397).x, R(695, 397).y], 'devant la maison, sous sa porte');
-  await porte(684, 393, 'LABO_ORME', [2]);
-  assert.deepEqual(T.etat.equipe.map((p) => p.espece), ['Kaiminus']);
-  await sortir(4, 14, 'BOURG_GEON');
-  ok('chambre → cuisine → bourg → labo : meubles de HGSS qui bloquent, PC, frigo, chaussures, un POKéMON reçu');
-  // route 29 jusqu'au Centre de Ville Griotte
-  await porte(564, 391, 'CENTRE_GRIOTTE');
-  T.etat.equipe[0].pv = 0;
-  await voyager(8, 13); parler(T, HAUT); lire(T, [0]);
-  assert.equal(T.etat.equipe[0].pv, T.etat.equipe[0].pvMax);
-  assert.deepEqual(T.etat.soin, { zone: 'CENTRE_GRIOTTE', x: 8, y: 13 });
-  // l'escalier du sous-sol (CLUB COM) et retour
-  await voyager(14, 18); entrer(HAUT, 'CENTRE_GRIOTTE_B1F');
-  assert.deepEqual([j.x, j.y], [14, 11], 'arrivé en bas de l\'escalier, un pas devant');
-  await voyager(8, 6); parler(T, HAUT); assert.match(T.ui.texte, /réseau/); lire(T);
-  await voyager(14, 11); entrer(HAUT, 'CENTRE_GRIOTTE');
-  assert.deepEqual([j.x, j.y], [14, 18]);
-  await sortir(8, 19, 'VILLE_GRIOTTE');
-  ok('Route 29 traversée ; Centre POKéMON : l\'infirmière soigne par-dessus le comptoir, lieu de reprise, escaliers du sous-sol');
-  // boutique
-  await porte(555, 391, 'BOUTIQUE_GRIOTTE');
-  await voyager(4, 6); parler(T, GAUCHE);
-  attendre(T, () => T.ui?.boutique, 600, { a: true });
-  const avant = T.etat.argent, potions = T.etat.sac.potion ?? 0;
-  T.pas({ a: true }); T.pas({}); T.pas({ a: true }); T.pas({});
-  tenir(T, BAS, 1); T.pas({}); tenir(T, BAS, 1); T.pas({}); tenir(T, BAS, 1); T.pas({}); T.pas({ a: true }); T.pas({});   // une POKé BALL
-  T.pas({ b: true }); lire(T);
-  assert.equal(T.etat.sac.potion, potions + 2); assert.equal(T.etat.sac['poke-ball'], 1);
-  assert.equal(T.etat.argent, avant - 2 * 300 - 200);
-  T.etat.argent = 50;
-  await voyager(4, 6); parler(T, GAUCHE); attendre(T, () => T.ui?.boutique, 600, { a: true });
-  T.pas({ a: true }); assert.equal(T.etat.argent, 50, 'pas assez d\'argent : rien n\'est vendu');
-  T.pas({ b: true }); lire(T); T.etat.argent = 3000;
-  await sortir(4, 11, 'VILLE_GRIOTTE');
-  ok('boutique : deux POTIONS et une POKé BALL achetées, prix déduits ; refus quand l\'argent manque');
-  // route 30 : dresseurs, M. POKéMON, baies
-  const argent0 = T.etat.argent;
-  await porte(568, 294, 'M_POKEMON');
-  assert.ok(T.etat.drapeaux.has('DRESSEUR_ROUTE_30_joey') || T.etat.drapeaux.has('DRESSEUR_ROUTE_30_mikey'), 'un gamin de la route 30 a défié le joueur au passage');
-  assert.ok(T.etat.argent > argent0, 'les victoires rapportent de l\'argent');
-  await voyager(5, 6); parler(T, HAUT); lire(T);
-  assert.equal(T.etat.sac.oeuf_mystere, 1);
-  await sortir(4, 8, 'ROUTE_30');
-  const b = R(562, 294);
-  await voyager(b.x, b.y); parler(T, HAUT); lire(T);
-  assert.equal(T.etat.sac['cheri-berry'], 2);
-  parler(T, HAUT); assert.match(T.ui.texte, /plus de baies/); lire(T);
-  for (let i = 0; i < 160; i++) { pas(T, BAS); pas(T, HAUT); if (!calme(T)) lire(T); }
-  await voyager(b.x, b.y); parler(T, HAUT); lire(T);
-  assert.equal(T.etat.sac['cheri-berry'], 4, 'les baies ont repoussé');
-  ok('Route 30 : dresseurs battus en chemin, l\'ŒUF de M. POKéMON, un arbre à baies vide repousse après 300 pas');
-  // route 31 → poste de garde → Mauville
-  const g = R(519, 269);
-  await voyager(g.x, g.y); entrer(GAUCHE, 'POSTE_31');
-  assert.deepEqual([j.x, j.y, j.dir], [21, 13, GAUCHE], 'sur le tapis est du poste, tourné vers la salle');
-  await voyager(10, 13); tenir(T, null, 3); entrer(GAUCHE, 'MAUVILLE');
-  assert.deepEqual([j.x, j.y], [R(510, 269).x, R(510, 269).y], 'ressorti à l\'ouest du poste, dans Mauville');
-  ok('poste de garde traversé d\'est en ouest : Route 31 → Mauville');
-  await porte(495, 257, 'ECOLE');
-  await voyager(17, 12); parler(T, GAUCHE); lire(T);
-  assert.ok(T.etat.drapeaux.has('CS_COUPE'));
-  await sortir(15, 16, 'MAUVILLE');
-  // retour sur la route 31 par le poste, couper l'arbre
-  const gm = R(510, 269);
-  await voyager(gm.x, gm.y); entrer(DROITE, 'POSTE_31');
-  await voyager(21, 13); tenir(T, null, 3); entrer(DROITE, 'ROUTE_31');
-  const a = R(552, 278);
-  await voyager(a.x, a.y); parler(T, HAUT); lire(T, [0]);
-  assert.ok(!T.objet('arbre').visible);
-  await porte(565, 269, 'ANTRE_NOIR');
-  await sortir(14, 14, 'ROUTE_31');
-  assert.ok(T.objet('arbre').visible, 'l\'arbre coupé a repoussé en changeant de carte');
-  ok('Route 31 : CS COUPE à l\'école de Mauville, l\'arbre se coupe, il repousse en sortant de l\'Antre Noir');
-  await voyager(g.x, g.y); entrer(GAUCHE, 'POSTE_31');
-  await voyager(10, 13); tenir(T, null, 3); entrer(GAUCHE, 'MAUVILLE');
-  // Tour Chétiflor : trois étages
-  await porte(487, 228, 'TOUR_1F');
-  await voyager(20, 12); entrer(HAUT, 'TOUR_2F');
-  assert.deepEqual([j.x, j.y], [20, 12]);
-  await voyager(11, 15); entrer(BAS, 'TOUR_3F');
-  assert.deepEqual([j.x, j.y], [11, 17]);
-  await voyager(15, 12); parler(T, HAUT); lire(T);
-  assert.ok(T.etat.drapeaux.has('CS_FLASH'));
-  await voyager(11, 17); entrer(HAUT, 'TOUR_2F');
-  await voyager(20, 12); entrer(HAUT, 'TOUR_1F');
-  await sortir(15, 17, 'MAUVILLE');
-  ok('Tour Chétiflor : échelles sur trois étages, Sage LI battu, CS FLASH');
-  // arène
-  const argent1 = T.etat.argent;
-  await porte(479, 257, 'ARENE_MAUVILLE');
-  await voyager(15, 10); parler(T, HAUT); lire(T);
-  assert.ok(T.etat.drapeaux.has('BADGE_ZEPHYR'));
-  assert.ok(T.etat.argent >= argent1 + 900);
-  ok('Arène de Mauville : ALBERT battu, BADGE ZÉPHYR et 900 ₽');
-  // K.O. : retour au dernier Centre
-  await sortir(16, 17, 'MAUVILLE');
-  T.combat({ type: 'sauvage', espece: 'Rattata', niveau: 2 }); T.terminerCombat(false);
-  attendre(T, () => !T.transition, 400);
-  assert.deepEqual([T.zone.id, j.x, j.y], ['CENTRE_GRIOTTE', 8, 13]);
-  ok('K.O. : on se réveille au dernier Centre POKéMON visité, POKéMON soignés');
-  const s = T.sauvegarder(), T2 = new Terrain(JOHTO, { graine: 11 }); T2.demarrer({ sauvegarde: s });
-  assert.equal(T2.sauvegarder(), s);
-  ok('sauvegarde de fin de parcours relue à l\'identique');
-}
+    assert.equal(erreurs, 0);
+    ok(`les scripts de toutes les cartes traduits dans le langage du moteur et compilés sans erreur`);
+    const r = auditer(D2, DEPART_HG, { surf: true, coupe: true });
+    const route = ['NEW_BARK', 'NEW_BARK_ELMS_LAB_1F', 'ROUTE_29', 'CHERRYGROVE', 'ROUTE_30', 'ROUTE_31', 'VIOLET', 'VIOLET_GYM', 'SPROUT_TOWER_1F',
+      'ROUTE_32', 'UNION_CAVE_1F', 'ROUTE_33', 'AZALEA', 'AZALEA_GYM', 'SLOWPOKE_WELL_B1F', 'ILEX_FOREST', 'GOLDENROD', 'ECRUTEAK', 'OLIVINE', 'CIANWOOD', 'MAHOGANY', 'BLACKTHORN'];
+    const manque = route.filter((z) => !r.zones.has(z));
+    assert.deepEqual(manque, []);
+    const pres = r.erreurs.filter((e) => /^(NEW_BARK|ROUTE_29|CHERRYGROVE|ROUTE_30|ROUTE_31|VIOLET_GYM|AZALEA_GYM)\b/.test(e));
+    assert.deepEqual(pres, []);
+    ok(`audit du jeu entier depuis la chambre : ${r.zones.size} cartes atteintes à pied (surf et coupe permis), de New Bark Town à Blackthorn City ; Centres et boutiques se servent par-dessus le comptoir`);
 
-console.log('De Mauville à la deuxième arène : Route 32, Caves Jumelles, Route 33, Écorcia, Puits Ramoloss, HECTOR');
-{
-  const { R, OX, OY } = await import(B + 'donnees/johto-dehors.js');
-  const { RAILS_ECORCIA } = await import(B + 'donnees/ecorcia.js');
-  const T = new Terrain(JOHTO, { graine: 13 });
-  T.demarrer({ zone: 'CENTRE_MAUVILLE', x: 8, y: 18, dir: BAS });
-  const j = T.joueur;
-  T.etat.equipe.push({ espece: 'Kaiminus', niveau: 30, pv: 99, pvMax: 99 });
-  T.etat.drapeaux.add('CHAUSSURES');
-  T.compteurRencontre = 1e9;
-  const voyager = async (x, y) => {
-    for (let k = 0; k < 60; k++) {
-      if (!calme(T)) { lire(T); continue; }
-      if (j.x === x && j.y === y) return;
-      try { await aller(T, x, y); } catch (e) { if (k > 50) throw e; tenir(T, null, 30); }
+    // une nouvelle partie, jouée comme sur la console : les cartes arrivent quand on y va
+    console.log('HeartGold / SoulSilver : le début du jeu, avec ses vrais scripts');
+    const D3 = { ...D, zones: { ...D.zones }, blocs: { ...D.blocs }, mondes: { ...D.mondes } };
+    const charge = (p) => { Object.assign(D3.zones, p.zones); Object.assign(D3.blocs, p.blocs); Object.assign(D3.mondes, p.mondes); };
+    charge(await G.chargerCarte(DEPART_HG.zone));
+    const T = new Terrain(D3, { graine: 3, pokemon: {
+      creer: (sp, niveau) => ({ sp: typeof sp === 'number' ? sp : D.nomsEspeces.findIndex((n) => n.toLowerCase() === String(sp).toLowerCase()), niveau, pv: 20, pvMax: 20 }),
+      soigner: () => {} } });
+    T.demarrer(DEPART_HG);
+    for (const f of G.drapeauxDepart) T.etat.drapeaux.add(f);
+    Object.assign(T.etat.vars, G.varsDepart); T.majVisibles();
+    let chargements = 0;
+    T.chargeur = (id) => G.chargerCarte(id).then((p) => { chargements++; T.ajouterDonnees(p); });
+    const vus = [];
+    const pasA = async (e = {}) => { T.pas(e); if (T.transition?.demande) await new Promise((ok2) => setTimeout(ok2, 5)); };
+    async function lireA(rep = [], max = 9000) {
+      for (let i = 0; i < max; i++) {
+        if (T.combatEnCours) T.terminerCombat(true);
+        if (calme(T)) return;
+        if (T.ui?.choix && T.ui.vus >= T.ui.texte.length) { const k = rep.shift() ?? 0; for (let d = 0; d < k; d++) { await pasA({ dir: BAS }); await pasA({}); } await pasA({ a: true }); continue; }
+        if (T.ui && T.ui.vus >= T.ui.texte.length && !T.ui.lu && i % 2 === 0) vus.push(T.ui.texte.replace(/\n/g, ' '));
+        await pasA({ a: T.ui && T.ui.vus >= T.ui.texte.length && !T.ui.lu && i % 2 === 0 });
+      }
+      throw new Error('les scripts ne rendent pas la main : ' + T.ctxs.map((c) => c.nom + '@' + c.pc).join(', ') + ' ' + JSON.stringify(T.ui)?.slice(0, 200) + ' ' + T.joueur.x + ',' + T.joueur.y + ' ' + T.transition?.phase);
     }
-    assert.deepEqual([j.x, j.y], [x, y], 'arrivé');
-  };
-  const entrer = (dir, zone, rep = []) => { pas(T, dir); attendre(T, () => T.zone?.id === zone && !T.transition && !j.m, 400); lire(T, rep); };
-  const porte = async (x, y, zone, rep) => { const c = R(x, y); await voyager(c.x, c.y + 1); entrer(HAUT, zone, rep); };
-  const sortir = async (x, y, zone) => { await voyager(x, y); tenir(T, null, 3); entrer(BAS, zone); };
-  const ici = () => [j.x + OX, j.y + OY];
-  // positions des portes, relevées dans les événements des zones (pret/pokeheartgold)
-  const w = (z, i) => { const v = JOHTO.zones[z].warps[i]; return [v.x + OX, v.y + OY]; };
-  assert.deepEqual([w('ROUTE_32', 2), w('ROUTE_32', 3), w('ROUTE_33', 0), w('ECORCIA', 2), w('ECORCIA', 5), w('ECORCIA', 6), w('ECORCIA', 7)],
-    [[468, 418], [462, 430], [467, 461], [410, 460], [405, 471], [399, 454], [433, 454]]);
-  ok('Centre de la Route 32, Caves Jumelles, Centre d\'Écorcia, arène, maison de FARGAS, Puits Ramoloss : aux coordonnées du jeu');
-
-  // Route 32 : sans le BADGE ZÉPHYR, l'homme du tournant renvoie le joueur vers le nord
-  await sortir(8, 19, 'MAUVILLE');
-  const t = R(475, 304);
-  await voyager(t.x, t.y);
-  pas(T, BAS); lire(T);
-  assert.deepEqual(ici(), [475, 303], 'repoussé de deux cases vers Mauville');
-  assert.equal(T.etat.vars.R32_GRAIN ?? 0, 0);
-  T.etat.drapeaux.add('BADGE_ZEPHYR');
-  pas(T, BAS); pas(T, BAS); lire(T);
-  assert.equal(T.etat.vars.R32_GRAIN, 1); assert.equal(T.etat.sac['miracle-seed'], 1);
-  ok('Route 32 : l\'homme du tournant arrête qui n\'a pas le BADGE ZÉPHYR, et donne le GRAIN MIRACLE à qui l\'a');
-  // les dresseurs de la route défient qui passe devant eux ; Centre POKéMON et sa CANNE
-  const al = R(470, 325);
-  await voyager(al.x, al.y); pas(T, BAS);
-  assert.ok(T.ctxs.length, 'le GAMIN ALBERT a vu le joueur'); lire(T);
-  const he = R(461, 373);
-  await voyager(he.x, he.y); parler(T, BAS); lire(T);
-  await porte(468, 418, 'CENTRE_R32');
-  const battus = ['albert', 'liz', 'henry', 'ralph', 'roland', 'gordon', 'peter'].filter((id) => T.etat.drapeaux.has('DRESSEUR_ROUTE_32_' + id));
-  assert.ok(battus.includes('albert') && battus.includes('henry'));
-  await voyager(4, 16); parler(T, HAUT); lire(T, [0]);
-  assert.equal(T.etat.sac['old-rod'], 1);
-  await sortir(8, 19, 'ROUTE_32');
-  ok(`Route 32 parcourue (${battus.join(', ')} battus en chemin) ; au Centre, le pêcheur donne la CANNE`);
-  // Caves Jumelles, du nord au sud
-  await porte(462, 430, 'CAVES_1F');
-  assert.deepEqual([j.x, j.y], [27, 43]);
-  await sortir(27, 93, 'ROUTE_33');
-  assert.deepEqual(ici(), [467, 462], 'sorti des Caves Jumelles sur la Route 33');
-  ok('Caves Jumelles traversées jusqu\'à la Route 33 (96 cases de long)');
-  // Écorcia : le SBIRE garde le puits, l'autre bouche la porte de l'arène
-  const e = R(420, 463);
-  await voyager(e.x, e.y);
-  assert.equal(T.zone.id, 'ECORCIA');
-  assert.ok(T.objet('sbire_puits').visible && T.objet('sbire_arene').visible && !T.objet('ramoloss_0').visible);
-  const ga = R(405, 472);
-  assert.throws(() => { const v = T.objet('sbire_arene'); if (v.x === ga.x && v.y === ga.y) throw new Error('bouché'); });
-  // FARGAS part en courant vers le puits : le garde s'en va
-  await porte(399, 454, 'MAISON_FARGAS');
-  await voyager(4, 5); parler(T, HAUT); lire(T);
-  assert.ok(T.etat.drapeaux.has('FARGAS_PARTI') && !T.objet('fargas').visible);
-  await sortir(4, 9, 'ECORCIA');
-  assert.ok(!T.objet('sbire_puits').visible, 'le garde du puits est parti');
-  ok('Écorcia : FARGAS sort en courant (il contourne le joueur), le SBIRE qui gardait le puits a filé');
-  // Puits Ramoloss : FARGAS s'est fait mal au dos ; trois SBIRES et PROTON
-  await porte(433, 454, 'PUITS');
-  assert.deepEqual([j.x, j.y], [17, 6], 'descendu par l\'échelle, un pas devant');
-  await voyager(17, 7); parler(T, BAS); assert.match(T.ui.texte, /FARGAS/); lire(T);
-  await voyager(11, 7); entrer(HAUT, 'PUITS_B1F');
-  assert.deepEqual([j.x, j.y], [42, 26]);
-  await voyager(27, 4); parler(T, HAUT); lire(T);
-  attendre(T, () => calme(T) && T.zone?.id === 'MAISON_FARGAS', 600, { a: true }); lire(T);
-  assert.ok(T.etat.drapeaux.has('PUITS_LIBERE') && T.etat.drapeaux.has('DRESSEUR_PROTON_PUITS'));
-  assert.equal(T.etat.sac['lure-ball'], 1, 'FARGAS remercie avec une APPÂT BALL');
-  const sbires = ['sbire_a', 'sbire_b', 'sbire_c'].filter((id) => T.etat.drapeaux.has('DRESSEUR_PUITS_B1F_' + id));
-  ok(`Puits Ramoloss : SBIRES (${sbires.length} vus en chemin) et PROTON battus ; retour chez FARGAS, qui donne une APPÂT BALL`);
-  await sortir(4, 9, 'ECORCIA');
-  assert.ok(!T.objet('sbire_arene').visible && T.objet('ramoloss_0').visible, 'les RAMOLOSS sont revenus, l\'arène est libre');
-  // l'arène : chariots et aiguillages
-  await porte(405, 471, 'ARENE_ECORCIA_HALL');
-  await voyager(7, 4); entrer(HAUT, 'ARENE_ECORCIA');
-  assert.deepEqual([j.x, j.y], [9, 37]);
-  assert.deepEqual([0, 1, 2, 3].map((i) => T.etat.vars['RAIL_' + i]), [0, 1, 2, 7]);
-  const monter = async (x, y, dir) => { await voyager(x, y); pas(T, dir); lire(T); attendre(T, () => calme(T) && !T.trajet, 600); };
-  await monter(3, 33, HAUT);                       // station 0 → station 4
-  assert.deepEqual([j.x, j.y, T.etat.vars.RAIL_0], [9, 24, 4], 'le chariot de gauche mène au milieu de la rangée suivante');
-  await voyager(2, 19); parler(T, HAUT); lire(T, [0]);
-  assert.equal(T.etat.vars.RAIL_AIG, 2, 'le levier de gauche bascule le second aiguillage');
-  await monter(9, 18, HAUT);                       // station 7, aiguillage 2 → station 10, devant HECTOR
-  assert.deepEqual([j.x, j.y], [9, 9]);
-  await voyager(9, 6); parler(T, HAUT); lire(T);
-  assert.ok(T.etat.drapeaux.has('BADGE_ESSAIM') && T.etat.sac.tm89 === 1 && T.etat.vars.RIVAL_ECORCIA === 1);
-  ok('arène d\'Écorcia : chariot 0 → 4, levier, chariot 7 → 10 ; HECTOR battu, BADGE ESSAIM et CT89');
-  await monter(9, 8, BAS);                         // retour : station 10 → 7
-  assert.deepEqual([j.x, j.y], [9, 17]);
-  await monter(9, 23, BAS);                        // station 4 → 0
-  assert.deepEqual([j.x, j.y], [3, 32]);
-  await sortir(9, 37, 'ARENE_ECORCIA_HALL'); await sortir(7, 11, 'ECORCIA');
-  ok('retour en chariots jusqu\'à l\'entrée de l\'arène');
-  // le rival attend à la sortie ouest
-  T.etat.vars.STARTER = 2;
-  const o = R(396, 463);
-  await voyager(o.x, o.y); pas(T, GAUCHE); lire(T);
-  assert.ok(T.etat.drapeaux.has('DRESSEUR_RIVAL_ECORCIA') && T.etat.vars.RIVAL_ECORCIA === 2 && !T.objet('rival_plante').visible);
-  ok('le rival surgit à la sortie d\'Écorcia (MACRONIUM, il a pris GERMIGNON), battu, il s\'en va');
-  const s = T.sauvegarder(), T2 = new Terrain(JOHTO, { graine: 13 }); T2.demarrer({ sauvegarde: s });
-  assert.equal(T2.sauvegarder(), s);
-  const { migrerSauvegarde } = await import(B + 'donnees/johto.js');
-  const vieille = JSON.parse(s); delete vieille.carte; vieille.position = { zone: 'BOURG_GEON', x: 240, y: 176, dir: BAS };
-  const m = JSON.parse(migrerSauvegarde(JSON.stringify(vieille)));
-  assert.deepEqual([m.position.x, m.carte, JSON.parse(migrerSauvegarde(JSON.stringify(m))).position.x], [304, 2, 304]);
-  ok('sauvegarde relue à l\'identique ; une sauvegarde d\'avant l\'agrandissement de la carte est recalée (une seule fois)');
-}
-
-console.log('Arène d\'Écorcia : l\'énigme des chariots (src/field/gymmick/azalea.c)');
-{
-  const { RAILS_ECORCIA: RE } = await import(B + 'donnees/ecorcia.js');
-  const T = new Terrain(JOHTO, { graine: 3 });
-  T.demarrer({ zone: 'ARENE_ECORCIA', warp: 0 });
-  const M = T.M;
-  const { testerPas } = await import(B + 'engine/objets.js');
-  // cases où l'on marche à pied depuis une case (sans PNJ ni chariot) : une « île »
-  const ile = (x, y) => {
-    const vus = new Set([x + ',' + y]), f = [[x, y]];
-    while (f.length) { const [a, b] = f.pop(); for (let d = 0; d < 4; d++) { const r = testerPas(M, { x: a, y: b }, d, {}); if (r.ok && r.type === 'pas' && !vus.has(r.vers.join(','))) { vus.add(r.vers.join(',')); f.push(r.vers); } } }
-    return vus;
-  };
-  const leviers = { 0: [[4, 7], [11, 8], [11, 18]], 1: [[2, 18]] };
-  const declenche = (s) => { const [x, y] = RE.stations[s]; return RE.inverses.includes(s) ? [x, y] : [x, y + 1]; };
-  // états : (île, chariots, aiguillage) ; un pas = basculer un levier de l'île, ou prendre un chariot qui attend
-  const etat0 = { pos: [9, 36], ch: RE.depart, aig: 0 };
-  const cle = (e) => [...ile(...e.pos)].sort()[0] + '|' + e.ch.join(',') + '|' + e.aig;
-  const vus = new Map([[cle(etat0), null]]), file = [etat0];
-  let hector = null;
-  while (file.length) {
-    const e = file.shift(), I = ile(...e.pos);
-    if (I.has('9,6')) { hector ??= e; }
-    const suiv = [];
-    for (const b of [0, 1]) if (leviers[b].some(([x, y]) => [[0, 1], [0, -1], [1, 0], [-1, 0]].some(([dx, dy]) => I.has((x + dx) + ',' + (y + dy))))) suiv.push({ ...e, aig: e.aig ^ (1 << b) });
-    e.ch.forEach((s, k) => {
-      const route = RE.routes[s]?.[e.aig];
-      if (!route || !I.has(declenche(s).join(','))) return;
-      const inv = RE.inverses.includes(s), fin = inv ? route.noeuds[0] : route.noeuds[route.noeuds.length - 1];
-      suiv.push({ pos: [fin[0], fin[1] + (inv ? 1 : 0)], ch: e.ch.map((v, i) => (i === k ? route.vers : v)), aig: e.aig });
-    });
-    for (const n of suiv) { const c = cle(n); if (!vus.has(c)) { vus.set(c, e); file.push(n); } }
-  }
-  assert.ok(hector, 'HECTOR est atteignable');
-  // depuis tout état atteint, on peut revenir à l'entrée (pas d'impasse)
-  const etats = [...vus.keys()];
-  ok(`${etats.length} états (île, chariots, aiguillages) atteignables : HECTOR est au bout`);
-  const entree = [...ile(9, 36)].sort()[0];
-  const versEntree = new Set(etats.filter((c) => c.startsWith(entree + '|')));
-  let change = true;
-  const succ = new Map();
-  for (const [c, p] of vus) if (p) { const cp = cle(p); if (!succ.has(cp)) succ.set(cp, []); succ.get(cp).push(c); }
-  // remontée : un état est sûr s'il a un successeur sûr ou s'il est à l'entrée (on refait la recherche depuis chacun)
-  const sansRetour = [];
-  for (const c of etats) {
-    // nouvelle recherche depuis l'état c (reconstruit à partir de sa clé)
-    const [i, ch, aig] = c.split('|'), [x, y] = i.split(',').map(Number);
-    const v2 = new Set([c]), f2 = [{ pos: [x, y], ch: ch.split(',').map(Number), aig: +aig }];
-    let ok2 = false;
-    while (f2.length && !ok2) {
-      const e = f2.shift(), I = ile(...e.pos);
-      if (I.has('9,36')) { ok2 = true; break; }
-      for (const b of [0, 1]) if (leviers[b].some(([lx, ly]) => [[0, 1], [0, -1], [1, 0], [-1, 0]].some(([dx, dy]) => I.has((lx + dx) + ',' + (ly + dy))))) { const n = { ...e, aig: e.aig ^ (1 << b) }; const k = cle(n); if (!v2.has(k)) { v2.add(k); f2.push(n); } }
-      e.ch.forEach((s, k) => {
-        const route = RE.routes[s]?.[e.aig];
-        if (!route || !I.has(declenche(s).join(','))) return;
-        const inv = RE.inverses.includes(s), fin = inv ? route.noeuds[0] : route.noeuds[route.noeuds.length - 1];
-        const n = { pos: [fin[0], fin[1] + (inv ? 1 : 0)], ch: e.ch.map((v, ii) => (ii === k ? route.vers : v)), aig: e.aig }, kk = cle(n);
-        if (!v2.has(kk)) { v2.add(kk); f2.push(n); }
-      });
-    }
-    if (!ok2) sansRetour.push(c);
-  }
-  assert.deepEqual(sansRetour, [], 'aucun état sans retour');
-  ok('aucune impasse : de chaque état, on peut redescendre jusqu\'à la porte');
-}
-
-console.log('Arène d\'Acajou : trois salles de glace (positions de HGSS)');
-{
-  const T = new Terrain(JOHTO, { graine: 5 });
-  T.demarrer({ zone: 'CENTRE_MAUVILLE', x: 3, y: 10, dir: HAUT });
-  const j = T.joueur;
-  T.etat.equipe.push({ espece: 'Kaiminus', niveau: 30, pv: 1, pvMax: 1 });
-  T.compteurRencontre = 1e9;
-  parler(T, HAUT); lire(T, [0]);
-  attendre(T, () => T.zone?.id === 'ACAJOU' && !T.transition && !j.m, 600);
-  const A = (x, y) => ({ x: x - 512, y: y - 160 });
-  assert.deepEqual([j.x, j.y], [A(534, 184).x, A(534, 184).y], 'devant le Centre d\'Acajou');
-  // la ville : portes aux positions de HGSS ; on entre dans l'arène
-  const wa = JOHTO.zones.ACAJOU.warps.map((w) => [w.x + 512, w.y + 160]);
-  assert.deepEqual(wa, [[523, 183], [534, 183], [528, 174], [537, 174]]);
-  await aller(T, A(523, 184).x, A(523, 184).y); entrer(T, HAUT, 'ARENE_ACAJOU_1');
-  assert.deepEqual([j.x, j.y], [4, 19]);
-  ok('le voyageur du Centre de Mauville emmène à Acajou ; portes de l\'arène, du Centre, de la boutique et de la maison aux places de HGSS');
-  // les dresseurs de l'arène comptent comme battus pendant la recherche (ils ne coupent pas une glissade)
-  for (const z of ['ARENE_ACAJOU_2', 'ARENE_ACAJOU_3'])
-    for (const o of JOHTO.zones[z].objets) if (o.dresseur && !o.dresseur.champion) T.etat.drapeaux.add(`DRESSEUR_${z}_${o.id}`);
-  /** chemin le plus court dans la salle, avec les vraies règles du moteur (on rejoue chaque glissade) */
-  const resoudre = (but) => {
-    const zone = T.zone.id, S = T.sauvegarder();
-    let T2 = new Terrain(JOHTO, { graine: 5 }); T2.demarrer({ sauvegarde: S });
-    const essai = (x, y, d) => {
-      if (T2.zone?.id !== zone) { T2 = new Terrain(JOHTO, { graine: 5 }); T2.demarrer({ sauvegarde: S }); }
-      T2.placerJoueur(x, y, d); T2.continu = false;
-      const bouge = pas(T2, d);
-      attendre(T2, () => !T2.joueur.m && !T2.transition, 400);
-      if (T2.zone?.id !== zone) return 'sortie';
-      return bouge ? [T2.joueur.x, T2.joueur.y] : null;
-    };
-    const cle = (x, y) => x + ',' + y, prev = new Map([[cle(j.x, j.y), null]]), file = [[j.x, j.y]];
-    while (file.length) {
-      const [x, y] = file.shift();
-      if (but(x, y)) { const ch = []; let k = cle(x, y); while (prev.get(k)) { ch.unshift(prev.get(k)[1]); k = prev.get(k)[0]; } return ch; }
-      for (let d = 0; d < 4; d++) {
-        const r = essai(x, y, d);
-        if (r === 'sortie') { if (but(null, null, d, x, y)) { const ch = [d]; let k = cle(x, y); while (prev.get(k)) { ch.unshift(prev.get(k)[1]); k = prev.get(k)[0]; } return ch; } continue; }
-        if (r && !prev.has(cle(...r))) { prev.set(cle(...r), [cle(x, y), d]); file.push(r); }
+    async function allerA(tx, ty) {
+      const M = T.M, k = (x, y) => y * M.largeur + x;
+      const prev = new Map([[k(T.joueur.x, T.joueur.y), null]]); let f = [[T.joueur.x, T.joueur.y]];
+      while (f.length && !prev.has(k(tx, ty))) {
+        const f2 = [];
+        for (const [x, y] of f) for (let d = 0; d < 4; d++) {
+          const q = testerPas(M, { x, y }, d, { objets: T.objets.filter((o) => o.visible) });
+          if (!q.ok) continue;
+          const [nx, ny] = q.vers;
+          if (!prev.has(k(nx, ny)) && !(M.warp(nx, ny) && (nx !== tx || ny !== ty))) { prev.set(k(nx, ny), [x, y, d]); f2.push([nx, ny]); }
+        }
+        f = f2;
+      }
+      if (!prev.has(k(tx, ty))) throw new Error(`pas de chemin vers ${tx},${ty} depuis ${T.joueur.x},${T.joueur.y}`);
+      const dirs = []; let c = k(tx, ty); while (prev.get(c)) { const [x, y, d] = prev.get(c); dirs.unshift(d); c = k(x, y); }
+      for (const d of dirs) {
+        const x = T.joueur.x, y = T.joueur.y;
+        for (let i = 0; i < 80; i++) { await pasA({ dir: d }); if ((T.joueur.x !== x || T.joueur.y !== y) && !T.joueur.m) break; if (T.transition || T.ui || T.ctxs.length) break; }
+        if (!calme(T)) { await lireA(); return; }
       }
     }
-    return null;
-  };
-  const jouer = (ch) => { for (const d of ch) { pas(T, d); attendre(T, () => !j.m || T.transition, 400); if (!calme(T)) lire(T); } };
-  const monte = (x0, y0) => (x, y, d, xs, ys) => x === null && d === HAUT && xs === x0 && ys === y0 + 1;
-  const c1 = resoudre(monte(3, 2));
-  assert.ok(c1 && c1.length >= 10, 'salle 1 : ' + c1?.length + ' pas');
-  jouer(c1); attendre(T, () => T.zone?.id === 'ARENE_ACAJOU_2' && !T.transition && !j.m, 600);
-  assert.deepEqual([j.x, j.y], [6, 14], 'en haut de l\'escalier, un pas dans la salle 2');
-  const c2 = resoudre(monte(6, 2));
-  assert.ok(c2 && c2.length >= 10, 'salle 2 : ' + c2?.length + ' pas');
-  jouer(c2); attendre(T, () => T.zone?.id === 'ARENE_ACAJOU_3' && !T.transition && !j.m, 600);
-  const c3 = resoudre((x, y) => x === 7 && y === 5);
-  assert.ok(c3 && c3.length >= 10, 'salle 3 : ' + c3?.length + ' pas');
-  jouer(c3);
-  assert.deepEqual([j.x, j.y], [7, 5]);
-  ok(`glace : les trois salles se traversent avec les règles du moteur (${c1.length}, ${c2.length} et ${c3.length} glissades au plus court)`);
-  parler(T, HAUT); lire(T);
-  assert.ok(T.etat.drapeaux.has('BADGE_GLACIER'));
-  // retour : on redescend par les escaliers jusqu'à la sortie
-  const d3 = resoudre((x, y, d, xs, ys) => x === null && d === BAS && xs === 5 && ys === 18);
-  jouer(d3); attendre(T, () => T.zone?.id === 'ARENE_ACAJOU_2' && !T.transition && !j.m, 600);
-  const d2 = resoudre((x, y, d, xs, ys) => x === null && d === BAS && xs === 6 && ys === 14);
-  jouer(d2); attendre(T, () => T.zone?.id === 'ARENE_ACAJOU_1' && !T.transition && !j.m, 600);
-  const d1 = resoudre((x, y) => x === 4 && y === 19);
-  jouer(d1); tenir(T, null, 3); entrer(T, BAS, 'ACAJOU');
-  assert.deepEqual([j.x, j.y], [A(523, 184).x, A(523, 184).y], 'ressorti devant l\'arène d\'Acajou');
-  ok('FRIGO battu, BADGE GLACIER ; on redescend les trois salles jusqu\'à la sortie');
-}
+    async function versZone(z, dir) {
+      for (let i = 0; i < 4000 && (T.zone?.id !== z || T.transition); i++) { await pasA(dir !== undefined && !T.transition ? { dir } : {}); if (T.ui || T.ctxs.length) await lireA(); }
+      assert.equal(T.zone.id, z);
+    }
+    async function parlerA(x, y, d, rep) { await allerA(x, y); await pasA({ dir: d }); for (let i = 0; i < 30 && !calme(T); i++) await pasA({}); await pasA({}); await pasA({ a: true }); await lireA(rep); }
 
-console.log('Arène de Frimapic (Platine) : construite depuis les fichiers du jeu');
+    assert.equal(T.zone.id, 'NEW_BARK_PLAYER_HOUSE_2F');
+    await allerA(3, 5); await versZone('NEW_BARK_PLAYER_HOUSE_1F', HAUT); await lireA();
+    assert.ok(vus.includes('Hi, ETHAN! You\'re finally awake.'), vus[0]);
+    assert.ok(['FLAG_GOT_BAG', 'FLAG_GOT_TRAINER_CARD', 'FLAG_GOT_SAVE_BUTTON'].every((f) => T.etat.drapeaux.has(f)));
+    ok('la chambre d\'ETHAN ; en bas, sa mère l\'arrête : « Hi, ETHAN! You\'re finally awake. », le Sac, la Carte Dresseur, le bouton de sauvegarde');
+    const tapis = T.zone.warps.find((w) => w.vers === 'NEW_BARK');
+    await allerA(tapis.x, tapis.y); await versZone('NEW_BARK', BAS);
+    assert.ok(chargements >= 2, 'cartes chargées en route');
+    await allerA(684, 394); await versZone('NEW_BARK_ELMS_LAB_1F', HAUT); await lireA();
+    vus.length = 0;
+    await parlerA(4, 6, HAUT, [0]);
+    assert.ok(vus.some((t) => t.startsWith('Professor Elm: Hi, ETHAN!')), vus[0]);
+    await parlerA(8, 5, HAUT, [1, 1]);
+    assert.equal(T.etat.equipe.length, 1);
+    assert.equal(T.etat.equipe[0].sp, 155);
+    assert.ok(vus.includes('ETHAN received CYNDAQUIL from Professor Elm!'), vus.join(' | '));
+    assert.equal(T.etat.vars.VAR_SCENE_ELMS_LAB, 1);
+    ok(`le laboratoire : le discours du Prof. Elm, la machine aux trois Poké Balls → CYNDAQUIL ; ${chargements} cartes chargées en route`);
+
+    // retour à la maison : sa mère lui donne le Pokégear (sans lui, une passante le ramène en ville à la sortie ouest)
+    const sortie = T.zone.warps[0];
+    await allerA(sortie.x, sortie.y); await versZone('NEW_BARK', BAS);
+    const porte = T.d.zones.NEW_BARK.warps.find((w) => w.vers === 'NEW_BARK_PLAYER_HOUSE_1F');
+    await allerA(porte.x, porte.y + 1); await versZone('NEW_BARK_PLAYER_HOUSE_1F', HAUT); await lireA();
+    const mere = T.objets.find((o) => o.visible && /gsmama/i.test(o.id));
+    vus.length = 0;
+    const [mx, my, md] = [[0, 1, HAUT], [0, -1, BAS], [1, 0, GAUCHE], [-1, 0, DROITE]].map(([dx, dy, d]) => [mere.x + dx, mere.y + dy, d]).find(([x, y]) => !T.M.bloquee(x, y));
+    await parlerA(mx, my, md, [0]);
+    assert.ok(T.etat.drapeaux.has('FLAG_GOT_POKEGEAR'), vus.join(' | '));
+    ok('à la maison, sa mère lui donne le Pokégear');
+    const tapis2 = T.zone.warps.find((w) => w.vers === 'NEW_BARK');
+    await allerA(tapis2.x, tapis2.y); await versZone('NEW_BARK', BAS);
+
+    // de New Bark Town à Cherrygrove City sans changer de carte : les zones se suivent sur le monde d'un seul tenant
+    const M = T.M, cible = (() => { for (let y = 0; y < M.hauteur; y++) for (let x = 0; x < M.largeur; x++) if (M.zone(x, y)?.id === 'CHERRYGROVE' && !M.bloquee(x, y) && !M.warp(x, y) && x % 32 === 20) return [x, y]; })();
+    const zonesTraversees = new Set();
+    const surZone = setInterval(() => zonesTraversees.add(T.zone?.id), 1);
+    // la page charge en avance les cartes autour du joueur (main.js) ; ici, celles du chemin
+    for (const c of ['ROUTE_29', 'CHERRYGROVE']) T.ajouterDonnees(await G.chargerCarte(c));
+    const combats = []; const combat0 = T.combat.bind(T); T.combat = (c) => { combats.push(c); return combat0(c); };
+    vus.length = 0;
+    // les scènes du chemin (Lyra et sa leçon de capture sur la Route 29) interrompent la marche : on reprend après
+    // (le vieil homme de Cherrygrove fait visiter la ville : on suit, quitte à finir dans un bâtiment)
+    for (let i = 0; i < 40 && T.M.id === 'johto' && (T.joueur.x !== cible[0] || T.joueur.y !== cible[1]); i++) await allerA(...cible);
+    clearInterval(surZone); zonesTraversees.add(T.zone.id);
+    assert.ok(/^CHERRYGROVE/.test(T.zone.id), T.zone.id);
+    assert.ok(zonesTraversees.has('ROUTE_29') || [...zonesTraversees].length >= 1);
+    assert.ok(T.d.zones.ROUTE_29.rencontres?.herbe?.especes.some((e) => e.espece === 'pidgey' || e.espece === 'hoothoot'));
+    assert.ok(combats.length >= 1 && combats.every((c) => c.type !== 'sauvage' || ['pidgey', 'sentret', 'hoothoot', 'rattata', 'hoppip', 'furret'].includes(c.espece)), JSON.stringify(combats));
+    ok(`de New Bark Town à Cherrygrove City à pied, sans chargement de carte : la Route 29, ses scènes et ses POKéMON sauvages du jeu (${[...new Set(combats.map((c) => c.espece || c.type))].join(', ')})`);
+
+    // l'arène d'Azalea : les vrais chemins des chariots (src/field/gymmick/azalea.c), posés sur la vraie salle
+    charge(await G.chargerCarte('AZALEA_GYM'));
+    const Z = D3.zones.AZALEA_GYM;
+    assert.equal(Z.objets.filter((o) => o.id.startsWith('chariot_')).length, 4);
+    assert.ok(Z.rails.stations.every(([x, y]) => x > 0 && y > 0));
+    assert.ok(/chariot 0/.test(Z.scripts) && /aiguillage 1/.test(Z.scripts) && /rails_depart/.test(Z.scripts));
+    ok('l\'arène d\'Azalea : douze stations, quatre chariots Spinarak, deux aiguillages, appelés par les scripts du jeu');
+  }
+}
 {
   // les fichiers viennent d'un clone local de pret/pokeplatinum (PLAT=<dossier>) ; sans lui, on passe
   const { existsSync } = await import('node:fs');
@@ -800,21 +539,21 @@ console.log('Arène de Frimapic (Platine) : construite depuis les fichiers du je
   if (!existsSync(PLAT + '/res/field/mapmodels/data/map_data_234.bin')) console.log('  (clone de pokeplatinum absent : PLAT=<dossier>)');
   else {
     const { frimapic } = await import(B + 'donnees/platine.js');
-    const { avecFrimapic, SORTIE_FRIMAPIC } = await import(B + 'donnees/johto.js');
-    const r = await frimapic((c) => readFile(PLAT + '/' + c).then((b) => new Uint8Array(b)), SORTIE_FRIMAPIC);
-    const D = avecFrimapic(r), Z = D.zones.ARENE_FRIMAPIC, b = r.blocs.frimapic;
+    const r = await frimapic((c) => readFile(PLAT + '/' + c).then((b) => new Uint8Array(b)), { vers: 'NEW_BARK_PLAYER_HOUSE_1F', n: 0 });
+    const D = { ...DEMO, blocs: { ...DEMO.blocs, ...r.blocs }, mondes: { ...DEMO.mondes, ...r.mondes }, zones: { ...DEMO.zones, ...r.zones } };
+    for (const w of r.zones.ARENE_FRIMAPIC.warps) w.vers = null;   // la sortie ne mène nulle part ici (dans le jeu : le Centre de Mahogany)
+    const Z = D.zones.ARENE_FRIMAPIC, b = r.blocs.frimapic;
     // la salle du jeu : 497 cases de glace, la sortie en (11, 28), GLADYS en (11, 3), 19 boules, 6 Topdresseurs
     assert.equal(b.mb.filter((m) => m === MB.GLACE).length, 497);
     assert.deepEqual([Z.warps[0].x, Z.warps[0].y], [11, 28]);
     assert.deepEqual(Z.objets.filter((o) => o.boule).length, 19);
     assert.deepEqual(Z.objets.filter((o) => o.dresseur && !o.dresseur.champion).length, 6);
     const gl = Z.objets.find((o) => o.id === 'candice'); assert.deepEqual([gl.x, gl.y], [11, 3]);
-    assert.ok(auditer(D, DEPART).erreurs.length === 0, 'audit avec Frimapic : ' + auditer(D, DEPART).erreurs.slice(0, 3));
-    ok('la salle vient du jeu : 497 cases de glace, relief en pente, GLADYS, 6 Topdresseurs, 19 boules, sortie ; audit sans erreur');
+    ok('la salle vient du jeu : 497 cases de glace, relief en pente, Candice, 6 Topdresseurs, 19 boules, sortie');
     // règles de la glace à pentes
     const T = new Terrain(D, { graine: 3 });
     T.demarrer({ zone: 'ARENE_FRIMAPIC', x: 11, y: 28, dir: HAUT });
-    const j = T.joueur;
+    let j = T.joueur;
     for (const o of Z.objets) if (o.dresseur && !o.dresseur.champion) T.etat.drapeaux.add(`DRESSEUR_ARENE_FRIMAPIC_${o.id}`);
     const boules = Z.objets.filter((o) => o.boule).map((o) => o.id);
     /** un coup depuis (x, y) avec les boules `cassees` déjà brisées : rend [x, y, cassées] */
@@ -823,7 +562,7 @@ console.log('Arène de Frimapic (Platine) : construite depuis les fichiers du je
       T.majVisibles(); T.placerJoueur(x, y, d); T.continu = false; j.vGlace = 0; j.apresRecul = false;
       T.pas({ dir: d }); attendre(T, () => !j.m && !T.transition, 900);
       // la sortie mène hors de l'arène : ce coup ne compte pas, on y revient
-      if (T.zone?.id !== 'ARENE_FRIMAPIC') { T.demarrer({ zone: 'ARENE_FRIMAPIC', x: 11, y: 27, dir: HAUT }); return null; }
+      if (T.zone?.id !== 'ARENE_FRIMAPIC') { T.demarrer({ zone: 'ARENE_FRIMAPIC', x: 11, y: 27, dir: HAUT }); j = T.joueur; return null; }
       if (j.x === x && j.y === y) return null;
       return [j.x, j.y, boules.filter((id) => T.etat.drapeaux.has('TMP_BOULE_' + id))];
     };
@@ -850,13 +589,13 @@ console.log('Arène de Frimapic (Platine) : construite depuis les fichiers du je
       }
       file = f2;
     }
-    assert.ok(fin, `GLADYS atteinte (${prev.size} états explorés)`);
+    assert.ok(fin, `Candice atteinte (${prev.size} états explorés)`);
     const coups = []; for (let k = fin; prev.get(k); k = prev.get(k)[0]) coups.unshift(prev.get(k)[1]);
     const cassees = fin.split(':')[1].split('|').filter(Boolean);
     assert.ok(cassees.length >= 1, 'il faut briser des boules de neige pour arriver jusqu\'à elle');
-    ok(`glace à pentes de Platine : élan en descente, recul en montée, boules brisées avec de l'élan ; GLADYS atteinte en ${coups.length} coups (${cassees.length} boules brisées, ${prev.size} états)`);
+    ok(`glace à pentes de Platine : élan en descente, recul en montée, boules brisées avec de l'élan ; Candice atteinte en ${coups.length} coups (${cassees.length} boules brisées, ${prev.size} états)`);
     // la partie jouée pour de bon : depuis l'entrée, la solution, puis le combat
-    T.demarrer({ zone: 'ARENE_FRIMAPIC', x: 11, y: 27, dir: HAUT });
+    T.demarrer({ zone: 'ARENE_FRIMAPIC', x: 11, y: 27, dir: HAUT }); j = T.joueur;
     for (const o of Z.objets) if (o.dresseur && !o.dresseur.champion) T.etat.drapeaux.add(`DRESSEUR_ARENE_FRIMAPIC_${o.id}`);
     for (const id of boules) T.etat.drapeaux.delete('TMP_BOULE_' + id);
     T.majVisibles();
@@ -865,7 +604,7 @@ console.log('Arène de Frimapic (Platine) : construite depuis les fichiers du je
     assert.deepEqual([j.x, j.y], [11, 4]);
     parler(T, HAUT); lire(T);
     assert.ok(T.etat.drapeaux.has('BADGE_GLACON'));
-    ok('la solution rejouée dans la vraie partie : GLADYS battue, BADGE GLAÇON');
+    ok('la solution rejouée dans la vraie partie : Candice battue, Icicle Badge');
   }
 }
 

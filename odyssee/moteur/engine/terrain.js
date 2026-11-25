@@ -11,23 +11,21 @@
 //   6. les scripts de niveau (« map scripts ») quand tout est calme ; la caméra.
 
 import { DX, DY, OPPOSE, PROPS, VITESSE, ELAN_VELO, VITESSE_GLACE, BAS, HAUT, rng as RNG } from './const.js';
-import { Monde, preparer, valider } from './carte.js';
+import { Monde, preparer, valider, preparerBloc } from './carte.js';
 import { ObjetTerrain, objetEn, testerPas, devant } from './objets.js';
 import { Scripts, Contexte, avancer } from './script.js';
 import { COMMANDES, dirVers } from './commandes.js';
-import { COMMUN } from './commun.js';
+import { COMMUN, COMMUN_EN } from './commun.js';
 
 /** caméras par type de zone (comme les réglages de caméra des en-têtes de HGSS) */
 /**
- * Caméras. Celle de HGSS et de Platine (field_camera.c de la décompilation de Platine, même valeur 666,92 dans HGSS) :
- * distance 666,92 unités (41,68 cases), inclinaison 59,05°, champ vertical 2 × 8,09°. Sur l'écran de la DS (256 × 192),
- * on voit ainsi exactement 16 cases de large. Les intérieurs, les grottes et les villes gardent la même ; « proche »
- * est celle des endroits resserrés de Platine (CAMERA_TYPE_ZOOMED_IN).
+ * Caméras : celle d'Odyssée, qui reprend le cadrage de HeartGold / SoulSilver — inclinaison 55°, champ vertical 13°,
+ * largeur resserrée de sin(55°) pour que chaque case soit carrée à l'écran (`carre`), 12 cases de haut et 16 de large
+ * comme l'écran de la DS ; les personnages gardent leurs pixels carrés. Distance : 12 × sin(55°) / (2 tan 6,5°).
  */
-const CAM_DS = { distance: 666.922 / 16, inclinaison: 59.0515, fov: 2 * 8.0914 };
+const CAM_HGSS = { distance: 12 * Math.sin(55 * Math.PI / 180) / (2 * Math.tan(6.5 * Math.PI / 180)), inclinaison: 55, fov: 13, carre: true };
 export const CAMERAS = {
-  dehors: CAM_DS, ville: CAM_DS, interieur: CAM_DS, grotte: CAM_DS, haut: CAM_DS,
-  proche: { distance: 515.456 / 16, inclinaison: 54.657, fov: 2 * 10.459 },
+  dehors: CAM_HGSS, ville: CAM_HGSS, interieur: CAM_HGSS, grotte: CAM_HGSS, haut: CAM_HGSS, proche: CAM_HGSS,
 };
 
 /** objets connus : nom (avec article) et prix ; un paquet de données peut en ajouter (`objets`) */
@@ -55,7 +53,7 @@ export class Terrain {
   constructor(donnees, opts = {}) {
     this.d = preparer(donnees);
     this.commandes = COMMANDES;
-    const sources = { commun: COMMUN + '\n' + (donnees.scriptsCommuns || ''), ...Object.fromEntries(Object.entries(this.d.zones).map(([id, z]) => [id, z.scripts || ''])) };
+    const sources = { commun: (donnees.langue === 'en' ? COMMUN_EN : COMMUN) + '\n' + (donnees.scriptsCommuns || ''), ...Object.fromEntries(Object.entries(this.d.zones).map(([id, z]) => [id, z.scripts || ''])) };
     this.scripts = new Scripts(COMMANDES, sources);
     const err = valider(this.d, (z) => this.scripts.noms(z.id));
     if (err.length && !opts.toleRant) throw new Error('données invalides :\n  ' + err.join('\n  '));
@@ -64,10 +62,11 @@ export class Terrain {
     this.rng = RNG(this.graine);
     this.t = 0;
     this.etat = {
-      drapeaux: new Set(), vars: {}, sac: {}, equipe: [], joueur: { nom: opts.nom || 'LUTH', sprite: opts.sprite || 'player_m' },
+      drapeaux: new Set(), vars: {}, sac: {}, equipe: [], joueur: { nom: opts.nom || donnees.nomJoueur || 'LUTH', sprite: opts.sprite || 'player_m' },
       soin: null, pas: 0, argent: opts.argent ?? 3000,
     };
-    this.objetsConnus = { ...OBJETS, ...(donnees.objets || {}) };
+    this.objetsConnus = { ...OBJETS };
+    for (const [k, o] of Object.entries(donnees.objets || {})) this.objetsConnus[k] = { ...OBJETS[k], ...o };
     this.versionCarte = donnees.version ?? null;   // inscrite dans la sauvegarde : un paquet de données peut ainsi migrer les anciennes
     this.etat.boite = [];
     /**
@@ -133,7 +132,14 @@ export class Terrain {
     }
   }
   objet(id) { return this.objets.find((o) => o.id === id) || null; }
-  nomObjet(n) { return this.objetsConnus[n]?.nom || n.toUpperCase(); }
+  nomObjet(n, court = false) { const o = this.objetsConnus[n]; return (court ? o?.court : o?.nom) || o?.nom || n.toUpperCase(); }
+  /** nom d'une espèce : numéro national, ou identifiant (« chikorita ») */
+  nomEspece(sp) {
+    const N = this.d.nomsEspeces;
+    if (N && /^\d+$/.test(String(sp))) return N[+sp] || String(sp);
+    if (N) { const i = N.findIndex((n) => n && n.toLowerCase().replace(/[^a-z0-9]+/g, '-') === String(sp)); if (i > 0) return N[i]; }
+    return String(sp).toUpperCase();
+  }
   /** drapeau qui cache un objet : le sien, ou TMP_ pour un arbre à couper (il repousse au changement de carte) */
   drapeauObjet(o) { return o.def.drapeau || (o.def.type === 'arbre_coupe' ? `TMP_COUPE_${o.zone}_${o.id}` : null); }
   drapeauDresseur(o) { return o.def.dresseur.drapeau || `DRESSEUR_${o.zone}_${o.id}`; }
@@ -226,7 +232,7 @@ export class Terrain {
 
   // ——— boîte de texte ———
   message(s) {
-    const texte = s.replace(/\{JOUEUR\}/g, this.etat.joueur.nom).replace(/\{ARGENT\}/g, String(this.etat.argent)).replace(/\{VAR:(\w+)\}/g, (m, v) => String(this.etat.vars[v] ?? 0));
+    const texte = s.replace(/\{T(\d+)\}/g, (m, k) => this.tampons?.[+k] ?? (k === '0' ? this.etat.joueur.nom : '')).replace(/\{JOUEUR\}/g, this.etat.joueur.nom).replace(/\{RIVAL\}/g, this.etat.joueur.rival || 'SILVER').replace(/\{ARGENT\}/g, String(this.etat.argent)).replace(/\{VAR:(\w+)\}/g, (m, v) => String(this.etat.vars[v] ?? 0));
     this.ui = { texte, vus: 0, choix: null };
     this.sortir({ type: 'message', texte });
     return () => this.ui === null || this.ui.lu;
@@ -392,7 +398,7 @@ export class Terrain {
   basculerVelo() {
     if (this.mode === 'surf') return;
     if (this.mode === 'velo') { this.changerMode('marche'); return; }
-    if (!this.etat.sac.velo) return;
+    if (!this.etat.sac.velo && !this.etat.sac.bicycle) return;
     if (this.zone?.velo === false || this.M.props(this.joueur.x, this.joueur.y).pasVelo) {
       this.lancerScript(this.zone.id, 'PasDeVeloIci'); return;
     }
@@ -427,8 +433,9 @@ export class Terrain {
     switch (a.type) {
       case 'pas': {
         const r = testerPas(this.M, o, a.dir, { pnj: o !== this.joueur, objets: o === this.joueur ? this.objets : [...this.objets, this.joueur] });
-        // un script ne traverse jamais : s'il est bloqué, l'objet attend (comme dans HGSS)
-        if (!r.ok) { o.dir = a.dir; return; }
+        // un script bloqué attend ; sauf pour les données du jeu (scriptsTraversent) : dans HGSS, les mouvements de
+        // script ne testent pas les collisions, et ses scènes comptent dessus (un PNJ errant qui rejoint le joueur)
+        if (!r.ok && !this.d.scriptsTraversent) { o.dir = a.dir; return; }
         o.lancer('pas', a.dir, a.vitesse);
         if (--a.n <= 0) fin();
         return;
@@ -444,7 +451,7 @@ export class Terrain {
       default: throw new Error(`mouvement inconnu : ${a.type}`);
     }
   }
-  jouerMouvement(o, pas) { for (const p of pas) o.file.push({ ...p }); }
+  jouerMouvement(o, pas) { if (o.fantome) return; for (const p of pas) o.file.push({ ...p }); }
 
   /** PNJ livrés à eux-mêmes : types de mouvement de HGSS */
   pnjLibre(o) {
@@ -605,10 +612,44 @@ export class Terrain {
   }
 
   // ——— téléporteurs ———
+  /**
+   * Ajoute des données en cours de partie (cartes chargées à la demande) : zones, blocs, mondes. Si le monde où l'on
+   * est change, ses événements sont repris (le joueur ne bouge pas).
+   */
+  ajouterDonnees(p) {
+    if (!p) return;
+    for (const [id, b] of Object.entries(p.blocs || {})) this.d.blocsPrets[id] = preparerBloc({ id, ...b });
+    for (const [mid, m] of Object.entries(p.mondes || {})) {
+      this.d.mondes[mid] = m;
+      for (const z of m.zones) if (z && !this.d.mondeDeZone[z]) this.d.mondeDeZone[z] = mid;
+    }
+    const ids = Object.keys(p.zones || {});
+    for (const id of ids) {
+      this.d.zones[id] = { ...p.zones[id], id };
+      this.scripts.ajouter(id, p.zones[id].scripts || '');
+    }
+    if (this.M && ids.some((id) => this.d.mondeDeZone[id] === this.M.id)) {
+      const j = this.joueur, autres = new Map(this.objets.map((o) => [o.zone + ':' + o.id, o]));
+      this.M = new Monde(this.d, this.M.id);
+      // les objets des zones déjà là gardent leur état ; ceux des zones nouvelles arrivent
+      this.objets = this.M.objets.map((def) => {
+        const vieux = !ids.includes(def.zone) && autres.get(def.zone + ':' + def.id);
+        if (vieux) return vieux;
+        const o = new ObjetTerrain(def, RNG(this.graine ^ hash(def.zone + ':' + def.id)));
+        o.zone = def.zone;
+        return o;
+      });
+      this.majVisibles();
+      if (ids.includes(this.zone?.id)) this.zone = this.d.zones[this.zone.id];
+      j.m = j.m || null;
+    }
+  }
   prendreWarp(w) {
-    const dest = this.d.zones[w.vers].warps[w.n ?? 0];
+    if (!w.vers || !this.d.zones[w.vers]) return;          // porte qui ne mène nulle part
+    const cible = this.d.zones[w.vers];
+    const dest = cible.aCharger ? null : cible.warps[w.n ?? 0];
     this.sortir({ type: 'son', nom: this.M.mb(w.x, w.y) === 12 ? 'porte' : 'escalier' });
-    this.teleporter({ zone: w.vers, warp: w.n ?? 0, sortie: dest.sortie });
+    this.teleporter({ zone: w.vers, warp: w.n ?? 0, sortie: dest?.sortie });
   }
   teleporter(o) {
     this.continu = false;
@@ -619,6 +660,11 @@ export class Terrain {
   majTransition() {
     const tr = this.transition;
     if (tr.phase === 'sortie' && this.noir >= 1 && !this.joueur.m) {
+      // carte pas encore là : on la demande et on attend dans le noir
+      if (this.d.zones[tr.o.zone]?.aCharger) {
+        if (!tr.demande) { tr.demande = true; this.chargeur?.(tr.o.zone); }
+        return;
+      }
       const o = tr.o, z = this.d.zones[o.zone];
       const mid = this.d.mondeDeZone[o.zone];
       if (!this.M || this.M.id !== mid) this.chargerMonde(mid);

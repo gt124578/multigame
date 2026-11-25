@@ -240,8 +240,8 @@ function lireTextures(L, o) {
     };
   }
   /** décode une texture avec une palette → { larg, haut, rgba } */
-  const decoder = (nomTex, nomPal) => {
-    const t = textures[nomTex];
+  const decoder = (nomTex, nomPal, trans0 = false) => {
+    const t0 = textures[nomTex], t = t0 && trans0 ? { ...t0, transparent0: true } : t0;
     if (!t) return null;
     const { larg, haut, format } = t, n = larg * haut, out = new Uint8Array(n * 4);
     const pal = nomPal != null ? palettes[nomPal] : null;
@@ -286,7 +286,7 @@ export function lireNsbtx(buf) {
   const o = L.u32(0x10);
   if (L.tag(o) !== 'TEX0') throw new Error('NSBTX sans TEX0');
   const T = lireTextures(L, o);
-  return { decoder: T.decoder, textures: T.textures };
+  return { decoder: T.decoder, textures: T.textures, palettes: T.palettes };
 }
 
 /** un fichier NSBMD → { modeles: [...], decoder(nomTex, nomPal) } */

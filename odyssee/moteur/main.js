@@ -1,45 +1,72 @@
-// odyssee/moteur/main.js — banc d'essai (page odyssee/moteur.html) : le moteur de terrain (engine/), le début de HGSS
-// redessiné (donnees/johto.js), le rendu three.js (render/) et, par odyssee.js, les combats, l'équipe, le sac, la
-// musique et les bruitages d'Odyssée. Le moteur avance à pas fixe (60 par seconde) ; l'écran ne fait que le montrer.
+// odyssee/moteur/main.js — banc d'essai (page odyssee/moteur.html) : le moteur de terrain (engine/), le jeu HGSS lu dans
+// la décompilation (donnees/jeu-hg.js : cartes, événements, scripts, en anglais), le rendu three.js (render/) et, par
+// odyssee.js, les combats, l'équipe, le sac, la musique et les bruitages d'Odyssée. Le moteur avance à pas fixe (60 par seconde) ; l'écran ne fait que le montrer.
 //   ?nouveau            nouvelle partie (ignore la sauvegarde)
 //   ?zone=ID&x=..&y=..  départ ailleurs
 //   ?debug              window.__moteur (terrain, rendu) et infos affichées
 //   ?tout               chaussures de course et vélo dès le départ
+//   ?demo               la petite zone d'essai au lieu du jeu
+//   ?pret=URL           autre copie des fichiers de la décompilation
 import { Terrain } from './engine/terrain.js';
 import { PAS_PAR_SECONDE } from './engine/const.js';
 import { DEMO } from './donnees/demo.js';
-import { JOHTO, DEPART, avecFrimapic, SORTIE_FRIMAPIC, migrerSauvegarde } from './donnees/johto.js';
 import { frimapic, PLATINE } from './donnees/platine.js';
+import { jeuHG, DEPART_HG } from './donnees/jeu-hg.js';
+import { PRET_HG } from './donnees/hgss.js';
 import { Rendu } from './render/rendu.js';
+import { ModelesHGSS } from './render/hgss3d.js';
 import { PontOdyssee } from './odyssee.js';
+import { CarteRegion } from './render/carte-region.js';
 
 const Q = new URLSearchParams(location.search);
-let DONNEES = Q.has('demo') ? DEMO : JOHTO;
-// l'Arène de Frimapic (Platine) se construit à partir des fichiers du jeu, lus dans le dépôt de la décompilation
-if (!Q.has('demo')) {
-  try {
-    const lire = async (c) => { const r = await fetch((Q.get('platine') || PLATINE) + c); if (!r.ok) throw new Error(c + ' : ' + r.status); return new Uint8Array(await r.arrayBuffer()); };
-    DONNEES = avecFrimapic(await frimapic(lire, SORTIE_FRIMAPIC));
-  } catch (e) { console.warn('Arène de Frimapic indisponible :', e.message || e); }
-}
-const DEBUT = Q.has('demo') ? { zone: 'MAISON_2F', x: 14, y: 13 } : DEPART;
-const CLE = 'odyssee-moteur-hgss' + (Q.has('demo') ? '-demo' : '-johto');
 const $ = (id) => document.getElementById(id);
+/** lecture d'un fichier du dépôt de la décompilation, gardée dans le cache du navigateur (adresses à commit épinglé) */
+const lireDepuis = (base) => async (c) => {
+  const url = base + c;
+  let cache = null;
+  try { cache = await caches.open('moteur-hgss-pret'); const r = await cache.match(url); if (r) return new Uint8Array(await r.arrayBuffer()); } catch { cache = null; }
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(c + ' : ' + r.status);
+  if (cache) try { await cache.put(url, r.clone()); } catch { /* cache plein */ }
+  return new Uint8Array(await r.arrayBuffer());
+};
+const fusionner = (D, p) => { if (!p) return; Object.assign(D.zones, p.zones); Object.assign(D.blocs, p.blocs); Object.assign(D.mondes, p.mondes); };
+let DONNEES = DEMO, HG = null, G = null;
+if (!Q.has('demo')) {
+  // le jeu entier depuis les données publiées par la décompilation de HGSS (pret/pokeheartgold) : les cartes (~20 Mo
+  // la première fois, ensuite gardées par le navigateur), les événements et les scripts de chaque lieu
+  $('chargement').textContent = 'Chargement des cartes de HeartGold / SoulSilver…';
+  const baseHG = Q.get('pret') || PRET_HG, lireHG = lireDepuis(baseHG);
+  G = await jeuHG(lireHG);
+  DONNEES = G.donnees;
+  HG = new ModelesHGSS(baseHG, { terrains: G.archives.brut.terrains }, lireHG, G.personnages);
+  // l'Arène de Frimapic (Platine) se construit à partir des fichiers du jeu, lus dans le dépôt de la décompilation
+  try { fusionner(DONNEES, await frimapic(lireDepuis(Q.get('platine') || PLATINE), { vers: 'MAHOGANY_POKECENTER_1F', n: 0 })); }
+  catch (e) { console.warn('Arène de Frimapic indisponible :', e.message || e); }
+}
+const DEBUT = Q.has('demo') ? { zone: 'MAISON_2F', x: 14, y: 13 } : DEPART_HG;
+const CLE = 'odyssee-moteur-hgss' + (Q.has('demo') ? '-demo' : '-jeu');
 
 // ——— touches : on mémorise les appuis entre deux pas pour n'en perdre aucun ———
 const TOUCHES = {
   ArrowUp: 'haut', ArrowDown: 'bas', ArrowLeft: 'gauche', ArrowRight: 'droite', KeyW: 'haut', KeyS: 'bas', KeyA: 'gauche', KeyD: 'droite',
   KeyZ: 'haut', KeyQ: 'gauche',
   Space: 'a', Enter: 'a', KeyF: 'a', KeyK: 'a', Escape: 'b', Backspace: 'b', KeyX: 'b', KeyL: 'b',
-  ShiftLeft: 'course', ShiftRight: 'course', CapsLock: 'toujours', KeyV: 'velo', KeyO: 'sauver', F3: 'debug', KeyG: 'qualite', Tab: 'menu', KeyM: 'menu',
+  ShiftLeft: 'course', ShiftRight: 'course', CapsLock: 'toujours', KeyV: 'velo', KeyO: 'sauver', F3: 'debug', KeyG: 'qualite', Tab: 'menu', KeyM: 'menu', KeyC: 'carte',
 };
 const DIRS = ['haut', 'bas', 'gauche', 'droite'];
 const tenues = new Set(), ordre = [], appuis = new Set();
-let courseAuto = false;
+let courseAuto = false, carte = null;
 addEventListener('keydown', (e) => {
   const k = TOUCHES[e.code]; if (!k) return;
   e.preventDefault();
   if (e.repeat || pont?.occupe) return;   // un écran d'Odyssée (combat, menu) a les touches
+  // la carte de la région ouverte : flèches pour le curseur, C / B pour fermer
+  if (carte?.ouverte) {
+    if (k === 'carte' || k === 'b' || k === 'menu') carte.fermer();
+    else if (DIRS.includes(k)) carte.bouger(...[[0, -1], [0, 1], [-1, 0], [1, 0]][DIRS.indexOf(k)]);
+    return;
+  }
   if (k === 'toujours') { courseAuto = !courseAuto; return; }
   tenues.add(k); appuis.add(k);
   if (DIRS.includes(k)) { ordre.splice(ordre.indexOf(k) >>> 0, ordre.includes(k) ? 1 : 0); ordre.push(k); }
@@ -59,6 +86,12 @@ function entrees() {
 }
 
 // ——— démarrage ———
+// la carte où l'on commence est chargée avant le premier pas
+const sauvegarde = !Q.has('nouveau') && localStorage.getItem(CLE);
+let zoneDepart = Q.get('zone') || DEBUT.zone;
+if (!Q.get('zone') && sauvegarde) try { zoneDepart = JSON.parse(sauvegarde).position.zone; } catch { /* sauvegarde illisible */ }
+// (et la chambre du début : c'est là qu'on repart si la position est perdue)
+for (const z of new Set([zoneDepart, DEBUT.zone])) if (G && DONNEES.zones[z]?.aCharger) fusionner(DONNEES, await G.chargerCarte(z));
 // les POKéMON du terrain sont ceux d'Odyssée (le pont est créé juste après le terrain, d'où ces renvois)
 let pont = null;
 const T = new Terrain(DONNEES, { graine: (Math.random() * 2 ** 31) | 0, pokemon: {
@@ -72,19 +105,58 @@ const taillePx = () => {
   document.documentElement.style.setProperty('--bp', (innerHeight / 192) + 'px');
 };
 addEventListener('resize', taillePx); taillePx();
-const sauvegarde = !Q.has('nouveau') && localStorage.getItem(CLE);
 if (Q.get('zone')) T.demarrer({ zone: Q.get('zone'), x: Q.has('x') ? +Q.get('x') : undefined, y: Q.has('y') ? +Q.get('y') : undefined });
-else if (sauvegarde) { try { T.demarrer({ sauvegarde: Q.has('demo') ? sauvegarde : migrerSauvegarde(sauvegarde) }); } catch (e) { console.warn('sauvegarde illisible', e); T.demarrer(DEBUT); } }
-else T.demarrer(DEBUT);
+else if (sauvegarde) { try { T.demarrer({ sauvegarde }); } catch (e) { console.warn('sauvegarde illisible', e); T.demarrer(DEBUT); } }
+else {
+  T.demarrer(DEBUT);
+  // nouvelle partie : les drapeaux et variables que le jeu pose avant le premier pas
+  for (const f of G?.drapeauxDepart || []) T.etat.drapeaux.add(f);
+  Object.assign(T.etat.vars, G?.varsDepart || {});
+  T.majVisibles();
+}
+// cartes chargées en route : celle où l'on va (le moteur attend dans le noir), et en avance celles d'à côté
+const enCours = new Map();
+function charger(id) {
+  if (!G || !T.d.zones[id]?.aCharger) return Promise.resolve();
+  if (!enCours.has(id)) enCours.set(id, G.chargerCarte(id).then((p) => T.ajouterDonnees(p)).catch((e) => { console.warn('carte', id, e); enCours.delete(id); }));
+  return enCours.get(id);
+}
+T.chargeur = charger;
+let file = [], actifs = 0;
+function prevoir() {
+  if (!G) return;
+  const j = T.joueur, M = T.M, voulues = [];
+  if (T.zone) voulues.push(T.zone.id, ...(T.zone.warps || []).map((w) => w.vers).filter(Boolean));
+  // les cartes du dehors dans un rayon de deux blocs
+  if (M.id === 'johto') for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+    const z = M.zone(j.x + dx * 32, j.y + dy * 32); if (z) voulues.push(z.id);
+  }
+  file = [...new Set(voulues)].filter((id) => T.d.zones[id]?.aCharger && !enCours.has(id));
+}
+setInterval(() => {
+  prevoir();
+  while (actifs < 3 && file.length) { actifs++; charger(file.shift()).finally(() => { actifs--; }); }
+}, 400);
 // une sauvegarde d'avant une retouche de carte peut poser le joueur dans un mur ou hors de la pièce : on repart du début
 {
   const j = T.joueur, s = T.d.sols[T.M.sol(j.x, j.y)];
-  if (!T.M.dedans(j.x, j.y) || T.M.bloquee(j.x, j.y) || s === 'vide') { console.warn('position de la sauvegarde hors carte : nouveau départ'); T.demarrer(DEBUT); }
+  if (!T.M.dedans(j.x, j.y) || T.M.bloquee(j.x, j.y) || s === 'vide') {
+    // la case libre la plus proche dans la même zone, sinon le début
+    const M = T.M, zid = T.zone?.id;
+    let p = null;
+    for (let r = 1; r < 40 && !p; r++) for (let dy = -r; dy <= r && !p; dy++) for (let dx = -r; dx <= r && !p; dx++) {
+      const x = j.x + dx, y = j.y + dy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) === r && M.dedans(x, y) && !M.bloquee(x, y) && !M.warp(x, y) && M.zone(x, y)?.id === zid && T.d.sols[M.sol(x, y)] !== 'vide') p = [x, y];
+    }
+    if (p) T.placerJoueur(p[0], p[1], j.dir);
+    else { console.warn('position hors carte : nouveau départ'); T.demarrer(DEBUT); }
+  }
 }
 // ?tout : chaussures de course et vélo tout de suite (pour essayer)
 if (Q.has('tout')) { T.etat.drapeaux.add('CHAUSSURES'); T.etat.sac.velo = 1; }
 
-const R = new Rendu($('vue'), T, { pack: Q.get('pack') || 'hgss', platine: Q.get('platine') || undefined });
+carte = G ? new CarteRegion($('cadre'), T) : null;
+const R = new Rendu($('vue'), T, { pack: Q.get('pack') || 'hgss', platine: Q.get('platine') || undefined, hg: HG });
 await R.charger();
 const taille = () => { const c = $('cadre'); R.taille(c.clientWidth, c.clientHeight); };
 addEventListener('resize', taille); taille();
@@ -130,14 +202,16 @@ function boucle(temps) {
   if (appuis.has('sauver')) { appuis.delete('sauver'); if (!T.ctxs.length && !T.transition && !T.joueur.m) { localStorage.setItem(CLE, T.sauvegarder()); T.lancerScript(T.zone.id, 'MessageSauvegarde'); } }
   if (appuis.has('debug')) { appuis.delete('debug'); const d = $('debug'); d.style.display = d.style.display === 'block' ? 'none' : 'block'; }
   if (appuis.has('qualite')) { appuis.delete('qualite'); R.qualite = R.qualite === 'ds' ? 'net' : 'ds'; taille(); }
+  if (appuis.has('carte')) { appuis.delete('carte'); if (carte && !T.ctxs.length && !T.transition && !T.joueur.m && !T.ui && !T.combatEnCours) { carte.ouvrir(); vider(); } }
   if (appuis.has('menu')) { appuis.delete('menu'); if (!T.ctxs.length && !T.transition && !T.joueur.m && !T.ui && !T.combatEnCours) pont.menu().then(vider); }
   try {
     while (reste >= DT) {
-      if (!pont.occupe) { const t0 = performance.now(); T.pas(entrees()); coutPas = coutPas * 0.95 + (performance.now() - t0) * 0.05; }
+      if (!pont.occupe && !carte?.ouverte) { const t0 = performance.now(); T.pas(entrees()); coutPas = coutPas * 0.95 + (performance.now() - t0) * 0.05; }
       reste -= DT;
     }
     R.dessiner(temps);
     ui(temps);
+    carte?.suivre(); carte?.dessiner(temps);
   } catch (e) {
     console.error(e);
     $('debug').style.display = 'block'; $('debug').textContent = 'Erreur : ' + e.message;

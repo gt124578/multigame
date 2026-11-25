@@ -13,7 +13,7 @@ const DRESSE = { mur: 2.0, paroi: 1.0 };
 /** murs des intérieurs (papier peint selon le lieu) : comme dans HGSS, seul le mur du fond se dresse, le reste est noir */
 const estMur = (s) => s === 'mur' || s?.startsWith('mur_');
 /** objets du terrain dessinés comme du décor (pas de planche de marche) */
-const DECOR_OBJET = { objet: 'objet', arbre_coupe: 'arbre_coupe' };
+const DECOR_OBJET = { objet: 'objet', arbre_coupe: 'arbre_coupe', rocher: 'rocher' };
 /** hauteur des murs de chaque sorte de bâtiment, en cases */
 const HAUT_BAT = { labo: 2.2, grotte: 1.6, maison: 1.8, centre: 2.0, boutique: 1.8, arene: 2.2, ecole: 2.0, tour: 2.4, poste: 1.6 };
 /** pieds des personnages : un peu au sud du centre de la case */
@@ -28,6 +28,9 @@ export class Rendu {
     if (this.pack) this.b3d.charger(opts.pret || PRET).then((ok) => { if (ok) this.refaire = true; });
     // modèles de Platine (Arène de Frimapic), chargés quand un bloc en a besoin
     this.pt = new ModelesPlatine(opts.platine);
+    // vraies cartes de HGSS (sol et bâtiments de chaque carte) : quand elles sont prêtes, les blocs sont refaits
+    this.hg = opts.hg || null;
+    this.hg?.pret.then((ok) => { if (ok) this.refaire = true; });
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.renderer.setClearColor(0x000000);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -40,7 +43,7 @@ export class Rendu {
   }
   async charger() {
     const persos = new Set(['player_m', 'player_f', 'player_m_velo', 'player_f_velo']);
-    for (const z of Object.values(this.T.d.zones)) for (const o of z.objets || []) if (o.sprite && !DECOR_OBJET[o.type]) persos.add(o.sprite);
+    for (const z of Object.values(this.T.d.zones)) for (const o of z.objets || []) if (o.sprite && !o.sprite.startsWith('mm:') && !DECOR_OBJET[o.type]) persos.add(o.sprite);
     this.A = await chargerTout(this.T.d.sols, [...persos], this.pack);
     this.matSol = new THREE.MeshBasicMaterial({ map: this.A.atlas.tex, vertexColors: true });
     this.matEau = new THREE.MeshBasicMaterial({ map: this.A.eau });
@@ -123,6 +126,14 @@ export class Rendu {
       ix.push(n, n + 1, n + 2, n, n + 2, n + 3);
     };
     const x0 = bx * BLOC, y0 = by * BLOC;
+    // carte de HGSS : son vrai modèle (sol, relief, eau, arbres) et ses bâtiments
+    const th = M.blocs[by * M.lb + bx].decor.find((d) => d.type === 'terrain_hg');
+    if (th && this.hg?.ok) {
+      const o = this.hg.carte(th);
+      o.position.set(x0 + BLOC / 2, 0, y0 + BLOC / 2);
+      g.add(o);
+      return g;
+    }
     // carte de Platine : son vrai modèle 3D (dès qu'il est chargé ; avant, le sol dessiné par cases)
     const tp = M.blocs[by * M.lb + bx].decor.find((d) => d.type === 'terrain_pt');
     if (tp && this.pack) {
@@ -310,7 +321,11 @@ export class Rendu {
    * vus par la caméra plongeante, ils gardent leur taille de dessin, et un personnage devant un comptoir ou un meuble
    * ne s'y enfonce plus (un plan penché vers la caméra traversait ce qui est derrière lui).
    */
-  etirement() { return 1 / Math.cos(THREE.MathUtils.degToRad(this.inclinaison())); }
+  etirement() {
+    const i = THREE.MathUtils.degToRad(this.inclinaison());
+    // cases carrées (largeur resserrée de sin) : un pixel du personnage = un pixel du sol, soit tan au lieu de 1 / cos
+    return this.T.camera?.carre ? Math.tan(i) : 1 / Math.cos(i);
+  }
 
   // ——— objets ———
   sprite(o) {
@@ -330,6 +345,15 @@ export class Rendu {
     if (DECOR_OBJET[o.def?.type]) {
       const D = this.A.decor[DECOR_OBJET[o.def.type]]; mat = new THREE.MeshBasicMaterial({ map: D.tex, transparent: true, alphaTest: 0.5 }); l = D.l; h = D.h;
     } else {
+      // personnage du jeu (« mm:NOM ») : sa planche est lue dans le dépôt de la décompilation, puis le sprite refait
+      if (!this.A.persos[o.sprite] && o.sprite?.startsWith('mm:') && this.hg && !this.planchesEnCours?.has(o.sprite)) {
+        (this.planchesEnCours ||= new Set()).add(o.sprite);
+        this.hg.planche(o.sprite.slice(3)).then((cv) => {
+          if (!cv) return;
+          this.A.persos[o.sprite] = cv;
+          for (const [ob, sp] of this.sprites) if (ob.sprite === o.sprite) { this.defaireSprite(sp); this.sprites.delete(ob); }
+        });
+      }
       const im = this.A.persos[o.sprite] || this.A.persos.player_m;
       const t = texture(im); n = im.width / 32;
       t.repeat.set(1 / n, 1);
@@ -416,6 +440,8 @@ export class Rendu {
     const dist = c.distance * (this.zoom || 1);
     this.camera.position.set(cible.x + sec, cible.y + Math.sin(incl) * dist, cible.z + Math.cos(incl) * dist);
     this.camera.fov = c.fov; this.camera.updateProjectionMatrix();
+    // comme Odyssée (et la DS) : la largeur est resserrée de sin(inclinaison), les cases sont carrées à l'écran
+    if (c.carre) { this.camera.projectionMatrix.elements[0] *= Math.sin(incl); this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert(); }
     this.camera.lookAt(cible.x + sec, cible.y, cible.z);
     this.renderer.render(this.scene, this.camera);
   }

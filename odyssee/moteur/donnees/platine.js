@@ -83,12 +83,12 @@ const S = Object.fromEntries(SOLS.map((n, i) => [n, i]));
 
 /** équipes et dialogues des dresseurs (à nous) ; les places, les regards et la portée viennent du jeu */
 const DRESSEURS = {
-  LOCALID_ACE_TRAINER_ANTON: { nom: 'Topdresseur Anton', equipe: [['Farfuret', 36], ['Blizzi', 37]], dit: 'Glisser, c\'est tout un art !', perd: 'J\'ai dérapé…' },
-  LOCALID_ACE_TRAINER_SAVANNAH: { nom: 'Topdresseuse Savannah', equipe: [['Stalgamin', 36], ['Lippoutou', 38]], dit: 'Tu as cassé toutes ces boules de neige ?', perd: 'Fondue…' },
-  LOCALID_ACE_TRAINER_ALICIA: { nom: 'Topdresseuse Alicia', equipe: [['Otaria', 36], ['Lamantine', 38]], dit: 'Le froid aiguise l\'esprit !', perd: 'Brrr…' },
-  LOCALID_ACE_TRAINER_ISAIAH: { nom: 'Topdresseur Isaiah', equipe: [['Marcacrin', 35], ['Cochignon', 37]], dit: 'Prends de l\'élan avant de foncer !', perd: 'Trop d\'élan pour moi.' },
-  LOCALID_ACE_TRAINER_BRENNA: { nom: 'Topdresseuse Brenna', equipe: [['Momartik', 38]], dit: 'GLADYS est la plus forte !', perd: 'Elle reste la plus forte…' },
-  LOCALID_ACE_TRAINER_SERGIO: { nom: 'Topdresseur Sergio', equipe: [['Blizzi', 36], ['Oniglali', 38]], dit: 'Les pentes, ça se monte avec de la vitesse !', perd: 'Et ça se descend vite…' },
+  LOCALID_ACE_TRAINER_ANTON: { nom: 'Ace Trainer Anton', equipe: [['Farfuret', 36], ['Blizzi', 37]], dit: 'Sliding is an art form!', perd: 'I skidded...' },
+  LOCALID_ACE_TRAINER_SAVANNAH: { nom: 'Ace Trainer Savannah', equipe: [['Stalgamin', 36], ['Lippoutou', 38]], dit: 'You smashed all those snowballs?', perd: 'I melted...' },
+  LOCALID_ACE_TRAINER_ALICIA: { nom: 'Ace Trainer Alicia', equipe: [['Otaria', 36], ['Lamantine', 38]], dit: 'The cold sharpens the mind!', perd: 'Brrr...' },
+  LOCALID_ACE_TRAINER_ISAIAH: { nom: 'Ace Trainer Isaiah', equipe: [['Marcacrin', 35], ['Cochignon', 37]], dit: 'Build up speed before you charge!', perd: 'Too much speed for me.' },
+  LOCALID_ACE_TRAINER_BRENNA: { nom: 'Ace Trainer Brenna', equipe: [['Momartik', 38]], dit: 'Candice is the strongest!', perd: 'She is still the strongest...' },
+  LOCALID_ACE_TRAINER_SERGIO: { nom: 'Ace Trainer Sergio', equipe: [['Blizzi', 36], ['Oniglali', 38]], dit: 'You climb slopes with speed!', perd: 'And you go down them fast...' },
 };
 const SPRITES = { OBJ_EVENT_GFX_ACE_TRAINER_SNOW_M: 'topdresseur_neige_m', OBJ_EVENT_GFX_ACE_TRAINER_SNOW_F: 'topdresseur_neige_f',
   OBJ_EVENT_GFX_CANDICE: 'gladys', OBJ_EVENT_GFX_GYM_GUIDE: 'guide_arene' };
@@ -124,7 +124,7 @@ export async function frimapic(lire, sortie) {
     const base = { id: o.id.replace('LOCALID_', '').toLowerCase(), x: o.x, y: o.z, dir: DIRS[o.initial_dir] ?? BAS, mouvement: MOUVEMENTS(o.movement_type) };
     if (o.graphics_id === 'OBJ_EVENT_GFX_SNOWBALL') { objets.push({ ...base, boule: true, modele3d: 'boule', mouvement: 'fixe', drapeau: 'TMP_BOULE_' + base.id }); continue; }
     if (o.id === 'LOCALID_CANDICE') {
-      objets.push({ ...base, sprite: 'gladys', nom: 'Championne Gladys', dresseur: { portee: 0, champion: true, portrait: 'frimas', prix: 4400,
+      objets.push({ ...base, sprite: 'gladys', nom: 'Leader Candice', dresseur: { portee: 0, champion: true, portrait: 'frimas', prix: 4400,
         script: 'Gladys_Defi', apres: 'Gladys_Apres', equipe: [['Farfuret', 38], ['Cochignon', 38], ['Blizzaroi', 42], ['Momartik', 44]].map(([espece, niveau]) => ({ espece, niveau })) } });
       continue;
     }
@@ -148,36 +148,36 @@ export async function frimapic(lire, sortie) {
     mondes: { frimapic: { largeur: 1, hauteur: 1, blocs: ['frimapic'], zones: ['ARENE_FRIMAPIC'], pentes: true, niv: 0.5 } },
     zones: {
       ARENE_FRIMAPIC: {
-        nom: 'Frimapic', annonce: false, musique: 'arene', camera: 'interieur', interieur: true, velo: false, course: false,
+        nom: 'Snowpoint Gym', annonce: false, musique: 'arene', camera: 'interieur', interieur: true, velo: false, course: false,
         warps, panneaux, objets,
         scripts: `
 script Gladys_Defi
-  message "Je suis GLADYS, Championne de FRIMAPIC !\\nMes POKéMON Glace ont un mental d'acier. Prêt ?"
+  message "I'm Candice, the Snowpoint Gym Leader!\\nMy Ice Pokémon have diamond-hard focus. Ready?"
   combat_dresseur
-  message "Waouh ! Ta concentration est impressionnante.\\nTu mérites le BADGE GLAÇON !"
+  message "Wow! Your focus is impressive.\\nYou deserve the Icicle Badge!"
   drapeau BADGE_GLACON
   son fanfare
-  message "{JOUEUR} reçoit le BADGE GLAÇON !"
+  message "{JOUEUR} received the Icicle Badge!"
   liberer
   fin
 script Gladys_Apres
   regarder_joueur
-  message "Garde ton sang-froid, {JOUEUR}, et rien ne t'arrêtera !"
+  message "Keep your cool, {JOUEUR}, and nothing will stop you!"
   liberer
   fin
 script GuideFrimapic
   regarder_joueur
   si drapeau BADGE_GLACON aller GuideFrimapic_Bravo
-  message "Salut, futur Champion ! Ici, tout est en pente et en glace.\\nDescends une pente pour prendre de l'élan : à pleine vitesse, tu casses les boules de neige !"
-  message "Sans élan, tu ne remonteras pas une pente : tu glisseras en arrière."
+  message "Hey, Champ in the making! Everything here is ice and slopes.\\nSlide down a slope to build speed: at full speed you smash the snowballs!"
+  message "Without speed you can't climb a slope: you'll slide back down."
   liberer
   fin
 GuideFrimapic_Bravo:
-  message "Tu as battu GLADYS ! Ça, c'est de la glisse !"
+  message "You beat Candice! Now that's sliding!"
   liberer
   fin
 script StatueFrimapic
-  message "ARÈNE POKéMON DE FRIMAPIC\\nCHAMPIONNE : GLADYS"
+  message "SNOWPOINT CITY POKéMON GYM\\nLEADER: CANDICE"
   fin
 ` + dresseurs,
       },

@@ -10,7 +10,7 @@ export const ADRESSE_BATIMENTS = 'files/fielddata/build_model/bm_field.narc';
 export const ADRESSE_MEUBLES = 'files/fielddata/build_model/bm_room.narc';
 
 export class Batiments3D {
-  constructor() { this.parNom = new Map(); this.cache = new Map(); this.pret = false; }
+  constructor() { this.parNom = new Map(); this.cache = new Map(); this.pret = false; this.parIndice = {}; }
   /** charge les archives (une fois) ; rend true si au moins l'une est disponible */
   async charger(base, adresses = [ADRESSE_BATIMENTS, ADRESSE_MEUBLES]) {
     await Promise.all(adresses.map(async (a) => {
@@ -18,7 +18,10 @@ export class Batiments3D {
         const r = await fetch(base + a);
         if (!r.ok) throw new Error(r.status);
         const fichiers = lireNarc(new Uint8Array(await r.arrayBuffer()));
+        const parI = this.parIndice[a] = [];
         fichiers.forEach((f, i) => {
+          // les cartes de HGSS posent leurs bâtiments par leur numéro dans l'archive
+          try { const m = lireNsbmd(f); parI[i] = { i, fichier: m, modele: m.modeles[0] }; } catch { /* fichier sans modèle */ }
           // le nom du modèle est dans le dictionnaire du bloc MDL0 ; le premier venu garde son nom
           try { const m = lireNsbmd(f); for (const md of m.modeles) if (!this.parNom.has(md.nom)) this.parNom.set(md.nom, { i, fichier: m, modele: md }); } catch { /* fichier sans modèle */ }
         });
@@ -28,6 +31,14 @@ export class Batiments3D {
     return this.pret;
   }
   a(nom) { return this.parNom.has(nom); }
+  /** un bâtiment par son numéro dans une archive (cartes de HGSS) */
+  objetIndice(archive, i) {
+    const e = this.parIndice[archive]?.[i];
+    if (!e) return null;
+    const cle = archive + '#' + i;
+    if (!this.cache.has(cle)) this.cache.set(cle, this.construire(e));
+    return this.cache.get(cle).clone();
+  }
   /** dimensions d'un modèle en cases (x, hauteur, z) et son centre */
   boite(nom) { const e = this.parNom.get(nom); if (!e) return null; const { min, max } = e.modele.boite; return { min: min.map((v) => v / 16), max: max.map((v) => v / 16) }; }
   /** un groupe three.js du modèle, en cases (16 unités DS = une case), origine au centre du pied */

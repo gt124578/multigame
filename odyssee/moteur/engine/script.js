@@ -177,6 +177,8 @@ export class Scripts {
     this.progs = new Map();
     for (const [nom, src] of Object.entries(sources)) this.progs.set(nom, compiler(src, nom, commandes));
   }
+  /** ajoute (ou remplace) le programme d'une zone chargée en route */
+  ajouter(nom, src) { this.progs.set(nom, compiler(src, nom, this.commandes)); }
   /** noms visibles depuis une zone */
   noms(zone) {
     const s = new Set();
