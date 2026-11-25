@@ -338,8 +338,10 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   moteur sans DOM (`engine/` : monde en blocs de 32 × 32 cases, zones à en-tête et événements, téléporteurs numérotés, langage de
   scripts compilé, joueur à pas fixe de 1/60 s, PNJ, dresseurs), données écrites en texte (`donnees/auteur.js`, zone d'essai
   `donnees/demo.js`), rendu three.js qui ne fait que lire le moteur (`render/`). `node tools/test-moteur-hgss.mjs` joue la zone
-  d'essai et le début de HGSS redessiné (`donnees/johto.js` : Bourg Geon → Mauville, audit `engine/audit.js` de toute la région
-  puis parcours complet jusqu'au premier badge) ; `node tools/capture-moteur-hgss.mjs "<paramètres>" <image.png> "<touches>"`
+  d'essai et le début de HGSS redessiné (`donnees/johto.js` : Bourg Geon → Mauville, puis `donnees/ecorcia.js` : Route 32,
+  Caves Jumelles, Route 33, Écorcia, Puits Ramoloss et l'arène d'HECTOR avec ses chariots, `zone.rails` ; audit `engine/audit.js`
+  de toute la région, parcours complet jusqu'au deuxième badge et au rival, toutes les positions de l'énigme des chariots) ;
+  caméra de la DS (`CAMERAS` d'`engine/terrain.js`, valeurs de `field_camera.c`) ; `node tools/capture-moteur-hgss.mjs "<paramètres>" <image.png> "<touches>"`
   (Playwright, `PDSMS=<clone>` et `PRET=<clone>` pour servir textures et bâtiments sans réseau) en fait une capture ; page :
   `odyssee/moteur.html` (combats, équipe, sac et son d'Odyssée par `odyssee/moteur/odyssee.js`). Intérieurs de HGSS aux
   coordonnées du jeu, meubles de `bm_room.narc` lus à la volée, et Arène d'Acajou en glace : `donnees/interieurs.js` ; la ville

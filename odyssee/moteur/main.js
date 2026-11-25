@@ -8,7 +8,7 @@
 import { Terrain } from './engine/terrain.js';
 import { PAS_PAR_SECONDE } from './engine/const.js';
 import { DEMO } from './donnees/demo.js';
-import { JOHTO, DEPART, avecFrimapic, SORTIE_FRIMAPIC } from './donnees/johto.js';
+import { JOHTO, DEPART, avecFrimapic, SORTIE_FRIMAPIC, migrerSauvegarde } from './donnees/johto.js';
 import { frimapic, PLATINE } from './donnees/platine.js';
 import { Rendu } from './render/rendu.js';
 import { PontOdyssee } from './odyssee.js';
@@ -74,7 +74,7 @@ const taillePx = () => {
 addEventListener('resize', taillePx); taillePx();
 const sauvegarde = !Q.has('nouveau') && localStorage.getItem(CLE);
 if (Q.get('zone')) T.demarrer({ zone: Q.get('zone'), x: Q.has('x') ? +Q.get('x') : undefined, y: Q.has('y') ? +Q.get('y') : undefined });
-else if (sauvegarde) { try { T.demarrer({ sauvegarde }); } catch (e) { console.warn('sauvegarde illisible', e); T.demarrer(DEBUT); } }
+else if (sauvegarde) { try { T.demarrer({ sauvegarde: Q.has('demo') ? sauvegarde : migrerSauvegarde(sauvegarde) }); } catch (e) { console.warn('sauvegarde illisible', e); T.demarrer(DEBUT); } }
 else T.demarrer(DEBUT);
 // une sauvegarde d'avant une retouche de carte peut poser le joueur dans un mur ou hors de la pièce : on repart du début
 {

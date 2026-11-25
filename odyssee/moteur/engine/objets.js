@@ -32,7 +32,7 @@ export class ObjetTerrain {
   get bouge() { return this.m !== null; }
   /** les cases tenues par l'objet (deux pendant un pas) */
   occupe(x, y) {
-    if (!this.visible) return false;
+    if (!this.visible || this.def.traversable) return false;   // chariots de l'arène d'Écorcia : on monte dessus
     if (this.x === x && this.y === y) return true;
     return !!this.m && this.m.vx === x && this.m.vy === y;
   }

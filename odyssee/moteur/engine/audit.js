@@ -20,6 +20,9 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
   // ramasse : on le compte comme un obstacle, c'est ce qui arrête une glissade à côté de lui)
   const bloqueurs = {};
   const fixes = (M) => (bloqueurs[M.id] ||= M.objets.filter((o) => {
+    if (o.traversable) return false;
+    // un PNJ caché par un drapeau finit par partir (le SBIRE qui garde le puits, celui devant l'arène) : il ne ferme rien
+    if (o.drapeau && o.type !== 'objet' && !o.dresseur && !o.boule) return false;
     if (o.type === 'arbre_coupe') return !capacites.coupe;
     const m = o.mouvement || 'fixe';
     return !m.startsWith('errance') && m !== 'route';
@@ -49,6 +52,24 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
   for (const [zid, z] of Object.entries(d.zones))
     for (const m of (z.scripts || '').matchAll(/^\s*teleporter\s+(\w+)\s+(\d+)/gm)) (tps[zid] ||= []).push({ vers: m[1], n: +m[2] });
   const tpFaits = new Set();
+  // chariots sur rails : de la case où l'on monte à celle où l'on descend, pour chaque position des aiguillages
+  // (plus large que le jeu, où il faut aussi qu'un chariot attende : le test de l'arène rejoue l'énigme exacte)
+  const rails = {};
+  for (const [zid, z] of Object.entries(d.zones)) {
+    const r = z.rails;
+    if (!r) continue;
+    const t = rails[zid] = new Map();
+    r.stations.forEach(([sx, sy], s) => {
+      const inv = r.inverses.includes(s);
+      const cleT = inv ? `${sx},${sy}` : `${sx},${sy + 1}`;
+      for (const route of r.routes[s] || []) {
+        if (!route) continue;
+        const fin = inv ? route.noeuds[0] : route.noeuds[route.noeuds.length - 1];
+        if (!t.has(cleT)) t.set(cleT, []);
+        t.get(cleT).push([fin[0], fin[1] + (inv ? 1 : 0)]);
+      }
+    });
+  }
   const M0 = d.mondeDeZone[depart.zone];
   ajouter(null, M0, depart.x, depart.y);
   while (file.length) {
@@ -58,6 +79,7 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
     if (w) warpsVus.add(`${w.zone}#${w.indice}`);
     const zid = M.zone(x, y)?.id;
     if (tps[zid] && !tpFaits.has(zid)) { tpFaits.add(zid); for (const t of tps[zid]) ajouter(ici, ...arrivee(t)); }
+    for (const [ax, ay] of rails[zid]?.get(`${x},${y}`) || []) ajouter(ici, m, ax, ay);
     for (let dir = 0; dir < 4; dir++) {
       // tapis de sortie
       if (w && pIci.tapis === dir) { ajouter(ici, ...arrivee(w)); continue; }
@@ -94,6 +116,7 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
     const M = monde(mid);
     (z.warps || []).forEach((w, i) => { if (!warpsVus.has(`${zid}#${i}`)) erreurs.push(`${zid} : téléporteur ${i} (${w.x},${w.y}) jamais atteint`); });
     for (const o of z.objets || []) {
+      if (o.traversable) continue;
       let ok = false;
       for (let dir = 0; dir < 4 && !ok; dir++) {
         const ax = o.x + DX[dir], ay = o.y + DY[dir];

@@ -9,7 +9,7 @@ import { BLOC, MB } from '../engine/const.js';
 export const SOLS = ['vide', 'herbe', 'herbe2', 'hautes_herbes', 'chemin', 'eau', 'sable', 'fleurs', 'parquet', 'mur', 'tapis',
   'glace', 'grotte', 'paroi', 'rebord', 'falaise', 'marches', 'pave', 'carrelage', 'ponton', 'eau_profonde', 'labo',
   // ajoutés ensuite (toujours à la fin : les blocs stockent l'indice)
-  'sol_centre', 'sol_boutique', 'plancher', 'neige', 'mur_centre', 'mur_boutique', 'mur_labo', 'mur_glace'];
+  'sol_centre', 'sol_boutique', 'plancher', 'neige', 'mur_centre', 'mur_boutique', 'mur_labo', 'mur_glace', 'rebord_g', 'rebord_d'];
 const S = Object.fromEntries(SOLS.map((n, i) => [n, i]));
 
 /** légende commune ; chaque zone peut en ajouter */
@@ -33,8 +33,8 @@ export const LEGENDE = {
   'H': { col: 1, sol: 'herbe', decor: 'haie' },
   'l': { col: 1, sol: 'pave', decor: 'boite' },
   'v': { sol: 'rebord', mb: MB.REBORD_BAS },
-  '<': { sol: 'rebord', mb: MB.REBORD_GAUCHE },
-  '>': { sol: 'rebord', mb: MB.REBORD_DROITE },
+  '<': { sol: 'rebord_g', mb: MB.REBORD_GAUCHE },
+  '>': { sol: 'rebord_d', mb: MB.REBORD_DROITE },
   '#': { col: 1, sol: 'falaise' },
   '^': { sol: 'marches', mb: MB.MARCHES },
   '_': { sol: 'ponton' },

@@ -2,7 +2,8 @@
 // Chaque commande déclare ses arguments (vérifiés à la compilation) et ce qu'elle fait sur le terrain `T`.
 // Une commande qui doit attendre rend une fonction : le script reprend quand elle rend true.
 
-import { OPPOSE } from './const.js';
+import { OPPOSE, VITESSE } from './const.js';
+import { testerPas } from './objets.js';
 
 const fini = () => true;
 
@@ -74,6 +75,40 @@ export const COMMANDES = {
     args: 'mot nombre nombre dir?',
     exec: (T, ctx, [id, x, y, d]) => {
       const o = cible(T, ctx, id); o.x = x; o.y = y; o.px = x; o.py = y; o.m = null; if (d !== undefined) o.dir = d;
+    },
+  },
+  /**
+   * L'objet marche jusqu'à (x, y) par le plus court chemin qui contourne le joueur et les PNJ (en courant avec « vite »).
+   * Les scripts de HGSS écrivent ces trajets à la main ; ici le chemin s'adapte à la place du joueur.
+   */
+  marcher_vers: {
+    args: 'mot nombre nombre mot?',
+    exec: (T, ctx, [id, x, y, vite]) => {
+      const o = cible(T, ctx, id), M = T.M, autres = [...T.objets.filter((p) => p !== o), T.joueur].filter((p) => p !== o);
+      const cle = (a, b) => a + ',' + b, prec = new Map([[cle(o.x, o.y), null]]), file = [[o.x, o.y]];
+      while (file.length) {
+        const [cx, cy] = file.shift();
+        if (cx === x && cy === y) break;
+        for (let d = 0; d < 4; d++) {
+          const r = testerPas(M, { x: cx, y: cy }, d, { pnj: true, objets: autres });
+          if (!r.ok || r.type !== 'pas') continue;
+          const k = cle(...r.vers);
+          if (!prec.has(k)) { prec.set(k, [cx, cy, d]); file.push(r.vers); }
+        }
+      }
+      if (!prec.has(cle(x, y))) { o.x = x; o.y = y; o.px = x; o.py = y; return; }
+      const dirs = [];
+      for (let k = cle(x, y); prec.get(k); ) { const [px, py, d] = prec.get(k); dirs.unshift(d); k = cle(px, py); }
+      const v = vite === 'vite' ? VITESSE.course : VITESSE.pnj;
+      T.jouerMouvement(o, dirs.map((dir) => ({ type: 'pas', dir, n: 1, vitesse: v })));
+    },
+  },
+  /** pose un objet à côté du joueur (dx, dy en cases) : le rival qui surgit à la hauteur où l'on passe */
+  placer_relatif: {
+    args: 'mot nombre nombre dir?',
+    exec: (T, ctx, [id, dx, dy, d]) => {
+      const o = cible(T, ctx, id), j = T.joueur;
+      o.x = j.x + dx; o.y = j.y + dy; o.px = o.x; o.py = o.y; o.m = null; if (d !== undefined) o.dir = d;
     },
   },
   exclamation: {
@@ -159,8 +194,9 @@ export const COMMANDES = {
     },
   },
   combat_dresseur: {
-    exec: (T, ctx) => {
-      const o = ctx.dresseur || ctx.objet;
+    args: 'mot?',
+    exec: (T, ctx, [id]) => {
+      const o = id ? cible(T, ctx, id) : ctx.dresseur || ctx.objet;
       if (!o?.def.dresseur) throw new Error(`script ${ctx.nom} : combat_dresseur sans dresseur`);
       const d = o.def.dresseur;
       const prix = d.prix ?? 40 * Math.max(1, ...(d.equipe || []).map((p) => p.niveau || 1));
@@ -193,6 +229,14 @@ export const COMMANDES = {
       [ctx.prog, ctx.pc] = r;
     },
   },
+
+  // ——— chariots sur rails (Arène d'Écorcia : le « gymmick » de HGSS, src/field/gymmick/azalea.c) ———
+  /** remet les chariots à leurs stations de départ et les aiguillages à zéro (à l'entrée de la salle, comme le jeu) */
+  rails_depart: { exec: (T) => { T.railsDepart(); } },
+  /** bascule l'aiguillage n (un bit de RAIL_AIG) */
+  aiguillage: { args: 'nombre', exec: (T, ctx, [n]) => { T.etat.vars.RAIL_AIG = (T.etat.vars.RAIL_AIG ?? 0) ^ (1 << n); T.sortir({ type: 'son', nom: 'aiguillage' }); } },
+  /** si un chariot attend à la station s et que l'aiguillage le permet, le joueur y monte et suit le tracé */
+  chariot: { args: 'nombre', exec: (T, ctx, [s]) => T.chariot(s) },
 
   // ——— capacités de terrain ———
   commencer_surf: {

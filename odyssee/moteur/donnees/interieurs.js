@@ -326,12 +326,15 @@ OrmeChoix:
   si resultat = 1 aller Orme_Feu
   si resultat = 2 aller Orme_Eau
   donner_pokemon Germignon 5
+  var STARTER 0
   aller Orme_Suite
 Orme_Feu:
   donner_pokemon Héricendre 5
+  var STARTER 1
   aller Orme_Suite
 Orme_Eau:
   donner_pokemon Kaiminus 5
+  var STARTER 2
 Orme_Suite:
   drapeau A_POKEMON
   var ORME_POKEMON 1

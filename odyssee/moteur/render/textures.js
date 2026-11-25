@@ -11,7 +11,8 @@ const OW = new URL('../../../assets/graphics/hgss/ow/', import.meta.url).href;
  * Pack « hgss » : les textures de HeartGold / SoulSilver publiées par Pokémon DS Map Studio (Trifindo), lues À LA VOLÉE
  * sur leur dépôt public au moment du chargement : aucune n'est copiée dans ce dépôt. Les 16 px sont agrandies en 32 px
  * (au plus proche) dans l'atlas. Si une image ne vient pas (hors ligne), on reprend celle d'Odyssée.
- * Une entrée = une image, ou des calques [{ f, crop: [x, y, l, h], dest: [x, y, l, h] }] dans une case de 32 px.
+ * Une entrée = une image, ou des calques [{ f, crop: [x, y, l, h], dest: [x, y, l, h], rot: ±90 }] dans une case de 32 px,
+ * ou { calques, cases } : la case de 32 px couvre alors `cases` × `cases` cases du terrain (2 : l'herbe de HGSS, 32 px pour 2 × 2).
  */
 export const PDSMS_RACINE = 'https://raw.githubusercontent.com/Trifindo/Pokemon-DS-Map-Studio/ac30b653e5b090ce116278ed6ba9758fff956673/src/main/resources/tilesets/';
 export const PDSMS = PDSMS_RACINE + 'Heart_Gold_-_Soul_Silver/';
@@ -19,13 +20,17 @@ const OW_ = 'Tileset_2_-_Overworld/', NB = 'Tileset_25_-_New_Bark_Town_Houses_(b
 const H = (f) => PDSMS + encodeURI(f);
 // les sols des Centres et des boutiques de HGSS ne sont pas publiés : ceux de Platine en attendant
 const PT = (f) => PDSMS_RACINE + encodeURI('Platinum/Tileset_20_-_House_Indoor/' + f);
+const rebordHGSS = (rot) => ({ cases: 2, calques: [{ f: H(OW_ + 'grass01.png') },
+  ...[[0, 0], [16, 0], [0, 16], [16, 16]].map(([x, y]) => ({ f: H(OW_ + 'allpeak_p.png'), dest: [x, y, 16, 16], rot }))] });
 export const PACK_HGSS = {
   sols: {
     herbe: H(OW_ + 'grass01.png'), herbe2: H(OW_ + 'grass01.png'), hautes_herbes: H(OW_ + 'egrass.png'),
     chemin: H(OW_ + 'road01.png'), pave: H(OW_ + 'roadkk_z2.png'), sable: H(OW_ + 'beach01.png'),
-    fleurs: [{ f: H(OW_ + 'grass01.png') }, { f: H(OW_ + 'flower01.png'), dest: [0, 0, 16, 16] }, { f: H(OW_ + 'flower02.png'), dest: [16, 16, 16, 16] }],
+    fleurs: { cases: 2, calques: [{ f: H(OW_ + 'grass01.png') },
+      ...[[0, 0, 1], [16, 0, 2], [0, 16, 2], [16, 16, 1]].map(([x, y, n]) => ({ f: H(OW_ + `flower0${n}.png`), dest: [x, y, 16, 16] }))] },
     eau: H(OW_ + 'sea_un.png'), eau_profonde: H(OW_ + 'sea_un.png'),
-    rebord: [{ f: H(OW_ + 'grass01.png') }, { f: H(OW_ + 'allpeak.png'), crop: [0, 20, 32, 12], dest: [0, 18, 32, 14] }],
+    // rebords : l'herbe et la pièce droite du rebord de HGSS (allpeak_p, 16 px) sur chacune des 2 × 2 cases ; tournée pour ceux de côté
+    rebord: rebordHGSS(0), rebord_g: rebordHGSS(90), rebord_d: rebordHGSS(-90),
     falaise: H(OW_ + 'cliff01.png'), marches: H(OW_ + 'slope_slope.png'), ponton: H(OW_ + 'bridge_c.png'),
     // intérieurs
     parquet: H(NB + 'la_yukad.png'), carrelage: H(NB + 'la_yukab.png'), labo: H(NB + 'la_yukaa.png'),
@@ -69,7 +74,7 @@ export const DECOR_IMG = {
   table: ['mobilier/table.png', 32], cuisine: ['mobilier/kitchen.png', 32], lit: ['mobilier/bed.png', 32], etagere: ['mobilier/shelf.png', 32],
   tele: ['mobilier/tv.png', 32], machine: ['mobilier/labmachine.png', 32], pc: ['mobilier/pc.png', 32], table_balls: ['mobilier/startertable.png', 32],
   comptoir: ['mobilier/counterseg.png', 32], arbre_coupe: ['nature/cuttree.png', 32], baies: ['nature/tree2.png', 32], haie: ['nature/bush.png', 32],
-  cristal: ['nature/rock.png', 32],
+  cristal: ['nature/rock.png', 32], statue: ['mobilier/gymstatue.png', 40],
 };
 
 export function charger(src) {
@@ -103,18 +108,23 @@ async function dessinerEntree(g, entree, x, y) {
   });
   return true;
 }
-/** une entrée du pack en canevas de 32 px (ou de la taille de l'image) */
+/** une entrée du pack en canevas de 32 px (ou de la taille de l'image) ; `dest` et `rot` des calques sont comptés pour 32 px */
 async function canevas(entree, l = 32, h = 32) {
   const cv = document.createElement('canvas'); cv.width = l; cv.height = h;
   const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
-  const calques = typeof entree === 'string' ? [{ f: entree }] : entree;
+  const calques = typeof entree === 'string' ? [{ f: entree }] : entree.calques || entree;
   const ims = await Promise.all(calques.map((c) => charger(c.f)));
   if (ims.some((im) => !im)) return null;
+  const kx = l / 32, ky = h / 32;
   calques.forEach((c, i) => {
     const im = ims[i], [sx, sy, sl, sh] = c.crop || [0, 0, im.width, im.height];
-    g.drawImage(im, sx, sy, sl, sh, 0, 0, l, h);
+    const [dx, dy, dl, dh] = c.dest ? [c.dest[0] * kx, c.dest[1] * ky, c.dest[2] * kx, c.dest[3] * ky] : [0, 0, l, h];
+    if (!c.rot) { g.drawImage(im, sx, sy, sl, sh, dx, dy, dl, dh); return; }
+    g.save(); g.translate(dx + dl / 2, dy + dh / 2); g.rotate(c.rot * Math.PI / 180);
+    g.drawImage(im, sx, sy, sl, sh, -dl / 2, -dh / 2, dl, dh); g.restore();
   });
   cv.source32 = ims.length === 1 && ims[0].width === 32 && ims[0].height === 32 && !calques[0].crop;
+  if (entree.cases) cv.cases = entree.cases;
   return cv;
 }
 
@@ -134,7 +144,7 @@ export async function chargerTout(sols, spritesPersos, pack = null) {
     const p = pack && (face ? pack.faces[n.slice(5)] : pack.sols[n]);
     let src = null;
     if (typeof p === 'string') { src = await charger(p); if (src && !face) cases[n] = Math.max(1, Math.min(4, src.width / 16)); }
-    else if (p) src = await canevas(p);
+    else if (p) { src = await canevas(p); if (src?.cases) cases[n] = src.cases; }
     if (!src) { const f = face ? FACE_IMG[n.slice(5)] : SOL_IMG[n]; src = f ? await charger(IMG + f) : null; }
     if (!src) { g.fillStyle = '#f0f'; g.fillRect(x, y, C, C); return; }
     g.drawImage(src, x, y, C, C);

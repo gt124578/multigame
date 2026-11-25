@@ -68,6 +68,24 @@ de neige se brise si on la heurte avec de la vitesse (au moins 1), elle revient 
 Centre d'Acajou. Le test lit un clone local (`PLAT=<clone>`, sinon `/tmp/ext/plat`), cherche le chemin jusqu'à GLADYS
 avec les règles du moteur (34 coups, 8 boules brisées) et le rejoue dans une vraie partie.
 
+## Jusqu'à la deuxième arène : Route 32 → Écorcia (`donnees/ecorcia.js`)
+
+Pour éprouver le moteur sur un vrai morceau de jeu : Route 32 (poste des Ruines d'Alpha, enclos à couper, étang des
+pêcheurs, Centre POKéMON), Caves Jumelles (96 cases de long), Route 33, Écorcia (Centre, boutique, maison de FARGAS,
+charbonnerie, poste du Bois aux Chênes), Puits Ramoloss (entrée et 1er sous-sol) et l'arène d'HECTOR. Le dehors
+continue la matrice de Johto (`johto-dehors.js`, origine en (384, 224), 11 × 8 blocs).
+- Repris de la décompilation : portes, personnages, dresseurs (équipes de `trainers.json`), objets, panneaux et
+  « coord events » de chaque zone, l'enchaînement des scripts (l'homme du tournant qui arrête qui n'a pas le BADGE
+  ZÉPHYR ; FARGAS qui part au puits, le garde qui s'en va ; trois SBIRES et PROTON ; les RAMOLOSS qui reviennent ;
+  le rival à la sortie ouest, son équipe selon le POKéMON de départ) et l'**énigme de l'arène** telle que le jeu la code
+  (`src/field/gymmick/azalea.c`) : 12 stations, 4 chariots MIMIGAL, 2 aiguillages, tracés à 1/8 de case par image.
+- Moteur : `zone.rails` et les commandes `rails_depart`, `aiguillage n`, `chariot s` (le joueur monte d'un pas, suit
+  le tracé, descend au bout ; les chariots sont des objets `traversable`) ; rencontres sur tout le sol des grottes
+  (table `sol`) ; `combat_dresseur <objet>` depuis un déclencheur ; `placer_relatif` ; `marcher_vers <objet> x y [vite]`
+  (plus court chemin qui contourne le joueur). L'audit suit les chariots (toutes positions des aiguillages).
+- Les tests jouent tout le trajet depuis Mauville jusqu'au BADGE ESSAIM et au rival, et explorent tous les états de
+  l'énigme (île, chariots, aiguillages) : HECTOR est atteignable, et de chaque état on peut redescendre à la porte.
+
 ## Le début de HeartGold / SoulSilver (`donnees/johto.js`)
 
 Bourg Geon → Route 29 (et le poste de la Route 46) → Ville Griotte → Route 30 (M. POKéMON) → Route 31 (Antre Noir) →
@@ -115,9 +133,11 @@ main.js      la page : touches, boucle à pas fixe, boîte de texte, écran de c
   seule la zone change (nom annoncé, musique, caméra, rencontres, règles).
 - **Bloc** : 32 × 32 cases. Pour chaque case : `col` (bloquée ou non), `mb` (comportement), `h` (hauteur en
   niveaux), `sol` (pour le rendu) ; plus le décor et les bâtiments.
-- **Zone** (l'« en-tête ») : `nom`, `musique`, `camera` (`dehors`, `ville`, `interieur`, `grotte`, `haut`), `velo`,
-  `course`, `rencontres` (`herbe`, `eau` : taux et espèces pondérées), `scripts` (source), `niveau` (scripts de niveau)
-  et les événements :
+- **Zone** (l'« en-tête ») : `nom`, `musique`, `camera` (`dehors`, `ville`, `interieur`, `grotte`, `haut` : toutes
+  celle de la DS, relevée dans `field_camera.c` de la décompilation de Platine — distance 666,92 unités soit 41,68
+  cases, inclinaison 59,05°, champ vertical 2 × 8,09°, 16 cases de large à l'écran ; `proche` : celle des endroits
+  resserrés), `velo`, `course`, `rencontres` (`herbe`, `eau`, `sol` pour tout le sol d'une grotte : taux et espèces
+  pondérées), `scripts` (source), `niveau` (scripts de niveau), `rails` (chariots de l'arène d'Écorcia) et les événements :
   - `objets` : PNJ (`sprite`, `dir`, `mouvement` : `fixe`, `regard_alea`, `regard_hb`, `regard_gd`, `tourne`, `errance`,
     `errance_hb`, `errance_gd`, `route` ; `rayon` ; `script`), dresseurs (`dresseur: { portee, script, apres, equipe }`),
     objets au sol (`type: 'objet'`, `objet`, `drapeau`). `drapeau` : caché tant que ce drapeau est levé ;
@@ -159,7 +179,7 @@ Commandes : `fin aller appeler retour attendre verrouiller liberer message ferme
 var ajouter regarder_joueur joueur_regarde regarder mouvement attendre_mouvements cacher montrer placer exclamation
 teleporter teleporter_xy fondu_noir fondu_retour secouer son musique musique_zone donner_objet compter_objet
 donner_pokemon compter_equipe soigner point_de_soin ramasser combat_dresseur combat_sauvage velo
-tourner_joueur_vers dos_au_joueur` (+ celles du défi des dresseurs). Pas de mouvement : `haut bas gauche droite [n]`,
+tourner_joueur_vers dos_au_joueur placer_relatif marcher_vers rails_depart aiguillage chariot` (+ celles du défi des dresseurs). Pas de mouvement : `haut bas gauche droite [n]`,
 `vite_*`, `lent_*`, `regard_*`, `saut_*`, `sur_place_*`, `attente n`, `exclamation`, `cacher`, `montrer`,
 `regard_joueur`, `dos_joueur`.
 
@@ -184,7 +204,8 @@ Les PNJ ne bougent seuls qu'à moins de 24 cases du joueur et jamais pendant un 
 
 ## Ce qui reste à brancher
 
-- Les rencontres en grotte (tout le sol de l'Antre Noir), le noir de l'Antre Noir sans FLASH.
+- Le noir de l'Antre Noir sans FLASH ; les combats doubles (les jumelles de l'arène d'Écorcia se battent en simple).
+- La suite : Bois aux Chênes (et l'apprenti du charbonnier), les étages bas des Caves Jumelles et du Puits.
 
 - Le Pokédex et la carte dans le menu, le sprite de surf.
 - Un éditeur qui écrive ce format (l'éditeur d'Odyssée Test peut exporter des blocs) et la conversion de la carte

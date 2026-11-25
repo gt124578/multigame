@@ -386,7 +386,7 @@ console.log('Début de HeartGold / SoulSilver : audit de la région');
   const sansCoupe = auditer(JOHTO, DEPART, { surf: true, coupe: false });
   assert.ok(sansCoupe.erreurs.length === 0 || sansCoupe.erreurs.every((e) => /hors d'atteinte|jamais atteint|illisible/.test(e)));
   // piège : un recoin creusé dans les arbres de la Route 31, où l'on saute par un rebord qui ne se redescend pas
-  const nom = 'jo_2_1', blocR = JOHTO.blocs[nom];
+  const nom = 'jo_4_1', blocR = JOHTO.blocs[nom];
   const recoin = 9 * 32 + 17, rebord = 10 * 32 + 17;   // cases (529, 265) et (529, 266)
   const piege = { ...JOHTO, blocs: { ...JOHTO.blocs, [nom]: { ...blocR,
     col: blocR.col.map((v, i) => (i === recoin || i === rebord ? 0 : v)),
@@ -398,7 +398,7 @@ console.log('Début de HeartGold / SoulSilver : audit de la région');
 
 console.log('Début de HeartGold / SoulSilver : de Bourg Geon à Mauville (positions réelles)');
 {
-  const { R } = await import(B + 'donnees/johto-dehors.js');
+  const { R, OX, OY } = await import(B + 'donnees/johto-dehors.js');
   const T = new Terrain(JOHTO, { graine: 11 });
   T.demarrer(DEPART);
   const j = T.joueur;
@@ -415,7 +415,7 @@ console.log('Début de HeartGold / SoulSilver : de Bourg Geon à Mauville (posit
   const porte = async (x, y, zone, rep) => { const c = R(x, y); await voyager(c.x, c.y + 1); entrer(HAUT, zone, rep); };
   const sortir = async (x, y, zone) => { await voyager(x, y); tenir(T, null, 3); entrer(BAS, zone); };
   // les portes sont à leurs places dans HeartGold / SoulSilver
-  const w = (z, i) => { const v = JOHTO.zones[z].warps[i]; return [v.x + 448, v.y + 224]; };
+  const w = (z, i) => { const v = JOHTO.zones[z].warps[i]; return [v.x + OX, v.y + OY]; };
   assert.deepEqual([w('BOURG_GEON', 0), w('VILLE_GRIOTTE', 0), w('ROUTE_30', 1), w('MAUVILLE', 3), w('MAUVILLE', 0)], [[684, 393], [564, 391], [568, 294], [479, 257], [487, 228]]);
   ok('labo, Centre de Griotte, maison de M. POKéMON, arène et Tour de Mauville : aux coordonnées du jeu');
   // maison (chambre et rez-de-chaussée aux coordonnées de HGSS), labo
@@ -529,6 +529,195 @@ console.log('Début de HeartGold / SoulSilver : de Bourg Geon à Mauville (posit
   const s = T.sauvegarder(), T2 = new Terrain(JOHTO, { graine: 11 }); T2.demarrer({ sauvegarde: s });
   assert.equal(T2.sauvegarder(), s);
   ok('sauvegarde de fin de parcours relue à l\'identique');
+}
+
+console.log('De Mauville à la deuxième arène : Route 32, Caves Jumelles, Route 33, Écorcia, Puits Ramoloss, HECTOR');
+{
+  const { R, OX, OY } = await import(B + 'donnees/johto-dehors.js');
+  const { RAILS_ECORCIA } = await import(B + 'donnees/ecorcia.js');
+  const T = new Terrain(JOHTO, { graine: 13 });
+  T.demarrer({ zone: 'CENTRE_MAUVILLE', x: 8, y: 18, dir: BAS });
+  const j = T.joueur;
+  T.etat.equipe.push({ espece: 'Kaiminus', niveau: 30, pv: 99, pvMax: 99 });
+  T.etat.drapeaux.add('CHAUSSURES');
+  T.compteurRencontre = 1e9;
+  const voyager = async (x, y) => {
+    for (let k = 0; k < 60; k++) {
+      if (!calme(T)) { lire(T); continue; }
+      if (j.x === x && j.y === y) return;
+      try { await aller(T, x, y); } catch (e) { if (k > 50) throw e; tenir(T, null, 30); }
+    }
+    assert.deepEqual([j.x, j.y], [x, y], 'arrivé');
+  };
+  const entrer = (dir, zone, rep = []) => { pas(T, dir); attendre(T, () => T.zone?.id === zone && !T.transition && !j.m, 400); lire(T, rep); };
+  const porte = async (x, y, zone, rep) => { const c = R(x, y); await voyager(c.x, c.y + 1); entrer(HAUT, zone, rep); };
+  const sortir = async (x, y, zone) => { await voyager(x, y); tenir(T, null, 3); entrer(BAS, zone); };
+  const ici = () => [j.x + OX, j.y + OY];
+  // positions des portes, relevées dans les événements des zones (pret/pokeheartgold)
+  const w = (z, i) => { const v = JOHTO.zones[z].warps[i]; return [v.x + OX, v.y + OY]; };
+  assert.deepEqual([w('ROUTE_32', 2), w('ROUTE_32', 3), w('ROUTE_33', 0), w('ECORCIA', 2), w('ECORCIA', 5), w('ECORCIA', 6), w('ECORCIA', 7)],
+    [[468, 418], [462, 430], [467, 461], [410, 460], [405, 471], [399, 454], [433, 454]]);
+  ok('Centre de la Route 32, Caves Jumelles, Centre d\'Écorcia, arène, maison de FARGAS, Puits Ramoloss : aux coordonnées du jeu');
+
+  // Route 32 : sans le BADGE ZÉPHYR, l'homme du tournant renvoie le joueur vers le nord
+  await sortir(8, 19, 'MAUVILLE');
+  const t = R(475, 304);
+  await voyager(t.x, t.y);
+  pas(T, BAS); lire(T);
+  assert.deepEqual(ici(), [475, 303], 'repoussé de deux cases vers Mauville');
+  assert.equal(T.etat.vars.R32_GRAIN ?? 0, 0);
+  T.etat.drapeaux.add('BADGE_ZEPHYR');
+  pas(T, BAS); pas(T, BAS); lire(T);
+  assert.equal(T.etat.vars.R32_GRAIN, 1); assert.equal(T.etat.sac['miracle-seed'], 1);
+  ok('Route 32 : l\'homme du tournant arrête qui n\'a pas le BADGE ZÉPHYR, et donne le GRAIN MIRACLE à qui l\'a');
+  // les dresseurs de la route défient qui passe devant eux ; Centre POKéMON et sa CANNE
+  const al = R(470, 325);
+  await voyager(al.x, al.y); pas(T, BAS);
+  assert.ok(T.ctxs.length, 'le GAMIN ALBERT a vu le joueur'); lire(T);
+  const he = R(461, 373);
+  await voyager(he.x, he.y); parler(T, BAS); lire(T);
+  await porte(468, 418, 'CENTRE_R32');
+  const battus = ['albert', 'liz', 'henry', 'ralph', 'roland', 'gordon', 'peter'].filter((id) => T.etat.drapeaux.has('DRESSEUR_ROUTE_32_' + id));
+  assert.ok(battus.includes('albert') && battus.includes('henry'));
+  await voyager(4, 16); parler(T, HAUT); lire(T, [0]);
+  assert.equal(T.etat.sac['old-rod'], 1);
+  await sortir(8, 19, 'ROUTE_32');
+  ok(`Route 32 parcourue (${battus.join(', ')} battus en chemin) ; au Centre, le pêcheur donne la CANNE`);
+  // Caves Jumelles, du nord au sud
+  await porte(462, 430, 'CAVES_1F');
+  assert.deepEqual([j.x, j.y], [27, 43]);
+  await sortir(27, 93, 'ROUTE_33');
+  assert.deepEqual(ici(), [467, 462], 'sorti des Caves Jumelles sur la Route 33');
+  ok('Caves Jumelles traversées jusqu\'à la Route 33 (96 cases de long)');
+  // Écorcia : le SBIRE garde le puits, l'autre bouche la porte de l'arène
+  const e = R(420, 463);
+  await voyager(e.x, e.y);
+  assert.equal(T.zone.id, 'ECORCIA');
+  assert.ok(T.objet('sbire_puits').visible && T.objet('sbire_arene').visible && !T.objet('ramoloss_0').visible);
+  const ga = R(405, 472);
+  assert.throws(() => { const v = T.objet('sbire_arene'); if (v.x === ga.x && v.y === ga.y) throw new Error('bouché'); });
+  // FARGAS part en courant vers le puits : le garde s'en va
+  await porte(399, 454, 'MAISON_FARGAS');
+  await voyager(4, 5); parler(T, HAUT); lire(T);
+  assert.ok(T.etat.drapeaux.has('FARGAS_PARTI') && !T.objet('fargas').visible);
+  await sortir(4, 9, 'ECORCIA');
+  assert.ok(!T.objet('sbire_puits').visible, 'le garde du puits est parti');
+  ok('Écorcia : FARGAS sort en courant (il contourne le joueur), le SBIRE qui gardait le puits a filé');
+  // Puits Ramoloss : FARGAS s'est fait mal au dos ; trois SBIRES et PROTON
+  await porte(433, 454, 'PUITS');
+  assert.deepEqual([j.x, j.y], [17, 6], 'descendu par l\'échelle, un pas devant');
+  await voyager(17, 7); parler(T, BAS); assert.match(T.ui.texte, /FARGAS/); lire(T);
+  await voyager(11, 7); entrer(HAUT, 'PUITS_B1F');
+  assert.deepEqual([j.x, j.y], [42, 26]);
+  await voyager(27, 4); parler(T, HAUT); lire(T);
+  attendre(T, () => calme(T) && T.zone?.id === 'MAISON_FARGAS', 600, { a: true }); lire(T);
+  assert.ok(T.etat.drapeaux.has('PUITS_LIBERE') && T.etat.drapeaux.has('DRESSEUR_PROTON_PUITS'));
+  assert.equal(T.etat.sac['lure-ball'], 1, 'FARGAS remercie avec une APPÂT BALL');
+  const sbires = ['sbire_a', 'sbire_b', 'sbire_c'].filter((id) => T.etat.drapeaux.has('DRESSEUR_PUITS_B1F_' + id));
+  ok(`Puits Ramoloss : SBIRES (${sbires.length} vus en chemin) et PROTON battus ; retour chez FARGAS, qui donne une APPÂT BALL`);
+  await sortir(4, 9, 'ECORCIA');
+  assert.ok(!T.objet('sbire_arene').visible && T.objet('ramoloss_0').visible, 'les RAMOLOSS sont revenus, l\'arène est libre');
+  // l'arène : chariots et aiguillages
+  await porte(405, 471, 'ARENE_ECORCIA_HALL');
+  await voyager(7, 4); entrer(HAUT, 'ARENE_ECORCIA');
+  assert.deepEqual([j.x, j.y], [9, 37]);
+  assert.deepEqual([0, 1, 2, 3].map((i) => T.etat.vars['RAIL_' + i]), [0, 1, 2, 7]);
+  const monter = async (x, y, dir) => { await voyager(x, y); pas(T, dir); lire(T); attendre(T, () => calme(T) && !T.trajet, 600); };
+  await monter(3, 33, HAUT);                       // station 0 → station 4
+  assert.deepEqual([j.x, j.y, T.etat.vars.RAIL_0], [9, 24, 4], 'le chariot de gauche mène au milieu de la rangée suivante');
+  await voyager(2, 19); parler(T, HAUT); lire(T, [0]);
+  assert.equal(T.etat.vars.RAIL_AIG, 2, 'le levier de gauche bascule le second aiguillage');
+  await monter(9, 18, HAUT);                       // station 7, aiguillage 2 → station 10, devant HECTOR
+  assert.deepEqual([j.x, j.y], [9, 9]);
+  await voyager(9, 6); parler(T, HAUT); lire(T);
+  assert.ok(T.etat.drapeaux.has('BADGE_ESSAIM') && T.etat.sac.tm89 === 1 && T.etat.vars.RIVAL_ECORCIA === 1);
+  ok('arène d\'Écorcia : chariot 0 → 4, levier, chariot 7 → 10 ; HECTOR battu, BADGE ESSAIM et CT89');
+  await monter(9, 8, BAS);                         // retour : station 10 → 7
+  assert.deepEqual([j.x, j.y], [9, 17]);
+  await monter(9, 23, BAS);                        // station 4 → 0
+  assert.deepEqual([j.x, j.y], [3, 32]);
+  await sortir(9, 37, 'ARENE_ECORCIA_HALL'); await sortir(7, 11, 'ECORCIA');
+  ok('retour en chariots jusqu\'à l\'entrée de l\'arène');
+  // le rival attend à la sortie ouest
+  T.etat.vars.STARTER = 2;
+  const o = R(396, 463);
+  await voyager(o.x, o.y); pas(T, GAUCHE); lire(T);
+  assert.ok(T.etat.drapeaux.has('DRESSEUR_RIVAL_ECORCIA') && T.etat.vars.RIVAL_ECORCIA === 2 && !T.objet('rival_plante').visible);
+  ok('le rival surgit à la sortie d\'Écorcia (MACRONIUM, il a pris GERMIGNON), battu, il s\'en va');
+  const s = T.sauvegarder(), T2 = new Terrain(JOHTO, { graine: 13 }); T2.demarrer({ sauvegarde: s });
+  assert.equal(T2.sauvegarder(), s);
+  const { migrerSauvegarde } = await import(B + 'donnees/johto.js');
+  const vieille = JSON.parse(s); delete vieille.carte; vieille.position = { zone: 'BOURG_GEON', x: 240, y: 176, dir: BAS };
+  const m = JSON.parse(migrerSauvegarde(JSON.stringify(vieille)));
+  assert.deepEqual([m.position.x, m.carte, JSON.parse(migrerSauvegarde(JSON.stringify(m))).position.x], [304, 2, 304]);
+  ok('sauvegarde relue à l\'identique ; une sauvegarde d\'avant l\'agrandissement de la carte est recalée (une seule fois)');
+}
+
+console.log('Arène d\'Écorcia : l\'énigme des chariots (src/field/gymmick/azalea.c)');
+{
+  const { RAILS_ECORCIA: RE } = await import(B + 'donnees/ecorcia.js');
+  const T = new Terrain(JOHTO, { graine: 3 });
+  T.demarrer({ zone: 'ARENE_ECORCIA', warp: 0 });
+  const M = T.M;
+  const { testerPas } = await import(B + 'engine/objets.js');
+  // cases où l'on marche à pied depuis une case (sans PNJ ni chariot) : une « île »
+  const ile = (x, y) => {
+    const vus = new Set([x + ',' + y]), f = [[x, y]];
+    while (f.length) { const [a, b] = f.pop(); for (let d = 0; d < 4; d++) { const r = testerPas(M, { x: a, y: b }, d, {}); if (r.ok && r.type === 'pas' && !vus.has(r.vers.join(','))) { vus.add(r.vers.join(',')); f.push(r.vers); } } }
+    return vus;
+  };
+  const leviers = { 0: [[4, 7], [11, 8], [11, 18]], 1: [[2, 18]] };
+  const declenche = (s) => { const [x, y] = RE.stations[s]; return RE.inverses.includes(s) ? [x, y] : [x, y + 1]; };
+  // états : (île, chariots, aiguillage) ; un pas = basculer un levier de l'île, ou prendre un chariot qui attend
+  const etat0 = { pos: [9, 36], ch: RE.depart, aig: 0 };
+  const cle = (e) => [...ile(...e.pos)].sort()[0] + '|' + e.ch.join(',') + '|' + e.aig;
+  const vus = new Map([[cle(etat0), null]]), file = [etat0];
+  let hector = null;
+  while (file.length) {
+    const e = file.shift(), I = ile(...e.pos);
+    if (I.has('9,6')) { hector ??= e; }
+    const suiv = [];
+    for (const b of [0, 1]) if (leviers[b].some(([x, y]) => [[0, 1], [0, -1], [1, 0], [-1, 0]].some(([dx, dy]) => I.has((x + dx) + ',' + (y + dy))))) suiv.push({ ...e, aig: e.aig ^ (1 << b) });
+    e.ch.forEach((s, k) => {
+      const route = RE.routes[s]?.[e.aig];
+      if (!route || !I.has(declenche(s).join(','))) return;
+      const inv = RE.inverses.includes(s), fin = inv ? route.noeuds[0] : route.noeuds[route.noeuds.length - 1];
+      suiv.push({ pos: [fin[0], fin[1] + (inv ? 1 : 0)], ch: e.ch.map((v, i) => (i === k ? route.vers : v)), aig: e.aig });
+    });
+    for (const n of suiv) { const c = cle(n); if (!vus.has(c)) { vus.set(c, e); file.push(n); } }
+  }
+  assert.ok(hector, 'HECTOR est atteignable');
+  // depuis tout état atteint, on peut revenir à l'entrée (pas d'impasse)
+  const etats = [...vus.keys()];
+  ok(`${etats.length} états (île, chariots, aiguillages) atteignables : HECTOR est au bout`);
+  const entree = [...ile(9, 36)].sort()[0];
+  const versEntree = new Set(etats.filter((c) => c.startsWith(entree + '|')));
+  let change = true;
+  const succ = new Map();
+  for (const [c, p] of vus) if (p) { const cp = cle(p); if (!succ.has(cp)) succ.set(cp, []); succ.get(cp).push(c); }
+  // remontée : un état est sûr s'il a un successeur sûr ou s'il est à l'entrée (on refait la recherche depuis chacun)
+  const sansRetour = [];
+  for (const c of etats) {
+    // nouvelle recherche depuis l'état c (reconstruit à partir de sa clé)
+    const [i, ch, aig] = c.split('|'), [x, y] = i.split(',').map(Number);
+    const v2 = new Set([c]), f2 = [{ pos: [x, y], ch: ch.split(',').map(Number), aig: +aig }];
+    let ok2 = false;
+    while (f2.length && !ok2) {
+      const e = f2.shift(), I = ile(...e.pos);
+      if (I.has('9,36')) { ok2 = true; break; }
+      for (const b of [0, 1]) if (leviers[b].some(([lx, ly]) => [[0, 1], [0, -1], [1, 0], [-1, 0]].some(([dx, dy]) => I.has((lx + dx) + ',' + (ly + dy))))) { const n = { ...e, aig: e.aig ^ (1 << b) }; const k = cle(n); if (!v2.has(k)) { v2.add(k); f2.push(n); } }
+      e.ch.forEach((s, k) => {
+        const route = RE.routes[s]?.[e.aig];
+        if (!route || !I.has(declenche(s).join(','))) return;
+        const inv = RE.inverses.includes(s), fin = inv ? route.noeuds[0] : route.noeuds[route.noeuds.length - 1];
+        const n = { pos: [fin[0], fin[1] + (inv ? 1 : 0)], ch: e.ch.map((v, ii) => (ii === k ? route.vers : v)), aig: e.aig }, kk = cle(n);
+        if (!v2.has(kk)) { v2.add(kk); f2.push(n); }
+      });
+    }
+    if (!ok2) sansRetour.push(c);
+  }
+  assert.deepEqual(sansRetour, [], 'aucun état sans retour');
+  ok('aucune impasse : de chaque état, on peut redescendre jusqu\'à la porte');
 }
 
 console.log('Arène d\'Acajou : trois salles de glace (positions de HGSS)');

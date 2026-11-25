@@ -10,7 +10,7 @@
 //   5. les PNJ libres (errance, regards), seulement près du joueur ;
 //   6. les scripts de niveau (« map scripts ») quand tout est calme ; la caméra.
 
-import { DX, DY, OPPOSE, PROPS, VITESSE, ELAN_VELO, VITESSE_GLACE, rng as RNG } from './const.js';
+import { DX, DY, OPPOSE, PROPS, VITESSE, ELAN_VELO, VITESSE_GLACE, BAS, HAUT, rng as RNG } from './const.js';
 import { Monde, preparer, valider } from './carte.js';
 import { ObjetTerrain, objetEn, testerPas, devant } from './objets.js';
 import { Scripts, Contexte, avancer } from './script.js';
@@ -18,12 +18,16 @@ import { COMMANDES, dirVers } from './commandes.js';
 import { COMMUN } from './commun.js';
 
 /** caméras par type de zone (comme les réglages de caméra des en-têtes de HGSS) */
+/**
+ * Caméras. Celle de HGSS et de Platine (field_camera.c de la décompilation de Platine, même valeur 666,92 dans HGSS) :
+ * distance 666,92 unités (41,68 cases), inclinaison 59,05°, champ vertical 2 × 8,09°. Sur l'écran de la DS (256 × 192),
+ * on voit ainsi exactement 16 cases de large. Les intérieurs, les grottes et les villes gardent la même ; « proche »
+ * est celle des endroits resserrés de Platine (CAMERA_TYPE_ZOOMED_IN).
+ */
+const CAM_DS = { distance: 666.922 / 16, inclinaison: 59.0515, fov: 2 * 8.0914 };
 export const CAMERAS = {
-  dehors: { distance: 34, inclinaison: 50, fov: 22 },
-  ville: { distance: 34, inclinaison: 50, fov: 22 },
-  interieur: { distance: 26, inclinaison: 56, fov: 22 },
-  grotte: { distance: 30, inclinaison: 54, fov: 22 },
-  haut: { distance: 42, inclinaison: 46, fov: 22 },
+  dehors: CAM_DS, ville: CAM_DS, interieur: CAM_DS, grotte: CAM_DS, haut: CAM_DS,
+  proche: { distance: 515.456 / 16, inclinaison: 54.657, fov: 2 * 10.459 },
 };
 
 /** objets connus : nom (avec article) et prix ; un paquet de données peut en ajouter (`objets`) */
@@ -64,6 +68,7 @@ export class Terrain {
       soin: null, pas: 0, argent: opts.argent ?? 3000,
     };
     this.objetsConnus = { ...OBJETS, ...(donnees.objets || {}) };
+    this.versionCarte = donnees.version ?? null;   // inscrite dans la sauvegarde : un paquet de données peut ainsi migrer les anciennes
     this.etat.boite = [];
     /**
      * Les POKéMON eux-mêmes ne sont pas l'affaire du terrain : il les crée et les soigne par ces deux fonctions.
@@ -165,7 +170,58 @@ export class Terrain {
     for (const o of this.objets) this.majObjet(o, false, libre);
     // 6. scripts de niveau, caméra
     if (libre && !this.joueur.m && !this.ctxs.length) this.lancerNiveau('image');
+    if (this.trajet) this.majTrajet();
     this.majCamera();
+  }
+
+  // ——— chariots sur rails (Arène d'Écorcia) ———
+  // zone.rails = { stations: [[x, y]…], depart: [station de chaque chariot], inverses: [stations d'où l'on part à
+  // reculons], routes: { [station]: [route selon l'aiguillage 0..3 | null] } }, route = { vers, noeuds: [[x, y]…] }.
+  // Les chariots sont les objets « chariot_<i> » de la zone ; leurs stations sont dans RAIL_<i>, l'aiguillage dans RAIL_AIG.
+  railsDepart() {
+    const r = this.zone?.rails;
+    if (!r) return;
+    r.depart.forEach((s, i) => { this.etat.vars['RAIL_' + i] = s; this.poserChariot(i); });
+    this.etat.vars.RAIL_AIG = 0;
+  }
+  poserChariot(i) {
+    const o = this.objet('chariot_' + i), r = this.zone.rails;
+    if (!o) return;
+    const [x, y] = r.stations[this.etat.vars['RAIL_' + i]];
+    o.x = x; o.y = y; o.px = x; o.py = y; o.m = null;
+  }
+  chariot(s) {
+    const r = this.zone?.rails;
+    if (!r || this.trajet) return;
+    const k = r.depart.findIndex((_, i) => this.etat.vars['RAIL_' + i] === s);
+    const route = k < 0 ? null : r.routes[s]?.[this.etat.vars.RAIL_AIG ?? 0];
+    if (!route) return;                       // pas de chariot ici, ou l'aiguillage ne mène nulle part
+    const inv = r.inverses.includes(s);
+    const noeuds = inv ? [...route.noeuds].reverse() : route.noeuds;
+    const j = this.joueur, zoff = inv ? 1 : 0;
+    // le joueur monte sur le chariot (un pas), attend un instant, puis suit le tracé à 1/8 de case par image
+    j.lancer('pas', inv ? BAS : HAUT, VITESSE.marche);
+    this.trajet = { k, noeuds, i: 0, pos: [...noeuds[0]], zoff, vers: route.vers, phase: 'monte', t: 0 };
+    return () => !this.trajet;
+  }
+  majTrajet() {
+    const tr = this.trajet, j = this.joueur, o = this.objet('chariot_' + tr.k);
+    if (tr.phase === 'monte') { if (!j.m && ++tr.t > 4) { tr.phase = 'route'; this.sortir({ type: 'son', nom: 'chariot' }); } return; }
+    if (tr.phase === 'route') {
+      const n = tr.noeuds[tr.i + 1], dx = n[0] - tr.pos[0], dy = n[1] - tr.pos[1], l = Math.hypot(dx, dy), v = 1 / 8;
+      if (l <= v) { tr.pos = [...n]; if (++tr.i >= tr.noeuds.length - 1) tr.phase = 'fin'; }
+      else { tr.pos[0] += dx / l * v; tr.pos[1] += dy / l * v; }
+    }
+    if (o) { o.px = tr.pos[0]; o.py = tr.pos[1] - 0.05; }
+    j.px = tr.pos[0]; j.py = tr.pos[1] + tr.zoff; j.frame = 0;
+    if (tr.phase === 'fin') {
+      const [x, y] = tr.pos;
+      j.x = x; j.y = y + tr.zoff; j.px = j.x; j.py = j.y;
+      this.etat.vars['RAIL_' + tr.k] = tr.vers;
+      this.poserChariot(tr.k);
+      this.secousse = 8;
+      this.trajet = null;
+    }
   }
 
   // ——— boîte de texte ———
@@ -293,6 +349,7 @@ export class Terrain {
       j.dir = d; this.prendreWarp(this.M.warp(j.x, j.y)); return;
     }
     const r = testerPas(this.M, j, d, { surf: this.mode === 'surf', velo: this.mode === 'velo', objets: this.objets });
+    j.course = false;   // contre un mur, on piétine au pas (comme dans HGSS), pas avec la planche de course
     if (!r.ok) {
       this.elan = 0;
       j.lancer('surplace', d, VITESSE.heurt);
@@ -300,7 +357,6 @@ export class Terrain {
       this.continu = true;
       return;
     }
-    j.course = false;
     if (r.type === 'saut') { j.lancer('saut', d, VITESSE.saut, 2); this.sortir({ type: 'son', nom: 'saut' }); }
     else {
       const v = this.vitesseJoueur(ent);
@@ -490,8 +546,10 @@ export class Terrain {
     return true;
   }
   testerRencontre(p) {
-    if (!p.rencontre || this.mode === 'velo' && p.rencontre === 'eau') return;
-    const table = this.zone?.rencontres?.[p.rencontre];
+    // dans les grottes (table « sol »), chaque pas sur le sol peut faire surgir un POKéMON, comme dans HGSS
+    const cle = p.rencontre || (this.zone?.rencontres?.sol && !p.warp && !p.tapis && !p.glisse ? 'sol' : null);
+    if (!cle || this.mode === 'velo' && cle === 'eau') return;
+    const table = this.zone?.rencontres?.[cle];
     if (!table || !table.especes?.length) return;
     // un pas sur deux au plus après un combat (évite deux combats d'affilée)
     if (this.compteurRencontre > 0) { this.compteurRencontre--; return; }
@@ -639,6 +697,7 @@ export class Terrain {
       v: 1, t: this.t, drapeaux: [...this.etat.drapeaux].sort(), vars: this.etat.vars, sac: this.etat.sac, equipe: this.etat.equipe, boite: this.etat.boite, argent: this.etat.argent,
       joueur: this.etat.joueur, soin: this.etat.soin, pas: this.etat.pas, mode: this.mode, rng: this.rng.etat(),
       position: { zone: this.zone.id, x: j.x, y: j.y, dir: j.dir },
+      ...(this.versionCarte !== null ? { carte: this.versionCarte } : {}),
     });
   }
   charger(json) {

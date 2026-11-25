@@ -1,6 +1,7 @@
 // odyssee/moteur/donnees/johto.js — le début de HeartGold / SoulSilver redessiné pour éprouver le moteur :
 // Bourg Geon → Route 29 → Ville Griotte → Route 30 → Route 31 → Mauville, avec leurs intérieurs (Centres POKéMON,
-// boutiques, maisons, M. POKéMON, Tour Chétiflor sur trois étages, arène, école, Antre Noir).
+// boutiques, maisons, M. POKéMON, Tour Chétiflor sur trois étages, arène, école, Antre Noir), puis jusqu'au deuxième
+// badge : Route 32, Caves Jumelles, Route 33, Écorcia, Puits Ramoloss et l'arène d'HECTOR (ecorcia.js).
 // Les plans sont dessinés à la main d'après la disposition des lieux du jeu (rien n'est extrait de la ROM) ;
 // les dialogues sont écrits pour l'essai.
 //
@@ -18,6 +19,7 @@ import {
 } from './interieurs.js';
 import { BLOCS_DEHORS, MONDE_JOHTO, ZONES_DEHORS } from './johto-dehors.js';
 import { BLOCS_ACAJOU, MONDE_ACAJOU, ZONE_ACAJOU } from './acajou.js';
+import { ZONES_ECORCIA, BLOCS_ECORCIA, MONDES_ECORCIA, OBJETS_ECORCIA } from './ecorcia.js';
 
 // ——— outils ———
 /** une pièce au centre d'un bloc vide */
@@ -553,6 +555,8 @@ script DameAcajou
   fin
 `),
   ...ZONES_ACAJOU,
+  // — Route 32, Caves Jumelles, Route 33, Écorcia, Puits Ramoloss, arène d'HECTOR (ecorcia.js) —
+  ...ZONES_ECORCIA,
   BOUTIQUE_MAUVILLE: boutique('Mauville', 'MAUVILLE', 2, 'potion super-potion antidote paralyze-heal awakening repel poke-ball'),
   MAISON_MAUVILLE_1: maison('Mauville', 'MAUVILLE', 5, { sprite: 'kimono', script: 'Kimono' }, `
 script Kimono
@@ -732,13 +736,13 @@ const interieur = (bloc, zone) => mondeSimple(bloc, zone);
 export const JOHTO = {
   sols: SOLS,
   blocs: {
-    ...BLOCS_DEHORS, ...BLOCS_ACAJOU,
+    ...BLOCS_DEHORS, ...BLOCS_ACAJOU, ...BLOCS_ECORCIA,
     maison_1f: MAISON_1F, maison_2f: MAISON_2F, labo: LABO, voisin: MAISON, centre: CENTRE, centre_b1f: CENTRE_B1F, boutique: BOUTIQUE,
     poste: POSTE, poste_eo: POSTE_EO, acajou_1: ACAJOU_1, acajou_2: ACAJOU_2, acajou_3: ACAJOU_3,
     tour_1: TOUR_1, tour_2: TOUR_2, tour_3: TOUR_3, arene: ARENE, ecole: ECOLE, antre: ANTRE,
   },
   mondes: {
-    johto: MONDE_JOHTO, acajou: MONDE_ACAJOU,
+    johto: MONDE_JOHTO, acajou: MONDE_ACAJOU, ...MONDES_ECORCIA,
     centre_acajou: interieur('centre', 'CENTRE_ACAJOU'), centre_acajou_b1f: interieur('centre_b1f', 'CENTRE_ACAJOU_B1F'),
     boutique_acajou: interieur('boutique', 'BOUTIQUE_ACAJOU'), maison_acajou: interieur('voisin', 'MAISON_ACAJOU'),
     maison_1f: interieur('maison_1f', 'MAISON_1F'), maison_2f: interieur('maison_2f', 'MAISON_2F'),
@@ -755,7 +759,16 @@ export const JOHTO = {
     acajou_1: interieur('acajou_1', 'ARENE_ACAJOU_1'), acajou_2: interieur('acajou_2', 'ARENE_ACAJOU_2'), acajou_3: interieur('acajou_3', 'ARENE_ACAJOU_3'),
   },
   zones: ZONES,
+  objets: OBJETS_ECORCIA,
+  version: 2,   // 2 : la matrice du dehors s'étend vers l'ouest jusqu'à Écorcia (origine en x = 384 au lieu de 448)
 };
+/** une sauvegarde d'avant la version 2 : le dehors a glissé de 64 cases vers l'est (deux blocs ajoutés à l'ouest) */
+export function migrerSauvegarde(texte) {
+  const s = JSON.parse(texte);
+  if ((s.carte ?? 1) < 2 && ['BOURG_GEON', 'ROUTE_29', 'VILLE_GRIOTTE', 'ROUTE_30', 'ROUTE_31', 'MAUVILLE'].includes(s.position?.zone)) s.position.x += 64;
+  s.carte = 2;
+  return JSON.stringify(s);
+}
 export const DEPART = { zone: 'MAISON_2F', x: 5, y: 7, dir: BAS };
 
 /** sortie de l'Arène de Frimapic : devant le Centre POKéMON d'Acajou */

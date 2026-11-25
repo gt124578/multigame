@@ -151,7 +151,7 @@ export function valider(donnees, scriptsConnus = () => null) {
     for (const o of z.objets || []) {
       const q = `objet ${o.id} (${o.x},${o.y})`;
       if (!dansZone(M, zid, o.x, o.y)) err.push(`${zid} : ${q} hors de la zone`);
-      if (M.bloquee(o.x, o.y)) err.push(`${zid} : ${q} sur une case bloquée`);
+      if (M.bloquee(o.x, o.y) && !o.traversable) err.push(`${zid} : ${q} sur une case bloquée`);
       script(q, o.script);
       if (o.dresseur) script(q, o.dresseur.script);
     }
