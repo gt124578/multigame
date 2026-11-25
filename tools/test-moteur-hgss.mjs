@@ -419,6 +419,88 @@ console.log('Déterminisme, sauvegarde');
     assert.deepEqual(pres, []);
     ok(`audit du jeu entier depuis la chambre : ${r.zones.size} cartes atteintes à pied (surf et coupe permis), de New Bark Town à Blackthorn City ; Centres et boutiques se servent par-dessus le comptoir`);
 
+    // avec toutes les capacités de terrain (FORCE, ÉCLATE-ROC, CASCADE, SIPHON, ESCALADE) : tout le jeu, Kanto compris
+    const tout = auditer(D2, DEPART_HG, { surf: true, coupe: true, eclate: true, force: true, cascade: true, siphon: true, escalade: true });
+    const arenes = Object.keys(D2.zones).filter((z) => /_GYM$|_GYM_LEADER_ROOM$/.test(z));
+    assert.deepEqual(arenes.filter((z) => !tout.zones.has(z)), []);
+    const lieux = ['ICE_PATH_B3F', 'MAHOGANY_GYM_LEADER_ROOM', 'WHIRL_ISLANDS_1F', 'MOUNT_MORTAR_2F', 'VICTORY_ROAD_1F', 'INDIGO_PLATEAU',
+      'PALLET', 'VIRIDIAN', 'PEWTER', 'CERULEAN', 'VERMILION', 'LAVENDER', 'CELADON', 'FUCHSIA', 'SAFFRON', 'CINNABAR_ISLAND', 'MOUNT_SILVER'];
+    assert.deepEqual(lieux.filter((z) => !tout.zones.has(z)), []);
+    ok(`avec les capacités de terrain : ${tout.zones.size} cartes sur ${Object.keys(D2.zones).length}, les ${arenes.length} salles d'arène (Johto et Kanto), la Route de Glace et ses trous, les Îles Tourbillon, le Mont Argenté`);
+
+    // les capacités dans le moteur : un vrai rocher à briser, un vrai rocher à pousser, une vraie cascade
+    const essai = (zone, x, y, dir, opts = {}) => {
+      const T2 = new Terrain(D2, { graine: 1 });
+      T2.demarrer({ zone, x, y, dir });
+      T2.etat.drapeaux.add('TOUT_CS');
+      if (opts.surf) T2.mode = 'surf';
+      return T2;
+    };
+    const lireTout = (T2, rep = []) => { for (let i = 0; i < 3000 && !calme(T2); i++) { if (T2.ui?.choix && T2.ui.vus >= T2.ui.texte.length) { T2.pas({ a: true }); rep.shift(); continue; } T2.pas({ a: T2.ui && T2.ui.vus >= T2.ui.texte.length && !T2.ui.lu && i % 2 === 0 }); } };
+    const trouver = (type, ok2) => { for (const [zid, z] of Object.entries(D2.zones)) for (const o of z.objets || []) if (o.type === type && !/^FLAG_HIDE/.test(o.drapeau || '')) { const r2 = ok2(zid, o); if (r2) return r2; } return null; };
+    // ÉCLATE-ROC
+    const cas1 = trouver('rocher', (zid, o) => (D2.mondeDeZone?.[zid] || true) && [[0, 1, HAUT], [0, -1, BAS], [1, 0, GAUCHE], [-1, 0, DROITE]]
+      .map(([dx, dy, d]) => ({ zone: zid, x: o.x + dx, y: o.y + dy, d, id: o.id })).find((c) => { try { const T2 = essai(c.zone, c.x, c.y, c.d); return !T2.M.bloquee(c.x, c.y) && T2.zone?.id === zid; } catch { return false; } }));
+    const T3 = essai(cas1.zone, cas1.x, cas1.y, cas1.d);
+    T3.pas({ a: true }); lireTout(T3);
+    assert.ok(!T3.objets.find((o) => o.id === cas1.id)?.visible, 'rocher brisé');
+    ok(`ÉCLATE-ROC : le rocher fissuré de ${cas1.zone} se brise (il revient quand on quitte la carte)`);
+    // FORCE : le rocher avance d'une case quand on le pousse
+    const cas2 = trouver('rocher_force', (zid, o) => [[0, 1, HAUT], [0, -1, BAS], [1, 0, GAUCHE], [-1, 0, DROITE]].map(([dx, dy, d]) => ({ zone: zid, x: o.x + dx, y: o.y + dy, d, id: o.id, ox: o.x - dx, oy: o.y - dy }))
+      .find((c) => { try { const T2 = essai(c.zone, c.x, c.y, c.d); return T2.zone?.id === zid && !T2.M.bloquee(c.x, c.y) && !T2.M.bloquee(c.ox, c.oy) && !T2.M.props(c.ox, c.oy).surf && !T2.M.declencheursEn(c.ox, c.oy).length && !T2.objets.some((b) => b.x === c.ox && b.y === c.oy); } catch { return false; } }));
+    const T4 = essai(cas2.zone, cas2.x, cas2.y, cas2.d);
+    T4.pas({ a: true }); lireTout(T4);
+    assert.ok(T4.etat.drapeaux.has('TMP_FORCE'));
+    for (let i = 0; i < 40; i++) T4.pas({ dir: cas2.d });
+    const roc = T4.objets.find((o) => o.id === cas2.id);
+    assert.deepEqual([roc.x, roc.y], [cas2.ox, cas2.oy]);
+    ok(`FORCE : le rocher de ${cas2.zone} avance d'une case quand on le pousse`);
+    // CASCADE : une cascade du jeu (comportement 0x13), remontée d'un trait en surf
+    let cas3 = null;
+    for (const mid of ['johto']) {
+      const T2 = new Terrain(D2, { graine: 1 }); T2.demarrer({ zone: 'NEW_BARK', x: 690, y: 400 });
+      const M2 = T2.M;
+      for (let y = 1; y < M2.hauteur - 1 && !cas3; y++) for (let x = 0; x < M2.largeur && !cas3; x++)
+        if (M2.mb(x, y) === MB.CHUTE && M2.props(x, y + 1).surf && M2.mb(x, y + 1) !== MB.CHUTE && !M2.bloquee(x, y + 1)) cas3 = { x, y: y + 1, zone: M2.zone(x, y + 1)?.id };
+    }
+    const T5 = essai(cas3.zone, cas3.x, cas3.y, HAUT, { surf: true });
+    T5.pas({ a: true }); lireTout(T5, [0]);
+    for (let i = 0; i < 400 && (T5.joueur.file.length || T5.joueur.m); i++) T5.pas({});
+    assert.ok(T5.joueur.y < cas3.y - 1 && T5.M.mb(T5.joueur.x, T5.joueur.y) !== MB.CHUTE, `${T5.joueur.y} / ${cas3.y}`);
+    ok(`CASCADE : la cascade de ${T5.d.zones[cas3.zone]?.nom || cas3.zone} se remonte d'un trait (${cas3.y - T5.joueur.y} cases)`);
+
+    // en français : noms de la version française ; les dialogues anglais traduits par la page (ici, un faux traducteur)
+    {
+      const GF = await jeuHG(lireHG, { langue: 'fr' });
+      const DF = GF.donnees;
+      assert.equal(DF.zones.NEW_BARK.nom, 'Bourg Geon');
+      assert.equal(DF.zones.VIOLET.nom, 'Mauville');
+      assert.equal(DF.zones.ROUTE_29.nom, 'Route 29');
+      assert.equal(DF.dresseursHG.TRAINER_YOUNGSTER_JOEY.nom, 'Gamin Joey');
+      assert.equal(DF.nomJoueur, 'LUTH');
+      const { Traducteur, messagesDe } = await import(B + 'render/traduction.js');
+      const tr = new Traducteur([['CYNDAQUIL', 'HÉRICENDRE']]);
+      tr.moteur = async (s) => `[fr] ${s}`; tr.etat = 'prêt';
+      assert.equal(tr.franciser('Professor Elm gave CYNDAQUIL to Lyra in New Bark Town.'), 'Professeur Orme gave HÉRICENDRE to Célesta in Bourg Geon.');
+      assert.equal(await tr.traduire('Hi, LUTH!\nYou\'re finally awake.'), '[fr] Hi, LUTH! You\'re finally awake.');
+      assert.equal(tr.connue('Hi, LUTH!\nYou\'re finally awake.'), '[fr] Hi, LUTH! You\'re finally awake.');
+      // le moteur : un message des scripts du jeu passe par la traduction, celui du moteur (déjà en français) non
+      const pf = await GF.chargerCarte(DEPART_HG.zone);
+      const DF2 = { ...DF, zones: { ...DF.zones, ...pf.zones }, blocs: { ...DF.blocs, ...pf.blocs }, mondes: { ...DF.mondes, ...pf.mondes } };
+      const TF = new Terrain(DF2, { graine: 1 });
+      TF.demarrer(DEPART_HG);
+      TF.traduire = (t) => tr.connue(t) ?? tr.traduire(t);
+      TF.message('Good morning!', true);
+      assert.equal(TF.ui.texte, 'Good morning!');
+      await new Promise((ok2) => setTimeout(ok2, 10));
+      assert.equal(TF.ui.texte, '[fr] Good morning!');
+      TF.message('{JOUEUR} obtient une POTION !');
+      assert.equal(TF.ui.texte, 'LUTH obtient une POTION !');
+      const prevus = messagesDe(pf.zones[DEPART_HG.zone].scripts, 'LUTH', 'SILVER');
+      assert.ok(prevus.length > 0 && prevus.every((t) => !/\{JOUEUR\}|\{T0\}/.test(t)));
+      ok(`en français : Bourg Geon, Mauville, « Gamin Joey », LUTH ; noms propres remis à la française avant traduction (Professeur Orme, Célesta, HÉRICENDRE) ; ${prevus.length} répliques de la chambre prêtes à traduire en avance`);
+    }
+
     // une nouvelle partie, jouée comme sur la console : les cartes arrivent quand on y va
     console.log('HeartGold / SoulSilver : le début du jeu, avec ses vrais scripts');
     const D3 = { ...D, zones: { ...D.zones }, blocs: { ...D.blocs }, mondes: { ...D.mondes } };
@@ -434,7 +516,7 @@ console.log('Déterminisme, sauvegarde');
     T.chargeur = (id) => G.chargerCarte(id).then((p) => { chargements++; T.ajouterDonnees(p); });
     const vus = [];
     const pasA = async (e = {}) => { T.pas(e); if (T.transition?.demande) await new Promise((ok2) => setTimeout(ok2, 5)); };
-    async function lireA(rep = [], max = 9000) {
+    async function lireA(rep = [], max = 40000) {
       for (let i = 0; i < max; i++) {
         if (T.combatEnCours) T.terminerCombat(true);
         if (calme(T)) return;
@@ -442,7 +524,8 @@ console.log('Déterminisme, sauvegarde');
         if (T.ui && T.ui.vus >= T.ui.texte.length && !T.ui.lu && i % 2 === 0) vus.push(T.ui.texte.replace(/\n/g, ' '));
         await pasA({ a: T.ui && T.ui.vus >= T.ui.texte.length && !T.ui.lu && i % 2 === 0 });
       }
-      throw new Error('les scripts ne rendent pas la main : ' + T.ctxs.map((c) => c.nom + '@' + c.pc).join(', ') + ' ' + JSON.stringify(T.ui)?.slice(0, 200) + ' ' + T.joueur.x + ',' + T.joueur.y + ' ' + T.transition?.phase);
+      if (process.env.DEBUG) { for (let k = 0; k < 4; k++) { T.pas({}); console.log('noir', T.noir, T.fonduVers, T.ctxs.map((c) => c.nom + '@' + c.pc)); } }
+      throw new Error('les scripts ne rendent pas la main : ' + T.ctxs.map((c) => c.nom + '@' + c.pc + ' ' + JSON.stringify(c.prog?.ops?.[c.pc - 1])?.slice(0, 160)).join(', ') + ' ' + JSON.stringify(T.ui)?.slice(0, 200) + ' ' + T.joueur.x + ',' + T.joueur.y + ' ' + T.transition?.phase + ' noir ' + [T.noir, T.fonduVers, T.fonduPas]);
     }
     async function allerA(tx, ty) {
       const M = T.M, k = (x, y) => y * M.largeur + x;
@@ -457,7 +540,12 @@ console.log('Déterminisme, sauvegarde');
         }
         f = f2;
       }
-      if (!prev.has(k(tx, ty))) throw new Error(`pas de chemin vers ${tx},${ty} depuis ${T.joueur.x},${T.joueur.y}`);
+      if (!prev.has(k(tx, ty))) {
+        // qu'est-ce qui bloque ? le plus proche atteint de la cible, et les personnages qui ferment le passage
+        let best = null; for (const kk of prev.keys()) { const x = kk % M.largeur, y = (kk / M.largeur) | 0, d2 = Math.abs(x - tx) + Math.abs(y - ty); if (!best || d2 < best[0]) best = [d2, x, y]; }
+        const pres = T.objets.filter((o) => o.visible && best && Math.abs(o.x - best[1]) < 4 && Math.abs(o.y - best[2]) < 4).map((o) => o.id + '@' + o.x + ',' + o.y);
+        throw new Error(`pas de chemin vers ${tx},${ty} depuis ${T.joueur.x},${T.joueur.y} (au plus près : ${best?.slice(1)} ; personnages : ${pres})`);
+      }
       const dirs = []; let c = k(tx, ty); while (prev.get(c)) { const [x, y, d] = prev.get(c); dirs.unshift(d); c = k(x, y); }
       for (const d of dirs) {
         const x = T.joueur.x, y = T.joueur.y;
@@ -465,11 +553,62 @@ console.log('Déterminisme, sauvegarde');
         if (!calme(T)) { await lireA(); return; }
       }
     }
+    /** aller jusqu'à une carte, de porte en porte (plus court chemin entre les cartes, puis à pied dans chacune) */
+    async function allerZone(cible) {
+      const pris = new Set();
+      for (let pas = 0; pas < 40 && T.zone.id !== cible; pas++) {
+        const ici = T.M.id === 'johto' ? null : T.zone.id;
+        // les cartes voisines : celles où mènent les téléporteurs (le dehors compte pour une seule carte)
+        const zoneDe = (z) => (T.d.mondeDeZone?.[z] === 'johto' ? 'johto' : z);
+        const voisins = (z) => {
+          const ws = z === 'johto' ? Object.values(T.d.zones).filter((q) => T.d.mondeDeZone?.[q.id] === 'johto').flatMap((q) => q.warps || []) : T.d.zones[z]?.warps || [];
+          return ws.filter((w) => w.vers).map((w) => zoneDe(w.vers));
+        };
+        const dep = zoneDe(T.zone.id), arr = zoneDe(cible), prec = new Map([[dep, null]]); let f = [dep];
+        while (f.length && !prec.has(arr)) {
+          const f2 = [];
+          for (const z of f) {
+            if (z !== 'johto' && T.d.zones[z]?.aCharger) T.ajouterDonnees(await G.chargerCarte(z));   // ses portes
+            for (const v of voisins(z)) if (!prec.has(v)) { prec.set(v, z); f2.push(v); }
+          }
+          f = f2;
+        }
+        let suiv = arr; while (prec.get(suiv) && prec.get(suiv) !== dep) suiv = prec.get(suiv);
+        for (const id of [suiv, cible]) if (T.d.zones[id]?.aCharger) T.ajouterDonnees(await G.chargerCarte(id));
+        const portes = (ici ? T.zone.warps : Object.values(T.d.zones).filter((q) => T.d.mondeDeZone?.[q.id] === 'johto').flatMap((q) => q.warps || []))
+          .filter((w) => w.vers && zoneDe(w.vers) === suiv);
+        // (si aucune n'est atteignable d'ici, une autre porte pas encore prise : les tours se montent en zigzag)
+        const toutes = (ici ? T.zone.warps : []).filter((w) => w.vers && !portes.includes(w) && !pris.has(`${T.zone.id}#${w.x},${w.y}`));
+        if (process.env.DEBUG) console.log('allerZone', T.zone.id, T.joueur.x, T.joueur.y, '→', suiv, 'portes', portes.map((w) => w.x + ',' + w.y), 'autres', toutes.map((w) => w.x + ',' + w.y + '>' + w.vers));
+        let ok3 = false;
+        for (const w of [...portes, ...toutes]) {
+          if (w.x === T.joueur.x && w.y === T.joueur.y) {
+            // celle où l'on vient d'arriver : un pas de côté, puis on y revient (un escalier se reprend en y remontant)
+            if (portes.length + toutes.length > 1 && ![...portes, ...toutes].every((q) => q.x === w.x && q.y === w.y)) continue;
+            const pas2 = [[0, -1], [0, 1], [-1, 0], [1, 0]].find(([dx, dy]) => !T.M.bloquee(w.x + dx, w.y + dy) && !T.M.warp(w.x + dx, w.y + dy));
+            if (pas2) { await allerA(w.x + pas2[0], w.y + pas2[1]); }
+          }
+          pris.add(`${T.zone.id}#${w.x},${w.y}`);
+          try {
+            const z0 = T.zone.id;
+            for (let k = 0; k < 10 && T.zone.id === z0 && (T.joueur.x !== w.x || T.joueur.y !== w.y); k++) await allerA(w.x, w.y);
+            ok3 = true;
+          } catch { continue; }
+          // un tapis de sortie se prend en avançant dans son sens
+          const sens = T.M.props(w.x, w.y).tapis ?? T.joueur.dir;
+          for (let i = 0; i < 200 && zoneDe(T.zone.id) !== suiv; i++) { await pasA({ dir: sens }); if (!calme(T)) await lireA([0, 0]); }
+          for (let i = 0; i < 60 && T.transition; i++) await pasA({});
+          break;
+        }
+        if (!ok3) throw new Error(`pas de porte atteignable de ${T.zone.id} vers ${suiv}`);
+      }
+      assert.equal(T.zone.id, cible);
+    }
     async function versZone(z, dir) {
       for (let i = 0; i < 4000 && (T.zone?.id !== z || T.transition); i++) { await pasA(dir !== undefined && !T.transition ? { dir } : {}); if (T.ui || T.ctxs.length) await lireA(); }
       assert.equal(T.zone.id, z);
     }
-    async function parlerA(x, y, d, rep) { await allerA(x, y); await pasA({ dir: d }); for (let i = 0; i < 30 && !calme(T); i++) await pasA({}); await pasA({}); await pasA({ a: true }); await lireA(rep); }
+    async function parlerA(x, y, d, rep) { for (let k = 0; k < 10 && (T.joueur.x !== x || T.joueur.y !== y); k++) await allerA(x, y); await pasA({ dir: d }); for (let i = 0; i < 30 && !calme(T); i++) await pasA({}); await pasA({}); await pasA({ a: true }); await lireA(rep); }
 
     assert.equal(T.zone.id, 'NEW_BARK_PLAYER_HOUSE_2F');
     await allerA(3, 5); await versZone('NEW_BARK_PLAYER_HOUSE_1F', HAUT); await lireA();
@@ -521,6 +660,76 @@ console.log('Déterminisme, sauvegarde');
     assert.ok(T.d.zones.ROUTE_29.rencontres?.herbe?.especes.some((e) => e.espece === 'pidgey' || e.espece === 'hoothoot'));
     assert.ok(combats.length >= 1 && combats.every((c) => c.type !== 'sauvage' || ['pidgey', 'sentret', 'hoothoot', 'rattata', 'hoppip', 'furret'].includes(c.espece)), JSON.stringify(combats));
     ok(`de New Bark Town à Cherrygrove City à pied, sans chargement de carte : la Route 29, ses scènes et ses POKéMON sauvages du jeu (${[...new Set(combats.map((c) => c.espece || c.type))].join(', ')})`);
+
+    // Route 30 : la maison de M. Pokémon, la scène du jeu (l'Œuf Mystère, le Prof. Oak et son Pokédex)
+    if (T.M.id !== 'johto') { const s2 = T.zone.warps.find((w) => w.vers === 'CHERRYGROVE') || T.zone.warps[0]; await allerA(s2.x, s2.y); await versZone('CHERRYGROVE', BAS); }
+    for (const c of ['ROUTE_30', 'ROUTE_30_MR_POKEMON_HOUSE']) T.ajouterDonnees(await G.chargerCarte(c));
+    const maison = T.d.zones.ROUTE_30.warps.find((w) => w.vers === 'ROUTE_30_MR_POKEMON_HOUSE');
+    vus.length = 0;
+    for (let i = 0; i < 40 && (T.joueur.x !== maison.x || T.joueur.y !== maison.y + 1) && T.M.id === 'johto'; i++) await allerA(maison.x, maison.y + 1);
+    await versZone('ROUTE_30_MR_POKEMON_HOUSE', HAUT); await lireA([0, 0, 0]);
+    for (let i = 0; i < 300; i++) { await pasA({}); if (!calme(T)) await lireA([0, 0, 0]); }
+    assert.ok(T.etat.drapeaux.has('POKEDEX') || T.etat.drapeaux.has('FLAG_GOT_POKEDEX'), vus.join(' | '));
+    ok(`Route 30 : chez M. Pokémon, la scène du jeu se joue seule (${vus.length} répliques), le Prof. Oak donne le Pokédex`);
+
+    // retour à New Bark Town (le rival vole son POKéMON au Prof. Elm, la police), puis Violet City et l'arène de Falkner
+    {
+      const s3 = T.zone.warps[0]; await allerA(s3.x, s3.y); await versZone('ROUTE_30', BAS);
+      for (const c of ['NEW_BARK', 'ROUTE_31', 'VIOLET', 'VIOLET_GYM', 'NEW_BARK_ELMS_LAB_1F']) T.ajouterDonnees(await G.chargerCarte(c));
+      const labo = T.d.zones.NEW_BARK.warps.find((w) => w.vers === 'NEW_BARK_ELMS_LAB_1F');
+      for (let i = 0; i < 60 && T.M.id === 'johto' && (T.joueur.x !== labo.x || T.joueur.y !== labo.y + 1); i++) await allerA(labo.x, labo.y + 1);
+      await versZone('NEW_BARK_ELMS_LAB_1F', HAUT); await lireA([0, 0, 0]);
+      for (let i = 0; i < 300; i++) { await pasA({}); if (!calme(T)) await lireA([0, 0, 0]); }
+      const elm = T.objets.find((o) => o.visible && /doctor/i.test(o.id));
+      if (elm) { const [ex, ey, ed] = [[0, 1, HAUT], [-1, 0, DROITE], [1, 0, GAUCHE]].map(([dx, dy, d]) => [elm.x + dx, elm.y + dy, d]).find(([x, y]) => !T.M.bloquee(x, y)); await parlerA(ex, ey, ed, [0, 0]); }
+      ok(`retour au laboratoire du Prof. Elm : ${vus.filter((t) => /Elm|police|Officer/i.test(t)).length} répliques de la scène`);
+      const sortieLabo = T.zone.warps[0]; await allerA(sortieLabo.x, sortieLabo.y); await versZone('NEW_BARK', BAS);
+      // le poste de garde entre la Route 31 et Violet City
+      for (const c of ['ROUTE_31_VIOLET_GATEHOUSE']) T.ajouterDonnees(await G.chargerCarte(c));
+      const poste = T.d.zones.ROUTE_31.warps.find((w) => w.vers === 'ROUTE_31_VIOLET_GATEHOUSE');
+      for (let i = 0; i < 80 && T.M.id === 'johto' && (T.joueur.x !== poste.x + 1 || T.joueur.y !== poste.y); i++) await allerA(poste.x + 1, poste.y);
+      await versZone('ROUTE_31_VIOLET_GATEHOUSE', GAUCHE); await lireA();
+      const versViolet = T.zone.warps.find((w) => w.vers === 'VIOLET');
+      await allerA(versViolet.x, versViolet.y); await versZone('VIOLET', GAUCHE);
+      const arene = T.d.zones.VIOLET.warps.find((w) => w.vers === 'VIOLET_GYM');
+      for (let i = 0; i < 80 && T.M.id === 'johto' && (T.joueur.x !== arene.x || T.joueur.y !== arene.y + 1); i++) await allerA(arene.x, arene.y + 1);
+      await versZone('VIOLET_GYM', HAUT); await lireA([0, 0, 0]);
+      // d'abord la Tour Chétiflor (le Sage Li et sa CT Flash), puis Falkner
+      assert.ok(T.objets.find((o) => /leader1/i.test(o.id))?.visible, 'Falkner est dans son arène (script d\'entrée du jeu)');
+      // la tour se monte en zigzag : 1F → 2F, redescendre par l'autre échelle, remonter par celle de l'ouest, puis 3F
+      const prendre = async (x, y, z) => {
+        if (T.joueur.x === x && T.joueur.y === y) { const q = [[0, 1], [0, -1], [1, 0], [-1, 0]].find(([dx, dy]) => !T.M.bloquee(x + dx, y + dy) && !T.M.warp(x + dx, y + dy)); await allerA(x + q[0], y + q[1]); }
+        // (un Sage peut voir le joueur en chemin : combat, puis on reprend)
+        for (let k = 0; k < 10 && T.zone.id !== z; k++) {
+          await allerA(x, y);
+          for (let i = 0; i < 200 && (T.zone.id !== z || T.transition); i++) { await pasA({}); if (!calme(T)) await lireA([0, 0]); }
+        }
+        assert.equal(T.zone.id, z);
+      };
+      await allerZone('SPROUT_TOWER_1F');
+      await prendre(10, 15, 'SPROUT_TOWER_2F'); await prendre(24, 9, 'SPROUT_TOWER_1F');
+      await prendre(6, 15, 'SPROUT_TOWER_2F'); await prendre(15, 27, 'SPROUT_TOWER_3F');
+      const combatsTour = combats.length;
+      for (const d of [...T.objets.filter((o) => o.visible && o.dresseur), ...T.objets.filter((o) => o.visible && /chourou/.test(o.id))]) {
+        const [dx, dy, dd] = [[0, 1, HAUT], [-1, 0, DROITE], [1, 0, GAUCHE], [0, -1, BAS]].map(([ax, ay, ad]) => [d.x + ax, d.y + ay, ad]).find(([x, y]) => !T.M.bloquee(x, y) && !T.objets.some((b) => b.visible && b.x === x && b.y === y));
+        try { await parlerA(dx, dy, dd, [0, 0]); } catch (e) { if (process.env.DEBUG) console.log('tour', d.id, e.message); }
+        for (let i = 0; i < 100; i++) { await pasA({}); if (!calme(T)) await lireA([0, 0]); }
+      }
+      if (process.env.DEBUG) console.log('LI', T.zone.id, T.joueur.x, T.joueur.y, vus.slice(-8), T.objets.filter((o) => o.visible).map((o) => o.id + '@' + o.x + ',' + o.y), Object.keys(T.etat.sac));
+      assert.ok(T.etat.sac.tm70 > 0, 'CT Flash du Sage Li');
+      ok(`Tour Chétiflor : trois étages par leurs échelles (en zigzag, comme dans le jeu), ${combats.length - combatsTour} combat(s), le Sage Li donne la CT Flash`);
+      await prendre(15, 27, 'SPROUT_TOWER_2F'); await prendre(6, 16, 'SPROUT_TOWER_1F');
+      await prendre(24, 8, 'SPROUT_TOWER_2F'); await prendre(11, 14, 'SPROUT_TOWER_1F');
+      await allerZone('VIOLET_GYM');
+      for (let i = 0; i < 30; i++) await pasA({});
+      const falkner = T.objets.find((o) => o.visible && /leader1/i.test(o.id));
+      const combats0 = combats.length;
+      const [fx, fy, fd] = [[0, 1, HAUT], [-1, 0, DROITE], [1, 0, GAUCHE], [0, -1, BAS]].map(([dx, dy, d]) => [falkner.x + dx, falkner.y + dy, d]).find(([x, y]) => !T.M.bloquee(x, y));
+      await parlerA(fx, fy, fd, [0, 0]);
+      for (let i = 0; i < 200; i++) { await pasA({}); if (!calme(T)) await lireA([0, 0]); }
+      assert.ok(T.etat.drapeaux.has('BADGE_ZEPHYR'), vus.slice(-6).join(' | '));
+      ok(`Violet City : l'arène de Falkner traversée (${combats.length - combats0} combats), BADGE ZÉPHYR remis par le script du jeu`);
+    }
 
     // l'arène d'Azalea : les vrais chemins des chariots (src/field/gymmick/azalea.c), posés sur la vraie salle
     charge(await G.chargerCarte('AZALEA_GYM'));

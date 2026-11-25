@@ -24,10 +24,16 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
     // un PNJ caché par un drapeau finit par partir (le SBIRE qui garde le puits, celui devant l'arène) : il ne ferme rien
     if (o.drapeau && o.type !== 'objet' && !o.dresseur && !o.boule) return false;
     if (o.type === 'arbre_coupe') return !capacites.coupe;
+    if (o.type === 'rocher') return !capacites.eclate;
+    // un rocher de FORCE se pousse hors du chemin (approché : on ne suit pas ses positions)
+    if (o.type === 'rocher_force') return !capacites.force;
+    // un bloc de glace se pousse : approché, on le compte comme absent (et les glissades peuvent s'arrêter devant lui)
+    if (o.type === 'bloc_glace') return false;
     const m = o.mouvement || 'fixe';
     return !m.startsWith('errance') && m !== 'route';
   }).map((o) => ({ ...o, occupe(x, y) { return x === o.x && y === o.y; } })));
   const cle = (m, x, y) => `${m}|${x}|${y}`;
+  const blocsGlace = {};
   const vus = new Set(), aretes = new Map(), warpsVus = new Set();
   const file = [];
   const ajouter = (de, m, x, y) => {
@@ -37,6 +43,8 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
   };
   /** arrivée par un téléporteur : sur sa case, puis le pas de sortie s'il y en a un */
   const arrivee = (w) => {
+    // arrivée à des coordonnées de la zone (téléportation de script)
+    if (w.ax !== undefined) return [d.mondeDeZone[w.vers], w.ax, w.ay];
     const z = d.zones[w.vers], dest = z.warps[w.n ?? 0], mid = d.mondeDeZone[w.vers], M = monde(mid);
     warpsVus.add(`${w.vers}#${w.n ?? 0}`);
     const p = M.props(dest.x, dest.y);
@@ -51,6 +59,28 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
   const tps = {};
   for (const [zid, z] of Object.entries(d.zones))
     for (const m of (z.scripts || '').matchAll(/^\s*teleporter\s+(\w+)\s+(\d+)/gm)) if (d.zones[m[1]]?.warps?.[+m[2]]) (tps[zid] ||= []).push({ vers: m[1], n: +m[2] });
+  // téléportations à des coordonnées : écrites en chiffres (teleporter_xy), ou lues dans des variables posées juste
+  // avant par le script qui y mène (teleporter_var : les trous de la Route de Glace)
+  for (const [zid, z] of Object.entries(d.zones)) {
+    const src = z.scripts || '';
+    for (const m of src.matchAll(/^\s*teleporter_xy\s+(\w+)\s+(\d+)\s+(\d+)/gm)) if (d.zones[m[1]]) (tps[zid] ||= []).push({ vers: m[1], ax: +m[2], ay: +m[3] });
+    if (!/teleporter_var/.test(src)) continue;
+    const blocs = {}; let nom = null;
+    for (const l of src.split('\n')) { const e = l.match(/^(?:script\s+(\w+)|(\w+):)\s*$/); if (e) nom = e[1] || e[2]; if (nom) (blocs[nom] ||= []).push(l.trim()); }
+    const cibles = {};
+    for (const [n, ls] of Object.entries(blocs)) for (const l of ls) { const m = l.match(/^teleporter_var\s+(\w+)\s+(\w+)\s+(\w+)/); if (m) cibles[n] = m.slice(1); }
+    for (const ls of Object.values(blocs)) {
+      const v = {};
+      for (const l of ls) {
+        let m;
+        if ((m = l.match(/^var\s+(\w+)\s+(-?\d+)/))) v[m[1]] = +m[2];
+        else if ((m = l.match(/^aller\s+(\w+)/)) && cibles[m[1]]) {
+          const [vers, vx, vy] = cibles[m[1]], x = /^\d+$/.test(vx) ? +vx : v[vx], y = /^\d+$/.test(vy) ? +vy : v[vy];
+          if (d.zones[vers] && x !== undefined && y !== undefined) (tps[zid] ||= []).push({ vers, ax: x, ay: y });
+        }
+      }
+    }
+  }
   const tpFaits = new Set();
   // chariots sur rails : de la case où l'on monte à celle où l'on descend, pour chaque position des aiguillages
   // (plus large que le jeu, où il faut aussi qu'un chariot attende : le test de l'arène rejoue l'énigme exacte)
@@ -86,12 +116,25 @@ export function auditer(donnees, depart, capacites = { surf: true, coupe: true }
       const surf = pIci.surf;
       let r = testerPas(M, { x, y }, dir, { surf, objets: fixes(M) });
       if (!r.ok && r.raison === 'eau' && capacites.surf) r = { ok: true, type: 'pas', vers: [x + DX[dir], y + DY[dir]] };
+      // cascade, tourbillon, paroi : franchis d'un trait (comme Terrain.franchir)
+      if (!r.ok && r.raison === 'capacite') {
+        let cx = x + DX[dir], cy = y + DY[dir];
+        const pc = M.props(cx, cy), cap = pc.capacite;
+        if (capacites[cap] && (!pc.surf || pIci.surf || capacites.surf)) {
+          let n = 0;
+          while (M.dedans(cx, cy) && M.props(cx, cy).capacite === cap && n < 40) { cx += DX[dir]; cy += DY[dir]; n++; }
+          if (M.dedans(cx, cy) && !M.bloquee(cx, cy)) r = { ok: true, type: 'pas', vers: [cx, cy] };
+        }
+      }
       if (!r.ok) continue;
       let [nx, ny] = r.vers;
       // glace : on glisse jusqu'au premier obstacle
+      const blocs = (blocsGlace[M.id] ||= new Set(M.objets.filter((o) => o.type === 'bloc_glace' || o.type === 'rocher_force' || o.drapeau).map((o) => `${o.x},${o.y}`)));
       while (M.props(nx, ny).glisse) {
         const g = testerPas(M, { x: nx, y: ny }, dir, { objets: fixes(M) });
         if (!g.ok || g.type !== 'pas') break;
+        // devant un bloc de glace (à sa place d'origine), la glissade peut s'arrêter aussi
+        if (blocs.has(`${g.vers[0]},${g.vers[1]}`)) ajouter(ici, m, nx, ny);
         [nx, ny] = g.vers;
       }
       const wc = M.warp(nx, ny);

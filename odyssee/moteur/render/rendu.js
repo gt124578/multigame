@@ -342,7 +342,7 @@ export class Rendu {
       this.sprites.set(o, s);
       return s;
     }
-    if (DECOR_OBJET[o.def?.type]) {
+    if (DECOR_OBJET[o.def?.type] && !o.sprite?.startsWith('mm:')) {
       const D = this.A.decor[DECOR_OBJET[o.def.type]]; mat = new THREE.MeshBasicMaterial({ map: D.tex, transparent: true, alphaTest: 0.5 }); l = D.l; h = D.h;
     } else {
       // personnage du jeu (« mm:NOM ») : sa planche est lue dans le dépôt de la décompilation, puis le sprite refait

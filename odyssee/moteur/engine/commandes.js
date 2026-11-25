@@ -48,7 +48,7 @@ export const COMMANDES = {
   liberer_tout: { exec: (T, ctx) => { T.liberer(ctx); } },
 
   // ——— messages ———
-  message: { args: 'texte', exec: (T, ctx, [s]) => T.message(s) },
+  message: { args: 'texte', exec: (T, ctx, [s]) => T.message(s, /^HGD?_/.test(ctx.nom || '')) },
   fermer_message: { exec: (T) => { T.fermerMessage(); } },
   oui_non: { exec: (T) => T.choix(['Oui', 'Non'], (i) => { T.etat.vars.RESULTAT = i === 0 ? 1 : 0; }) },
   choix: { args: '*', exec: (T, ctx, opts) => T.choix(opts.map(String), (i) => { T.etat.vars.RESULTAT = i; }) },
@@ -132,6 +132,14 @@ export const COMMANDES = {
   teleporter_xy: {
     args: 'mot nombre nombre dir?',
     exec: (T, ctx, [zone, x, y, d]) => { T.teleporter({ zone, x, y, dir: d }); return () => !T.transition; },
+  },
+  /** téléportation à des coordonnées lues dans des variables (ou écrites en chiffres) */
+  teleporter_var: {
+    args: 'mot mot mot dir?',
+    exec: (T, ctx, [zone, vx, vy, d]) => {
+      const v = (a) => (/^-?\d+$/.test(String(a)) ? +a : T.etat.vars[a] ?? 0);
+      T.teleporter({ zone, x: v(vx), y: v(vy), dir: d }); return () => !T.transition;
+    },
   },
   fondu_noir: { exec: (T) => { T.fondu(1, 16); return () => T.noir >= 1; } },
   fondu_retour: { exec: (T) => { T.fondu(0, 16); return () => T.noir <= 0; } },
@@ -256,6 +264,55 @@ export const COMMANDES = {
                   : String(v(a));
     },
   },
+  // ——— variables, argent, équipe : le reste des commandes des scripts du jeu ———
+  copier_var: { args: 'mot mot', exec: (T, ctx, [a, b]) => { T.etat.vars[a] = T.etat.vars[b] ?? 0; } },
+  soustraire: { args: 'mot nombre', exec: (T, ctx, [a, n]) => { T.etat.vars[a] = (T.etat.vars[a] ?? 0) - n; } },
+  ajouter_var: { args: 'mot mot', exec: (T, ctx, [a, b]) => { T.etat.vars[a] = (T.etat.vars[a] ?? 0) + (T.etat.vars[b] ?? 0); } },
+  /** _CMP = A − B : les conditions « si var _CMP <op> 0 » comparent deux variables */
+  comparer_vars: { args: 'mot mot', exec: (T, ctx, [a, b]) => { T.etat.vars._CMP = (T.etat.vars[a] ?? 0) - (T.etat.vars[b] ?? 0); } },
+  hasard: { args: 'mot nombre', exec: (T, ctx, [v, n]) => { T.etat.vars[v] = Math.floor(T.rng() * Math.max(1, n)); } },
+  espece_equipe: { args: 'mot mot', exec: (T, ctx, [v, k]) => { const i = /^VAR_/.test(k) ? T.etat.vars[k] ?? 0 : +k || 0; T.etat.vars[v] = T.etat.equipe[i]?.sp ?? 0; } },
+  /** le POKéMON de départ (n° national) : 152, 155 ou 158 selon la variable STARTER */
+  espece_depart: { args: 'mot', exec: (T, ctx, [v]) => { T.etat.vars[v] = [152, 155, 158][T.etat.vars.STARTER ?? 0]; } },
+  argent_suffisant: { args: 'mot nombre', exec: (T, ctx, [v, n]) => { T.etat.vars[v] = T.etat.argent >= n ? 1 : 0; } },
+  retirer_argent: { args: 'nombre', exec: (T, ctx, [n]) => { T.etat.argent = Math.max(0, T.etat.argent - n); } },
+  quantite_objet: { args: 'mot mot', exec: (T, ctx, [n, v]) => { T.etat.vars[v] = T.etat.sac[n] ?? 0; } },
+  sur_velo: { args: 'mot', exec: (T, ctx, [v]) => { T.etat.vars[v] = T.mode === 'velo' ? 1 : 0; } },
+  /** jour de la semaine (0 = dimanche), comme la DS */
+  jour_semaine: { args: 'mot', exec: (T, ctx, [v]) => { T.etat.vars[v] = new Date().getDay(); } },
+  /** un POKéMON sauvage du jeu (statique : Ramoloss, Simularbre, Léviator rouge…) ; VAR_COMBAT = 1 si gagné */
+  combat_sauvage_hg: {
+    args: 'mot nombre',
+    exec: (T, ctx, [sp, niv]) => T.combat({ type: 'sauvage', espece: /^VAR_/.test(sp) ? T.etat.vars[sp] ?? 0 : sp, niveau: niv, statique: true }, (v) => { T.etat.vars.VAR_COMBAT = v ? 1 : 0; }),
+  },
+  /** un téléporteur que le script règle (ascenseurs, salles d'attente) : le prochain warp « dynamique » y mène */
+  warp_dynamique: {
+    args: 'mot nombre nombre dir?',
+    exec: (T, ctx, [zone, x, y, d]) => { T.etat.warpDyn = { zone, x, y, dir: d ?? 1 }; },
+  },
+  /** le nom du rival : la page peut le demander (T.saisieNom → promesse) ; sinon le nom par défaut. V = 0 : nom choisi */
+  nommer_rival: {
+    args: 'mot',
+    exec: (T, ctx, [v]) => {
+      const fini = (nom) => { T.etat.joueur.rival = (nom || T.d.nomRival || 'SILVER').toUpperCase().slice(0, 7); T.etat.vars[v] = 0; ctx.nomFait = true; };
+      ctx.nomFait = false;
+      if (T.saisieNom) T.saisieNom('rival', T.etat.joueur.rival || T.d.nomRival || 'SILVER').then(fini, () => fini(null));
+      else fini(null);
+      return () => ctx.nomFait;
+    },
+  },
+  /** K.O. de toute l'équipe (« WhiteOut ») : retour au dernier Centre */
+  ko: { exec: (T) => { T.tomberKo(); return () => !T.transition; } },
+  /** un téléporteur de la carte change de place (le n° k, aux coordonnées données) */
+  deplacer_warp: { args: 'nombre nombre nombre', exec: (T, ctx, [k, x, y]) => { (T.etat.warpsDeplaces ||= {})[`${T.zone.id}#${k}`] = [x, y]; T.majWarps?.(); } },
+  // jetons du Casino
+  jetons: { args: 'mot', exec: (T, ctx, [v]) => { T.etat.vars[v] = T.etat.jetons ?? 0; } },
+  retirer_jetons: { args: 'nombre', exec: (T, ctx, [n]) => { T.etat.jetons = Math.max(0, (T.etat.jetons ?? 0) - n); } },
+  donner_jetons: { args: 'nombre', exec: (T, ctx, [n]) => { T.etat.jetons = (T.etat.jetons ?? 0) + n; } },
+  /** RESULTAT = 1 si la capacité de terrain est utilisable (badge et CS, voir Terrain.capacite) */
+  tester_capacite: { args: 'mot', exec: (T, ctx, [n]) => { T.etat.vars.RESULTAT = T.capacite(n) ? 1 : 0; } },
+  /** franchir la cascade, le tourbillon ou la paroi devant le joueur */
+  franchir: { exec: (T) => { T.franchir(); return () => !T.joueur.file.length && !T.joueur.m; } },
   nombre_equipe: { args: 'mot', exec: (T, ctx, [v]) => { T.etat.vars[v] = T.etat.equipe.length; } },
   /** VAR ← 1 si le drapeau est levé, 0 sinon (CheckBadge, CheckFlag du jeu) */
   tester_drapeau: { args: 'mot mot', exec: (T, ctx, [v, f]) => { T.etat.vars[v] = T.etat.drapeaux.has(f) ? 1 : 0; } },

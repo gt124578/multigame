@@ -103,6 +103,8 @@ export function testerPas(M, o, dir, opts = {}) {
   // cases bloquées dans un axe (on ne les traverse que dans l'autre)
   const axe = dir <= 1 ? 'ns' : 'eo';
   if (pd.bloque === axe || pc.bloque === axe) return heurt('sens');
+  // cascade, tourbillon, paroi : seulement en utilisant la capacité (franchir, dans un script)
+  if (pc.capacite && !opts.capacite) return heurt('capacite');
   // hauteurs : même niveau, ou marches franchies dans l'axe haut / bas (un monde « à pentes » suit son relief)
   const h0 = M.hauteurCase(x, y), h1 = M.hauteurCase(nx, ny);
   if (h0 !== h1 && !M.pentes) {

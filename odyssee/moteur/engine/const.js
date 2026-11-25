@@ -73,11 +73,15 @@ export const MB = {
   NEIGE: 26,         // empreintes, pas de vélo
   BLOQUE_NS: 27,     // on n'y entre ni n'en sort vers le nord ou le sud (Platine : TILE_BEHAVIOR_BLOCK_NORTH_AND_SOUTH)
   BLOQUE_EO: 28,     // de même vers l'est ou l'ouest
+  CHUTE: 29,         // cascade : on la remonte (ou la descend) avec CASCADE, en surf
+  TOURBILLON: 30,    // tourbillon : on le traverse avec SIPHON, en surf
+  ESCALADE_NS: 31,   // paroi qu'on gravit avec ESCALADE, dans l'axe nord-sud
+  ESCALADE_EO: 32,   // de même dans l'axe est-ouest
 };
 
 const P = (o) => Object.freeze({
   rencontre: null, surf: false, glisse: false, force: null, rebord: null, warp: null, tapis: null,
-  pasCourse: false, pasVelo: false, comptoir: false, marches: false, bloque: null, ...o,
+  pasCourse: false, pasVelo: false, comptoir: false, marches: false, bloque: null, capacite: null, ...o,
 });
 
 /** propriétés de chaque comportement */
@@ -110,6 +114,11 @@ export const PROPS = (() => {
   t[MB.NEIGE] = P({ pasVelo: true });
   t[MB.BLOQUE_NS] = P({ bloque: 'ns' });
   t[MB.BLOQUE_EO] = P({ bloque: 'eo' });
+  // capacités de terrain : la case ne se franchit qu'en l'utilisant (A devant elle), et on la passe d'un trait
+  t[MB.CHUTE] = P({ surf: true, capacite: 'cascade' });
+  t[MB.TOURBILLON] = P({ surf: true, capacite: 'siphon' });
+  t[MB.ESCALADE_NS] = P({ capacite: 'escalade', bloque: 'eo' });
+  t[MB.ESCALADE_EO] = P({ capacite: 'escalade', bloque: 'ns' });
   return Object.freeze(t);
 })();
 

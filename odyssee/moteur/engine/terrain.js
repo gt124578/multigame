@@ -47,7 +47,7 @@ export const OBJETS = {
   carte: { nom: 'la CARTE', court: 'CARTE' },
 };
 /** objets du terrain qui ont un script par défaut */
-const SCRIPT_TYPE = { objet: 'RamasserObjet', arbre_coupe: 'ArbreCoupe' };
+const SCRIPT_TYPE = { objet: 'RamasserObjet', arbre_coupe: 'ArbreCoupe', rocher: 'EclateRoc', rocher_force: 'Force' };
 
 export class Terrain {
   constructor(donnees, opts = {}) {
@@ -56,7 +56,10 @@ export class Terrain {
     const sources = { commun: (donnees.langue === 'en' ? COMMUN_EN : COMMUN) + '\n' + (donnees.scriptsCommuns || ''), ...Object.fromEntries(Object.entries(this.d.zones).map(([id, z]) => [id, z.scripts || ''])) };
     this.scripts = new Scripts(COMMANDES, sources);
     const err = valider(this.d, (z) => this.scripts.noms(z.id));
-    if (err.length && !opts.toleRant) throw new Error('données invalides :\n  ' + err.join('\n  '));
+    // les données d'un vrai jeu (d.tolerant) ont leurs bizarreries (PNJ posé sur la carte d'à côté, porte inutilisée) :
+    // on les signale sans refuser de jouer
+    if (err.length && !opts.toleRant && !donnees.tolerant) throw new Error('données invalides :\n  ' + err.join('\n  '));
+    if (err.length && donnees.tolerant) console.warn(`${err.length} remarques sur les données (première : ${err[0]})`);
     this.erreurs = err;
     this.graine = opts.graine ?? 1;
     this.rng = RNG(this.graine);
@@ -102,6 +105,7 @@ export class Terrain {
     this.placerJoueur(w.x, w.y, o.dir ?? 1);
     this.zone = null; this.majZone(true);
     this.lancerNiveau('chargement');
+    if (this.d.transitionAvant) this.lancerNiveau('transition');
     this.camera = null; this.majCamera();
   }
   chargerMonde(id) {
@@ -141,7 +145,7 @@ export class Terrain {
     return String(sp).toUpperCase();
   }
   /** drapeau qui cache un objet : le sien, ou TMP_ pour un arbre à couper (il repousse au changement de carte) */
-  drapeauObjet(o) { return o.def.drapeau || (o.def.type === 'arbre_coupe' ? `TMP_COUPE_${o.zone}_${o.id}` : null); }
+  drapeauObjet(o) { return o.def.drapeau || (o.def.type === 'arbre_coupe' || o.def.type === 'rocher' ? `TMP_COUPE_${o.zone}_${o.id}` : null); }
   drapeauDresseur(o) { return o.def.dresseur.drapeau || `DRESSEUR_${o.zone}_${o.id}`; }
   sortir(e) { this.sorties.push(e); }
   vider() { const s = this.sorties; this.sorties = []; return s; }
@@ -231,14 +235,21 @@ export class Terrain {
   }
 
   // ——— boîte de texte ———
-  message(s) {
+  /** un message ; `duJeu` : texte des scripts du jeu (en anglais), que la page peut traduire */
+  message(s, duJeu = false) {
     const texte = s.replace(/\{T(\d+)\}/g, (m, k) => this.tampons?.[+k] ?? (k === '0' ? this.etat.joueur.nom : '')).replace(/\{JOUEUR\}/g, this.etat.joueur.nom).replace(/\{RIVAL\}/g, this.etat.joueur.rival || 'SILVER').replace(/\{ARGENT\}/g, String(this.etat.argent)).replace(/\{VAR:(\w+)\}/g, (m, v) => String(this.etat.vars[v] ?? 0));
-    this.ui = { texte, vus: 0, choix: null };
-    this.sortir({ type: 'message', texte });
+    // langue de l'écran : traduction faite (texte) ou en route (promesse : le texte anglais en attendant)
+    const tr = duJeu ? this.traduire?.(texte) : null;
+    const ui = { texte: typeof tr === 'string' ? tr : texte, vus: 0, choix: null, source: texte };
+    if (tr && typeof tr.then === 'function') tr.then((t) => { if (this.ui === ui && !ui.lu && t) { ui.texte = t; ui.vus = Math.min(ui.vus, t.length); } });
+    this.ui = ui;
+    this.sortir({ type: 'message', texte: ui.texte });
     return () => this.ui === null || this.ui.lu;
   }
   choix(options, rendre) {
     if (!this.ui) this.ui = { texte: '', vus: 0 };
+    // langue : oui / non, et les lignes de menu déjà traduites
+    options = options.map((o) => (o === 'Oui' && this.d.langue === 'en' ? 'Yes' : o === 'Non' && this.d.langue === 'en' ? 'No' : (this.traduireCourt?.(o) ?? o)));
     this.ui.choix = { options, i: 0, rendre };
     this.ui.vus = this.ui.texte.length;
     return () => !this.ui || !this.ui.choix;
@@ -356,6 +367,33 @@ export class Terrain {
     }
     const r = testerPas(this.M, j, d, { surf: this.mode === 'surf', velo: this.mode === 'velo', objets: this.objets });
     j.course = false;   // contre un mur, on piétine au pas (comme dans HGSS), pas avec la planche de course
+    // FORCE : on pousse le rocher d'une case (s'il a la place) ; il revient quand on quitte la carte
+    if (!r.ok && r.raison === 'objet') {
+      const o = objetEn(this.objets, j.x + DX[d], j.y + DY[d], j);
+      if (o?.def.type === 'rocher_force' && !o.m && !o.file.length && this.etat.drapeaux.has('TMP_FORCE')) {
+        const q = testerPas(this.M, o, d, { pnj: true, objets: [...this.objets, j] });
+        if (q.ok && q.type === 'pas' && !this.M.props(...q.vers).surf) {
+          // un trou (déclencheur au sol qui fait tomber) : le rocher y tombe, et réapparaît à l'étage du dessous
+          // (drapeaux …_INIT → …_FALLEN, comme ceux de la Route de Glace)
+          const trou = this.M.declencheursEn(...q.vers).length > 0 && /_INIT$/.test(o.def.drapeau || '');
+          o.file.push({ type: 'pas', dir: d, n: 1, vitesse: VITESSE.pnj, libre: true });
+          if (trou) o.file.push({ type: 'attente', n: 6 }, { type: 'chute' });
+          this.sortir({ type: 'son', nom: 'force' });
+          j.lancer('surplace', d, VITESSE.pnj); this.continu = true; return;
+        }
+      }
+      // bloc de glace (arène de Mahogany) : poussé, il glisse sur la glace jusqu'au premier obstacle
+      if (o?.def.type === 'bloc_glace' && !o.m && !o.file.length) {
+        let n = 0, x = o.x, y = o.y;
+        for (;;) {
+          const q = testerPas(this.M, { x, y }, d, { pnj: true, objets: [...this.objets, j].filter((b) => b !== o) });
+          if (!q.ok || q.type !== 'pas' || !this.M.props(...q.vers).glisse) break;
+          [x, y] = q.vers; n++;
+          if (n > 40) break;
+        }
+        if (n) { o.file.push({ type: 'pas', dir: d, n, vitesse: VITESSE.glisse, libre: true }); this.sortir({ type: 'son', nom: 'force' }); j.lancer('surplace', d, VITESSE.pnj); this.continu = true; return; }
+      }
+    }
     if (!r.ok) {
       this.elan = 0;
       j.lancer('surplace', d, VITESSE.heurt);
@@ -391,9 +429,37 @@ export class Terrain {
     }
     const p = this.M.panneau(fx, fy);
     if (p && (p.depuis === undefined || p.depuis === j.dir)) { this.lancerScript(p.zone, p.script, { params: p }); return; }
+    // cascade, tourbillon, paroi à gravir devant : proposer la capacité
+    const pf = this.M.props(fx, fy);
+    if (pf.capacite && !this.M.bloquee(fx, fy) && (pf.surf ? this.mode === 'surf' : this.mode !== 'surf')) {
+      const nom = { cascade: 'Cascade', siphon: 'Siphon', escalade: 'Escalade' }[pf.capacite];
+      this.lancerScript(this.zone.id, (this.capacite(pf.capacite) ? 'Proposer' : 'Impossible') + nom);
+      return;
+    }
     // eau devant : proposer de surfer
-    if (this.mode !== 'surf' && this.M.props(fx, fy).surf && !this.M.bloquee(fx, fy) && this.etat.drapeaux.has('CS_SURF') && !objetEn(this.objets, fx, fy))
+    if (this.mode !== 'surf' && pf.surf && !this.M.bloquee(fx, fy) && this.capacite('surf') && !objetEn(this.objets, fx, fy))
       this.lancerScript(this.zone.id, 'ProposerSurf');
+  }
+  /**
+   * Une capacité de terrain est-elle utilisable ? Données du jeu (d.capacites : { nom: [badge, CS] }) : le badge et
+   * la CS dans le sac ; sinon le drapeau CS_<NOM> (zone d'essai). ?tout donne tout (drapeau TOUT_CS).
+   */
+  capacite(nom) {
+    const D = this.etat.drapeaux;
+    if (D.has('TOUT_CS')) return true;
+    const r = this.d.capacites?.[nom];
+    if (r) return r.every((x) => (/^BADGE_/.test(x) ? D.has(x) : (this.etat.sac[x] ?? 0) > 0));
+    return D.has('CS_' + nom.toUpperCase());
+  }
+  /** franchir d'un trait la cascade, le tourbillon ou la paroi devant soi (puis la case d'après) */
+  franchir() {
+    const j = this.joueur, d = j.dir, M = this.M;
+    let x = j.x + DX[d], y = j.y + DY[d], n = 0;
+    const cap = M.props(x, y).capacite;
+    if (!cap) return;
+    while (M.dedans(x, y) && M.props(x, y).capacite === cap && n < 40) { n++; x += DX[d]; y += DY[d]; }
+    if (M.dedans(x, y) && !M.bloquee(x, y)) n++;
+    j.file.push({ type: 'pas', dir: d, n, vitesse: VITESSE.course, libre: true });
   }
   basculerVelo() {
     if (this.mode === 'surf') return;
@@ -415,7 +481,8 @@ export class Terrain {
 
   /** fait avancer un objet ; pour le joueur, gère la fin de chaque pas */
   majObjet(o, joueur, libre = true) {
-    if (!joueur && !o.visible) return;
+    // un objet caché ne bouge pas seul ; mais un script peut le déplacer (dans HGSS, il avance même invisible)
+    if (!joueur && !o.visible && !o.file.length && !o.m) return;
     // file d'actions de script
     if (!o.m && o.file.length) this.actionSuivante(o);
     const type = o.m?.type;
@@ -435,10 +502,15 @@ export class Terrain {
         const r = testerPas(this.M, o, a.dir, { pnj: o !== this.joueur, objets: o === this.joueur ? this.objets : [...this.objets, this.joueur] });
         // un script bloqué attend ; sauf pour les données du jeu (scriptsTraversent) : dans HGSS, les mouvements de
         // script ne testent pas les collisions, et ses scènes comptent dessus (un PNJ errant qui rejoint le joueur)
-        if (!r.ok && !this.d.scriptsTraversent) { o.dir = a.dir; return; }
+        if (!r.ok && !this.d.scriptsTraversent && !a.libre) { o.dir = a.dir; return; }
         o.lancer('pas', a.dir, a.vitesse);
         if (--a.n <= 0) fin();
         return;
+      }
+      case 'chute': {
+        const f = o.def.drapeau;
+        this.etat.drapeaux.add(f); this.etat.drapeaux.delete(f.replace(/_INIT$/, '_FALLEN'));
+        this.sortir({ type: 'son', nom: 'chute' }); fin(); this.majVisibles(); return;
       }
       case 'regard': o.dir = a.dir; fin(); return;
       case 'regardJoueur': o.dir = dirVers(o, this.joueur); fin(); return;
@@ -645,6 +717,7 @@ export class Terrain {
     }
   }
   prendreWarp(w) {
+    if (w.dynamique && this.etat.warpDyn) { const q = this.etat.warpDyn; this.teleporter({ zone: q.zone, x: q.x, y: q.y, dir: q.dir }); return; }
     if (!w.vers || !this.d.zones[w.vers]) return;          // porte qui ne mène nulle part
     const cible = this.d.zones[w.vers];
     const dest = cible.aCharger ? null : cible.warps[w.n ?? 0];
@@ -673,11 +746,15 @@ export class Terrain {
       const p = this.M.props(x, y);
       if (dir === undefined) dir = p.tapis !== null ? OPPOSE[p.tapis] : 1;
       // les drapeaux temporaires (TMP_…) ne vivent que le temps d'une carte
-      for (const f of [...this.etat.drapeaux]) if (f.startsWith('TMP_')) this.etat.drapeaux.delete(f);
+      for (const f of [...this.etat.drapeaux]) if (f.startsWith('TMP_') || f.startsWith('FLAG_MAPTEMP_')) this.etat.drapeaux.delete(f);
+      // comme dans HGSS, les variables VAR_TEMP_… repartent de zéro sur chaque carte
+      for (const v of Object.keys(this.etat.vars)) if (v.startsWith('VAR_TEMP_')) delete this.etat.vars[v];
       this.majVisibles();
       this.placerJoueur(x, y, dir);
       this.majZone(true);
       this.lancerNiveau('chargement');
+      // les données du jeu : le script « à l'entrée » joue pendant le noir (il cache ou montre les personnages)
+      if (this.d.transitionAvant) this.lancerNiveau('transition');
       this.camera = null; this.majCamera();
       this.sortir({ type: 'carte', monde: this.M.id, zone: o.zone });
       // en arrivant sur une porte, on sort d'un pas
@@ -697,7 +774,7 @@ export class Terrain {
       }
       if (j.m) return;
       this.transition = null;
-      this.lancerNiveau('transition');
+      if (!this.d.transitionAvant) this.lancerNiveau('transition');
     }
   }
 

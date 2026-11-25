@@ -48,11 +48,37 @@ lui-même. La page les lit **à la volée** dans ce dépôt public (gardées ens
 - Caméra : celle d'Odyssée et de HGSS (inclinaison 55°, champ 13°, cases carrées à l'écran).
 - Captures sans réseau : `PRET=<clone de pokeheartgold> PDSMS=<clone de Pokemon-DS-Map-Studio> node tools/capture-moteur-hgss.mjs …`.
 - Tests (`node tools/test-moteur-hgss.mjs`, `PRET=<clone>`) : toutes les cartes compilées, audit du jeu entier depuis
-  la chambre (de New Bark Town à Blackthorn City à pied), puis le début joué avec les vrais scripts : la mère d'ETHAN,
-  le Prof. Elm et la machine aux Poké Balls, le Pokégear, la passante de la sortie ouest, la Route 29 et ses sauvages,
-  le vieil homme de Cherrygrove et ses Running Shoes ; les chariots de l'arène d'Azalea.
-- Pour l'instant à côté : les écrans propres au jeu (Pokégear, boîte de choix du starter dessinée, surnom), les
-  commandes de script que le moteur ne connaît pas (sautées), les combats doubles.
+  la chambre (avec et sans capacités), les capacités sur de vraies cartes, le français, puis le jeu joué avec ses vrais
+  scripts jusqu'au premier badge : la mère d'ETHAN, le Prof. Elm et la machine aux Poké Balls, le Pokégear, la passante
+  de la sortie ouest, la Route 29 et ses sauvages, le vieil homme de Cherrygrove et ses Running Shoes, M. Pokémon et le
+  Prof. Oak (Pokédex), le rival, la police au labo (le nom du rival), le poste de garde de Violet City, la Tour
+  Chétiflor (zigzag des échelles, Sage Li et sa CT Flash), l'arène de Falkner et le BADGE ZÉPHYR ; les chariots d'Azalea.
+- Capacités de terrain (badge du jeu, `src/field_move.c`, et CS dans le sac ; `capacites` des données, `Terrain.capacite`,
+  `?tout` les donne toutes) : COUPE, SURF, ÉCLATE-ROC (rochers `SPRITE_BREAKROCK`, ils reviennent en changeant de carte),
+  FORCE (rochers `SPRITE_ROCK` poussés d'une case ; dans un trou, un rocher tombe à l'étage du dessous : drapeaux
+  `…_INIT` → `…_FALLEN`, Route de Glace), CASCADE, SIPHON, ESCALADE (cases `MB.CHUTE`, `TOURBILLON`, `ESCALADE_NS/EO`,
+  franchies d'un trait par `franchir` après A devant elles). Blocs de glace de l'arène de Mahogany (`SPRITE_ICE`) poussés
+  jusqu'au premier obstacle. Mouvements de script : ils traversent (comme le jeu) et déplacent aussi les personnages
+  cachés ; `VAR_TEMP_…` et `FLAG_MAPTEMP_…` repartent de zéro sur chaque carte ; le script « à l'entrée » d'une carte
+  joue pendant le noir (`transitionAvant`). Entrées dans un sens (`0x62`-`0x65`, `0x6c`-`0x6f`) : tapis de sortie dedans,
+  portes dehors avec leur sens de sortie (`sortieWarp`) ; une porte d'intérieur ne s'ouvre que là où il y a un
+  téléporteur ; ascenseurs (`warp_dynamique`, téléporteur 4095). Données réelles un peu bancales (PNJ posé sur la
+  carte voisine…) : signalées, pas refusées (`tolerant`).
+- Français (touche L, ou `?langue=fr` / `?langue=en`, retenu par le navigateur ; français par défaut) : lieux, classes
+  de dresseurs et personnages de la version française (`donnees/fr.js` : Bourg Geon, Mauville, Prof. Orme, Célesta,
+  « Gamin Joey », LUTH), espèces, attaques et objets d'Odyssée. Les dialogues ne sont publiés qu'en anglais : la page
+  les traduit sur place (`render/traduction.js`) avec le traducteur intégré du navigateur (API Translator de Chrome),
+  sinon un petit modèle (opus-mt-en-fr par Transformers.js, chargé à la demande) ; les noms propres sont remis à la
+  française avant, les répliques d'une carte sont traduites dès qu'elle arrive, et gardées par le navigateur. Rien de
+  traduit n'est écrit dans le dépôt. Sans traducteur disponible, les dialogues restent en anglais (dit dans l'aide).
+- Couverture : `PRET=<clone> node tools/moteur-hgss-couverture.mjs [--tout]` dit les commandes des scripts du jeu pas
+  encore jouées (les sons, attentes et fondus sont sautés exprès), les cartes atteintes à pied depuis la chambre avec
+  toutes les capacités, et les arènes. Aujourd'hui : les 16 arènes, toute la région (Johto et Kanto, Route de Glace,
+  Îles Tourbillon, Mont Argenté). Pas encore : l'Aquaria (le bateau), la Tour Carillon, le Parc Safari, le Train
+  Magnétique, la ligue au-delà de l'entrée dans l'audit (les salles du Conseil 4 s'ouvrent par des scripts que l'audit
+  ne suit pas), les mini-jeux (Casino, Pokéathlon, Zone de Combat), le téléphone, les échanges et les surnoms.
+- Pour l'instant à côté : les écrans propres au jeu (Pokégear, boîte de choix du starter dessinée, surnom ; le nom du
+  rival se demande par une simple question), les combats doubles.
 
 ## Arène de Frimapic, Pokémon Platine (`donnees/platine.js`, `render/platine3d.js`)
 
@@ -91,6 +117,7 @@ donnees/     les données
   auteur.js    écrire un bloc en texte (légende → permission, comportement, sol, décor ; bâtiments → emprise + porte)
   demo.js      zone d'essai : bourg, route en deux blocs, maison sur deux étages, labo, maison voisine, grotte de glace
   hgss.js, evenements-hg.js, jeu-hg.js, gymmicks.js   le jeu HGSS lu dans la décompilation (ci-dessus)
+  fr.js        les noms de la version française
   platine.js   l'Arène de Frimapic (Platine)
 render/      le rendu three.js : il LIT le moteur, ne décide de rien
 main.js      la page : touches, boucle à pas fixe, boîte de texte, écran de combat factice

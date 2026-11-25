@@ -52,6 +52,15 @@ export class PontOdyssee {
       N.attaques?.forEach((n, i) => { if (i && n && MOVES[i]) MOVES[i].n = n; });
       for (const [k, o] of Object.entries(N.objets || {})) if (ITEMS[k]) ITEMS[k].name = o.nom;
     }
+    // en français : les noms d'Odyssée pour les espèces et les objets du jeu (les noms anglais servent aux dialogues)
+    if (T.d.langue === 'fr' && N) {
+      this.especesFr = N.especes.map((n, i) => [n, SPECIES[i]?.n ? SPECIES[i].n.toUpperCase() : n]).filter(([a], i) => i && a);
+      T.d.nomsEspeces = N.especes.map((n, i) => (SPECIES[i]?.n ? SPECIES[i].n.toUpperCase() : n));
+      for (const [k, o] of Object.entries(N.objets || {})) {
+        const nom = ITEMS[k]?.name || T.objetsConnus[k]?.nom;
+        T.objetsConnus[k] = { ...T.objetsConnus[k], nom: nom || o.nom, court: nom || o.court };
+      }
+    }
     // le premier appui débloque le son (règle des navigateurs)
     const debloquer = () => this.sound.init();
     addEventListener('keydown', debloquer); addEventListener('pointerdown', debloquer);

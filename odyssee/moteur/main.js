@@ -17,6 +17,7 @@ import { Rendu } from './render/rendu.js';
 import { ModelesHGSS } from './render/hgss3d.js';
 import { PontOdyssee } from './odyssee.js';
 import { CarteRegion } from './render/carte-region.js';
+import { Traducteur, messagesDe } from './render/traduction.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
@@ -30,6 +31,8 @@ const lireDepuis = (base) => async (c) => {
   if (cache) try { await cache.put(url, r.clone()); } catch { /* cache plein */ }
   return new Uint8Array(await r.arrayBuffer());
 };
+// langue : français (noms de la version française, dialogues traduits dans le navigateur) ou anglais (le texte du jeu)
+const LANGUE = Q.get('langue') || (() => { try { return localStorage.getItem('moteur-hgss-langue'); } catch { return null; } })() || 'fr';
 const fusionner = (D, p) => { if (!p) return; Object.assign(D.zones, p.zones); Object.assign(D.blocs, p.blocs); Object.assign(D.mondes, p.mondes); };
 let DONNEES = DEMO, HG = null, G = null;
 if (!Q.has('demo')) {
@@ -37,7 +40,7 @@ if (!Q.has('demo')) {
   // la première fois, ensuite gardées par le navigateur), les événements et les scripts de chaque lieu
   $('chargement').textContent = 'Chargement des cartes de HeartGold / SoulSilver…';
   const baseHG = Q.get('pret') || PRET_HG, lireHG = lireDepuis(baseHG);
-  G = await jeuHG(lireHG);
+  G = await jeuHG(lireHG, { langue: LANGUE });
   DONNEES = G.donnees;
   HG = new ModelesHGSS(baseHG, { terrains: G.archives.brut.terrains }, lireHG, G.personnages);
   // l'Arène de Frimapic (Platine) se construit à partir des fichiers du jeu, lus dans le dépôt de la décompilation
@@ -99,6 +102,25 @@ const T = new Terrain(DONNEES, { graine: (Math.random() * 2 ** 31) | 0, pokemon:
   soigner: (m) => pont.pokemon.soigner(m),
 } });
 pont = new PontOdyssee($('ui'), T);
+// dialogues en français : traduits à la volée (et en avance, carte par carte)
+let TR = null;
+if (G && LANGUE === 'fr') {
+  TR = new Traducteur(pont.especesFr);
+  T.traduire = (texte) => TR.connue(texte) ?? (TR.etat === 'indisponible' ? null : TR.traduire(texte));
+  T.traduireCourt = (o) => TR.connue(o);
+  TR.demarrer();
+  const premierGeste = () => { TR.demarrer(); removeEventListener('keydown', premierGeste); removeEventListener('pointerdown', premierGeste); };
+  addEventListener('keydown', premierGeste); addEventListener('pointerdown', premierGeste);
+}
+if (TR) {
+  const etat = document.createElement('div'); etat.style.cssText = 'opacity:.8;margin-top:2px';
+  $('aide').append(etat);
+  setInterval(() => {
+    etat.textContent = TR.etat === 'prêt' ? 'Dialogues : traduits en français' : TR.etat === 'indisponible'
+      ? 'Dialogues : traduction indisponible dans ce navigateur (texte anglais)' : `Dialogues : traduction — ${TR.etat}`;
+  }, 1000);
+}
+const prevoirTextes = (z) => { if (TR && z?.scripts) TR.prevoir(messagesDe(z.scripts, T.etat.joueur.nom, T.etat.joueur.rival || 'SILVER')); };
 pont.surSauvegarde = () => localStorage.setItem(CLE, T.sauvegarder());
 const taillePx = () => {
   document.documentElement.style.setProperty('--px', Math.max(2, Math.round(innerHeight / 270)) + 'px');
@@ -118,10 +140,19 @@ else {
 const enCours = new Map();
 function charger(id) {
   if (!G || !T.d.zones[id]?.aCharger) return Promise.resolve();
-  if (!enCours.has(id)) enCours.set(id, G.chargerCarte(id).then((p) => T.ajouterDonnees(p)).catch((e) => { console.warn('carte', id, e); enCours.delete(id); }));
+  if (!enCours.has(id)) enCours.set(id, G.chargerCarte(id).then((p) => { T.ajouterDonnees(p); prevoirTextes(p?.zones?.[id]); }).catch((e) => { console.warn('carte', id, e); enCours.delete(id); }));
   return enCours.get(id);
 }
 T.chargeur = charger;
+// les écrans de nom du jeu (le rival) : une simple question
+T.saisieNom = (quoi, defaut) => new Promise((ok) => setTimeout(() => ok(prompt(LANGUE === 'fr' ? 'Quel est son nom ?' : "What's his name?", defaut)), 50));
+prevoirTextes(T.d.zones[T.zone?.id]);
+// L : changer de langue (français / anglais) ; la page se recharge, la partie est gardée
+addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyL' || e.repeat || pont?.occupe || Q.has('demo')) return;
+  try { localStorage.setItem(CLE, T.sauvegarder()); localStorage.setItem('moteur-hgss-langue', LANGUE === 'fr' ? 'en' : 'fr'); } catch { /* rien */ }
+  const u = new URL(location.href); u.searchParams.delete('langue'); u.searchParams.delete('nouveau'); location.href = u.href;
+});
 let file = [], actifs = 0;
 function prevoir() {
   if (!G) return;
@@ -153,7 +184,7 @@ setInterval(() => {
   }
 }
 // ?tout : chaussures de course et vélo tout de suite (pour essayer)
-if (Q.has('tout')) { T.etat.drapeaux.add('CHAUSSURES'); T.etat.sac.velo = 1; }
+if (Q.has('tout')) { T.etat.drapeaux.add('CHAUSSURES'); T.etat.drapeaux.add('TOUT_CS'); T.etat.sac.velo = 1; }
 
 carte = G ? new CarteRegion($('cadre'), T) : null;
 const R = new Rendu($('vue'), T, { pack: Q.get('pack') || 'hgss', platine: Q.get('platine') || undefined, hg: HG });

@@ -54,14 +54,23 @@ const DIR = [HAUT, BAS, GAUCHE, DROITE];
 const PAS = { North: 'haut', South: 'bas', West: 'gauche', East: 'droite' };
 
 /** traduction d'un fichier de scripts du jeu (scr_seq_*.s) ; rend { source, connus(label) } */
-export function traduireScripts(texte, { messages, objets, dresseurs, prefixe = 'HG_', zoneDe = () => null }) {
+/** relevé des commandes du jeu que le traducteur ne connaît pas (outil de couverture) : STATS.inconnues = new Map() */
+// commandes sans effet sur le déroulement (sons, attentes, fondus, Pokémon qui suit, écran tactile, compteurs) : sautées
+export const SANS_EFFET = new Set(['WaitButton', 'PlaySE', 'WaitFade', 'ToggleFollowingPokemonMovement', 'WaitFollowingPokemonMovement',
+  'FollowingPokemonMovement', 'TouchscreenMenuShow', 'TouchscreenMenuHide', 'ScrCmd_609', 'RestoreOverworld', 'WaitFanfare', 'WaitCry',
+  'WaitSE', 'HoldMsg', 'WaitABPress', 'StopBGM', 'StopSE', 'PlayBGM', 'FadeOutBGM', 'FadeInBGM', 'HideMoneyBox', 'ShowMoneyBox', 'UpdateMoneyBox',
+  'NopVar490', 'AddSpecialGameStat', '//', 'PlayFanfare', 'SetFollowMonInhibitState', 'FollowerPokeIsEventTrigger', 'ShowCoinBox',
+  'HideCoinBox', 'UpdateCoinBox', 'LegendCutsceneClearBellShimmer', 'ScrCmd_729', 'TempBGM', 'RestoreBGM', 'PlayCry']);
+export const STATS = { inconnues: null };
+
+export function traduireScripts(texte, { messages, objets, dresseurs, prefixe = 'HG_', zoneDe = () => null, externes = null }) {
   const ctxZone = zoneDe;
   // préfixe des messages de la carte (msg_0545_T20R0201) : les menus désignent leurs lignes par leur numéro
   const prefixeMsg = (Object.keys(messages)[0] || '').replace(/_\d+$/, '');
   const lignes = texte.split('\n');
   const out = [], mvts = new Map();
   const ref = (id) => (id === 'obj_player' ? 'joueur' : objets.has(id) ? id : null);
-  let dernier = null, objet = null, qte = 1, dansMvt = null, menu = null, switchVar = null;
+  let dernier = null, objet = null, qte = 1, dansMvt = null, menu = null, switchVar = null, banqueExt = null;
   const STARTERS = ['Chikorita', 'Cyndaquil', 'Totodile'];
   let nStarter = 0;
   const lab = (l) => prefixe + l.replace(/^_/, 'L');
@@ -176,7 +185,12 @@ export function traduireScripts(texte, { messages, objets, dresseurs, prefixe = 
       case 'Case': if (switchVar) out.push(`  si var ${switchVar} = ${a[0]} aller ${lab(a[1])}`); break;
       case 'TrainerTipsEx': { const m = msg(a[1]); if (m) out.push(m); break; }
       case 'DirectionSignpostEx': { const m = msg(a[2]); if (m) out.push(m); break; }
-      case 'Warp': { const z = ctxZone(String(a[0]).replace(/^MAP_/, '')); if (z && /^\d+$/.test(a[2]) && /^\d+$/.test(a[3])) out.push(`  teleporter_xy ${z} ${a[2]} ${a[3]} ${({ DIR_NORTH: 'haut', DIR_SOUTH: 'bas', DIR_WEST: 'gauche', DIR_EAST: 'droite' })[a[4]] || 'bas'}`); break; }
+      case 'Warp': {
+        const z = ctxZone(String(a[0]).replace(/^MAP_/, '')), dir = ({ DIR_NORTH: 'haut', DIR_SOUTH: 'bas', DIR_WEST: 'gauche', DIR_EAST: 'droite' })[a[4]] || 'bas';
+        if (z && /^\d+$/.test(a[2]) && /^\d+$/.test(a[3])) out.push(`  teleporter_xy ${z} ${a[2]} ${a[3]} ${dir}`);
+        else if (z && /^(\d+|VAR_\w+)$/.test(a[2]) && /^(\d+|VAR_\w+)$/.test(a[3])) out.push(`  teleporter_var ${z} ${a[2]} ${a[3]} ${dir}`);
+        break;
+      }
       case 'MovePersonFacing': { const o = ref(a[0]); if (o && o !== 'joueur' && /^\d+$/.test(a[1]) && /^\d+$/.test(a[3])) out.push(`  placer ${o} ${a[1]} ${a[3]} ${({ DIR_NORTH: 'haut', DIR_SOUTH: 'bas', DIR_WEST: 'gauche', DIR_EAST: 'droite' })[a[4]] || 'bas'}`); break; }
       case 'Wait': if (/^\d+$/.test(a[0])) out.push(`  attendre ${a[0]}`); break;
       case 'PlayCry': out.push('  son exclamation'); break;
@@ -191,10 +205,55 @@ export function traduireScripts(texte, { messages, objets, dresseurs, prefixe = 
       case 'ShowPerson': { const o = ref(a[0]); if (o && o !== 'joueur') out.push(`  montrer ${o}`); break; }
       case 'TrainerBattle': if (dresseurs[a[0]]) out.push(`  combat_hg ${a[0]}`); break;
       case 'FadeScreen': out.push(a[2] === '0' ? '  fondu_noir' : '  fondu_retour'); break;
+      // variables
+      case 'CopyVar': case 'SetOrCopyVar':
+        if (/^VAR_/.test(a[1])) out.push(`  copier_var ${a[0]} ${a[1]}`); else if (/^\d+$/.test(a[1])) out.push(`  var ${a[0]} ${a[1]}`); break;
+      case 'SubVar': if (/^\d+$/.test(a[1])) out.push(`  soustraire ${a[0]} ${a[1]}`); break;
+      case 'Random': if (/^\d+$/.test(a[1])) out.push(`  hasard ${a[0]} ${a[1]}`); break;
+      case 'CallIfSet': out.push(`  si drapeau ${a[0]} appeler ${lab(a[1])}`); break;
+      case 'CallIfUnset': out.push(`  si non drapeau ${a[0]} appeler ${lab(a[1])}`); break;
+      case 'GetPartyMonSpecies': out.push(`  espece_equipe ${a[1]} ${a[0]}`); break;
+      case 'GetStarterChoice': out.push(`  espece_depart ${a[0]}`); break;
+      case 'GetWeekday': out.push(`  jour_semaine ${a[0]}`); break;
+      case 'PlayerOnBikeCheck': out.push(`  sur_velo ${a[0]}`); break;
+      // argent et objets
+      case 'HasEnoughMoneyImmediate': if (/^\d+$/.test(a[1])) out.push(`  argent_suffisant ${a[0]} ${a[1]}`); break;
+      case 'SubMoneyImmediate': if (/^\d+$/.test(a[0])) out.push(`  retirer_argent ${a[0]}`); break;
+      case 'GetItemQuantity': if (/^ITEM_/.test(a[0])) out.push(`  quantite_objet ${objetDe(a[0])} ${a[1]}`); break;
+      case 'HasSpaceForItem': out.push(`  var ${a[2] || a[a.length - 1]} 1`); break;
+      // combats contre un POKéMON (Simularbre, Léviator rouge, les légendaires…)
+      case 'WildBattle': if (/^(SPECIES_|VAR_)/.test(a[0]) && /^\d+$/.test(a[1])) out.push(`  combat_sauvage_hg ${/^SPECIES_/.test(a[0]) ? especeDe(a[0]) : a[0]} ${a[1]}`); break;
+      case 'GetStaticEncounterOutcome': out.push(`  copier_var ${a[0]} VAR_COMBAT`); break;
+      // personnages, écran
+      case 'MakeObjectVisible': { const o = ref(a[0]); if (o && o !== 'joueur') out.push(`  montrer ${o}`); break; }
+      case 'MovePerson': { const o = ref(a[0]); if (o && o !== 'joueur' && /^\d+$/.test(a[1]) && /^\d+$/.test(a[2])) out.push(`  placer ${o} ${a[1]} ${a[2]} bas`); break; }
+      case 'ScreenShake': out.push('  secouer 16'); break;
+      case 'CloseMsg': out.push('  fermer_message'); break;
+      case 'SetDynamicWarp': { const z = ctxZone(String(a[0]).replace(/^MAP_/, '')); if (z && /^\d+$/.test(a[2]) && /^\d+$/.test(a[3])) out.push(`  warp_dynamique ${z} ${a[2]} ${a[3]} ${['haut', 'bas', 'gauche', 'droite'][+a[4]] || 'bas'}`); break; }
+      // messages d'une autre banque (std : jours, capacités, photographe, boutiques)
+      case 'WhiteOut': out.push('  ko'); break;
+      case 'NameRival': out.push(`  nommer_rival ${a[0]}`); break;
+      case 'NicknameInput': if (/^VAR_/.test(a[a.length - 1])) out.push(`  var ${a[a.length - 1]} 0`); break;   // pas d'écran de surnom : on garde le nom
+      case 'VioletGymElevator': out.push('  son ascenseur'); break;   // l'ascenseur de l'arène : le relief suit la carte, rien ne bloque
+      case 'GetPartyLeadAlive': out.push(`  var ${a[0]} 0`); break;
+      case 'PartySelectUI': break;
+      case 'GetPartySelection': out.push(`  var ${a[0]} 0`); break;   // l'écran de choix n'est pas là : le premier POKéMON
+      case 'MoveWarp': if (a.every((x) => /^\d+$/.test(x))) out.push(`  deplacer_warp ${a[0]} ${a[1]} ${a[2]}`); break;
+      case 'GetCoinAmount': out.push(`  jetons ${a[0]}`); break;
+      case 'TakeCoins': if (/^\d+$/.test(a[0])) out.push(`  retirer_jetons ${a[0]}`); break;
+      case 'GiveCoins': case 'AddCoins': if (/^\d+$/.test(a[0])) out.push(`  donner_jetons ${a[0]}`); break;
+      case 'GetStdMsgNaix': if (/^\d+$/.test(a[0])) banqueExt = +a[0]; break;
+      case 'MsgBoxExtern': case 'NonNPCMsgExtern': {
+        const t = /^\d+$/.test(a[1]) && banqueExt !== null ? externes?.[banqueExt]?.[+a[1]] : null;
+        if (t) out.push(dslMessages(pagesMessage(t)));
+        break;
+      }
       default:
+        if (!op[c] && STATS.inconnues && !SANS_EFFET.has(c)) { const k = STATS.inconnues.get(c) || { n: 0, cartes: new Set() }; k.n++; k.cartes.add(prefixe); STATS.inconnues.set(c, k); }
         if (op[c] && dernier) {
           const [v, n] = dernier, verbe = c.startsWith('Call') ? 'appeler' : 'aller';
           if (/^\d+$/.test(n)) out.push(`  si var ${v} ${op[c]} ${n} ${verbe} ${lab(a[0])}`);
+          else if (/^VAR_/.test(n)) out.push(`  comparer_vars ${v} ${n}`, `  si var _CMP ${op[c]} 0 ${verbe} ${lab(a[0])}`);
         }
     }
   }
@@ -218,6 +277,8 @@ export function zoneHG(carte, entete, ev, msgs, scripts, ctx) {
   for (const w of ev?.warps || []) {
     const vers = ctx.zoneDe(String(w.header).replace(/^MAP_/, ''));
     // un téléporteur garde sa place dans la liste : les portes d'en face le désignent par son numéro
+    // 4095 / 256 : téléporteur « dynamique » (ascenseur) : il mène où le dernier script l'a réglé (warp_dynamique)
+    if (String(w.header) === '4095') { warps.push({ x: w.x, y: w.z, vers: null, dynamique: true }); continue; }
     warps.push({ x: w.x, y: w.z, vers, n: w.anchor });   // vers null : la porte ne mène nulle part (carte absente)
   }
   for (const o of ev?.objects || []) {
@@ -228,8 +289,10 @@ export function zoneHG(carte, entete, ev, msgs, scripts, ctx) {
       if (m) objets.push({ ...base, type: 'objet', sprite: 'objet', objet: m[1].replace(/_/g, '-'), drapeau: o.eventFlag });
       continue;
     }
-    if (sp === 'TREE') { objets.push({ ...base, type: 'arbre_coupe', sprite: 'arbre_coupe' }); continue; }
-    if (sp === 'BREAKROCK' || sp === 'ROCK') { objets.push({ ...base, type: 'rocher', sprite: 'rocher', script: 'RocherHG' }); continue; }
+    if (sp === 'TREE') { objets.push({ ...base, type: 'arbre_coupe', sprite: 'mm:TREE' }); continue; }
+    if (sp === 'ICE') { objets.push({ ...base, type: 'bloc_glace', sprite: 'mm:ICE' }); continue; }
+    if (sp === 'BREAKROCK') { objets.push({ ...base, type: 'rocher', sprite: 'mm:BREAKROCK' }); continue; }
+    if (sp === 'ROCK' && o.scriptId === 'std_field_strength') { objets.push({ ...base, type: 'rocher_force', sprite: 'mm:ROCK' }); continue; }
     // personnages cachés tant que le jeu ne les montre pas (drapeau FLAG_HIDE_…) : on suit le drapeau
     const cache = o.eventFlag && o.eventFlag !== 'FLAG_NOTHING' ? { drapeau: o.eventFlag } : {};
     if (!ctx.mmodels.has(sp) || sp.startsWith('VAR_')) continue;
@@ -254,7 +317,7 @@ export function zoneHG(carte, entete, ev, msgs, scripts, ctx) {
     if (e) declencheurs.push({ x: c.x, y: c.z, l: c.w, h: c.h, var: c.var, val: c.val, script: e });
   }
   const poses = new Set(objets.map((o) => o.id));
-  let source = scripts ? traduireScripts(scripts, { messages, objets: poses, dresseurs: ctx.dresseurs, zoneDe: ctx.zoneDe }) : '';
+  let source = scripts ? traduireScripts(scripts, { messages, objets: poses, dresseurs: ctx.dresseurs, zoneDe: ctx.zoneDe, externes: ctx.externes }) : '';
   source += '\n' + extra.join('\n');
   // les scripts qu'on n'a pas su lire : un objet ou un panneau dont l'entrée manque reste muet
   const definis = new Set([...source.matchAll(/^script (\w+)/gm)].map((m) => m[1]));

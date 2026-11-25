@@ -341,9 +341,12 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   `PRET_HG`, rien n'est copié ici) : cartes, matrice du dehors d'un seul tenant (Johto et Kanto), en-têtes (`donnees/hgss.js`),
   événements et **scripts du jeu traduits** dans le langage du moteur (`donnees/evenements-hg.js`), cartes chargées en route,
   noms anglais, rencontres, nouvelle partie (`donnees/jeu-hg.js`), chariots d'Azalea (`donnees/gymmicks.js`), modèles des cartes
-  et personnages (`render/hgss3d.js`), carte de la région sur C (`render/carte-region.js`). `node tools/test-moteur-hgss.mjs`
-  (`PRET=<clone>`, sinon `/tmp/ext/pret`) : zone d'essai, toutes les cartes compilées, audit du jeu entier, début joué avec les
-  vrais scripts jusqu'à Cherrygrove, Frimapic ; caméra d'Odyssée (55°) ; `node tools/capture-moteur-hgss.mjs "<paramètres>" <image.png> "<touches>"`
+  et personnages (`render/hgss3d.js`), carte de la région sur C (`render/carte-region.js`), capacités de terrain (FORCE, ÉCLATE-ROC,
+  CASCADE, SIPHON, ESCALADE : badge et CS, `Terrain.capacite`), français sur L (`donnees/fr.js` pour les noms, dialogues traduits dans
+  le navigateur par `render/traduction.js`, rien de traduit dans le dépôt). `node tools/test-moteur-hgss.mjs`
+  (`PRET=<clone>`, sinon `/tmp/ext/pret`) : zone d'essai, toutes les cartes compilées, audit du jeu entier, capacités, français,
+  le jeu joué avec ses vrais scripts jusqu'au BADGE ZÉPHYR, Frimapic ; `node tools/moteur-hgss-couverture.mjs` : jusqu'où va le jeu
+  (commandes de script pas encore jouées, cartes atteintes, arènes) ; caméra d'Odyssée (55°) ; `node tools/capture-moteur-hgss.mjs "<paramètres>" <image.png> "<touches>"`
   (Playwright, `PDSMS=<clone>`, `PRET=<clone>`, `PLAT=<clone>` pour tout servir sans réseau) en fait une capture ; page :
   `odyssee/moteur.html` (combats, équipe, sac et son d'Odyssée par `odyssee/moteur/odyssee.js`). Arène de Frimapic de Platine,
   construite au chargement depuis les fichiers du jeu publiés par pret/pokeplatinum (`donnees/platine.js`, `render/platine3d.js`,

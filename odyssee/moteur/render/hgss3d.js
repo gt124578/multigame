@@ -36,7 +36,8 @@ export class ModelesHGSS {
       const noms = Object.keys(T.textures).sort((a, b) => (+(a.match(/(\d+)$/) || [0, 0])[1]) - (+(b.match(/(\d+)$/) || [0, 0])[1]));
       const pal = Object.keys(T.palettes || {})[0];
       const images = noms.map((n) => T.decoder(n, pal, true)).filter(Boolean);
-      const ordre = images.length === 8 ? [0, 1, 0, 1, 2, 3, 2, 3, 4, 5, 4, 5] : images.map((_, k) => k);
+      // 8 images (POKéMON qui suivent) : remises dans l'ordre des personnages ; moins (rocher, arbre…) : la même partout
+      const ordre = images.length === 8 ? [0, 1, 0, 1, 2, 3, 2, 3, 4, 5, 4, 5] : images.length < 8 ? Array(12).fill(0) : images.map((_, k) => k);
       const cv = document.createElement('canvas'); cv.width = 32 * Math.max(ordre.length, 12); cv.height = 32;
       const g = cv.getContext('2d');
       ordre.forEach((k, j) => {

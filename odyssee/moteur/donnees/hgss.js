@@ -110,7 +110,11 @@ export function comportementHG(v) {
     case 0x02: return [MB.HERBE, 'hautes_herbes'];
     case 0x03: return [MB.HERBE_DENSE, 'hautes_herbes'];
     case 0x10: case 0x15: case 0x12: case 0x14: return [MB.EAU, 'eau'];
-    case 0x13: return [MB.CASCADE, 'eau'];
+    case 0x13: return [MB.CHUTE, 'eau', true];      // cascade : CASCADE
+    case 0x11: return [MB.TOURBILLON, 'eau', true]; // tourbillon : SIPHON
+    case 0x4b: return [MB.ESCALADE_NS, 'chemin', true];   // paroi : ESCALADE
+    case 0x4c: return [MB.ESCALADE_EO, 'chemin', true];
+    case 0xa4: return [MB.SABLE, 'sable'];          // boue : pas de course
     case 0x16: case 0x17: case 0x1d: return [MB.FLAQUE, 'eau'];
     case 0x20: return [MB.GLACE, 'glace'];
     case 0x21: return [MB.SABLE, 'sable'];
@@ -119,8 +123,13 @@ export function comportementHG(v) {
     case 0x39: return [MB.REBORD_GAUCHE, 'rebord_g', true];
     case 0x3a: return [MB.REBORD_HAUT, 'rebord', true];
     case 0x3b: return [MB.REBORD_BAS, 'rebord', true];
-    case 0x3c: case 0x3d: case 0x3e: case 0x5e: case 0x5f: case 0x67: return [MB.ESCALIER, 'chemin', true];
-    case 0x69: case 0x62: case 0x63: case 0x64: case 0x65: return [MB.PORTE, 'chemin', true];
+    case 0x3c: case 0x3d: case 0x3e: case 0x5e: case 0x5f: case 0x67: case 0x6a: case 0x6b: return [MB.ESCALIER, 'chemin', true];   // échelles, escaliers, panneaux, escalators
+    case 0x69: return [MB.PORTE, 'chemin', true];
+    // entrées « dans un sens » : dehors, on y entre (bouches de grotte) ; dedans, ce sont des tapis de sortie
+    case 0x62: return [MB.TAPIS_DROITE, 'tapis', true];
+    case 0x63: return [MB.TAPIS_GAUCHE, 'tapis', true];
+    case 0x64: return [MB.TAPIS_HAUT, 'tapis', true];
+    case 0x65: return [MB.TAPIS_BAS, 'tapis', true];
     case 0x6c: return [MB.TAPIS_DROITE, 'tapis', true];
     case 0x6d: return [MB.TAPIS_GAUCHE, 'tapis', true];
     case 0x6e: return [MB.TAPIS_HAUT, 'tapis', true];
@@ -138,12 +147,16 @@ export function comportementHG(v) {
 /** une carte du jeu → un bloc du moteur (cases, hauteurs en demi-cases, rendu : son vrai modèle) */
 export function blocHG(T, num, zone, interieur) {
   const N = BLOC * BLOC;
-  const col = new Array(N), mb = new Array(N), h = new Array(N), sol = new Array(N);
+  const col = new Array(N), mb = new Array(N), h = new Array(N), sol = new Array(N), sortieWarp = {};
+  // dehors, une entrée « dans un sens » rend le joueur en le faisant avancer dans l'autre (une grotte au nord : vers le sud)
+  const SORTIE = { 0x6c: 2, 0x6d: 3, 0x6e: 1, 0x6f: 0, 0x62: 2, 0x63: 3, 0x64: 1, 0x65: 0 };   // HAUT 0, BAS 1, GAUCHE 2, DROITE 3
   for (let k = 0; k < N; k++) {
     const v = T.perm[k];
     let [m, s, passe] = comportementHG(v & 0xff);
     // dehors, les entrées (grottes, postes de garde) se prennent en y entrant ; dedans, ce sont des tapis de sortie
-    if (!interieur && m >= MB.TAPIS_BAS && m <= MB.TAPIS_DROITE) m = MB.PORTE;
+    if (!interieur && m >= MB.TAPIS_BAS && m <= MB.TAPIS_DROITE) { m = MB.PORTE; sortieWarp[k] = SORTIE[v & 0xff]; }
+    // dedans, la porte dessinée derrière le tapis d'entrée reste un mur (seul le tapis fait sortir)
+    if (interieur && (v & 0xff) === 0x69) passe = false;
     col[k] = (v & 0x8000) && !passe ? 1 : 0;
     mb[k] = m;
     sol[k] = SOL_[col[k] && s === 'herbe' ? (interieur ? 'mur' : 'herbe') : s];
@@ -151,7 +164,7 @@ export function blocHG(T, num, zone, interieur) {
     const ht = T.relief?.hauteur(x + 0.5, z + 0.5);
     h[k] = ht == null ? 0 : Math.round(ht * 2);
   }
-  return { col, mb, h, sol, decor: [{ type: 'terrain_hg', carte: num, zone, batiments: T.batiments, interieur }] };
+  return { col, mb, h, sol, sortieWarp, decor: [{ type: 'terrain_hg', carte: num, zone, batiments: T.batiments, interieur }] };
 }
 
 /**

@@ -11,6 +11,7 @@
 
 import { CHEMINS_HG, archivesHG, dehorsHG, interieurHG, lireEntetesHG } from './hgss.js';
 import { zoneHG, lireDresseursHG, traduireScripts, objetDe, especeDe } from './evenements-hg.js';
+import { nomLieuFr, dresseurFr } from './fr.js';
 import { SOLS } from './auteur.js';
 import { RAILS_ECORCIA } from './gymmicks.js';
 import { BAS } from '../engine/const.js';
@@ -23,11 +24,7 @@ export const nomLieu = (lieu) => (lieu || '').replace(/^MAPSEC_/, '').split('_')
 export const DEPART_HG = { zone: 'NEW_BARK_PLAYER_HOUSE_2F', x: 4, y: 6, dir: BAS };
 
 /** scripts du moteur qui complètent ceux du jeu */
-const SCRIPTS_PLUS = `
-script RocherHG
-  message "C'est un rocher fissuré.\\nUn POKéMON pourrait le briser avec ÉCLATE-ROC."
-  fin
-`;
+const SCRIPTS_PLUS = '';
 
 /** nos ajouts, carte par carte (fusionnés avec ce que le jeu décrit) */
 const AJOUTS = {
@@ -62,13 +59,16 @@ VersFrimapic_Non:
  * Tout ce qu'il faut au démarrage. `lire(chemin)` → Uint8Array. Rend { donnees, chargerCarte(carte) → paquet,
  * drapeauxDepart: [noms], varsDepart: {}, personnages: { NOM: numéro du modèle } }.
  */
-export async function jeuHG(lire) {
+export async function jeuHG(lire, { langue = 'en' } = {}) {
+  const fr = langue === 'fr';
+  const lieu = (l) => (fr && nomLieuFr(l)) || nomLieu(l);
   const txt = async (c) => new TextDecoder().decode(await lire(c));
   const [A, json, consts, mm, init] = await Promise.all([
     archivesHG(lire), txt(CHEMINS_HG.dresseurs), txt(CHEMINS_HG.constantesDresseurs), txt(CHEMINS_HG.personnages),
     txt(CHEMINS_HG.nouvellePartie).catch(() => ''),
   ]);
   const dresseurs = lireDresseursHG(json, consts);
+  if (fr) for (const d of Object.values(dresseurs)) d.nom = dresseurFr(d.nom);
   // les noms anglais du jeu : objets (rangés par numéro d'objet), espèces et attaques (par numéro national)
   const [nObj, nEsp, nAtt, cObj] = await Promise.all([CHEMINS_HG.nomsObjets, CHEMINS_HG.nomsEspeces, CHEMINS_HG.nomsAttaques, CHEMINS_HG.constantesObjets]
     .map((c) => txt(c).catch(() => null)));
@@ -78,6 +78,9 @@ export async function jeuHG(lire) {
     const nom = nomsObj[+m[2]]; if (nom && nom !== 'None' && nom !== '???') objets[objetDe(m[1])] = { nom, court: nom };
   }
   const noms = { especes: liste(nEsp), attaques: liste(nAtt), objets };
+  // les banques de messages « standard » (GetStdMsgNaix 0 à 3 : jours de la semaine, capacités, photographe, boutiques)
+  const externes = await Promise.all([752, 211, 30, 435].map((n) => txt(`files/msgdata/msg/msg_${String(n).padStart(4, '0')}.json`)
+    .then((t) => JSON.parse(t).messages.map((m) => m.en_US)).catch(() => [])));
   // POKéMON sauvages : une table par carte (ENCDATA_R29 → « R29 »), version HeartGold, selon l'heure du jour
   const enc = await txt(CHEMINS_HG.rencontres).then((t) => JSON.parse(t).encounters).catch(() => []);
   const tablesEnc = Object.fromEntries(enc.map((e) => [e.map, e]));
@@ -94,13 +97,18 @@ export async function jeuHG(lire) {
   for (const [c, e] of Object.entries(A.entetes)) {
     if (c === 'EVERYWHERE' || c === 'NOTHING') continue;
     const interieur = e.type !== 'MAP_TYPE_CITY_TOWN' && e.type !== 'MAP_TYPE_ROUTE';
-    zones[c] = { nom: nomLieu(e.lieu) || c, musique: 'route', camera: interieur ? 'interieur' : 'dehors', interieur, aCharger: true,
+    zones[c] = { nom: lieu(e.lieu) || c, musique: 'route', camera: interieur ? 'interieur' : 'dehors', interieur, aCharger: true,
       ville: e.type === 'MAP_TYPE_CITY_TOWN', route: e.type === 'MAP_TYPE_ROUTE' };
   }
   const D = dehorsHG(A, zoneDe);
   const donnees = {
     sols: SOLS, blocs: D.blocs, mondes: { johto: D.monde }, zones, dresseursHG: dresseurs, version: 4,
-    langue: 'en', scriptsTraversent: true, nomJoueur: 'ETHAN', nomRival: 'SILVER', objets, nomsEspeces: noms.especes, noms,
+    // capacités de terrain : le badge qui les permet (src/field_move.c) et la CS dans le sac
+    capacites: { coupe: ['BADGE_HIVE', 'hm01'], surf: ['BADGE_FOG', 'hm03'], force: ['BADGE_PLAIN', 'hm04'], siphon: ['BADGE_GLACIER', 'hm05'],
+      eclate: ['BADGE_ZEPHYR', 'hm06'], cascade: ['BADGE_RISING', 'hm07'], escalade: ['BADGE_EARTH', 'hm08'] },
+    // en français : noms de la version française ; espèces, attaques et objets d'Odyssée (posés par le pont)
+    langue, scriptsTraversent: true, tolerant: true, transitionAvant: true, nomJoueur: fr ? 'LUTH' : 'ETHAN', nomRival: 'SILVER',
+    objets: fr ? {} : objets, nomsEspeces: noms.especes, noms,
     scriptsCommuns: SCRIPTS_PLUS,
   };
 
@@ -115,16 +123,28 @@ export async function jeuHG(lire) {
       e.matrice && !/EVERYWHERE/.test(e.matrice) ? lire(CHEMINS_HG.matrice(e.matrice)).catch(() => null) : null,
     ]);
     let z = zoneHG(c, e, ev ? JSON.parse(ev) : null, msg ? JSON.parse(msg) : null, scr,
-      { zoneDe, dresseurs, mmodels, nomLieu });
+      { zoneDe, dresseurs, mmodels, nomLieu: lieu, externes });
     z.niveau = niveaux(niv);
     const te = tablesEnc[String(e.rencontres || '').replace(/^ENCDATA_/, '')];
     if (te) z.rencontres = rencontresHG(te, !(zones[c]?.ville || zones[c]?.route));
     z.ville = zones[c]?.ville; z.route = zones[c]?.route;
     if (AJOUTS[c]) z = AJOUTS[c](z);
     const p = { zones: { [c]: z }, blocs: {}, mondes: {} };
+    // dehors : le sens dans lequel on ressort d'une entrée de grotte ou de poste (celui du jeu)
+    if (!mat) for (const w of z.warps) {
+      const b = donnees.blocs[`hg_${w.x >> 5}_${w.y >> 5}`], d = b?.sortieWarp?.[(w.y & 31) * 32 + (w.x & 31)];
+      if (d !== undefined) w.sortie = d;
+    }
     if (mat) {
       const I = interieurHG(A, c, c, mat);
-      if (I) { Object.assign(p.blocs, I.blocs); p.mondes['m_' + c] = I.monde; }
+      if (I) {
+        Object.assign(p.blocs, I.blocs); p.mondes['m_' + c] = I.monde;
+        // une porte d'intérieur (ascenseur, phare, cabines) est bloquée dans la carte : là où il y a un téléporteur, on y entre
+        for (const w of z.warps) {
+          const b = I.blocs[I.monde.blocs[(w.y >> 5) * I.monde.largeur + (w.x >> 5)]];
+          if (b) b.col[(w.y & 31) * 32 + (w.x & 31)] = 0;
+        }
+      }
     }
     return p;
   }

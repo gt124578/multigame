@@ -45,7 +45,8 @@ ArbreBaies_Fin:
 
 # Petit arbre qu'on coupe avec COUPE ; il repousse quand on change de carte
 script ArbreCoupe
-  si non drapeau CS_COUPE aller ArbreCoupe_Non
+  tester_capacite coupe
+  si resultat = 0 aller ArbreCoupe_Non
   message "Cet arbre peut être coupé !\\nUtiliser COUPE ?"
   oui_non
   si resultat = 0 aller ArbreCoupe_Fin
@@ -83,6 +84,78 @@ script PCdeLeo
 
 script PasDeVeloIci
   message "Impossible d'utiliser le VÉLO ici."
+  liberer
+  fin
+
+# Capacités de terrain (données du jeu : badge et CS ; zone d'essai : drapeau CS_…)
+script EclateRoc
+  tester_capacite eclate
+  si resultat = 0 aller EclateRoc_Non
+  message "Ce rocher semble fragile.\\nUtiliser ÉCLATE-ROC ?"
+  oui_non
+  si resultat = 0 aller EclateRoc_Fin
+  fermer_message
+  son coupe
+  retirer
+  aller EclateRoc_Fin
+EclateRoc_Non:
+  message "C'est un rocher fissuré. Un POKéMON\\npourrait peut-être le briser."
+EclateRoc_Fin:
+  liberer
+  fin
+
+script Force
+  si drapeau TMP_FORCE aller Force_Deja
+  tester_capacite force
+  si resultat = 0 aller Force_Non
+  message "C'est un gros rocher.\\nUtiliser FORCE ?"
+  oui_non
+  si resultat = 0 aller Force_Fin
+  drapeau TMP_FORCE
+  message "FORCE permet de pousser les rochers."
+  aller Force_Fin
+Force_Deja:
+  message "FORCE permet de pousser les rochers."
+  aller Force_Fin
+Force_Non:
+  message "C'est un gros rocher.\\nUn POKéMON pourrait peut-être le pousser."
+Force_Fin:
+  liberer
+  fin
+
+script ProposerCascade
+  message "Une grande cascade.\\nUtiliser CASCADE ?"
+  oui_non
+  si resultat = 0 aller Capacite_Fin
+  fermer_message
+  franchir
+  aller Capacite_Fin
+script ProposerSiphon
+  message "C'est un tourbillon.\\nUtiliser SIPHON ?"
+  oui_non
+  si resultat = 0 aller Capacite_Fin
+  fermer_message
+  franchir
+  aller Capacite_Fin
+script ProposerEscalade
+  message "Une paroi escarpée.\\nUtiliser ESCALADE ?"
+  oui_non
+  si resultat = 0 aller Capacite_Fin
+  fermer_message
+  franchir
+Capacite_Fin:
+  liberer
+  fin
+script ImpossibleCascade
+  message "Une grande cascade."
+  liberer
+  fin
+script ImpossibleSiphon
+  message "C'est un tourbillon...\\nUn POKéMON pourrait peut-être le traverser."
+  liberer
+  fin
+script ImpossibleEscalade
+  message "Une paroi escarpée.\\nUn POKéMON pourrait peut-être la gravir."
   liberer
   fin
 `;
@@ -133,7 +206,8 @@ ArbreBaies_Fin:
 
 # Petit arbre qu'on coupe avec COUPE ; il repousse quand on change de carte
 script ArbreCoupe
-  si non drapeau CS_COUPE aller ArbreCoupe_Non
+  tester_capacite coupe
+  si resultat = 0 aller ArbreCoupe_Non
   message "This tree looks like it can be cut down!\\nWould you like to use Cut?"
   oui_non
   si resultat = 0 aller ArbreCoupe_Fin
@@ -171,6 +245,78 @@ script PCdeLeo
 
 script PasDeVeloIci
   message "{JOUEUR} can't use the Bicycle here."
+  liberer
+  fin
+
+# Field moves
+script EclateRoc
+  tester_capacite eclate
+  si resultat = 0 aller EclateRoc_Non
+  message "This rock appears to be breakable.\\nWould you like to use Rock Smash?"
+  oui_non
+  si resultat = 0 aller EclateRoc_Fin
+  fermer_message
+  son coupe
+  retirer
+  aller EclateRoc_Fin
+EclateRoc_Non:
+  message "It's a rugged rock, but a Pokémon\\nmay be able to smash it."
+EclateRoc_Fin:
+  liberer
+  fin
+
+script Force
+  si drapeau TMP_FORCE aller Force_Deja
+  tester_capacite force
+  si resultat = 0 aller Force_Non
+  message "It's a big boulder.\\nWould you like to use Strength?"
+  oui_non
+  si resultat = 0 aller Force_Fin
+  drapeau TMP_FORCE
+  message "Strength made it possible to move\\nboulders around!"
+  aller Force_Fin
+Force_Deja:
+  message "Strength made it possible to move\\nboulders around!"
+  aller Force_Fin
+Force_Non:
+  message "It's a big boulder, but a Pokémon\\nmay be able to push it aside."
+Force_Fin:
+  liberer
+  fin
+
+script ProposerCascade
+  message "It's a large waterfall.\\nWould you like to use Waterfall?"
+  oui_non
+  si resultat = 0 aller Capacite_Fin
+  fermer_message
+  franchir
+  aller Capacite_Fin
+script ProposerSiphon
+  message "It's a vicious whirlpool!\\nWould you like to use Whirlpool?"
+  oui_non
+  si resultat = 0 aller Capacite_Fin
+  fermer_message
+  franchir
+  aller Capacite_Fin
+script ProposerEscalade
+  message "The wall is very rocky...\\nWould you like to use Rock Climb?"
+  oui_non
+  si resultat = 0 aller Capacite_Fin
+  fermer_message
+  franchir
+Capacite_Fin:
+  liberer
+  fin
+script ImpossibleCascade
+  message "It's a large waterfall."
+  liberer
+  fin
+script ImpossibleSiphon
+  message "It's a vicious whirlpool!\\nA Pokémon may be able to pass it."
+  liberer
+  fin
+script ImpossibleEscalade
+  message "The wall is very rocky...\\nA Pokémon may be able to climb it."
   liberer
   fin
 `;
