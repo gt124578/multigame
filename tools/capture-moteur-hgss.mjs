@@ -27,6 +27,12 @@ if (process.env.PDSMS) await p.route('https://raw.githubusercontent.com/Trifindo
   try { r.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: await readFile(f) }); }
   catch { r.fulfill({ status: 404, body: '' }); }
 });
+// décompilation de Platine (Arène de Frimapic) : depuis un clone local si PLAT=<dossier du clone>
+if (process.env.PLAT) await p.route('https://raw.githubusercontent.com/pret/pokeplatinum/**', async (r) => {
+  const u = new URL(r.request().url()).pathname;
+  const f = path.join(process.env.PLAT, decodeURIComponent(u.replace(/^\/pret\/pokeplatinum\/[0-9a-f]+\//, '')));
+  try { await r.fulfill({ body: await readFile(f), headers: { 'access-control-allow-origin': '*' } }); } catch { await r.fulfill({ status: 404, body: '' }); }
+});
 // décompilation de HGSS (bâtiments) : depuis un clone local si PRET=<dossier du clone>
 if (process.env.PRET) await p.route('https://raw.githubusercontent.com/pret/pokeheartgold/**', async (r) => {
   const u = decodeURIComponent(new URL(r.request().url()).pathname);

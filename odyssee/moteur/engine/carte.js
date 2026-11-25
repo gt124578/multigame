@@ -29,6 +29,8 @@ export function preparerBloc(b) {
     mb: t(b.mb ?? 0, Uint8Array),
     h: t(b.h ?? 0, Int8Array),
     sol: t(b.sol ?? 0, Uint16Array),
+    // pente de la case (Platine) : 0 à plat, sinon 1 + (gx + 1) * 3 + (gz + 1), signe de la montée vers x et vers z
+    pente: b.pente ? t(b.pente, Uint8Array) : null,
     decor: b.decor || [],
     batiments: b.batiments || [],
   };
@@ -47,6 +49,8 @@ export class Monde {
     this.largeur = m.largeur * BLOC; this.hauteur = m.hauteur * BLOC;
     this.blocs = m.blocs.map((b) => (b ? donnees.blocsPrets[b] : null));
     this.zonesBloc = m.zones;
+    // pentes : les hauteurs suivent le relief (Platine) au lieu de murs entre niveaux ; niv : hauteur d'un niveau en cases
+    this.pentes = !!m.pentes; this.niv = m.niv;
     this.altitudes = m.altitudes || m.blocs.map(() => 0);
     this.zones = [...new Set(m.zones.filter(Boolean))].map((z) => donnees.zones[z]);
     // événements de toutes les zones du monde, par case
@@ -72,6 +76,13 @@ export class Monde {
   props(x, y) { return PROPS[this.mb(x, y)]; }
   /** hauteur en niveaux : celle du bloc plus l'altitude de la case de la matrice */
   hauteurCase(x, y) { const [b, k, i] = this._b(x, y); return b.h[k] + (this.altitudes[i] || 0); }
+  /** sens de la pente de la case pour un pas vers `dir` : 1 on monte, -1 on descend, 0 à plat */
+  pente(x, y, dir) {
+    const [b, k] = this._b(x, y), p = b.pente?.[k];
+    if (!p) return 0;
+    const gx = Math.floor((p - 1) / 3) - 1, gz = ((p - 1) % 3) - 1;
+    return Math.sign(gx * [0, 0, -1, 1][dir] + gz * [-1, 1, 0, 0][dir]);
+  }
   sol(x, y) { const [b, k] = this._b(x, y); return b.sol[k]; }
   /** zone (en-tête) de la case */
   zone(x, y) {

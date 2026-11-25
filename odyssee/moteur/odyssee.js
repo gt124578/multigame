@@ -27,7 +27,7 @@ const MUSIQUES = { bourg: 'town', griotte: 'town', mauville: 'city', route: 'rou
   labo: 'lab', centre: 'center', boutique: 'mart', arene: 'gym', grotte: 'cave', tour: 'tower', velo: 'island', glace: 'snow' };
 /** bruitages du terrain → bruitages d'Odyssée */
 const SONS = { heurt: 'bump', texte: 'blip', choix: 'select', porte: 'door', escalier: 'exit', saut: 'ledge', objet: 'item', fanfare: 'badge',
-  soin: 'heal', coupe: 'cut', exclamation: 'encounter' };
+  soin: 'heal', coupe: 'cut', exclamation: 'encounter', boule: 'cut' };
 
 export class PontOdyssee {
   constructor(root, T) {

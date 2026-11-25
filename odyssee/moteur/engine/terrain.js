@@ -10,7 +10,7 @@
 //   5. les PNJ libres (errance, regards), seulement près du joueur ;
 //   6. les scripts de niveau (« map scripts ») quand tout est calme ; la caméra.
 
-import { DX, DY, OPPOSE, PROPS, VITESSE, ELAN_VELO, rng as RNG } from './const.js';
+import { DX, DY, OPPOSE, PROPS, VITESSE, ELAN_VELO, VITESSE_GLACE, rng as RNG } from './const.js';
 import { Monde, preparer, valider } from './carte.js';
 import { ObjetTerrain, objetEn, testerPas, devant } from './objets.js';
 import { Scripts, Contexte, avancer } from './script.js';
@@ -443,7 +443,9 @@ export class Terrain {
       return;
     }
     // 4. glace, tapis roulants, courant : le pas suivant est forcé
-    const force = p.glisse ? j.dir : p.force;
+    if (p.glisse && M.pentes) { if (this.glissePente()) return; }
+    else j.vGlace = 0;
+    const force = p.glisse && !M.pentes ? j.dir : p.force;
     if (force !== null && force !== undefined) {
       const r = testerPas(M, j, force, { surf: this.mode === 'surf', objets: this.objets });
       if (r.ok && r.type === 'pas') { j.lancer(p.glisse ? 'glisse' : 'pas', force, VITESSE.glisse); return; }
@@ -452,6 +454,40 @@ export class Terrain {
     if (this.regardDresseurs()) return;
     // 6. rencontres
     this.testerRencontre(p);
+  }
+  /**
+   * Glace à pentes, comme l'Arène de Frimapic de Platine (player_move.c) : chaque case de descente donne de la vitesse
+   * (jusqu'à 3), chaque case de montée en retire ; sans vitesse, on ne monte pas : on redescend d'une case et on
+   * s'arrête. Une boule de neige devant soi se brise si l'on arrive avec de la vitesse (au moins 1), sinon on s'arrête
+   * contre elle. Rend true si un pas forcé est lancé.
+   */
+  glissePente() {
+    const j = this.joueur, M = this.M, d = j.dir;
+    j.vGlace ??= 0;
+    // après avoir reculé d'une pente, on s'arrête
+    if (j.apresRecul) { j.apresRecul = false; j.vGlace = 0; return false; }
+    const nx = j.x + DX[d], ny = j.y + DY[d];
+    // comme le jeu : on regarde la pente un quart de case devant soi, donc celle de la case où l'on est
+    const dh = M.pente(j.x, j.y, d);
+    // la boule de neige se brise sous l'élan
+    const boule = this.objets.find((o) => o.visible && o.def.boule && o.x === nx && o.y === ny);
+    if (boule && j.vGlace >= 1) {
+      boule.visible = false; this.etat.drapeaux.add(this.drapeauObjet(boule));
+      this.sortir({ type: 'son', nom: 'boule' });
+    }
+    const r = testerPas(M, j, d, { objets: this.objets });
+    const recul = () => {
+      const rr = testerPas(M, j, OPPOSE[d], { objets: this.objets });
+      j.vGlace = 0;
+      if (!rr.ok || rr.type !== 'pas') return false;
+      j.lancer('recul', OPPOSE[d], VITESSE.marche); j.dir = d; j.apresRecul = true;
+      return true;
+    };
+    if (!r.ok || r.type !== 'pas') { if (dh > 0) return recul(); j.vGlace = 0; return false; }
+    if (dh > 0 && --j.vGlace < 0) return recul();
+    if (dh < 0) j.vGlace = Math.min(3, j.vGlace + 1);
+    j.lancer('glisse', d, VITESSE_GLACE[j.vGlace]);
+    return true;
   }
   testerRencontre(p) {
     if (!p.rencontre || this.mode === 'velo' && p.rencontre === 'eau') return;

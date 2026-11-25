@@ -44,6 +44,30 @@ d'Odyssée (`poke-ball`, `oran-berry`…) : le sac est le même partout.
   (pas d'impasse). On y va par le voyageur du Centre de Mauville (ou `?zone=ARENE_ACAJOU_1`). Le test la traverse avec
   les règles du moteur et bat FRIGO.
 
+## Acajou (`donnees/acajou.js`)
+
+Un bloc de la matrice de Johto (x 512 à 543, z 160 à 191) aux positions réelles : portes de l'arène, du Centre, de la
+boutique de souvenirs et de la maison de l'est, panneaux et habitants relevés dans les événements de la zone T28 ; vrais
+modèles (`ch_gym`, `ch_h01`, `pc`, poste de la Route 43). Les routes 42 à 44 manquent encore : un voyageur relie les
+Centres de Mauville et d'Acajou.
+
+## Arène de Frimapic, Pokémon Platine (`donnees/platine.js`, `render/platine3d.js`)
+
+À l'identique : la décompilation de Platine (pret/pokeplatinum) publie les fichiers de carte eux-mêmes. Au chargement
+de la page, `frimapic()` lit dans son dépôt (commit épinglé, rien n'est copié ici) :
+- la carte `map_data_234` : grille de collisions et de comportements (glace, cases bloquées dans un axe, sortie) et
+  relief BDHC (plaques et pentes à 45° ; hauteur et sens de la pente au centre de chaque case, en demi-cases) ;
+- les événements de la salle (GLADYS, guide, 6 Topdresseurs avec leur portée et leur regard, 19 boules de neige,
+  statues, sortie) ;
+- pour le rendu : le modèle 3D de la salle avec son jeu de textures (`map_texture_set_027.nsbtx`, lu par `lireNsbtx`),
+  les accessoires posés par la carte (statues, tapis) et le modèle de la boule de neige.
+Règles de la glace à pentes reprises du code du jeu (`player_move.c`) : `glissePente` d'`engine/terrain.js` — vitesse
+de 0 à 3, +1 par case de descente, −1 par case de montée ; sans vitesse on recule d'une case et on s'arrête ; une boule
+de neige se brise si on la heurte avec de la vitesse (au moins 1), elle revient quand on ressort. Un monde peut déclarer
+`pentes` (pas de mur entre deux hauteurs) et `niv` (hauteur d'un niveau en cases). Accès : une dresseuse de Sinnoh au
+Centre d'Acajou. Le test lit un clone local (`PLAT=<clone>`, sinon `/tmp/ext/plat`), cherche le chemin jusqu'à GLADYS
+avec les règles du moteur (34 coups, 8 boules brisées) et le rejoue dans une vraie partie.
+
 ## Le début de HeartGold / SoulSilver (`donnees/johto.js`)
 
 Bourg Geon → Route 29 (et le poste de la Route 46) → Ville Griotte → Route 30 (M. POKéMON) → Route 31 (Antre Noir) →

@@ -17,6 +17,7 @@ import {
   ZONES_INTERIEURS, ZONES_ACAJOU, maisonHGSS, centreHGSS, boutiqueHGSS,
 } from './interieurs.js';
 import { BLOCS_DEHORS, MONDE_JOHTO, ZONES_DEHORS } from './johto-dehors.js';
+import { BLOCS_ACAJOU, MONDE_ACAJOU, ZONE_ACAJOU } from './acajou.js';
 
 // ——— outils ———
 /** une pièce au centre d'un bloc vide */
@@ -504,7 +505,7 @@ script Jongleur
 `,
   },
   ...centreHGSS('CENTRE_MAUVILLE', 'Mauville', 'MAUVILLE', 1, {
-    // l'Arène d'Acajou est construite seule pour l'instant : un voyageur y emmène
+    // Acajou n'est pas encore reliée à Mauville par les routes : un voyageur y emmène
     objets: [{ id: 'voyageur', x: 3, y: 9, sprite: 'montagnard', dir: BAS, script: 'VersAcajou' }],
     scripts: `
 script VersAcajou
@@ -515,7 +516,7 @@ script VersAcajou
   si resultat = 0 aller VersAcajou_Non
   message "Accroche-toi !"
   fondu_noir
-  teleporter ARENE_ACAJOU_1 0
+  teleporter ACAJOU 1
   liberer
   fin
 VersAcajou_Non:
@@ -524,6 +525,33 @@ VersAcajou_Non:
   fin
 `,
   }),
+  ACAJOU: ZONE_ACAJOU,
+  ...centreHGSS('CENTRE_ACAJOU', 'Acajou', 'ACAJOU', 1, {
+    objets: [{ id: 'voyageur', x: 3, y: 9, sprite: 'montagnard', dir: BAS, script: 'VersMauville' }],
+    scripts: `
+script VersMauville
+  regarder_joueur
+  message "Je rentre à MAUVILLE. Tu viens avec moi ?"
+  oui_non
+  si resultat = 0 aller VersMauville_Non
+  fondu_noir
+  teleporter MAUVILLE 1
+  liberer
+  fin
+VersMauville_Non:
+  message "Comme tu veux !"
+  liberer
+  fin
+`,
+  }),
+  BOUTIQUE_ACAJOU: boutique('Acajou', 'ACAJOU', 2, 'super-potion antidote paralyze-heal awakening repel poke-ball'),
+  MAISON_ACAJOU: maison('Acajou', 'ACAJOU', 3, { sprite: 'dame', script: 'DameAcajou' }, `
+script DameAcajou
+  regarder_joueur
+  message "La boutique de souvenirs vend d'étranges gâteaux…\\nMais certains clients n'en ressortent jamais !"
+  liberer
+  fin
+`),
   ...ZONES_ACAJOU,
   BOUTIQUE_MAUVILLE: boutique('Mauville', 'MAUVILLE', 2, 'potion super-potion antidote paralyze-heal awakening repel poke-ball'),
   MAISON_MAUVILLE_1: maison('Mauville', 'MAUVILLE', 5, { sprite: 'kimono', script: 'Kimono' }, `
@@ -704,13 +732,15 @@ const interieur = (bloc, zone) => mondeSimple(bloc, zone);
 export const JOHTO = {
   sols: SOLS,
   blocs: {
-    ...BLOCS_DEHORS,
+    ...BLOCS_DEHORS, ...BLOCS_ACAJOU,
     maison_1f: MAISON_1F, maison_2f: MAISON_2F, labo: LABO, voisin: MAISON, centre: CENTRE, centre_b1f: CENTRE_B1F, boutique: BOUTIQUE,
     poste: POSTE, poste_eo: POSTE_EO, acajou_1: ACAJOU_1, acajou_2: ACAJOU_2, acajou_3: ACAJOU_3,
     tour_1: TOUR_1, tour_2: TOUR_2, tour_3: TOUR_3, arene: ARENE, ecole: ECOLE, antre: ANTRE,
   },
   mondes: {
-    johto: MONDE_JOHTO,
+    johto: MONDE_JOHTO, acajou: MONDE_ACAJOU,
+    centre_acajou: interieur('centre', 'CENTRE_ACAJOU'), centre_acajou_b1f: interieur('centre_b1f', 'CENTRE_ACAJOU_B1F'),
+    boutique_acajou: interieur('boutique', 'BOUTIQUE_ACAJOU'), maison_acajou: interieur('voisin', 'MAISON_ACAJOU'),
     maison_1f: interieur('maison_1f', 'MAISON_1F'), maison_2f: interieur('maison_2f', 'MAISON_2F'),
     labo: interieur('labo', 'LABO_ORME'), voisin: interieur('voisin', 'MAISON_VOISIN'), maison_rival: interieur('voisin', 'MAISON_RIVAL'),
     poste_46: interieur('poste', 'POSTE_46'), poste_31: interieur('poste_eo', 'POSTE_31'), poste_36: interieur('poste_eo', 'POSTE_36'),
@@ -727,3 +757,41 @@ export const JOHTO = {
   zones: ZONES,
 };
 export const DEPART = { zone: 'MAISON_2F', x: 5, y: 7, dir: BAS };
+
+/** sortie de l'Arène de Frimapic : devant le Centre POKéMON d'Acajou */
+export const SORTIE_FRIMAPIC = { vers: 'ACAJOU', n: 1 };
+/**
+ * Johto avec l'Arène de Frimapic de Platine (donnees/platine.js, construite au chargement depuis les fichiers du jeu) :
+ * une dresseuse de SINNOH, au Centre d'Acajou, y emmène.
+ */
+export function avecFrimapic(r) {
+  const c = ZONES.CENTRE_ACAJOU;
+  return {
+    ...JOHTO,
+    blocs: { ...JOHTO.blocs, ...r.blocs },
+    mondes: { ...JOHTO.mondes, ...r.mondes },
+    zones: {
+      ...JOHTO.zones, ...r.zones,
+      CENTRE_ACAJOU: {
+        ...c,
+        objets: [...c.objets, { id: 'sinnoh', x: 12, y: 16, sprite: 'topdresseur_neige_f', dir: BAS, script: 'VersFrimapic' }],
+        scripts: c.scripts + `
+script VersFrimapic
+  regarder_joueur
+  message "Je viens de SINNOH, de la ville de FRIMAPIC.\\nSon ARÈNE est une cuvette de glace pleine de boules de neige !"
+  message "Tu veux voir ? Je t'y emmène."
+  oui_non
+  si resultat = 0 aller VersFrimapic_Non
+  fondu_noir
+  teleporter ARENE_FRIMAPIC 0
+  liberer
+  fin
+VersFrimapic_Non:
+  message "Une autre fois, alors !"
+  liberer
+  fin
+`,
+      },
+    },
+  };
+}

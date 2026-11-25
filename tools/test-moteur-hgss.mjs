@@ -539,9 +539,15 @@ console.log('Arène d\'Acajou : trois salles de glace (positions de HGSS)');
   T.etat.equipe.push({ espece: 'Kaiminus', niveau: 30, pv: 1, pvMax: 1 });
   T.compteurRencontre = 1e9;
   parler(T, HAUT); lire(T, [0]);
-  attendre(T, () => T.zone?.id === 'ARENE_ACAJOU_1' && !T.transition && !j.m, 600);
+  attendre(T, () => T.zone?.id === 'ACAJOU' && !T.transition && !j.m, 600);
+  const A = (x, y) => ({ x: x - 512, y: y - 160 });
+  assert.deepEqual([j.x, j.y], [A(534, 184).x, A(534, 184).y], 'devant le Centre d\'Acajou');
+  // la ville : portes aux positions de HGSS ; on entre dans l'arène
+  const wa = JOHTO.zones.ACAJOU.warps.map((w) => [w.x + 512, w.y + 160]);
+  assert.deepEqual(wa, [[523, 183], [534, 183], [528, 174], [537, 174]]);
+  await aller(T, A(523, 184).x, A(523, 184).y); entrer(T, HAUT, 'ARENE_ACAJOU_1');
   assert.deepEqual([j.x, j.y], [4, 19]);
-  ok('le voyageur du Centre de Mauville emmène à l\'Arène d\'Acajou');
+  ok('le voyageur du Centre de Mauville emmène à Acajou ; portes de l\'arène, du Centre, de la boutique et de la maison aux places de HGSS');
   // les dresseurs de l'arène comptent comme battus pendant la recherche (ils ne coupent pas une glissade)
   for (const z of ['ARENE_ACAJOU_2', 'ARENE_ACAJOU_3'])
     for (const o of JOHTO.zones[z].objets) if (o.dresseur && !o.dresseur.champion) T.etat.drapeaux.add(`DRESSEUR_${z}_${o.id}`);
@@ -591,8 +597,87 @@ console.log('Arène d\'Acajou : trois salles de glace (positions de HGSS)');
   const d2 = resoudre((x, y, d, xs, ys) => x === null && d === BAS && xs === 6 && ys === 14);
   jouer(d2); attendre(T, () => T.zone?.id === 'ARENE_ACAJOU_1' && !T.transition && !j.m, 600);
   const d1 = resoudre((x, y) => x === 4 && y === 19);
-  jouer(d1); tenir(T, null, 3); entrer(T, BAS, 'MAUVILLE');
+  jouer(d1); tenir(T, null, 3); entrer(T, BAS, 'ACAJOU');
+  assert.deepEqual([j.x, j.y], [A(523, 184).x, A(523, 184).y], 'ressorti devant l\'arène d\'Acajou');
   ok('FRIGO battu, BADGE GLACIER ; on redescend les trois salles jusqu\'à la sortie');
+}
+
+console.log('Arène de Frimapic (Platine) : construite depuis les fichiers du jeu');
+{
+  // les fichiers viennent d'un clone local de pret/pokeplatinum (PLAT=<dossier>) ; sans lui, on passe
+  const { existsSync } = await import('node:fs');
+  const { readFile } = await import('node:fs/promises');
+  const PLAT = process.env.PLAT || '/tmp/ext/plat';
+  if (!existsSync(PLAT + '/res/field/mapmodels/data/map_data_234.bin')) console.log('  (clone de pokeplatinum absent : PLAT=<dossier>)');
+  else {
+    const { frimapic } = await import(B + 'donnees/platine.js');
+    const { avecFrimapic, SORTIE_FRIMAPIC } = await import(B + 'donnees/johto.js');
+    const r = await frimapic((c) => readFile(PLAT + '/' + c).then((b) => new Uint8Array(b)), SORTIE_FRIMAPIC);
+    const D = avecFrimapic(r), Z = D.zones.ARENE_FRIMAPIC, b = r.blocs.frimapic;
+    // la salle du jeu : 497 cases de glace, la sortie en (11, 28), GLADYS en (11, 3), 19 boules, 6 Topdresseurs
+    assert.equal(b.mb.filter((m) => m === MB.GLACE).length, 497);
+    assert.deepEqual([Z.warps[0].x, Z.warps[0].y], [11, 28]);
+    assert.deepEqual(Z.objets.filter((o) => o.boule).length, 19);
+    assert.deepEqual(Z.objets.filter((o) => o.dresseur && !o.dresseur.champion).length, 6);
+    const gl = Z.objets.find((o) => o.id === 'candice'); assert.deepEqual([gl.x, gl.y], [11, 3]);
+    assert.ok(auditer(D, DEPART).erreurs.length === 0, 'audit avec Frimapic : ' + auditer(D, DEPART).erreurs.slice(0, 3));
+    ok('la salle vient du jeu : 497 cases de glace, relief en pente, GLADYS, 6 Topdresseurs, 19 boules, sortie ; audit sans erreur');
+    // règles de la glace à pentes
+    const T = new Terrain(D, { graine: 3 });
+    T.demarrer({ zone: 'ARENE_FRIMAPIC', x: 11, y: 28, dir: HAUT });
+    const j = T.joueur;
+    for (const o of Z.objets) if (o.dresseur && !o.dresseur.champion) T.etat.drapeaux.add(`DRESSEUR_ARENE_FRIMAPIC_${o.id}`);
+    const boules = Z.objets.filter((o) => o.boule).map((o) => o.id);
+    /** un coup depuis (x, y) avec les boules `cassees` déjà brisées : rend [x, y, cassées] */
+    const essai = (x, y, cassees, d) => {
+      for (const id of boules) { const f = 'TMP_BOULE_' + id; if (cassees.includes(id)) T.etat.drapeaux.add(f); else T.etat.drapeaux.delete(f); }
+      T.majVisibles(); T.placerJoueur(x, y, d); T.continu = false; j.vGlace = 0; j.apresRecul = false;
+      T.pas({ dir: d }); attendre(T, () => !j.m && !T.transition, 900);
+      // la sortie mène hors de l'arène : ce coup ne compte pas, on y revient
+      if (T.zone?.id !== 'ARENE_FRIMAPIC') { T.demarrer({ zone: 'ARENE_FRIMAPIC', x: 11, y: 27, dir: HAUT }); return null; }
+      if (j.x === x && j.y === y) return null;
+      return [j.x, j.y, boules.filter((id) => T.etat.drapeaux.has('TMP_BOULE_' + id))];
+    };
+    // une pente se monte seulement avec de l'élan ; sans élan, on recule d'une case
+    { const r1 = essai(11, 27, [], HAUT); assert.ok(r1, 'on avance sur la glace'); }
+    assert.deepEqual(essai(15, 9, [], HAUT).slice(0, 2), [15, 8], 'sans élan, on ne monte pas la pente : on redescend d\'une case');
+    assert.deepEqual(essai(11, 10, [], HAUT).slice(0, 2), [11, 9], 'sans élan, la boule de neige arrête la glissade');
+    { const r2 = essai(2, 8, [], DROITE); assert.deepEqual(r2.slice(0, 2), [19, 8]); assert.equal(r2[2].length, 5, 'en descendant la pente, on brise les cinq boules de la rangée'); }
+    const cle = (x, y, c) => x + ',' + y + ':' + c.join('|');
+    const prev = new Map([[cle(11, 27, []), null]]); let file = [[11, 27, []]], fin = null, etats = 0;
+    while (file.length && !fin) {
+      const f2 = [];
+      for (const [x, y, c] of file) {
+        for (let d = 0; d < 4 && !fin; d++) {
+          const n = essai(x, y, c, d); etats++;
+          if (!n) continue;
+          const k = cle(...n);
+          if (prev.has(k)) continue;
+          prev.set(k, [cle(x, y, c), d]);
+          if (n[0] === 11 && n[1] === 4) fin = k;
+          f2.push(n);
+        }
+        if (fin) break;
+      }
+      file = f2;
+    }
+    assert.ok(fin, `GLADYS atteinte (${prev.size} états explorés)`);
+    const coups = []; for (let k = fin; prev.get(k); k = prev.get(k)[0]) coups.unshift(prev.get(k)[1]);
+    const cassees = fin.split(':')[1].split('|').filter(Boolean);
+    assert.ok(cassees.length >= 1, 'il faut briser des boules de neige pour arriver jusqu\'à elle');
+    ok(`glace à pentes de Platine : élan en descente, recul en montée, boules brisées avec de l'élan ; GLADYS atteinte en ${coups.length} coups (${cassees.length} boules brisées, ${prev.size} états)`);
+    // la partie jouée pour de bon : depuis l'entrée, la solution, puis le combat
+    T.demarrer({ zone: 'ARENE_FRIMAPIC', x: 11, y: 27, dir: HAUT });
+    for (const o of Z.objets) if (o.dresseur && !o.dresseur.champion) T.etat.drapeaux.add(`DRESSEUR_ARENE_FRIMAPIC_${o.id}`);
+    for (const id of boules) T.etat.drapeaux.delete('TMP_BOULE_' + id);
+    T.majVisibles();
+    T.etat.equipe.push({ espece: 'Kaiminus', niveau: 50, pv: 1, pvMax: 1 });
+    for (const d of coups) { tenir(T, d, 1); attendre(T, () => !j.m && !T.transition, 900); if (!calme(T)) lire(T); }
+    assert.deepEqual([j.x, j.y], [11, 4]);
+    parler(T, HAUT); lire(T);
+    assert.ok(T.etat.drapeaux.has('BADGE_GLACON'));
+    ok('la solution rejouée dans la vraie partie : GLADYS battue, BADGE GLAÇON');
+  }
 }
 
 console.log(`\n${n} vérifications passées.`);

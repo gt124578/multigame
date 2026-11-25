@@ -57,7 +57,8 @@ export class ObjetTerrain {
     }
     this.saut = m.type === 'saut' ? Math.sin(Math.PI * k) * (m.vx === m.dx && m.vy === m.dy ? 0.35 : 0.6) : 0;
     // planche HGSS : [debout, pied A, debout, pied B] ; on lève le pied pendant la première moitié du pas
-    this.frame = m.type === 'tour' ? 0 : (k < 0.5 ? (this.pied ? 1 : 3) : 0);
+    // sur la glace on glisse debout, sans faire de pas
+    this.frame = m.type === 'tour' || m.type === 'glisse' || m.type === 'recul' ? 0 : (k < 0.5 ? (this.pied ? 1 : 3) : 0);
     if (m.t >= m.duree) {
       this.x = m.vx; this.y = m.vy; this.px = this.x; this.py = this.y; this.saut = 0; this.frame = 0;
       this.m = null;
@@ -99,9 +100,12 @@ export function testerPas(M, o, dir, opts = {}) {
   if (pc.surf && !opts.surf) return heurt('eau');
   if (opts.pnj && (pc.warp || pc.tapis)) return heurt('porte');
   if (opts.velo && pc.pasVelo) return heurt('velo');
-  // hauteurs : même niveau, ou marches franchies dans l'axe haut / bas
+  // cases bloquées dans un axe (on ne les traverse que dans l'autre)
+  const axe = dir <= 1 ? 'ns' : 'eo';
+  if (pd.bloque === axe || pc.bloque === axe) return heurt('sens');
+  // hauteurs : même niveau, ou marches franchies dans l'axe haut / bas (un monde « à pentes » suit son relief)
   const h0 = M.hauteurCase(x, y), h1 = M.hauteurCase(nx, ny);
-  if (h0 !== h1) {
+  if (h0 !== h1 && !M.pentes) {
     const marches = (pc.marches || pd.marches) && (dir === 0 || dir === 1) && Math.abs(h1 - h0) <= 1;
     if (!marches) return heurt('hauteur');
   }

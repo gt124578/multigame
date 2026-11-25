@@ -439,8 +439,7 @@ const ARENE = { nom: 'Acajou', annonce: false, musique: 'glace', camera: 'interi
 export const ZONES_ACAJOU = {
   ARENE_ACAJOU_1: {
     ...ARENE,
-    // la sortie ramène devant le Centre POKéMON de Mauville (Acajou n'est pas encore construite)
-    warps: [{ x: 4, y: 19, vers: 'MAUVILLE', n: 1 }, { x: 3, y: 2, vers: 'ARENE_ACAJOU_2', n: 0, sortie: BAS }],
+    warps: [{ x: 4, y: 19, vers: 'ACAJOU', n: 0 }, { x: 3, y: 2, vers: 'ARENE_ACAJOU_2', n: 0, sortie: BAS }],
     panneaux: [{ x: 2, y: 18, depuis: HAUT, script: 'Statue' }, { x: 6, y: 18, depuis: HAUT, script: 'Statue' }],
     objets: [
       { id: 'guide', x: 5, y: 17, sprite: 'lunettes', dir: BAS, script: 'GuideGlace' },

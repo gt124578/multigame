@@ -7,12 +7,20 @@
 import { Terrain } from './engine/terrain.js';
 import { PAS_PAR_SECONDE } from './engine/const.js';
 import { DEMO } from './donnees/demo.js';
-import { JOHTO, DEPART } from './donnees/johto.js';
+import { JOHTO, DEPART, avecFrimapic, SORTIE_FRIMAPIC } from './donnees/johto.js';
+import { frimapic, PLATINE } from './donnees/platine.js';
 import { Rendu } from './render/rendu.js';
 import { PontOdyssee } from './odyssee.js';
 
 const Q = new URLSearchParams(location.search);
-const DONNEES = Q.has('demo') ? DEMO : JOHTO;
+let DONNEES = Q.has('demo') ? DEMO : JOHTO;
+// l'Arène de Frimapic (Platine) se construit à partir des fichiers du jeu, lus dans le dépôt de la décompilation
+if (!Q.has('demo')) {
+  try {
+    const lire = async (c) => { const r = await fetch((Q.get('platine') || PLATINE) + c); if (!r.ok) throw new Error(c + ' : ' + r.status); return new Uint8Array(await r.arrayBuffer()); };
+    DONNEES = avecFrimapic(await frimapic(lire, SORTIE_FRIMAPIC));
+  } catch (e) { console.warn('Arène de Frimapic indisponible :', e.message || e); }
+}
 const DEBUT = Q.has('demo') ? { zone: 'MAISON_2F', x: 14, y: 13 } : DEPART;
 const CLE = 'odyssee-moteur-hgss' + (Q.has('demo') ? '-demo' : '-johto');
 const $ = (id) => document.getElementById(id);
@@ -68,7 +76,7 @@ if (Q.get('zone')) T.demarrer({ zone: Q.get('zone'), x: Q.has('x') ? +Q.get('x')
 else if (sauvegarde) { try { T.demarrer({ sauvegarde }); } catch (e) { console.warn('sauvegarde illisible', e); T.demarrer(DEBUT); } }
 else T.demarrer(DEBUT);
 
-const R = new Rendu($('vue'), T, { pack: Q.get('pack') || 'hgss' });
+const R = new Rendu($('vue'), T, { pack: Q.get('pack') || 'hgss', platine: Q.get('platine') || undefined });
 await R.charger();
 const taille = () => { const c = $('cadre'); R.taille(c.clientWidth, c.clientHeight); };
 addEventListener('resize', taille); taille();

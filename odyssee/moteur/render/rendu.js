@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { BLOC, MB } from '../engine/const.js';
 import { chargerTout, facade, toit, texture, PACK_HGSS } from './textures.js';
 import { Batiments3D, PRET } from './modeles3d.js';
+import { ModelesPlatine } from './platine3d.js';
 
 /** un niveau de hauteur = trois quarts de case, comme dans Odyssée */
 export const NIV = 0.75;
@@ -25,6 +26,8 @@ export class Rendu {
     // vrais bâtiments de HGSS (lus sur pret) : quand ils arrivent, les blocs sont refaits avec eux
     this.b3d = new Batiments3D();
     if (this.pack) this.b3d.charger(opts.pret || PRET).then((ok) => { if (ok) this.refaire = true; });
+    // modèles de Platine (Arène de Frimapic), chargés quand un bloc en a besoin
+    this.pt = new ModelesPlatine(opts.platine);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.renderer.setClearColor(0x000000);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -95,7 +98,7 @@ export class Rendu {
     const M = this.T.M;
     const s = this.T.d.sols[M.sol(x, y)];
     if (!M.dedans(x, y) || s === 'vide') return -1;
-    return M.hauteurCase(x, y) * NIV + this.dresse(x, y, s);
+    return M.hauteurCase(x, y) * this.niv() + this.dresse(x, y, s);
   }
   /** un mur se dresse, sauf la rangée du bas d'une pièce (sol praticable juste au nord) : on voit dans la pièce */
   dresse(x, y, s) {
@@ -120,6 +123,17 @@ export class Rendu {
       ix.push(n, n + 1, n + 2, n, n + 2, n + 3);
     };
     const x0 = bx * BLOC, y0 = by * BLOC;
+    // carte de Platine : son vrai modèle 3D (dès qu'il est chargé ; avant, le sol dessiné par cases)
+    const tp = M.blocs[by * M.lb + bx].decor.find((d) => d.type === 'terrain_pt');
+    if (tp && this.pack) {
+      if (this.pt.pret('terrain:' + tp.carte)) {
+        const o = this.pt.copie('terrain:' + tp.carte);
+        o.position.set(x0 + BLOC / 2, 0, y0 + BLOC / 2);
+        g.add(o);
+        return g;
+      }
+      this.pt.chargerTerrain(tp).then((ok) => { if (ok) this.refaire = true; });
+    }
     // sous un escalier qui descend, le sol est ouvert : on voit les marches s'enfoncer
     const creux = new Set();
     for (const d of M.blocs[by * M.lb + bx].decor) if (d.type === 'meuble' && d.creux)
@@ -180,7 +194,7 @@ export class Rendu {
       const im = new THREE.InstancedMesh(pg, mat, liste.length);
       const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Vector3(1, k, 1);
       liste.forEach((d, i) => {
-        const x = x0 + d.x, y = y0 + d.y, h = M.hauteurCase(x, y) * NIV;
+        const x = x0 + d.x, y = y0 + d.y, h = M.hauteurCase(x, y) * this.niv();
         m4.compose(new THREE.Vector3(x + 0.5, h, y + PIEDS), q, e);
         im.setMatrixAt(i, m4);
       });
@@ -198,7 +212,7 @@ export class Rendu {
    */
   meuble(d, x0, y0, incl) {
     const M = this.T.M, x = x0 + d.x, y = y0 + d.y, l = d.l ?? 1, p = d.p ?? 1;
-    const h = M.hauteurCase(x, y) * NIV + (d.dy ?? 0);
+    const h = M.hauteurCase(x, y) * this.niv() + (d.dy ?? 0);
     // accroché au mur : les modèles muraux de HGSS ont leur origine 0,13 case derrière leur face ; un rien devant le mur
     const cx = x + l / 2 + (d.dx ?? 0), cz = (d.mur ? y + 1 + 0.16 : y + p / 2) + (d.dz ?? 0);
     if (this.b3d.a(d.m)) {
@@ -230,14 +244,14 @@ export class Rendu {
     const cote = new THREE.MeshBasicMaterial({ color: new THREE.Color(face).multiplyScalar(0.7) });
     const mats = [cote, cote, new THREE.MeshBasicMaterial({ color: dessus }), cote, new THREE.MeshBasicMaterial({ map: t }), cote];
     const m = new THREE.Mesh(new THREE.BoxGeometry(l, H, p - 0.1), mats);
-    m.position.set(x + l / 2, this.T.M.hauteurCase(x, y) * NIV + H / 2, y + (p + 0.1) / 2);
+    m.position.set(x + l / 2, this.T.M.hauteurCase(x, y) * this.niv() + H / 2, y + (p + 0.1) / 2);
     m.userData.propre = 'tout';
     return m;
   }
   batiment(b, x0, y0) {
     const g = new THREE.Group();
     const x = x0 + b.x, z = y0 + b.y, l = b.l, p = b.p;
-    const h = this.T.M.hauteurCase(x, z + p - 1) * NIV;
+    const h = this.T.M.hauteurCase(x, z + p - 1) * this.niv();
     // le vrai modèle de HGSS : centré sur la porte, façade sur le bord sud de l'emprise
     if (b.m3d && this.b3d.a(b.m3d)) {
       const o = this.b3d.objet(b.m3d), bt = this.b3d.boite(b.m3d);
@@ -289,6 +303,8 @@ export class Rendu {
     return g;
   }
   inclinaison() { return this.T.camera?.inclinaison ?? 52; }
+  /** hauteur d'un niveau en cases : 0,75 (comme Odyssée), ou celle du monde (Platine : demi-cases) */
+  niv() { return this.T.M?.niv ?? NIV; }
   /**
    * Les personnages et le décor plat sont des plans DEBOUT (comme sur DS), étirés en hauteur de 1 / cos(inclinaison) :
    * vus par la caméra plongeante, ils gardent leur taille de dessin, et un personnage devant un comptoir ou un meuble
@@ -302,6 +318,15 @@ export class Rendu {
     if (s) return s;
     const g = new THREE.Group();
     let mat, n = 1, l = 2, h = 2;
+    if (o.def?.modele3d === 'boule') {
+      // boule de neige de Frimapic : son modèle de Platine, sinon une boule blanche
+      const m3 = this.pt.pret('boule') ? this.pt.copie('boule') : new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 8).translate(0, 0.45, 0), new THREE.MeshBasicMaterial({ color: 0xf4f8ff }));
+      if (!this.pt.pret('boule')) { m3.userData.propre = 'mat'; this.pt.chargerBoule('res/graphics/field_effects/snowpoint_gym_snowball.nsbmd').then((ok) => { if (ok) { this.defaireSprite(this.sprites.get(o)); this.sprites.delete(o); } }); }
+      g.add(m3); this.scene.add(g);
+      s = { g, modele: m3, n: 0 };
+      this.sprites.set(o, s);
+      return s;
+    }
     if (DECOR_OBJET[o.def?.type]) {
       const D = this.A.decor[DECOR_OBJET[o.def.type]]; mat = new THREE.MeshBasicMaterial({ map: D.tex, transparent: true, alphaTest: 0.5 }); l = D.l; h = D.h;
     } else {
@@ -329,7 +354,9 @@ export class Rendu {
     return s;
   }
   defaireSprite(s) {
+    if (!s) return;
     this.scene.remove(s.g);
+    if (s.modele) { s.g.traverse((o) => { if (o.userData.propre) { o.geometry?.dispose(); o.material?.dispose(); } }); return; }
     s.g.traverse((o) => { if (o.geometry && o !== s.ombre) o.geometry.dispose(); if (o.material && o !== s.ombre && o !== s.corps) o.material.dispose(); });
     for (const m of [s.mat, s.matVelo]) if (m) { m.map?.dispose(); m.dispose(); }
   }
@@ -337,13 +364,14 @@ export class Rendu {
     const T = this.T, M = T.M, s = this.sprite(o);
     s.g.visible = o.visible;
     if (!o.visible) return;
+    if (s.modele) { s.g.position.set(o.x + 0.5, M.hauteurCase(o.x, o.y) * this.niv(), o.y + 0.5); return; }
     let h = M.hauteurCase(o.x, o.y);
     if (o.m && (o.m.vx !== o.m.dx || o.m.vy !== o.m.dy)) {
       const k = Math.min(1, o.m.t / o.m.duree);
       h = M.hauteurCase(o.m.dx, o.m.dy) + (M.hauteurCase(o.m.vx, o.m.vy) - M.hauteurCase(o.m.dx, o.m.dy)) * k;
     }
     const surf = joueur && T.mode === 'surf';
-    const y = h * NIV;
+    const y = h * this.niv();
     s.g.position.set(o.px + 0.5, y, o.py + PIEDS);
     const k = this.etirement();
     s.corps.scale.y = k; s.herbe.scale.y = k; s.bulle.scale.y = k;
@@ -383,7 +411,7 @@ export class Rendu {
     this.A.eau.offset.y = (((temps / 250) | 0) % 4) * 0.25;
     // caméra : celle de la zone, centrée sur le joueur
     const c = T.camera, incl = THREE.MathUtils.degToRad(c.inclinaison);
-    const cible = new THREE.Vector3(c.x, c.z * NIV + 0.5, c.y);
+    const cible = new THREE.Vector3(c.x, c.z * this.niv() + 0.5, c.y);
     const sec = T.secousse > 0 ? Math.sin(temps / 20) * 0.08 : 0;
     const dist = c.distance * (this.zoom || 1);
     this.camera.position.set(cible.x + sec, cible.y + Math.sin(incl) * dist, cible.z + Math.cos(incl) * dist);

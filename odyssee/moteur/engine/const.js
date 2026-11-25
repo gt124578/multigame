@@ -24,6 +24,8 @@ export const PAS_PAR_SECONDE = 60;
 /** durée d'un déplacement d'une case, en pas (marche HGSS : 16 images à 60 i/s) */
 /** vélo de HGSS : il démarre doucement et prend de l'élan pas après pas (durée de chaque pas, puis la croisière) */
 export const ELAN_VELO = [12, 8, 6, 4];
+/** glace à pentes (Arène de Frimapic, Platine) : durée d'une case de glissade selon la vitesse 0 à 3 */
+export const VITESSE_GLACE = [8, 6, 4, 2];
 
 export const VITESSE = {
   marche: 16,
@@ -69,11 +71,13 @@ export const MB = {
   COMPTOIR: 24,      // on parle par-dessus (vendeurs)
   TROU: 25,          // on tombe à l'étage du dessous
   NEIGE: 26,         // empreintes, pas de vélo
+  BLOQUE_NS: 27,     // on n'y entre ni n'en sort vers le nord ou le sud (Platine : TILE_BEHAVIOR_BLOCK_NORTH_AND_SOUTH)
+  BLOQUE_EO: 28,     // de même vers l'est ou l'ouest
 };
 
 const P = (o) => Object.freeze({
   rencontre: null, surf: false, glisse: false, force: null, rebord: null, warp: null, tapis: null,
-  pasCourse: false, pasVelo: false, comptoir: false, marches: false, ...o,
+  pasCourse: false, pasVelo: false, comptoir: false, marches: false, bloque: null, ...o,
 });
 
 /** propriétés de chaque comportement */
@@ -104,6 +108,8 @@ export const PROPS = (() => {
   t[MB.COMPTOIR] = P({ comptoir: true });
   t[MB.TROU] = P({ warp: 'chute' });
   t[MB.NEIGE] = P({ pasVelo: true });
+  t[MB.BLOQUE_NS] = P({ bloque: 'ns' });
+  t[MB.BLOQUE_EO] = P({ bloque: 'eo' });
   return Object.freeze(t);
 })();
 

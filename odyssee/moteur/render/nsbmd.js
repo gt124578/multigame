@@ -279,6 +279,16 @@ function lireTextures(L, o) {
   return { textures, palettes, decoder };
 }
 
+/** un jeu de textures séparé (NSBTX, bloc BTX0 → TEX0) : celui des cartes de Platine → { decoder, textures } */
+export function lireNsbtx(buf) {
+  const L = new Lecteur(buf);
+  if (L.tag(0) !== 'BTX0') throw new Error('pas un jeu de textures NSBTX');
+  const o = L.u32(0x10);
+  if (L.tag(o) !== 'TEX0') throw new Error('NSBTX sans TEX0');
+  const T = lireTextures(L, o);
+  return { decoder: T.decoder, textures: T.textures };
+}
+
 /** un fichier NSBMD → { modeles: [...], decoder(nomTex, nomPal) } */
 export function lireNsbmd(buf) {
   const L = new Lecteur(buf);
