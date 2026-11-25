@@ -4,6 +4,7 @@
 //   ?nouveau            nouvelle partie (ignore la sauvegarde)
 //   ?zone=ID&x=..&y=..  départ ailleurs
 //   ?debug              window.__moteur (terrain, rendu) et infos affichées
+//   ?tout               chaussures de course et vélo dès le départ
 import { Terrain } from './engine/terrain.js';
 import { PAS_PAR_SECONDE } from './engine/const.js';
 import { DEMO } from './donnees/demo.js';
@@ -75,6 +76,13 @@ const sauvegarde = !Q.has('nouveau') && localStorage.getItem(CLE);
 if (Q.get('zone')) T.demarrer({ zone: Q.get('zone'), x: Q.has('x') ? +Q.get('x') : undefined, y: Q.has('y') ? +Q.get('y') : undefined });
 else if (sauvegarde) { try { T.demarrer({ sauvegarde }); } catch (e) { console.warn('sauvegarde illisible', e); T.demarrer(DEBUT); } }
 else T.demarrer(DEBUT);
+// une sauvegarde d'avant une retouche de carte peut poser le joueur dans un mur ou hors de la pièce : on repart du début
+{
+  const j = T.joueur, s = T.d.sols[T.M.sol(j.x, j.y)];
+  if (!T.M.dedans(j.x, j.y) || T.M.bloquee(j.x, j.y) || s === 'vide') { console.warn('position de la sauvegarde hors carte : nouveau départ'); T.demarrer(DEBUT); }
+}
+// ?tout : chaussures de course et vélo tout de suite (pour essayer)
+if (Q.has('tout')) { T.etat.drapeaux.add('CHAUSSURES'); T.etat.sac.velo = 1; }
 
 const R = new Rendu($('vue'), T, { pack: Q.get('pack') || 'hgss', platine: Q.get('platine') || undefined });
 await R.charger();
