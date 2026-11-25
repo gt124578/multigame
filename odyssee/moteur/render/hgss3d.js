@@ -62,7 +62,7 @@ export class ModelesHGSS {
       const T = lireTerrainHG(this.terrains[d.carte]);
       const g = new THREE.Group();
       const tex = this.jeuTextures(d.zone);
-      for (const modele of lireNsbmd(T.modele).modeles) g.add(this.b.construire({ fichier: { decoder: tex.decoder }, modele }));
+      for (const modele of lireNsbmd(T.modele).modeles) { const s = this.b.construire({ fichier: { decoder: tex.decoder }, modele }); s.userData.sol = true; g.add(s); }
       const archive = d.interieur ? ADRESSE_MEUBLES : ADRESSE_BATIMENTS;
       for (const b of T.batiments) {
         // les effets qui couvrent toute la carte (vent, ciel : en_sky, wind) sont animés par le jeu ; on ne les pose pas
@@ -71,6 +71,8 @@ export class ModelesHGSS {
         const o = this.b.objetIndice(archive, b.id);
         if (!o) continue;
         o.position.set(b.x, b.y, b.z);
+        // repère pour les modèles faits à la main (remplacements.json) : numéro du bâtiment, ou « meuble:n » dedans
+        o.userData.batiment = (d.interieur ? 'meuble:' : '') + b.id;
         g.add(o);
       }
       g.traverse((o) => { o.userData.partage = true; });

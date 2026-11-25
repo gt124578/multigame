@@ -77,6 +77,24 @@ lui-même. La page les lit **à la volée** dans ce dépôt public (gardées ens
   Îles Tourbillon, Mont Argenté). Pas encore : l'Aquaria (le bateau), la Tour Carillon, le Parc Safari, le Train
   Magnétique, la ligue au-delà de l'entrée dans l'audit (les salles du Conseil 4 s'ouvrent par des scripts que l'audit
   ne suit pas), les mini-jeux (Casino, Pokéathlon, Zone de Combat), le téléphone, les échanges et les surnoms.
+- Labo (`moteur.html?labo`, `render/labo.js`), comme Odyssée Test : la liste de tous les lieux du jeu (villes, routes,
+  arènes, ligue, grottes et tours, centres et boutiques, intérieurs ; recherche), téléportation (touche J ; la carte est
+  chargée en route, une scène en cours est arrêtée), lieu suivant / précédent (N, Maj + N) pour tout passer en revue,
+  revue des lieux (bon / à revoir, avec une note, gardée par le navigateur, copiable) ; réglages d'essai du moteur
+  (`T.reglages` : `rencontres`, `dresseurs` qui défient en voyant le joueur, `murs`), combats gagnés d'office, vitesse,
+  équipes toutes faites, badges, toutes les CS, chaussures, vélo, argent ; lieu, carte et bâtiment le plus proche en
+  haut à gauche ; gabarit de la carte en .obj pour Blender.
+- Vitesse : touche T (×1 / ×2), Maj + T (×4), `?vitesse=2` : le moteur fait plusieurs pas par pas de temps (marche,
+  scripts, textes) ; les combats d'Odyssée gardent leur vitesse.
+- Modèles faits à la main (Blender, glTF) à la place de ceux du jeu : cartes, bâtiments, personnages (animés), objets,
+  déclarés dans `modeles/remplacements.json` (`render/remplacements.js`, conventions dans `modeles/LISEZMOI.md`).
+- À-coups : les 3 × 3 blocs autour du joueur sont construits un par image (tous d'un coup dans le noir d'une
+  transition), la couronne suivante en avance avec ses textures envoyées à la carte graphique, et un bloc n'est défait
+  qu'à plus de trois blocs ; le modèle de traduction tourne dans un fil à part (`render/traduction-worker.js`), une
+  phrase affichée passe devant celles traduites en avance, et le cache des traductions n'est écrit qu'au plus toutes les
+  20 s. Mesure : `node tools/perf-moteur-hgss.mjs "<paramètres>" "<touches>"` (images, tâches longues, profil du
+  JavaScript) ; `node tools/test-moteur-hgss-labo.mjs` (Playwright) teste le labo, la vitesse, les modèles glTF et
+  l'absence d'à-coup en marchant.
 - Pour l'instant à côté : les écrans propres au jeu (Pokégear, boîte de choix du starter dessinée, surnom ; le nom du
   rival se demande par une simple question), les combats doubles.
 

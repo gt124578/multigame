@@ -7,6 +7,8 @@
 //   ?tout               chaussures de course et vélo dès le départ
 //   ?demo               la petite zone d'essai au lieu du jeu
 //   ?pret=URL           autre copie des fichiers de la décompilation
+//   ?labo               le labo : tous les lieux (téléportation, revue), rencontres, dresseurs, combats, murs, équipe
+//   ?vitesse=2          le jeu va deux fois plus vite (touche T : ×1 / ×2, Maj + T : ×4)
 import { Terrain } from './engine/terrain.js';
 import { PAS_PAR_SECONDE } from './engine/const.js';
 import { DEMO } from './donnees/demo.js';
@@ -18,6 +20,7 @@ import { ModelesHGSS } from './render/hgss3d.js';
 import { PontOdyssee } from './odyssee.js';
 import { CarteRegion } from './render/carte-region.js';
 import { Traducteur, messagesDe } from './render/traduction.js';
+import { Remplacements } from './render/remplacements.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
@@ -56,7 +59,18 @@ const TOUCHES = {
   KeyZ: 'haut', KeyQ: 'gauche',
   Space: 'a', Enter: 'a', KeyF: 'a', KeyK: 'a', Escape: 'b', Backspace: 'b', KeyX: 'b', KeyL: 'b',
   ShiftLeft: 'course', ShiftRight: 'course', CapsLock: 'toujours', KeyV: 'velo', KeyO: 'sauver', F3: 'debug', KeyG: 'qualite', Tab: 'menu', KeyM: 'menu', KeyC: 'carte',
+  KeyT: 'vitesse',
 };
+// vitesse du jeu : le moteur fait 1, 2 ou 4 pas par pas de temps (marche, scripts, textes, tout va plus vite)
+let vitesse = Math.max(1, Math.min(8, +Q.get('vitesse') || 1));
+// combats : « jouer » (écrans d'Odyssée) ou « gagner » d'office (labo)
+let combats = 'jouer', labo = null, repereVitesse = null;
+function regler(v) {
+  vitesse = v;
+  if (repereVitesse) { repereVitesse.textContent = '⏩ ×' + v; repereVitesse.style.display = v > 1 ? 'block' : 'none'; }
+  labo?.majBarre();
+}
+try { if (Q.has('labo')) combats = JSON.parse(localStorage.getItem('moteur-hgss-labo') || '{}').combats || 'jouer'; } catch { /* rien */ }
 const DIRS = ['haut', 'bas', 'gauche', 'droite'];
 const tenues = new Set(), ordre = [], appuis = new Set();
 let courseAuto = false, carte = null;
@@ -71,6 +85,7 @@ addEventListener('keydown', (e) => {
     return;
   }
   if (k === 'toujours') { courseAuto = !courseAuto; return; }
+  if (k === 'vitesse') { regler(e.shiftKey ? (vitesse === 4 ? 1 : 4) : (vitesse === 1 ? 2 : 1)); return; }
   tenues.add(k); appuis.add(k);
   if (DIRS.includes(k)) { ordre.splice(ordre.indexOf(k) >>> 0, ordre.includes(k) ? 1 : 0); ordre.push(k); }
 });
@@ -187,12 +202,26 @@ setInterval(() => {
 if (Q.has('tout')) { T.etat.drapeaux.add('CHAUSSURES'); T.etat.drapeaux.add('TOUT_CS'); T.etat.sac.velo = 1; }
 
 carte = G ? new CarteRegion($('cadre'), T) : null;
-const R = new Rendu($('vue'), T, { pack: Q.get('pack') || 'hgss', platine: Q.get('platine') || undefined, hg: HG });
+// modèles faits à la main (Blender, glTF) qui remplacent ceux du jeu : odyssee/moteur/modeles/remplacements.json
+const REMP = Q.has('sansmodeles') ? null : await Remplacements.charger(new URL('./modeles/', import.meta.url).href);
+const R = new Rendu($('vue'), T, { pack: Q.get('pack') || 'hgss', platine: Q.get('platine') || undefined, hg: HG, remplacements: REMP });
 await R.charger();
+// ×2 / ×4 : un petit repère en haut de l'écran
+repereVitesse = document.createElement('div');
+repereVitesse.style.cssText = 'position:absolute;right:1%;bottom:1%;font:bold 15px system-ui;color:#fff;background:rgba(200,60,40,.85);padding:2px 8px;border-radius:4px;display:none;pointer-events:none';
+$('cadre').append(repereVitesse);
+regler(vitesse);
+// ?labo : le labo (lieux, réglages d'essai)
+if (Q.has('labo') && G) {
+  const { Labo } = await import('./render/labo.js');
+  labo = new Labo($('cadre'), { T, R, pont, charger, vitesse: { get: () => vitesse, set: regler },
+    combats: { get: () => combats, set: (c) => { combats = c; try { const o = JSON.parse(localStorage.getItem('moteur-hgss-labo') || '{}'); o.combats = c; localStorage.setItem('moteur-hgss-labo', JSON.stringify(o)); } catch { /* rien */ } } } });
+  $('aide').style.display = 'none';
+}
 const taille = () => { const c = $('cadre'); R.taille(c.clientWidth, c.clientHeight); };
 addEventListener('resize', taille); taille();
 $('chargement').remove();
-if (Q.has('debug')) { window.__moteur = { T, R, pont }; $('debug').style.display = 'block'; }
+if (Q.has('debug')) { window.__moteur = { T, R, pont, G, HG, charger }; $('debug').style.display = 'block'; }
 pont.musique(T.musique);
 if (Q.has('zoom')) R.zoom = +Q.get('zoom');   // vue élargie (regarder une ville entière)
 
@@ -203,6 +232,7 @@ function ui(temps) {
     if (e.type === 'son') pont.son(e.nom);
     if (e.type === 'musique') pont.musique(e.nom);
     if (e.type === 'zone' && e.annonce) { $('zone').textContent = e.nom; $('zone').classList.add('vu'); tZone = temps + 2600; }
+    if (e.type === 'combat' && combats === 'gagner') { T.terminerCombat(true); continue; }
     if (e.type === 'combat') pont.combat(e).then((r) => { vider(); T.terminerCombat(r !== 'lose'); }, (err) => { console.error(err); T.terminerCombat(true); });
   }
   if (tZone && temps > tZone) { $('zone').classList.remove('vu'); tZone = 0; }
@@ -237,7 +267,13 @@ function boucle(temps) {
   if (appuis.has('menu')) { appuis.delete('menu'); if (!T.ctxs.length && !T.transition && !T.joueur.m && !T.ui && !T.combatEnCours) pont.menu().then(vider); }
   try {
     while (reste >= DT) {
-      if (!pont.occupe && !carte?.ouverte) { const t0 = performance.now(); T.pas(entrees()); coutPas = coutPas * 0.95 + (performance.now() - t0) * 0.05; }
+      if (!pont.occupe && !carte?.ouverte) {
+        const t0 = performance.now(), e = entrees();
+        T.pas(e);
+        // en accéléré, les pas en plus ne reprennent pas les appuis (A, B, vélo) : une fois suffit
+        for (let k = 1; k < vitesse && !pont.occupe; k++) T.pas({ ...e, a: false, b: false, velo: false });
+        coutPas = coutPas * 0.95 + (performance.now() - t0) * 0.05;
+      }
       reste -= DT;
     }
     R.dessiner(temps);

@@ -45,7 +45,14 @@ export class Traducteur {
           }
         }
       } catch (e) { console.warn('traducteur du navigateur :', e.message || e); }
-      // 2. un modèle de traduction dans la page
+      // 2. un modèle de traduction dans un fil à part (dans la page, chaque phrase figeait le jeu)
+      try {
+        this.etat = 'téléchargement du modèle';
+        this.moteur = await this.dansUnFil();
+        this.etat = 'prêt';
+        return true;
+      } catch (e) { console.warn('traduction dans un fil à part :', e.message || e); }
+      // 3. sinon dans la page (navigateur sans fils de type module)
       try {
         this.etat = 'téléchargement du modèle';
         const { pipeline } = await import(TRANSFORMERS);
@@ -61,20 +68,42 @@ export class Traducteur {
     })();
     return this.pret;
   }
+  /** le modèle de traduction dans un Web Worker : rend la fonction qui traduit (une promesse par phrase) */
+  dansUnFil() {
+    return new Promise((ok, ko) => {
+      const w = new Worker(new URL('./traduction-worker.js', import.meta.url), { type: 'module' });
+      const attente = new Map(); let n = 0;
+      w.onmessage = (e) => {
+        const m = e.data;
+        if (m.etat) this.etat = m.etat;
+        else if (m.pret) ok((s) => new Promise((r) => { const id = ++n; attente.set(id, r); w.postMessage({ id, texte: s }); }));
+        else if (m.erreur && m.id === undefined) { w.terminate(); ko(new Error(m.erreur)); }
+        else if (m.id !== undefined) { attente.get(m.id)?.(m.texte); attente.delete(m.id); }
+      };
+      w.onerror = (e) => { w.terminate(); ko(new Error(e.message || 'fil indisponible')); };
+      w.postMessage({ type: 'demarrer', modele: MODELE, url: TRANSFORMERS });
+    });
+  }
   /** les noms propres anglais → ceux de la version française */
   franciser(s) { return s.replace(this.re, (m) => this.table.get(m) ?? m); }
   /** traduction déjà faite (ou null) */
   connue(s) { return this.cache.get(s) ?? null; }
-  /** traduit (les phrases attendent leur tour : quelques-unes à la fois) */
-  traduire(s) {
+  /**
+   * traduit (les phrases attendent leur tour : quelques-unes à la fois) ; une phrase qu'on va lire passe devant
+   * celles traduites en avance (`avance`)
+   */
+  traduire(s, avance = false) {
     if (this.cache.has(s)) return Promise.resolve(this.cache.get(s));
-    if (this.enCours.has(s)) return this.enCours.get(s);
-    const p = new Promise((ok) => { this.file.push([s, ok]); this.pomper(); });
+    if (this.enCours.has(s)) {
+      if (!avance) { const k = this.file.findIndex((f) => f[0] === s); if (k > 0) this.file.unshift(...this.file.splice(k, 1)); }
+      return this.enCours.get(s);
+    }
+    const p = new Promise((ok) => { if (avance) this.file.push([s, ok]); else this.file.unshift([s, ok]); this.pomper(); });
     this.enCours.set(s, p);
     return p;
   }
   /** traduire en avance (les dialogues d'une carte qui vient d'arriver) */
-  prevoir(textes) { for (const t of textes) if (t && !this.cache.has(t)) this.traduire(t); }
+  prevoir(textes) { for (const t of textes) if (t && !this.cache.has(t)) this.traduire(t, true); }
   async pomper() {
     if (!this.moteur) { if (this.etat === 'inactif') return; await this.pret; if (!this.moteur) return; }
     while (this.actifs < 2 && this.file.length) {
@@ -91,15 +120,19 @@ export class Traducteur {
       return t.replace(/Pokémon/g, 'POKéMON');
     } catch (e) { console.warn('traduction :', e.message || e); return src; }
   }
+  /** gardé dans le navigateur au plus toutes les 20 s (écrire tout le cache fige un peu la page) et en la quittant */
   sauver() {
-    clearTimeout(this.sauverPlusTard);
-    this.sauverPlusTard = setTimeout(() => {
-      try {
-        // on garde au plus 6000 phrases (les plus récentes)
-        const e = [...this.cache].slice(-6000);
-        localStorage.setItem(CLE, JSON.stringify(Object.fromEntries(e)));
-      } catch { /* stockage plein */ }
-    }, 2000);
+    if (this.sauverPlusTard) return;
+    if (!this.surDepart) { this.surDepart = () => this.ecrire(); globalThis.addEventListener?.('pagehide', this.surDepart); }
+    this.sauverPlusTard = setTimeout(() => { this.sauverPlusTard = null; this.ecrire(); }, 20000);
+    this.sauverPlusTard.unref?.();   // (Node, tests : n'empêche pas de finir)
+  }
+  ecrire() {
+    try {
+      // on garde au plus 6000 phrases (les plus récentes)
+      const e = [...this.cache].slice(-6000);
+      localStorage.setItem(CLE, JSON.stringify(Object.fromEntries(e)));
+    } catch { /* stockage plein */ }
   }
 }
 

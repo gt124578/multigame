@@ -92,6 +92,11 @@ export class Terrain {
     this.continu = false;        // le joueur enchaîne les pas (pas de demi-tour sur place)
     this.camera = null;
     this.compteurRencontre = 0;
+    /**
+     * réglages d'essai (labo du banc d'essai) : rencontres sauvages, dresseurs qui défient en voyant le joueur,
+     * murs (false : on passe partout, comme un fantôme)
+     */
+    this.reglages = { rencontres: true, dresseurs: true, murs: true };
   }
 
   // ——— mise en place ———
@@ -365,7 +370,8 @@ export class Terrain {
     if (pj.tapis !== null && pj.tapis === d && this.M.warp(j.x, j.y)) {
       j.dir = d; this.prendreWarp(this.M.warp(j.x, j.y)); return;
     }
-    const r = testerPas(this.M, j, d, { surf: this.mode === 'surf', velo: this.mode === 'velo', objets: this.objets });
+    const fantome = this.reglages.murs === false && this.M.dedans(j.x + DX[d], j.y + DY[d]);
+    const r = fantome ? { ok: true, type: 'pas', vers: [j.x + DX[d], j.y + DY[d]] } : testerPas(this.M, j, d, { surf: this.mode === 'surf', velo: this.mode === 'velo', objets: this.objets });
     j.course = false;   // contre un mur, on piétine au pas (comme dans HGSS), pas avec la planche de course
     // FORCE : on pousse le rocher d'une case (s'il a la place) ; il revient quand on quitte la carte
     if (!r.ok && r.raison === 'objet') {
@@ -625,6 +631,7 @@ export class Terrain {
     return true;
   }
   testerRencontre(p) {
+    if (this.reglages.rencontres === false) return;
     // dans les grottes (table « sol »), chaque pas sur le sol peut faire surgir un POKéMON, comme dans HGSS
     const cle = p.rencontre || (this.zone?.rencontres?.sol && !p.warp && !p.tapis && !p.glisse ? 'sol' : null);
     if (!cle || this.mode === 'velo' && cle === 'eau') return;
@@ -644,6 +651,7 @@ export class Terrain {
   /** un dresseur voit-il le joueur ? (ligne droite, rien entre eux, même niveau) */
   regardDresseurs() {
     const j = this.joueur;
+    if (this.reglages.dresseurs === false) return false;
     for (const o of this.objets) {
       const d = o.def.dresseur;
       if (!d || !o.visible || o.bouge || this.etat.drapeaux.has(this.drapeauDresseur(o))) continue;

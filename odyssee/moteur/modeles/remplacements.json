@@ -1,0 +1,15 @@
+{
+  "_aide": "Modèles faits à la main (Blender → glTF .glb) à la place de ceux du jeu. Mettre les .glb dans ce dossier et les déclarer ci-dessous (exemples dans LISEZMOI.md). Une clé qui commence par « _ » est ignorée.",
+  "cartes": {
+    "_exemple": "NEW_BARK ou un numéro de carte (labo, F3) → \"new_bark.glb\" ou { \"fichier\": \"…\", \"garderBatiments\": true }"
+  },
+  "batiments": {
+    "_exemple": "numéro du bâtiment (labo : bâtiment le plus proche) → \"maison.glb\" ; dans une pièce : \"meuble:12\""
+  },
+  "personnages": {
+    "_exemple": "nom de la planche (player_m, player_f, mm:ROCK…) → \"luth.glb\" (clips : repos, marche, course, velo, surf)"
+  },
+  "objets": {
+    "_exemple": "sorte d'objet du terrain (objet, rocher, rocher_force, arbre_coupe, bloc_glace) → \"poke_ball.glb\""
+  }
+}

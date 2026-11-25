@@ -40,6 +40,10 @@ export class Rendu {
     this.sprites = new Map();        // objet du terrain → meshes
     this.mondeId = null;
     this.qualite = 'net';
+    // modèles faits à la main (glTF) : quand un fichier arrive, blocs et personnages sont refaits avec lui
+    this.rem = opts.remplacements?.vide ? null : opts.remplacements || null;
+    if (this.rem) this.rem.surPret = () => { this.refaire = true; this.refaireSprites = true; };
+    this.tPrec = null;
   }
   async charger() {
     const persos = new Set(['player_m', 'player_f', 'player_m_velo', 'player_f_velo']);
@@ -82,19 +86,42 @@ export class Rendu {
       for (const m of [].concat(o.material)) { if (p === 'tout') m.map?.dispose(); m.dispose(); }
     });
   }
+  /**
+   * Blocs autour du joueur. Pour éviter les à-coups : les 3 × 3 blocs visibles sont construits en premier, au plus un
+   * par image (tous d'un coup seulement dans le noir d'une transition) ; ceux de la couronne suivante (5 × 5) sont
+   * construits en avance, un par image quand rien ne presse, leurs textures envoyées à la carte graphique tout de
+   * suite ; un bloc n'est défait qu'à plus de trois blocs (aller et venir sur une limite ne refait rien).
+   */
   majBlocs() {
     const T = this.T, M = T.M;
     if (this.mondeId !== M.id) { this.defaireTout(); this.mondeId = M.id; }
     const bx = (T.joueur.x / BLOC) | 0, by = (T.joueur.y / BLOC) | 0;
-    const voulus = new Set();
-    for (let y = by - 1; y <= by + 1; y++) for (let x = bx - 1; x <= bx + 1; x++) {
-      if (x < 0 || y < 0 || x >= M.lb || y >= M.hb) continue;
-      const i = y * M.lb + x;
-      if (!M.blocs[i]) continue;
-      voulus.add(i);
-      if (!this.blocs.has(i)) { const g = this.construireBloc(x, y); this.scene.add(g); this.blocs.set(i, g); }
+    const dist = (i) => Math.max(Math.abs((i % M.lb) - bx), Math.abs(((i / M.lb) | 0) - by));
+    let budget = T.noir >= 0.99 || this.blocs.size === 0 ? 9 : 1;
+    for (let r = 0; r <= 2 && budget > 0; r++) {
+      for (let y = by - r; y <= by + r && budget > 0; y++) for (let x = bx - r; x <= bx + r && budget > 0; x++) {
+        if (Math.max(Math.abs(x - bx), Math.abs(y - by)) !== r || x < 0 || y < 0 || x >= M.lb || y >= M.hb) continue;
+        const i = y * M.lb + x;
+        if (!M.blocs[i] || this.blocs.has(i)) continue;
+        const g = this.construireBloc(x, y);
+        this.scene.add(g); this.blocs.set(i, g);
+        if (r === 2) this.envoyer(g);
+        budget--;
+      }
+      // la couronne d'avance n'est construite que si tout ce qui se voit est là
+      if (r === 1 && budget <= 0) break;
     }
-    for (const [i, g] of this.blocs) if (!voulus.has(i)) { this.defaire(g); this.blocs.delete(i); }
+    for (const [i, g] of this.blocs) if (dist(i) > 3) { this.defaire(g); this.blocs.delete(i); }
+  }
+  /** envoie à la carte graphique les textures d'un groupe pas encore vu (sinon c'est au moment où il paraît) */
+  envoyer(g) {
+    const vues = (this.texEnvoyees ||= new WeakSet());
+    g.traverse((o) => {
+      for (const m of [].concat(o.material || [])) {
+        const t = m.map;
+        if (t && !vues.has(t)) { vues.add(t); try { this.renderer.initTexture(t); } catch { /* rien */ } }
+      }
+    });
   }
   /** hauteur du dessus d'une case (avec ce qui se dresse) ; -1 pour le vide */
   dessus(x, y) {
@@ -129,9 +156,27 @@ export class Rendu {
     // carte de HGSS : son vrai modèle (sol, relief, eau, arbres) et ses bâtiments
     const th = M.blocs[by * M.lb + bx].decor.find((d) => d.type === 'terrain_hg');
     if (th && this.hg?.ok) {
-      const o = this.hg.carte(th);
-      o.position.set(x0 + BLOC / 2, 0, y0 + BLOC / 2);
-      g.add(o);
+      // une carte refaite à la main (remplacements.json) : son modèle, et les bâtiments du jeu si on les garde
+      const e = this.rem?.carte(th.carte, M.zone(x0 + BLOC / 2, y0 + BLOC / 2)?.id);
+      const c = e && this.rem.copie(e);
+      let o = null;
+      if (c) {
+        c.objet.position.set(x0 + BLOC / 2, 0, y0 + BLOC / 2);
+        g.add(c.objet);
+        if (e.garderBatiments) { o = this.hg.carte(th); for (const k of [...o.children]) if (k.userData.sol) o.remove(k); }
+      } else o = this.hg.carte(th);
+      if (o) {
+        // bâtiments refaits à la main : posés là où le jeu pose les siens
+        if (this.rem) for (const k of [...o.children]) {
+          const eb = k.userData.batiment !== undefined && this.rem.batiment(k.userData.batiment);
+          const cb = eb && this.rem.copie(eb);
+          if (!cb) continue;
+          cb.objet.position.copy(k.position); cb.objet.rotation.copy(k.rotation);
+          o.remove(k); o.add(cb.objet);
+        }
+        o.position.set(x0 + BLOC / 2, 0, y0 + BLOC / 2);
+        g.add(o);
+      }
       return g;
     }
     // carte de Platine : son vrai modèle 3D (dès qu'il est chargé ; avant, le sol dessiné par cases)
@@ -333,6 +378,16 @@ export class Rendu {
     if (s) return s;
     const g = new THREE.Group();
     let mat, n = 1, l = 2, h = 2;
+    // personnage ou objet refait à la main (remplacements.json) : son modèle 3D, animé s'il a des animations
+    const er = this.rem && (this.rem.personnage(o === this.T.joueur ? this.T.etat.joueur.sprite || 'player_m' : o.sprite) || this.rem.objet(o.def?.type));
+    const cr = er && this.rem.copie(er);
+    if (cr) {
+      g.add(cr.objet); this.scene.add(g);
+      const mixer = cr.animations.length ? new THREE.AnimationMixer(cr.objet) : null;
+      s = { g, modele: cr.objet, glb: true, mixer, clips: cr.animations, action: null, n: 0 };
+      this.sprites.set(o, s);
+      return s;
+    }
     if (o.def?.modele3d === 'boule') {
       // boule de neige de Frimapic : son modèle de Platine, sinon une boule blanche
       const m3 = this.pt.pret('boule') ? this.pt.copie('boule') : new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 8).translate(0, 0.45, 0), new THREE.MeshBasicMaterial({ color: 0xf4f8ff }));
@@ -380,7 +435,7 @@ export class Rendu {
   defaireSprite(s) {
     if (!s) return;
     this.scene.remove(s.g);
-    if (s.modele) { s.g.traverse((o) => { if (o.userData.propre) { o.geometry?.dispose(); o.material?.dispose(); } }); return; }
+    if (s.modele) { s.mixer?.stopAllAction(); s.g.traverse((o) => { if (o.userData.propre) { o.geometry?.dispose(); o.material?.dispose(); } }); return; }
     s.g.traverse((o) => { if (o.geometry && o !== s.ombre) o.geometry.dispose(); if (o.material && o !== s.ombre && o !== s.corps) o.material.dispose(); });
     for (const m of [s.mat, s.matVelo]) if (m) { m.map?.dispose(); m.dispose(); }
   }
@@ -388,6 +443,7 @@ export class Rendu {
     const T = this.T, M = T.M, s = this.sprite(o);
     s.g.visible = o.visible;
     if (!o.visible) return;
+    if (s.glb) { this.placerModele(o, s, joueur); return; }
     if (s.modele) { s.g.position.set(o.x + 0.5, M.hauteurCase(o.x, o.y) * this.niv(), o.y + 0.5); return; }
     let h = M.hauteurCase(o.x, o.y);
     if (o.m && (o.m.vx !== o.m.dx || o.m.vy !== o.m.dy)) {
@@ -420,8 +476,37 @@ export class Rendu {
     s.bulle.visible = !!o.bulle; s.bulle.position.set(0, (1.75 + o.saut) * k, 0.05);
   }
 
+  /**
+   * un personnage en 3D (modèle fait à la main) : au milieu de sa case, tourné selon sa direction, avec l'animation de
+   * ce qu'il fait — clips nommés « repos », « marche », « course », « velo », « surf » (ou idle, walk, run, bike)
+   */
+  placerModele(o, s, joueur) {
+    const T = this.T, M = T.M;
+    let h = M.hauteurCase(o.x, o.y);
+    if (o.m && (o.m.vx !== o.m.dx || o.m.vy !== o.m.dy)) {
+      const k = Math.min(1, o.m.t / o.m.duree);
+      h = M.hauteurCase(o.m.dx, o.m.dy) + (M.hauteurCase(o.m.vx, o.m.vy) - M.hauteurCase(o.m.dx, o.m.dy)) * k;
+    }
+    s.g.position.set(o.px + 0.5, h * this.niv() + (o.saut || 0), o.py + 0.5);
+    if (o.dir !== undefined) s.modele.rotation.y = [Math.PI, 0, -Math.PI / 2, Math.PI / 2][o.dir] ?? 0;
+    if (!s.mixer) return;
+    const quoi = joueur && T.mode === 'velo' ? 'velo' : joueur && T.mode === 'surf' ? 'surf' : o.m && o.course ? 'course' : o.m ? 'marche' : 'repos';
+    const AUSSI = { repos: 'idle', marche: 'walk', course: 'run', velo: 'bike', surf: 'swim' };
+    const clip = s.clips.find((c) => c.name.toLowerCase() === quoi) || s.clips.find((c) => c.name.toLowerCase().includes(AUSSI[quoi]))
+      || (quoi === 'course' || quoi === 'velo' ? s.clips.find((c) => /marche|walk/i.test(c.name)) : null) || (quoi === 'repos' ? s.clips[0] : null);
+    if (clip?.name !== s.action?.getClip().name) {
+      const a = clip ? s.mixer.clipAction(clip) : null;
+      if (a) { a.reset().play(); if (s.action) a.crossFadeFrom(s.action, 0.12, false); }
+      else s.action?.stop();
+      s.action = a;
+    }
+  }
+
   dessiner(temps) {
     const T = this.T;
+    const dt = this.tPrec === null ? 0 : Math.min(0.1, (temps - this.tPrec) / 1000); this.tPrec = temps;
+    if (this.refaireSprites) { this.refaireSprites = false; for (const sp of this.sprites.values()) this.defaireSprite(sp); this.sprites.clear(); }
+    for (const sp of this.sprites.values()) sp.mixer?.update(dt);
     if (this.refaire) { this.refaire = false; for (const g of this.blocs.values()) this.defaire(g); this.blocs.clear(); }
     this.majBlocs();
     const vus = new Set([T.joueur, ...T.objets]);
