@@ -131,6 +131,7 @@ export class Labo {
       [`👻 Murs : ${r.murs !== false ? 'oui' : 'non'}`, () => { r.murs = r.murs === false; this.garder(); }, 'Non : on passe à travers tout'],
       [`⏩ Vitesse ×${c.vitesse.get()}`, () => c.vitesse.set(c.vitesse.get() >= 4 ? 1 : c.vitesse.get() * 2), 'Aussi la touche T'],
       ['🎒 Équipe et badges', () => this.ouvrirStatut()],
+      ['📷 Caméra', () => this.ouvrirCamera(), 'Zoom, inclinaison et champ de la caméra (molette, + / − pour le zoom)'],
       ['💖 Soigner', () => { for (const m of T.etat.equipe) c.pont.pokemon.soigner(m); this.toast('Équipe soignée'); }],
       [`📝 Revue ${vus}/${this.lieux.length}`, () => this.ouvrirRevue()],
       ['📐 Gabarit (.obj)', () => this.gabarit(), 'Les formes de la carte où l\'on est (sans textures), à ouvrir dans Blender pour modeler par-dessus'],
@@ -275,6 +276,22 @@ export class Labo {
     p.querySelector('[data-ch]').onchange = (e) => coche('CHAUSSURES', e.target.checked);
     p.querySelector('[data-velo]').onchange = (e) => { T.etat.sac.velo = e.target.checked ? 1 : 0; };
     p.querySelector('[data-argent]').onchange = (e) => { T.etat.argent = Math.max(0, +e.target.value | 0); };
+  }
+  ouvrirCamera() {
+    const R = this.ctx.R, c = R.cam, T = this.T;
+    const ligne = (cle, nom, min, max, pas, defaut) => `<div class="labo-ligne"><b style="width:7em">${nom}</b>
+      <input type="range" data-c="${cle}" min="${min}" max="${max}" step="${pas}" value="${c[cle] ?? defaut}" style="flex:1">
+      <span data-v="${cle}" style="width:3.5em">${c[cle] ?? defaut}</span></div>`;
+    const p = this.ouvrir('CAMÉRA', `
+      ${ligne('zoom', 'Zoom', 0.6, 3, 0.05, 1)}
+      ${ligne('inclinaison', 'Inclinaison (°)', 25, 85, 1, T.camera?.inclinaison ?? 55)}
+      ${ligne('champ', 'Champ (°)', 6, 60, 1, T.camera?.fov ?? 13)}
+      <div class="labo-ligne"><button type="button" data-hgss>Comme HGSS (55°, champ de la carte)</button><button type="button" data-raz>Remettre</button></div>
+      <div style="opacity:.75;font-size:12px">Zoom > 1 : on voit plus loin. Inclinaison : 90° = vu du dessus. Un champ plus large accentue la perspective.
+      Le zoom se règle aussi à la molette ou avec + / −.</div>`);
+    p.querySelectorAll('[data-c]').forEach((i) => { i.oninput = () => { c[i.dataset.c] = +i.value; p.querySelector(`[data-v="${i.dataset.c}"]`).textContent = i.value; R.garderCam?.(); }; });
+    p.querySelector('[data-hgss]').onclick = () => { c.inclinaison = null; c.champ = null; R.garderCam?.(); this.ouvrirCamera(); };
+    p.querySelector('[data-raz]').onclick = () => { c.zoom = 1.25; c.inclinaison = null; c.champ = null; R.garderCam?.(); this.ouvrirCamera(); };
   }
   ouvrirRevue() {
     const p = this.ouvrir('REVUE DES LIEUX', `<textarea class="labo-rapport" readonly rows="14"></textarea>

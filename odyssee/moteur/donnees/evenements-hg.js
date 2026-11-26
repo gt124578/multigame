@@ -60,10 +60,17 @@ export const SANS_EFFET = new Set(['WaitButton', 'PlaySE', 'WaitFade', 'ToggleFo
   'FollowingPokemonMovement', 'TouchscreenMenuShow', 'TouchscreenMenuHide', 'ScrCmd_609', 'RestoreOverworld', 'WaitFanfare', 'WaitCry',
   'WaitSE', 'HoldMsg', 'WaitABPress', 'StopBGM', 'StopSE', 'PlayBGM', 'FadeOutBGM', 'FadeInBGM', 'HideMoneyBox', 'ShowMoneyBox', 'UpdateMoneyBox',
   'NopVar490', 'AddSpecialGameStat', '//', 'PlayFanfare', 'SetFollowMonInhibitState', 'FollowerPokeIsEventTrigger', 'ShowCoinBox',
-  'HideCoinBox', 'UpdateCoinBox', 'LegendCutsceneClearBellShimmer', 'ScrCmd_729', 'TempBGM', 'RestoreBGM', 'PlayCry']);
+  'HideCoinBox', 'UpdateCoinBox', 'LegendCutsceneClearBellShimmer', 'ScrCmd_729', 'TempBGM', 'RestoreBGM', 'PlayCry',
+  'UnsetPhoneCallTrigger', 'NPCTradeEnd', 'ElevatorCurFloorBox', 'ResetBGM', 'EnableMassOutbreaks', 'NatDexFlagAction', 'AddWaitingIcon',
+  'RemoveWaitingIcon', 'SaveGameNormal', 'WaitButtonOrDelay', 'WaitButtonOrDpad', 'Noop', 'Dummy486', 'AddSpecialGameStat2', 'HallOfFameAnim',
+  'LegendCutscenePanCameraTo', 'LegendCutsceneWaitCameraPan', 'LegendCutsceneMoveCameraTo', 'LegendCutsceneClearBellAnimBegin',
+  'LegendCutsceneClearBellRiseFromBag', 'LegendCutsceneWavesOrLeavesEffectBegin', 'LegendCutsceneWavesOrLeavesEffectEnd',
+  'LegendCutsceneClearBellAnimEnd', 'LegendCutsceneBirdFinalApproach', 'LegendCutsceneLugiaEyeGlimmerEffect',
+  'LegendCutsceneLugiaArrivesEffectBegin', 'LegendCutsceneLugiaArrivesEffectCameraPan', 'LegendCutsceneLugiaArrivesEffectEnd',
+  'ShowLegendaryWing', 'PauseAnimation', 'ScrCmd_708', 'Cinematic', 'SetAvatarBits', 'UpdateAvatarState', 'SetBikeStateLock', 'OpenMsg', 'ShowCertificate']);
 export const STATS = { inconnues: null };
 
-export function traduireScripts(texte, { messages, objets, dresseurs, prefixe = 'HG_', zoneDe = () => null, externes = null }) {
+export function traduireScripts(texte, { messages, objets, dresseurs, prefixe = 'HG_', zoneDe = () => null, externes = null, nomCarte = {} }) {
   const ctxZone = zoneDe;
   // préfixe des messages de la carte (msg_0545_T20R0201) : les menus désignent leurs lignes par leur numéro
   const prefixeMsg = (Object.keys(messages)[0] || '').replace(/_\d+$/, '');
@@ -191,7 +198,53 @@ export function traduireScripts(texte, { messages, objets, dresseurs, prefixe = 
         else if (z && /^(\d+|VAR_\w+)$/.test(a[2]) && /^(\d+|VAR_\w+)$/.test(a[3])) out.push(`  teleporter_var ${z} ${a[2]} ${a[3]} ${dir}`);
         break;
       }
-      case 'MovePersonFacing': { const o = ref(a[0]); if (o && o !== 'joueur' && /^\d+$/.test(a[1]) && /^\d+$/.test(a[3])) out.push(`  placer ${o} ${a[1]} ${a[3]} ${({ DIR_NORTH: 'haut', DIR_SOUTH: 'bas', DIR_WEST: 'gauche', DIR_EAST: 'droite' })[a[4]] || 'bas'}`); break; }
+      // le Train Magnétique : la traversée de Doublonville à Safrania (et retour), vers la carte n° a[2]
+      case 'ScrCmd_722': { const z = ctxZone(nomCarte[+a[2]]); if (z && /^\d+$/.test(a[3]) && /^\d+$/.test(a[4])) { out.push('  son train'); out.push(`  teleporter_xy ${z} ${a[3]} ${a[4]} bas`); } break; }
+      // la carte d'où l'on vient (numéro) : les marins des ports se tournent vers le bateau
+      case 'ScrCmd_445': out.push(`  carte_precedente ${a[0]}`); break;
+      case 'MovePersonFacing': {
+        const o = ref(a[0]), d = ({ DIR_NORTH: 'haut', DIR_SOUTH: 'bas', DIR_WEST: 'gauche', DIR_EAST: 'droite' })[a[4]] || 'bas';
+        if (!o || o === 'joueur') break;
+        // coordonnées tirées d'une variable (le rival de Cherrygrove se place à la hauteur du joueur)
+        if (/^\d+$/.test(a[1]) && /^\d+$/.test(a[3])) out.push(`  placer ${o} ${a[1]} ${a[3]} ${d}`);
+        else if (/^(\d+|VAR_\w+)$/.test(a[1]) && /^(\d+|VAR_\w+)$/.test(a[3])) out.push(`  placer_var ${o} ${a[1]} ${a[3]} ${d}`);
+        break;
+      }
+      case 'GetFriendSprite': out.push(`  sprite_ami ${a[0]}`); break;
+      // le générique du Panthéon : le jeu est fini, on repart de la maison (comme après le générique du jeu)
+      case 'HOFCredits': out.push('  fin_du_jeu'); break;
+      // le Pokégear : appels du jeu (le Prof. Elm, la mère…), numéros enregistrés
+      case 'PhoneCall': out.push(`  appel ${String(a[0]).replace(/^PHONE_CONTACT_/, '')} ${+a[2] || 0}`); break;
+      case 'RegisterGearNumber': out.push(`  drapeau PHONE_${String(a[0]).replace(/^PHONE_CONTACT_/, '')}`); break;
+      case 'CheckRegisteredPhoneNumber': out.push(`  tester_drapeau ${a[1]} PHONE_${String(a[0]).replace(/^PHONE_CONTACT_/, '')}`); break;
+      case 'GetPhoneBookRematch': if (/^VAR_/.test(a[1])) out.push(`  var ${a[1]} 0`); break;
+      // œufs : le moteur n'en a pas, le POKéMON arrive tout juste éclos (niveau 1)
+      case 'GiveTogepiEgg': out.push('  recevoir_pokemon togepi 1'); break;
+      case 'GiveEgg': if (/^SPECIES_/.test(a[0])) out.push(`  recevoir_pokemon ${especeDe(a[0])} 1`); break;
+      case 'PartyCountNotEgg': case 'CountAliveMons': out.push(`  nombre_equipe ${a[0]}`); break;
+      case 'PartyCountEgg': case 'CheckDaycareEgg': out.push(`  var ${a[0]} 0`); break;
+      // dresseurs battus
+      case 'GoToIfDefeated': out.push(`  si drapeau DRESSEUR_${a[0]} aller ${lab(a[1])}`); break;
+      case 'GoToIfNotDefeated': out.push(`  si non drapeau DRESSEUR_${a[0]} aller ${lab(a[1])}`); break;
+      case 'CallIfDefeated': out.push(`  si drapeau DRESSEUR_${a[0]} appeler ${lab(a[1])}`); break;
+      case 'CallIfNotDefeated': out.push(`  si non drapeau DRESSEUR_${a[0]} appeler ${lab(a[1])}`); break;
+      // combats à deux contre deux (Peter avec le joueur contre les Rocket, le rival dans l'Antre du Dragon) :
+      // joués comme deux combats l'un après l'autre
+      case 'MultiBattle': for (const t of a.slice(1)) if (dresseurs[t]) out.push(`  combat_hg ${t}`); break;
+      // ascenseurs : l'étage d'où l'on vient, son nom, le trajet
+      case 'GetDynamicWarpFloorNo': out.push(`  etage_ascenseur ${a[0]}`); break;
+      case 'BufferDeptStoreFloorNo': out.push(`  tampon_etage ${a[0]} ${a[1]}`); break;
+      case 'ElevatorAnim': out.push('  ascenseur'); break;
+      // échanges avec les habitants (un POKéMON contre un autre, table NPC_TRADES du moteur)
+      case 'LoadNPCTrade': out.push(`  echange_charger ${a[0]}`); break;
+      case 'NPCTradeGetReqSpecies': out.push(`  echange_demande ${a[0]}`); break;
+      case 'NPCTradeExec': out.push(`  echange ${a[0]}`); break;
+      // QG de la Team Rocket : les statues de Persian sonnent l'alarme, des sbires (ou des POKéMON) attaquent
+      case 'RocketTrapBattle': if (/^SPECIES_/.test(a[0]) && /^\d+$/.test(a[1])) { out.push('  secouer 8'); out.push(`  combat_sauvage_hg ${especeDe(a[0])} ${a[1]}`); } break;
+      case 'SetSpawn': break;
+      // les machines du Casino : celle d'Odyssée (mêmes jetons)
+      case 'CasinoGame': out.push('  ecran casino'); break;
+      case 'AddMoney': if (/^\d+$/.test(a[0])) out.push(`  donner_argent ${a[0]}`); break;
       case 'Wait': if (/^\d+$/.test(a[0])) out.push(`  attendre ${a[0]}`); break;
       case 'PlayCry': out.push('  son exclamation'); break;
       case 'AzaleaGymInit': out.push('  rails_depart'); break;
@@ -222,11 +275,16 @@ export function traduireScripts(texte, { messages, objets, dresseurs, prefixe = 
       case 'GetItemQuantity': if (/^ITEM_/.test(a[0])) out.push(`  quantite_objet ${objetDe(a[0])} ${a[1]}`); break;
       case 'HasSpaceForItem': out.push(`  var ${a[2] || a[a.length - 1]} 1`); break;
       // combats contre un POKéMON (Simularbre, Léviator rouge, les légendaires…)
-      case 'WildBattle': if (/^(SPECIES_|VAR_)/.test(a[0]) && /^\d+$/.test(a[1])) out.push(`  combat_sauvage_hg ${/^SPECIES_/.test(a[0]) ? especeDe(a[0]) : a[0]} ${a[1]}`); break;
+      case 'WildBattle': if (/^(SPECIES_|VAR_)/.test(a[0]) && /^(\d+|VAR_\w+)$/.test(a[1])) out.push(`  combat_sauvage_hg ${/^SPECIES_/.test(a[0]) ? especeDe(a[0]) : a[0]} ${a[1]}`); break;
       case 'GetStaticEncounterOutcome': out.push(`  copier_var ${a[0]} VAR_COMBAT`); break;
       // personnages, écran
       case 'MakeObjectVisible': { const o = ref(a[0]); if (o && o !== 'joueur') out.push(`  montrer ${o}`); break; }
-      case 'MovePerson': { const o = ref(a[0]); if (o && o !== 'joueur' && /^\d+$/.test(a[1]) && /^\d+$/.test(a[2])) out.push(`  placer ${o} ${a[1]} ${a[2]} bas`); break; }
+      case 'MovePerson': {
+        const o = ref(a[0]);
+        if (o && o !== 'joueur' && /^\d+$/.test(a[1]) && /^\d+$/.test(a[2])) out.push(`  placer ${o} ${a[1]} ${a[2]} bas`);
+        else if (o && o !== 'joueur' && /^(\d+|VAR_\w+)$/.test(a[1]) && /^(\d+|VAR_\w+)$/.test(a[2])) out.push(`  placer_var ${o} ${a[1]} ${a[2]} bas`);
+        break;
+      }
       case 'ScreenShake': out.push('  secouer 16'); break;
       case 'CloseMsg': out.push('  fermer_message'); break;
       case 'SetDynamicWarp': { const z = ctxZone(String(a[0]).replace(/^MAP_/, '')); if (z && /^\d+$/.test(a[2]) && /^\d+$/.test(a[3])) out.push(`  warp_dynamique ${z} ${a[2]} ${a[3]} ${['haut', 'bas', 'gauche', 'droite'][+a[4]] || 'bas'}`); break; }
@@ -295,8 +353,10 @@ export function zoneHG(carte, entete, ev, msgs, scripts, ctx) {
     if (sp === 'ROCK' && o.scriptId === 'std_field_strength') { objets.push({ ...base, type: 'rocher_force', sprite: 'mm:ROCK' }); continue; }
     // personnages cachés tant que le jeu ne les montre pas (drapeau FLAG_HIDE_…) : on suit le drapeau
     const cache = o.eventFlag && o.eventFlag !== 'FLAG_NOTHING' ? { drapeau: o.eventFlag } : {};
-    if (!ctx.mmodels.has(sp) || sp.startsWith('VAR_')) continue;
-    const p = { ...base, ...cache, sprite: 'mm:' + sp, mouvement: MOUVEMENT(o.movement), rayon: Math.max(o.xRange || 0, o.yRange || 0) || 1 };
+    // SPRITE_VAR_n : son apparence est dans la variable VAR_OBJ_(n − 1), posée par les scripts (GetFriendSprite : Célesta)
+    const vs = sp.match(/^VAR_(\d+)$/);
+    if (!vs && !ctx.mmodels.has(sp)) continue;
+    const p = { ...base, ...cache, sprite: vs ? 'var:VAR_OBJ_' + (+vs[1] - 1) : 'mm:' + sp, mouvement: MOUVEMENT(o.movement), rayon: Math.max(o.xRange || 0, o.yRange || 0) || 1 };
     const tr = s.match(/^std_trainer(?:_2)?\((TRAINER_\w+)\)$/);
     if (tr && ctx.dresseurs[tr[1]]) {
       const d = ctx.dresseurs[tr[1]], n = 'HGD_' + o.id;
@@ -317,7 +377,7 @@ export function zoneHG(carte, entete, ev, msgs, scripts, ctx) {
     if (e) declencheurs.push({ x: c.x, y: c.z, l: c.w, h: c.h, var: c.var, val: c.val, script: e });
   }
   const poses = new Set(objets.map((o) => o.id));
-  let source = scripts ? traduireScripts(scripts, { messages, objets: poses, dresseurs: ctx.dresseurs, zoneDe: ctx.zoneDe, externes: ctx.externes }) : '';
+  let source = scripts ? traduireScripts(scripts, { messages, objets: poses, dresseurs: ctx.dresseurs, zoneDe: ctx.zoneDe, externes: ctx.externes, nomCarte: ctx.nomCarte }) : '';
   source += '\n' + extra.join('\n');
   // les scripts qu'on n'a pas su lire : un objet ou un panneau dont l'entrée manque reste muet
   const definis = new Set([...source.matchAll(/^script (\w+)/gm)].map((m) => m[1]));

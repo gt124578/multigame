@@ -350,7 +350,10 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   téléportation J, revue N, `T.reglages` rencontres / dresseurs / murs, combats gagnés d'office, équipes, badges, gabarit .obj),
   vitesse T (×2, Maj + T ×4, `?vitesse=`), modèles Blender en glTF déclarés dans `odyssee/moteur/modeles/remplacements.json`
   (`render/remplacements.js`, conventions dans `modeles/LISEZMOI.md`) ; `node tools/test-moteur-hgss-labo.mjs` (Playwright) les
-  teste, `node tools/perf-moteur-hgss.mjs` mesure les à-coups (blocs construits un par image, traduction dans un Worker) ; caméra d'Odyssée (55°) ; `node tools/capture-moteur-hgss.mjs "<paramètres>" <image.png> "<touches>"`
+  teste, `node tools/perf-moteur-hgss.mjs` mesure les à-coups (blocs construits un par image, traduction dans un Worker) ;
+  `node tools/test-moteur-hgss-histoire.mjs [passage]` joue l'histoire après le premier badge à partir d'états préparés (Œuf,
+  Ligue et Panthéon, Aquaria, Train Magnétique, Tour Carillon et HO-OH, QG Rocket, ascenseur, échange, Casino ; outils de jeu
+  dans `tools/moteur-hgss-partie.mjs`) : à lancer quand on touche aux scripts traduits ou au moteur ; caméra d'Odyssée (55°) ; `node tools/capture-moteur-hgss.mjs "<paramètres>" <image.png> "<touches>"`
   (Playwright, `PDSMS=<clone>`, `PRET=<clone>`, `PLAT=<clone>` pour tout servir sans réseau) en fait une capture ; page :
   `odyssee/moteur.html` (combats, équipe, sac et son d'Odyssée par `odyssee/moteur/odyssee.js`). Arène de Frimapic de Platine,
   construite au chargement depuis les fichiers du jeu publiés par pret/pokeplatinum (`donnees/platine.js`, `render/platine3d.js`,

@@ -109,6 +109,99 @@ export const COMMANDES = {
     },
   },
   /** pose un objet à côté du joueur (dx, dy en cases) : le rival qui surgit à la hauteur où l'on passe */
+  /** comme placer, avec des coordonnées qui peuvent être des variables */
+  placer_var: {
+    args: 'mot mot mot dir?',
+    exec: (T, ctx, [id, vx, vy, d]) => {
+      const v = (a) => (/^-?\d+$/.test(String(a)) ? +a : T.etat.vars[a] ?? 0);
+      const o = cible(T, ctx, id); o.x = v(vx); o.y = v(vy); o.px = o.x; o.py = o.y; o.m = null; if (d !== undefined) o.dir = d;
+    },
+  },
+  /**
+   * un appel du Pokégear (PhoneCall du jeu) : les paroles des appels ne sont pas dans les fichiers publiés ; le moteur
+   * dit qui appelle et l'essentiel (APPELS de donnees/appels.js, sinon un appel sans paroles)
+   */
+  appel: {
+    args: 'mot nombre',
+    exec: (T, ctx, [qui, k]) => {
+      T.sortir({ type: 'son', nom: 'telephone' });
+      const t = T.d.appels?.(qui, k, T.d.langue) || (T.d.langue === 'en' ? `Ring ring… ${qui} is calling on the POKéGEAR.` : `Drrring… ${qui} appelle sur le POKéGEAR.`);
+      return T.message(t);
+    },
+  },
+  /**
+   * l'étage d'où l'on vient (GetDynamicWarpFloorNo) : 1F → 0, 2F → 1…, sous-sol → −1, toit → le dernier étage + 1 ;
+   * quelques ascenseurs du jeu numérotent autrement (table ETAGES_PARTICULIERS)
+   */
+  etage_ascenseur: {
+    args: 'mot',
+    exec: (T, ctx, [v]) => {
+      const z = T.etat.zonePrecedente || '';
+      const part = { GOLDENROD_RADIO_TOWER_5F: 0, GOLDENROD_RADIO_TOWER_OBSERVATION_DECK: 1 }[z];
+      let n = part;
+      if (n === undefined) {
+        const m = z.match(/_(B?)(\d+)F$/);
+        if (m) n = m[1] ? -(+m[2]) : +m[2] - 1;
+        else if (/ROOF|DECK/.test(z)) {
+          const base = z.replace(/_(ROOF|OBSERVATION_DECK|ROOF_ROOM)$/, '');
+          n = Math.max(0, ...Object.keys(T.d.zones).filter((k) => k.startsWith(base + '_')).map((k) => +(k.match(/_(\d+)F$/)?.[1] ?? 0))) ;
+        } else n = 0;
+      }
+      T.etat.vars[v] = n < 0 ? 65536 + n : n;
+    },
+  },
+  /** nom d'un étage pour un message (BufferDeptStoreFloorNo) : 1 → « 2F », 0 → « 1F », toit… */
+  tampon_etage: {
+    args: 'nombre mot',
+    exec: (T, ctx, [k, n]) => {
+      const e = /^VAR_/.test(n) ? T.etat.vars[n] ?? 0 : +n;
+      (T.tampons ||= [])[k] = e >= 32768 ? `B${65536 - e}F` : `${e + 1}F`;
+    },
+  },
+  /** ouvre un écran de la page (« casino » : la machine à sous d'Odyssée, avec les jetons du jeu) */
+  ecran: { args: 'mot', exec: (T, ctx, [quoi]) => T.ecran(quoi) },
+  /** numéro (du jeu) de la carte d'où l'on vient */
+  carte_precedente: { args: 'mot', exec: (T, ctx, [v]) => { T.etat.vars[v] = T.d.numeroCarte?.[T.etat.zonePrecedente] ?? 0; } },
+  /** le trajet en ascenseur : un peu d'attente, la cabine qui tremble */
+  ascenseur: { exec: (T) => { T.sortir({ type: 'son', nom: 'ascenseur' }); T.secousse = 40; return () => T.secousse <= 0; } },
+  /** échanges avec les habitants : la demande (espèce voulue) et l'échange lui-même ; table donnees/echanges.js */
+  echange_charger: { args: 'nombre', exec: (T, ctx, [n]) => { T.echangeEnCours = T.d.echanges?.[n] || null; } },
+  echange_demande: { args: 'mot', exec: (T, ctx, [v]) => { T.etat.vars[v] = T.echangeEnCours?.demande ?? -1; } },
+  echange: {
+    args: 'mot',
+    exec: (T, ctx, [v]) => {
+      const e = T.echangeEnCours, i = /^VAR_/.test(v) ? T.etat.vars[v] ?? 0 : +v;
+      if (!e || !T.etat.equipe[i]) return;
+      const m = T.pokemon.creer(e.donne, Math.max(1, T.etat.equipe[i].niveau ?? T.etat.equipe[i].lvl ?? 5));
+      if (e.surnom) m.surnom = e.surnom;
+      T.etat.equipe[i] = m;
+      T.sortir({ type: 'son', nom: 'fanfare' });
+    },
+  },
+  /** fin du jeu (générique du Panthéon) : drapeau FLAG_GAME_CLEAR, équipe soignée, retour dans la chambre */
+  fin_du_jeu: {
+    exec: (T) => {
+      T.etat.drapeaux.add('FLAG_GAME_CLEAR');
+      for (const p of T.etat.equipe) T.pokemon.soigner(p);
+      T.sortir({ type: 'son', nom: 'fanfare' });
+      T.sortir({ type: 'fin_du_jeu' });
+      const z = T.d.departFin || { zone: 'NEW_BARK_PLAYER_HOUSE_2F', warp: 0 };
+      if (T.d.zones[z.zone]) {
+        T.etat.soin = { zone: 'NEW_BARK_PLAYER_HOUSE_1F', x: null, y: null };
+        const lu = T.message(T.d.langue === 'en' ? 'Congratulations, {JOUEUR}!\nYou entered the HALL OF FAME.\n\nTHE END' : 'Félicitations, {JOUEUR} !\nTu entres au PANTHÉON.\n\nFIN');
+        let parti = false;
+        return () => {
+          if (!parti) { if (!lu()) return false; T.ui = null; parti = true; T.teleporter(z); }
+          return !T.transition && T.zone.id === z.zone;
+        };
+      }
+    },
+  },
+  /** l'apparence de l'ami (Célesta pour un garçon, Luth pour une fille) dans une variable d'objet (GetFriendSprite) */
+  sprite_ami: {
+    args: 'mot',
+    exec: (T, ctx, [v]) => { T.etat.vars[v] = T.etat.joueur?.sprite === 'player_f' ? (T.d.spriteAmi?.f ?? 213) : (T.d.spriteAmi?.m ?? 214); },
+  },
   placer_relatif: {
     args: 'mot nombre nombre dir?',
     exec: (T, ctx, [id, dx, dy, d]) => {
@@ -281,9 +374,18 @@ export const COMMANDES = {
   /** jour de la semaine (0 = dimanche), comme la DS */
   jour_semaine: { args: 'mot', exec: (T, ctx, [v]) => { T.etat.vars[v] = new Date().getDay(); } },
   /** un POKéMON sauvage du jeu (statique : Ramoloss, Simularbre, Léviator rouge…) ; VAR_COMBAT = 1 si gagné */
+  /**
+   * un POKéMON à combattre (légendaires, Simularbre, Léviator rouge, pièges du QG Rocket) ; espèce et niveau peuvent
+   * être des variables. Issue (GetStaticEncounterOutcome du jeu) : 1 battu, 2 perdu, 3 fui, 4 capturé
+   */
   combat_sauvage_hg: {
-    args: 'mot nombre',
-    exec: (T, ctx, [sp, niv]) => T.combat({ type: 'sauvage', espece: /^VAR_/.test(sp) ? T.etat.vars[sp] ?? 0 : sp, niveau: niv, statique: true }, (v) => { T.etat.vars.VAR_COMBAT = v ? 1 : 0; }),
+    args: 'mot mot',
+    exec: (T, ctx, [sp, niv]) => {
+      const v = (a) => (/^VAR_/.test(a) ? T.etat.vars[a] ?? 0 : /^\d+$/.test(a) ? +a : a);
+      return T.combat({ type: 'sauvage', espece: v(sp), niveau: v(niv), statique: true }, (gagne, issue) => {
+        T.etat.vars.VAR_COMBAT = issue === 'caught' ? 4 : issue === 'flee' ? 3 : gagne ? 1 : 2;
+      });
+    },
   },
   /** un téléporteur que le script règle (ascenseurs, salles d'attente) : le prochain warp « dynamique » y mène */
   warp_dynamique: {

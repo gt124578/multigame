@@ -68,7 +68,19 @@ export class PontOdyssee {
   /** l'état vu par les écrans d'Odyssée : les mêmes objets que ceux du terrain (rien n'est recopié) */
   get state() {
     const e = this.T.etat;
-    return { name: e.joueur.nom, party: e.equipe, box: e.boite, bag: e.sac, dex: this.dex, money: e.argent, badges: [], time: 0 };
+    return {
+      name: e.joueur.nom, party: e.equipe, box: e.boite, bag: e.sac, dex: this.dex, badges: [], time: 0,
+      get money() { return e.argent; }, set money(v) { e.argent = v; },
+      // les jetons du Casino du jeu (GetCoinAmount, GiveCoins…) : ceux de la machine à sous d'Odyssée
+      get jetons() { return e.jetons ?? 0; }, set jetons(v) { e.jetons = v; },
+    };
+  }
+  /** un écran demandé par le terrain : la machine à sous du Casino */
+  async ecran(e) {
+    this.occupe = true;
+    try {
+      if (e.quoi === 'casino') { const { machineASous } = await import('../js/ui/casino/machine.js'); await machineASous(this); }
+    } finally { this.occupe = false; }
   }
   /** fonctions de POKéMON données au terrain */
   get pokemon() {

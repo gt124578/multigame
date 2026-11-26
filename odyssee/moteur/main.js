@@ -224,6 +224,18 @@ $('chargement').remove();
 if (Q.has('debug')) { window.__moteur = { T, R, pont, G, HG, charger }; $('debug').style.display = 'block'; }
 pont.musique(T.musique);
 if (Q.has('zoom')) R.zoom = +Q.get('zoom');   // vue élargie (regarder une ville entière)
+// caméra au choix du joueur : molette ou + / − pour voir plus ou moins loin (retenu par le navigateur), le reste au labo
+const CLE_CAM = 'moteur-hgss-camera';
+try { R.cam = { zoom: 1.25, inclinaison: null, champ: null, ...JSON.parse(localStorage.getItem(CLE_CAM) || '{}') }; } catch { R.cam = { zoom: 1.25, inclinaison: null, champ: null }; }
+const garderCam = () => { try { localStorage.setItem(CLE_CAM, JSON.stringify(R.cam)); } catch { /* rien */ } labo?.majCamera?.(); };
+const zoomer = (k) => { R.cam.zoom = Math.min(3, Math.max(0.6, Math.round(R.cam.zoom * k * 100) / 100)); garderCam(); };
+$('vue').addEventListener('wheel', (e) => { e.preventDefault(); zoomer(e.deltaY > 0 ? 1.08 : 1 / 1.08); }, { passive: false });
+addEventListener('keydown', (e) => {
+  if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+  if (e.code === 'Minus' || e.code === 'NumpadSubtract' || e.code === 'Digit6') zoomer(1.1);
+  else if (e.code === 'Equal' || e.code === 'NumpadAdd') zoomer(1 / 1.1);
+});
+R.garderCam = garderCam;
 
 // ——— interface : elle reflète l'état du moteur ———
 let tZone = 0;
@@ -232,8 +244,9 @@ function ui(temps) {
     if (e.type === 'son') pont.son(e.nom);
     if (e.type === 'musique') pont.musique(e.nom);
     if (e.type === 'zone' && e.annonce) { $('zone').textContent = e.nom; $('zone').classList.add('vu'); tZone = temps + 2600; }
+    if (e.type === 'ecran') { pont.ecran(e).then(() => { vider(); T.finEcran(); }, (err) => { console.error(err); T.finEcran(); }); continue; }
     if (e.type === 'combat' && combats === 'gagner') { T.terminerCombat(true); continue; }
-    if (e.type === 'combat') pont.combat(e).then((r) => { vider(); T.terminerCombat(r !== 'lose'); }, (err) => { console.error(err); T.terminerCombat(true); });
+    if (e.type === 'combat') pont.combat(e).then((r) => { vider(); T.terminerCombat(r !== 'lose', r); }, (err) => { console.error(err); T.terminerCombat(true); });
   }
   if (tZone && temps > tZone) { $('zone').classList.remove('vu'); tZone = 0; }
   const u = T.ui;

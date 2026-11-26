@@ -95,8 +95,26 @@ lui-même. La page les lit **à la volée** dans ce dépôt public (gardées ens
   20 s. Mesure : `node tools/perf-moteur-hgss.mjs "<paramètres>" "<touches>"` (images, tâches longues, profil du
   JavaScript) ; `node tools/test-moteur-hgss-labo.mjs` (Playwright) teste le labo, la vitesse, les modèles glTF et
   l'absence d'à-coup en marchant.
+- L'histoire après le premier badge (`tools/test-moteur-hgss-histoire.mjs`, outils de jeu dans `tools/moteur-hgss-partie.mjs` :
+  marcher en évitant les dalles piégées, de porte en porte, d'escalier en escalier dans les tours en zigzag, parler à tous) :
+  l'appel du Prof. Elm et l'Œuf (TOGEPI éclos d'office : pas d'œufs dans le moteur), la Ligue (garde, Conseil 4, Peter,
+  Panthéon, générique `fin_du_jeu`, retour à la maison, `FLAG_GAME_CLEAR`), l'Aquaria d'Oliville à Carmin (portes
+  déplacées par les scripts : `MoveWarp`, `placerWarps` de `engine/carte.js`, scripts « à la reprise » `OnResume`), le
+  Train Magnétique (`ScrCmd_722`), la Tour Carillon et HO-OH (combat dont l'espèce et le niveau sont des variables), le QG
+  de la Team Rocket (statues d'alarme, dalles piégées `RocketTrapBattle`), les ascenseurs (`etage_ascenseur`,
+  `tampon_etage`), les échanges (`echange_*`, table `ECHANGES` de `donnees/appels.js`, tirée des dialogues), la machine à
+  sous du Casino (écran d'Odyssée par `T.ecran` / `finEcran`, mêmes jetons). Appels du Pokégear : `appel`, résumés écrits
+  pour le moteur dans `donnees/appels.js` (les paroles des appels ne sont pas publiées). Les combats à deux contre deux
+  (`MultiBattle`) se jouent l'un après l'autre. Apparences rangées dans des variables (`SPRITE_VAR_n` : Célesta,
+  `sprite_ami`), personnages placés par des variables (`placer_var`), joueur toujours visible en arrivant sur une carte,
+  porte large (sortie vers une case libre).
+- Rendu : les personnages prennent la profondeur de leurs pieds avancée vers la caméra (`profondeurPieds` de
+  `render/rendu.js` : plus de rival coupé par le toit du labo ; dedans, un comptoir cache encore les jambes) ; caméra au
+  choix du joueur (`R.cam` : zoom à la molette ou + / −, 1,25 par défaut ; inclinaison et champ dans le labo) ; tous les
+  styles d'Odyssée chargés par `moteur.html` (le menu des attaques n'est plus coupé).
 - Pour l'instant à côté : les écrans propres au jeu (Pokégear, boîte de choix du starter dessinée, surnom ; le nom du
-  rival se demande par une simple question), les combats doubles.
+  rival se demande par une simple question), les vrais combats en double (joués l'un après l'autre), le Parc Safari (ses zones
+  se composent dans la sauvegarde du jeu), le Pokéathlon, la Tour de Combat.
 
 ## Arène de Frimapic, Pokémon Platine (`donnees/platine.js`, `render/platine3d.js`)
 

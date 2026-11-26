@@ -16,6 +16,29 @@ const estMur = (s) => s === 'mur' || s?.startsWith('mur_');
 const DECOR_OBJET = { objet: 'objet', arbre_coupe: 'arbre_coupe', rocher: 'rocher' };
 /** hauteur des murs de chaque sorte de bâtiment, en cases */
 const HAUT_BAT = { labo: 2.2, grotte: 1.6, maison: 1.8, centre: 2.0, boutique: 1.8, arene: 2.2, ecole: 2.0, tour: 2.4, poste: 1.6 };
+/**
+ * Un personnage prend tout entier la profondeur d'un point juste devant ses pieds (comme un sprite de DS) : il ne
+ * s'enfonce plus dans le mur, le toit ou le meuble à côté de lui (le rival collé à la fenêtre du labo n'est plus coupé),
+ * et un bâtiment posé devant lui le cache toujours.
+ */
+/** avancée du bas du dessin : grande dehors (bâtiments à côté), petite dedans (comptoirs et meubles devant) */
+const PIED = { value: 3 };
+function profondeurPieds(mat, tete = 6) {
+  mat.onBeforeCompile = (sh) => {
+    // la profondeur des pieds, avancée vers la caméra de PIED cases en bas du dessin et de `tete` en haut : un toit
+    // qui déborde ou un mur à côté ne mord plus le personnage, et un bâtiment entier devant lui le cache toujours ;
+    // dedans, un comptoir devant l'infirmière cache encore ses jambes
+    sh.uniforms.uPied = PIED;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uPied;')
+      .replace('#include <project_vertex>', `#include <project_vertex>
+      vec4 vPieds = viewMatrix * ( modelMatrix * vec4( 0.0, 0.25, 0.0, 1.0 ) );
+      vPieds.z += mix( uPied, ${tete.toFixed(2)}, clamp( transformed.y / 2.0, 0.0, 1.0 ) );
+      vec4 pPieds = projectionMatrix * vPieds;
+      gl_Position.z = pPieds.z / pPieds.w * gl_Position.w;`);
+  };
+  mat.customProgramCacheKey = () => 'pieds' + tete;
+  return mat;
+}
 /** pieds des personnages : un peu au sud du centre de la case */
 const PIEDS = 0.78;
 
@@ -47,7 +70,7 @@ export class Rendu {
   }
   async charger() {
     const persos = new Set(['player_m', 'player_f', 'player_m_velo', 'player_f_velo']);
-    for (const z of Object.values(this.T.d.zones)) for (const o of z.objets || []) if (o.sprite && !o.sprite.startsWith('mm:') && !DECOR_OBJET[o.type]) persos.add(o.sprite);
+    for (const z of Object.values(this.T.d.zones)) for (const o of z.objets || []) if (o.sprite && !o.sprite.startsWith('mm:') && !o.sprite.startsWith('var:') && !DECOR_OBJET[o.type]) persos.add(o.sprite);
     this.A = await chargerTout(this.T.d.sols, [...persos], this.pack);
     this.matSol = new THREE.MeshBasicMaterial({ map: this.A.atlas.tex, vertexColors: true });
     this.matEau = new THREE.MeshBasicMaterial({ map: this.A.eau });
@@ -358,7 +381,11 @@ export class Rendu {
     }
     return g;
   }
-  inclinaison() { return this.T.camera?.inclinaison ?? 52; }
+  /**
+   * réglages de la caméra choisis par le joueur (molette, + / −, labo) : `zoom` (1 = la vue de la DS, plus grand = on
+   * voit plus loin), `inclinaison` (degrés, null = celle de la carte), `champ` (degrés, null = celui de la carte)
+   */
+  inclinaison() { return this.cam?.inclinaison ?? this.T.camera?.inclinaison ?? 52; }
   /** hauteur d'un niveau en cases : 0,75 (comme Odyssée), ou celle du monde (Platine : demi-cases) */
   niv() { return this.T.M?.niv ?? NIV; }
   /**
@@ -373,9 +400,22 @@ export class Rendu {
   }
 
   // ——— objets ———
+  /**
+   * le nom de la planche d'un objet : « var:VAR_OBJ_n » (SPRITE_VAR du jeu) se lit dans la variable, qui donne le numéro
+   * du modèle (l'ami du joueur par défaut : Célesta)
+   */
+  nomSprite(o) {
+    const sp = o.sprite;
+    if (!sp?.startsWith('var:')) return sp;
+    const d = this.T.d, n = this.T.etat.vars[sp.slice(4)] ?? (this.T.etat.joueur?.sprite === 'player_f' ? d.spriteAmi?.f : d.spriteAmi?.m);
+    const nom = d.modelesParNumero?.[n];
+    return nom ? 'mm:' + nom : 'player_m';
+  }
   sprite(o) {
     let s = this.sprites.get(o);
+    if (s && s.sp !== undefined && o !== this.T.joueur && s.sp !== this.nomSprite(o)) { this.defaireSprite(s); this.sprites.delete(o); s = null; }
     if (s) return s;
+    const sp = o === this.T.joueur ? o.sprite : this.nomSprite(o);
     const g = new THREE.Group();
     let mat, n = 1, l = 2, h = 2;
     // personnage ou objet refait à la main (remplacements.json) : son modèle 3D, animé s'il a des animations
@@ -397,19 +437,19 @@ export class Rendu {
       this.sprites.set(o, s);
       return s;
     }
-    if (DECOR_OBJET[o.def?.type] && !o.sprite?.startsWith('mm:')) {
+    if (DECOR_OBJET[o.def?.type] && !sp?.startsWith('mm:')) {
       const D = this.A.decor[DECOR_OBJET[o.def.type]]; mat = new THREE.MeshBasicMaterial({ map: D.tex, transparent: true, alphaTest: 0.5 }); l = D.l; h = D.h;
     } else {
       // personnage du jeu (« mm:NOM ») : sa planche est lue dans le dépôt de la décompilation, puis le sprite refait
-      if (!this.A.persos[o.sprite] && o.sprite?.startsWith('mm:') && this.hg && !this.planchesEnCours?.has(o.sprite)) {
-        (this.planchesEnCours ||= new Set()).add(o.sprite);
-        this.hg.planche(o.sprite.slice(3)).then((cv) => {
+      if (!this.A.persos[sp] && sp?.startsWith('mm:') && this.hg && !this.planchesEnCours?.has(sp)) {
+        (this.planchesEnCours ||= new Set()).add(sp);
+        this.hg.planche(sp.slice(3)).then((cv) => {
           if (!cv) return;
-          this.A.persos[o.sprite] = cv;
-          for (const [ob, sp] of this.sprites) if (ob.sprite === o.sprite) { this.defaireSprite(sp); this.sprites.delete(ob); }
+          this.A.persos[sp] = cv;
+          for (const [ob, so] of this.sprites) if (so.sp === sp) { this.defaireSprite(so); this.sprites.delete(ob); }
         });
       }
-      const im = this.A.persos[o.sprite] || this.A.persos.player_m;
+      const im = this.A.persos[sp] || this.A.persos.player_m;
       const t = texture(im); n = im.width / 32;
       t.repeat.set(1 / n, 1);
       mat = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.5 });
@@ -418,6 +458,7 @@ export class Rendu {
     let matVelo = null, nVelo = 0;
     const imV = o === this.T.joueur && this.A.persos[(o.sprite || 'player_m') + '_velo'];
     if (imV) { const t = texture(imV); nVelo = imV.width / 32; t.repeat.set(1 / nVelo, 1); matVelo = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.5 }); }
+    profondeurPieds(mat); if (matVelo) profondeurPieds(matVelo);
     const pg = new THREE.PlaneGeometry(l, h); pg.translate(0, h / 2, 0);
     const corps = new THREE.Mesh(pg, mat);
     const ombre = this.ombre.clone();
@@ -428,7 +469,7 @@ export class Rendu {
     vague.rotation.x = -Math.PI / 2; vague.scale.set(1, 0.6, 1);
     g.add(ombre, corps, herbe, bulle, vague);
     this.scene.add(g);
-    s = { g, corps, ombre, herbe, bulle, vague, n, mat: corps.material, matVelo, nVelo };
+    s = { g, corps, ombre, herbe, bulle, vague, n, mat: corps.material, matVelo, nVelo, sp };
     this.sprites.set(o, s);
     return s;
   }
@@ -519,12 +560,15 @@ export class Rendu {
     this.placerSprite(T.joueur, true);
     this.A.eau.offset.y = (((temps / 250) | 0) % 4) * 0.25;
     // caméra : celle de la zone, centrée sur le joueur
-    const c = T.camera, incl = THREE.MathUtils.degToRad(c.inclinaison);
+    PIED.value = T.zone?.interieur ? 0.6 : 3;
+    const c = T.camera, incl = THREE.MathUtils.degToRad(this.inclinaison());
     const cible = new THREE.Vector3(c.x, c.z * this.niv() + 0.5, c.y);
     const sec = T.secousse > 0 ? Math.sin(temps / 20) * 0.08 : 0;
-    const dist = c.distance * (this.zoom || 1);
+    // un autre champ garde la même largeur de vue au sol (la distance suit), le zoom éloigne
+    const fov = this.cam?.champ ?? c.fov;
+    const dist = c.distance * (this.zoom || 1) * (this.cam?.zoom ?? 1) * Math.tan(THREE.MathUtils.degToRad(c.fov / 2)) / Math.tan(THREE.MathUtils.degToRad(fov / 2));
     this.camera.position.set(cible.x + sec, cible.y + Math.sin(incl) * dist, cible.z + Math.cos(incl) * dist);
-    this.camera.fov = c.fov; this.camera.updateProjectionMatrix();
+    this.camera.fov = fov; this.camera.far = Math.max(2000, dist * 3); this.camera.updateProjectionMatrix();
     // comme Odyssée (et la DS) : la largeur est resserrée de sin(inclinaison), les cases sont carrées à l'écran
     if (c.carre) { this.camera.projectionMatrix.elements[0] *= Math.sin(incl); this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert(); }
     this.camera.lookAt(cible.x + sec, cible.y, cible.z);

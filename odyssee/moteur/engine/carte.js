@@ -55,12 +55,26 @@ export class Monde {
     this.zones = [...new Set(m.zones.filter(Boolean))].map((z) => donnees.zones[z]);
     // événements de toutes les zones du monde, par case
     this.warps = new Map(); this.panneaux = new Map(); this.declencheurs = []; this.objets = [];
+    this.placerWarps();
     for (const z of this.zones) {
-      (z.warps || []).forEach((w, i) => this.warps.set(this.cle(w.x, w.y), { ...w, zone: z.id, indice: i }));
       for (const p of z.panneaux || []) this.panneaux.set(this.cle(p.x, p.y), { ...p, zone: z.id });
       for (const d of z.declencheurs || []) this.declencheurs.push({ l: 1, h: 1, ...d, zone: z.id });
       for (const o of z.objets || []) this.objets.push({ ...o, zone: z.id });
     }
+  }
+  /**
+   * les téléporteurs, par case ; `deplaces` : { 'ZONE#n': [x, y] } (MoveWarp des scripts du jeu : la sortie de
+   * l'Aquaria mène à Oliville ou à Carmin selon le sens du voyage, les deux portes étant posées sur la même case)
+   */
+  placerWarps(deplaces = {}) {
+    this.warps.clear();
+    for (const z of this.zones) (z.warps || []).forEach((w, i) => {
+      const [x, y] = deplaces[`${z.id}#${i}`] || [w.x, w.y];
+      const k = this.cle(x, y), deja = this.warps.get(k);
+      // deux portes sur la même case : celle qui n'a pas été déplacée là reste dessous
+      if (deja && deplaces[`${deja.zone}#${deja.indice}`] && !deplaces[`${z.id}#${i}`]) return;
+      this.warps.set(k, { ...w, x, y, zone: z.id, indice: i });
+    });
   }
   cle(x, y) { return y * this.largeur + x; }
   dedans(x, y) { return x >= 0 && y >= 0 && x < this.largeur && y < this.hauteur; }

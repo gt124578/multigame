@@ -9,6 +9,7 @@
 // Ce qui est à nous, posé par-dessus (`AJOUTS`) : les chariots de l'arène d'Écorcia (le moteur les joue avec les
 // tracés du jeu, donnees/ecorcia.js), la dresseuse de Sinnoh qui mène à l'Arène de Frimapic (Platine).
 
+import { appels, ECHANGES } from './appels.js';
 import { CHEMINS_HG, archivesHG, dehorsHG, interieurHG, lireEntetesHG } from './hgss.js';
 import { zoneHG, lireDresseursHG, traduireScripts, objetDe, especeDe } from './evenements-hg.js';
 import { nomLieuFr, dresseurFr } from './fr.js';
@@ -107,6 +108,10 @@ export async function jeuHG(lire, { langue = 'en' } = {}) {
     capacites: { coupe: ['BADGE_HIVE', 'hm01'], surf: ['BADGE_FOG', 'hm03'], force: ['BADGE_PLAIN', 'hm04'], siphon: ['BADGE_GLACIER', 'hm05'],
       eclate: ['BADGE_ZEPHYR', 'hm06'], cascade: ['BADGE_RISING', 'hm07'], escalade: ['BADGE_EARTH', 'hm08'] },
     // en français : noms de la version française ; espèces, attaques et objets d'Odyssée (posés par le pont)
+    // apparences rangées dans des variables (SPRITE_VAR_n) : numéro du modèle → nom ; l'ami du joueur (HERO_2 / HEROINE_2)
+    modelesParNumero: Object.fromEntries(Object.entries(personnages).map(([k, v]) => [v, k])),
+    spriteAmi: { m: personnages.HEROINE_2 ?? 214, f: personnages.HERO_2 ?? 213 },
+    appels, echanges: ECHANGES, numeroCarte: A.numCarte,
     langue, scriptsTraversent: true, tolerant: true, transitionAvant: true, nomJoueur: fr ? 'LUTH' : 'ETHAN', nomRival: 'SILVER',
     objets: fr ? {} : objets, nomsEspeces: noms.especes, noms,
     scriptsCommuns: SCRIPTS_PLUS,
@@ -123,7 +128,7 @@ export async function jeuHG(lire, { langue = 'en' } = {}) {
       e.matrice && !/EVERYWHERE/.test(e.matrice) ? lire(CHEMINS_HG.matrice(e.matrice)).catch(() => null) : null,
     ]);
     let z = zoneHG(c, e, ev ? JSON.parse(ev) : null, msg ? JSON.parse(msg) : null, scr,
-      { zoneDe, dresseurs, mmodels, nomLieu: lieu, externes });
+      { zoneDe, dresseurs, mmodels, nomLieu: lieu, externes, nomCarte: A.nomCarte });
     z.niveau = niveaux(niv);
     const te = tablesEnc[String(e.rencontres || '').replace(/^ENCDATA_/, '')];
     if (te) z.rencontres = rencontresHG(te, !(zones[c]?.ville || zones[c]?.route));
@@ -157,6 +162,8 @@ export function niveaux(src) {
   const n = {}, entree = (s) => { const m = s.match(/_EV_scr_seq_(\w+?) \+ 1/); return m ? 'HG_' + m[1] : null; };
   for (const m of src.matchAll(/InitScriptEntry_OnTransition (.+)/g)) { const e = entree(m[1]); if (e) n.transition = e; }
   for (const m of src.matchAll(/InitScriptEntry_OnLoad (.+)/g)) { const e = entree(m[1]); if (e) n.chargement = e; }
+  // à la reprise du terrain (arrivée sur la carte, retour d'un combat) : portes déplacées de l'Aquaria, etc.
+  for (const m of src.matchAll(/InitScriptEntry_OnResume (.+)/g)) { const e = entree(m[1]); if (e) n.reprise = e; }
   const image = [];
   for (const m of src.matchAll(/InitScriptGoToIfEqual (\w+), (\d+), (.+)/g)) { const e = entree(m[3]); if (e) image.push({ var: m[1], val: +m[2], script: e }); }
   if (image.length) n.image = image;

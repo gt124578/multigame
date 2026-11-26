@@ -678,11 +678,21 @@ export class Terrain {
     return () => !this.combatEnCours;
   }
   /** appelé par l'écran de combat (ou par les tests) */
-  terminerCombat(victoire = true) {
+  /**
+   * un écran que la page ouvre (machine à sous du Casino…) : le terrain attend que la page appelle finEcran()
+   */
+  ecran(quoi, donnees = {}) {
+    this.ecranEnCours = { quoi, ...donnees };
+    this.sortir({ type: 'ecran', quoi, ...donnees });
+    return () => !this.ecranEnCours;
+  }
+  finEcran() { this.ecranEnCours = null; }
+  /** fin d'un combat ; `issue` : 'win', 'lose', 'flee' ou 'caught' (ce que rend l'écran de combat) */
+  terminerCombat(victoire = true, issue = victoire ? 'win' : 'lose') {
     const c = this.combatEnCours;
     if (!c) return;
     this.combatEnCours = null;
-    c.apres?.(victoire);
+    c.apres?.(victoire, issue);
     if (!victoire) this.tomberKo();
   }
   tomberKo() {
@@ -747,6 +757,7 @@ export class Terrain {
         return;
       }
       const o = tr.o, z = this.d.zones[o.zone];
+      if (this.zone && this.zone.id !== o.zone) this.etat.zonePrecedente = this.zone.id;
       const mid = this.d.mondeDeZone[o.zone];
       if (!this.M || this.M.id !== mid) this.chargerMonde(mid);
       let x = o.x, y = o.y, dir = o.dir;
@@ -757,16 +768,26 @@ export class Terrain {
       for (const f of [...this.etat.drapeaux]) if (f.startsWith('TMP_') || f.startsWith('FLAG_MAPTEMP_')) this.etat.drapeaux.delete(f);
       // comme dans HGSS, les variables VAR_TEMP_… repartent de zéro sur chaque carte
       for (const v of Object.keys(this.etat.vars)) if (v.startsWith('VAR_TEMP_')) delete this.etat.vars[v];
+      if (this.etat.warpsDeplaces) { this.etat.warpsDeplaces = {}; this.majWarps(); }
       this.majVisibles();
       this.placerJoueur(x, y, dir);
+      // comme dans le jeu, on arrive toujours visible (la chute des Ruines d'Alpha rend le joueur invisible avant le saut)
+      this.joueur.visible = true; this.joueur.cacheScript = false;
       this.majZone(true);
+      this.lancerNiveau('reprise');
       this.lancerNiveau('chargement');
       // les données du jeu : le script « à l'entrée » joue pendant le noir (il cache ou montre les personnages)
       if (this.d.transitionAvant) this.lancerNiveau('transition');
       this.camera = null; this.majCamera();
       this.sortir({ type: 'carte', monde: this.M.id, zone: o.zone });
       // en arrivant sur une porte, on sort d'un pas
-      const sortie = o.sortie !== undefined ? o.sortie : (p.warp === 'entree' && this.M.mb(x, y) === 12 ? 1 : null);
+      let sortie = o.sortie !== undefined ? o.sortie : (p.warp === 'entree' && this.M.mb(x, y) === 12 ? 1 : null);
+      // une porte large (deux cases de porte côte à côte, comme l'entrée du Chemin du Carillon) : on ne ressort pas
+      // sur l'autre case de porte (elle ramènerait d'où l'on vient), mais vers une case libre
+      if (sortie !== null && sortie !== undefined && this.M.warp(x + DX[sortie], y + DY[sortie])) {
+        const autre = [1, 3, 2, 0].find((d) => this.M.dedans(x + DX[d], y + DY[d]) && !this.M.bloquee(x + DX[d], y + DY[d]) && !this.M.warp(x + DX[d], y + DY[d]));
+        if (autre !== undefined) sortie = autre;
+      }
       tr.sortie = sortie;
       tr.phase = 'entree';
       this.fondu(0, 12);
@@ -785,6 +806,9 @@ export class Terrain {
       if (!this.d.transitionAvant) this.lancerNiveau('transition');
     }
   }
+
+  /** les téléporteurs déplacés par les scripts (MoveWarp), le temps d'une carte comme dans le jeu */
+  majWarps() { this.M?.placerWarps?.(this.etat.warpsDeplaces || {}); }
 
   // ——— zones et scripts de niveau ———
   majZone(force = false) {
