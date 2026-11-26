@@ -34,9 +34,28 @@
 <link rel="stylesheet" href="css/24-casino-arcade.css">
 <style>
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  /* le jeu à gauche, les commandes, les infos (F3) et le labo dans une colonne à droite (dessous sur un écran en hauteur) ;
+     100dvh : la hauteur vraiment visible (Chrome et Safari sur iPad comptent la barre d'adresse dans 100vh) */
+  #page { position: fixed; inset: 0; height: 100dvh; display: flex; box-sizing: border-box;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
   #ecran, #ecran * { font-family: 'Trebuchet MS', system-ui, sans-serif; font-weight: normal; }
-  #ecran { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
-  #cadre { position: relative; aspect-ratio: 4 / 3; height: min(100vh, 75vw); }
+  #ecran { position: relative; flex: 1 1 0; min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; container-type: size; }
+  #cadre { position: relative; aspect-ratio: 4 / 3; width: min(100cqw, 133.33cqh); overflow: hidden; }
+  #replier { position: absolute; right: 4px; top: 4px; z-index: 40; font: 16px/1 system-ui; color: #fff; background: rgba(20, 28, 48, 0.75);
+    border: 1px solid #5a6c96; border-radius: 6px; padding: 6px 9px; cursor: pointer; }
+  #cote { flex: 0 0 300px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; box-sizing: border-box;
+    background: #0d1322; color: #e8ecf6; font: 12px/1.45 system-ui, sans-serif; padding: 6px; display: flex; flex-direction: column; gap: 6px;
+    border-left: 1px solid #26324e; }
+  #cote.replie { display: none; }
+  #cote button { font: 12px system-ui, sans-serif; color: #fff; background: #2c3a5c; border: 1px solid #5a6c96; border-radius: 4px; padding: 5px 8px; cursor: pointer; }
+  #cote .boutons { display: flex; flex-wrap: wrap; gap: 4px; }
+  #cote details { background: rgba(255, 255, 255, 0.05); border-radius: 4px; padding: 4px 7px; }
+  #cote summary { cursor: pointer; font-weight: bold; }
+  @media (orientation: portrait) {
+    #page { flex-direction: column; }
+    #ecran { flex: 0 0 auto; height: min(75vw, 68dvh); }
+    #cote { flex: 1 1 0; border-left: 0; border-top: 1px solid #26324e; }
+  }
   canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
   #noir { position: absolute; inset: 0; background: #000; pointer-events: none; opacity: 0; }
   #boite { position: absolute; left: 3%; right: 3%; bottom: 3%; min-height: 19%; background: #fff; border: 4px solid #4a5a8a; border-radius: 10px;
@@ -50,22 +69,34 @@
   #zone { position: absolute; left: 2%; top: 3%; background: linear-gradient(#f8f0d8, #e8d8b0); border: 3px solid #8a6a3a; border-radius: 6px;
     padding: 0.6% 2.5%; font-size: clamp(13px, 2.8vh, 26px); color: #4a3418; transform: translateY(-260%); transition: transform 0.35s; }
   #zone.vu { transform: translateY(0); }
-  #debug { position: absolute; left: 0.6%; bottom: 0.6%; font: 12px/1.35 monospace; color: #fff; background: rgba(0, 0, 0, 0.55); padding: 4px 6px; display: none; white-space: pre; pointer-events: none; }
-  #aide { position: absolute; right: 0.6%; top: 0.6%; font: 12px/1.4 system-ui; color: #fff; background: rgba(0, 0, 0, 0.5); padding: 6px 8px; border-radius: 4px; }
+  #zone:empty { display: none; }
+  #debug { font: 11px/1.35 monospace; color: #fff; background: rgba(0, 0, 0, 0.45); padding: 4px 6px; border-radius: 4px; display: none;
+    white-space: pre-wrap; overflow-wrap: anywhere; }
   #chargement { position: absolute; inset: 0; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; }
 </style>
 </head>
 <body>
+<div id="page">
 <div id="ecran"><div id="cadre">
   <canvas id="vue"></canvas>
   <div id="noir"></div>
   <div id="zone"></div>
   <div id="boite"><span id="texte"></span><span class="suite">▼</span></div>
   <div id="choix"></div>
-  <div id="debug"></div>
-  <div id="aide">Flèches / ZQSD : marcher · Espace / Entrée : A · Échap : B · Tab / M : menu<br>Maj (ou B tenu) : courir · Verr. Maj : toujours courir · V : vélo · C : carte · L : langue (FR / EN) · T : vitesse ×2 (Maj + T : ×4) · O : sauvegarder · F3 : infos · G : rendu DS<br>Labo (tous les lieux, rencontres, dresseurs, combats…) : ajouter <b>?labo</b> à l'adresse</div>
   <div id="chargement">Chargement…</div>
-</div></div>
+</div><button type="button" id="replier" title="Afficher / cacher la colonne">⇥</button></div>
+<aside id="cote">
+  <div id="cote-labo"></div>
+  <details id="aide" open><summary>Commandes</summary>
+    Flèches / ZQSD : marcher<br>Espace / Entrée : A · Échap : B<br>Tab / M : menu · C : carte · V : vélo<br>
+    Maj (ou B tenu) : courir · Verr. Maj : toujours courir<br>L : langue (FR / EN) · O : sauvegarder<br>
+    T : vitesse ×2 (Maj + T : ×4) · F3 : infos · G : rendu DS<br>
+    Labo (tous les lieux, rencontres, dresseurs, combats…) : ajouter <b>?labo</b> à l'adresse
+  </details>
+  <div class="boutons"><button type="button" id="b-infos">Infos (F3)</button><button type="button" id="b-ds">Rendu DS (G)</button></div>
+  <div id="debug"></div>
+</aside>
+</div>
 <div id="ui"></div>
 <script type="importmap">
   { "imports": { "three": "../shared/vendor/three/three.module.min.js" } }

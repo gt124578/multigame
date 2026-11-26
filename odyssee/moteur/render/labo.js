@@ -30,7 +30,7 @@ const FAMILLES = [
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export class Labo {
-  /** `ctx` : { T, R, pont, charger, langue, vitesse: { get, set }, combats: { get, set } } */
+  /** `racine` : la colonne de droite de la page ; `ctx` : { ecran (le cadre du jeu, pour les messages), T, R, pont, charger, langue, vitesse: { get, set }, combats: { get, set } } */
   constructor(racine, ctx) {
     this.ctx = ctx; this.T = ctx.T;
     try { this.revue = JSON.parse(localStorage.getItem(CLE_REVUE) || '{}'); } catch { this.revue = {}; }
@@ -145,9 +145,6 @@ export class Labo {
   }
   majInfo() {
     const T = this.T, z = T.zone; if (!z) return;
-    // sous la barre (qui peut tenir sur deux lignes), le panneau aussi
-    const haut = this.barre.offsetHeight + 4 + 'px';
-    this.info.style.top = haut; if (this.panneau) this.panneau.style.top = haut;
     const r = this.revue[z.id], j = T.joueur;
     const bl = T.M.blocs?.[((j.y / 32) | 0) * T.M.lb + ((j.x / 32) | 0)];
     const th = bl?.decor?.find((d) => d.type === 'terrain_hg');
@@ -206,7 +203,7 @@ export class Labo {
     this.toast('Gabarit téléchargé');
   }
   toast(t) {
-    if (!this.tst) { this.tst = document.createElement('div'); this.tst.className = 'labo-toast'; this.barre.parentNode.append(this.tst); }
+    if (!this.tst) { this.tst = document.createElement('div'); this.tst.className = 'labo-toast'; (this.ctx.ecran || this.barre.parentNode).append(this.tst); }
     this.tst.textContent = t; this.tst.style.display = t ? 'block' : 'none';
     clearTimeout(this.tTst); if (t) this.tTst = setTimeout(() => { this.tst.style.display = 'none'; }, 2500);
   }
@@ -219,8 +216,9 @@ export class Labo {
     // les touches tapées dans le panneau ne vont pas au jeu
     p.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') this.fermer(); });
     p.addEventListener('keyup', (e) => e.stopPropagation());
-    this.barre.parentNode.append(p);
+    this.info.after(p);
     this.panneau = p;
+    p.scrollIntoView?.({ block: 'nearest' });
     return p;
   }
   ouvrirLieux() {
@@ -303,19 +301,19 @@ export class Labo {
   style(racine) {
     const s = document.createElement('style');
     s.textContent = `
-      .labo-barre { position: absolute; left: 0; right: 0; top: 0; display: flex; flex-wrap: wrap; gap: 3px; padding: 3px; background: rgba(10, 16, 30, 0.72); z-index: 20; }
-      .labo-barre button, .labo-panneau button { font: 12px system-ui, sans-serif; color: #fff; background: #2c3a5c; border: 1px solid #5a6c96; border-radius: 4px; padding: 3px 7px; cursor: pointer; }
+      .labo-barre { display: flex; flex-wrap: wrap; gap: 4px; }
+      .labo-barre button, .labo-panneau button { font: 12px system-ui, sans-serif; color: #fff; background: #2c3a5c; border: 1px solid #5a6c96; border-radius: 4px; padding: 5px 8px; cursor: pointer; }
       .labo-barre button:hover, .labo-panneau button:hover { background: #3c4e7a; }
-      .labo-info { position: absolute; left: 0.6%; top: 34px; font: 12px/1.4 system-ui, sans-serif; color: #fff; background: rgba(0, 0, 0, 0.55); padding: 4px 7px; border-radius: 4px; pointer-events: none; z-index: 20; }
+      .labo-info { margin-top: 6px; font: 12px/1.4 system-ui, sans-serif; color: #fff; background: rgba(0, 0, 0, 0.45); padding: 4px 7px; border-radius: 4px; overflow-wrap: anywhere; }
       .labo-info span { opacity: 0.7; font-family: monospace; }
       .labo-toast { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.8); color: #fff; font: 14px system-ui; padding: 8px 14px; border-radius: 6px; display: none; z-index: 30; }
-      .labo-panneau { position: absolute; right: 2%; top: 40px; width: min(440px, 90%); max-height: 86%; overflow: auto; background: #182238; color: #e8ecf6; border: 2px solid #5a6c96; border-radius: 8px; padding: 8px 10px; font: 13px/1.5 system-ui, sans-serif; z-index: 25; }
+      .labo-panneau { margin-top: 6px; background: #182238; color: #e8ecf6; border: 2px solid #5a6c96; border-radius: 8px; padding: 8px 10px; font: 13px/1.5 system-ui, sans-serif; }
       .labo-titre { font-weight: bold; letter-spacing: 1px; margin-bottom: 6px; display: flex; justify-content: space-between; }
       .labo-panneau input, .labo-panneau select, .labo-panneau textarea { width: 100%; box-sizing: border-box; background: #0e1626; color: #fff; border: 1px solid #4a5a80; border-radius: 4px; font: 13px system-ui; padding: 3px 5px; }
       .labo-panneau input[type=checkbox] { width: auto; }
       .labo-liste { margin: 4px 0; }
       .labo-ligne { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 5px 0; }
-      .labo-badges { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 8px; }
+      .labo-badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 2px 8px; }
       .labo-go { background: #2f6a3c !important; }
     `;
     racine.append(s);

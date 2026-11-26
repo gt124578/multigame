@@ -108,6 +108,8 @@ lui-même. La page les lit **à la volée** dans ce dépôt public (gardées ens
   (`MultiBattle`) se jouent l'un après l'autre. Apparences rangées dans des variables (`SPRITE_VAR_n` : Célesta,
   `sprite_ami`), personnages placés par des variables (`placer_var`), joueur toujours visible en arrivant sur une carte,
   porte large (sortie vers une case libre).
+- Page : le jeu à gauche, une colonne à droite (dessous sur un écran en hauteur) pour les commandes, les infos (F3 ou
+  bouton) et le labo ; bouton ⇥ pour la cacher ; hauteur `100dvh` (iPad : plus rien de coupé en haut).
 - Rendu : les personnages (et le décor dessiné) sont posés à plat sur l'écran comme dans Odyssée (`spriteEcran` de
   `render/rendu.js`, d'après `screenSprite` de world3d.js) : le dessin part de la projection des pieds, à la taille d'une
   case du sol à cet endroit (un plan debout vu en perspective s'écrasait en bas de l'écran) ; ombre sous les pieds ; ils

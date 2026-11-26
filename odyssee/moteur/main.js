@@ -214,12 +214,25 @@ regler(vitesse);
 // ?labo : le labo (lieux, réglages d'essai)
 if (Q.has('labo') && G) {
   const { Labo } = await import('./render/labo.js');
-  labo = new Labo($('cadre'), { T, R, pont, charger, vitesse: { get: () => vitesse, set: regler },
+  labo = new Labo($('cote-labo'), { ecran: $('cadre'), T, R, pont, charger, vitesse: { get: () => vitesse, set: regler },
     combats: { get: () => combats, set: (c) => { combats = c; try { const o = JSON.parse(localStorage.getItem('moteur-hgss-labo') || '{}'); o.combats = c; localStorage.setItem('moteur-hgss-labo', JSON.stringify(o)); } catch { /* rien */ } } } });
-  $('aide').style.display = 'none';
+  $('aide').open = false;   // les commandes restent à portée, repliées sous le labo
 }
 const taille = () => { const c = $('cadre'); R.taille(c.clientWidth, c.clientHeight); };
 addEventListener('resize', taille); taille();
+// la colonne de droite (commandes, infos, labo) : un bouton la cache ou la remet, le jeu reprend la place
+new ResizeObserver(taille).observe($('cadre'));
+{
+  const cote = $('cote'), b = $('replier');
+  const poser = (r) => { cote.classList.toggle('replie', r); b.textContent = r ? '⇤' : '⇥'; try { localStorage.setItem('moteur-hgss-colonne', r ? '0' : '1'); } catch { /* rien */ } };
+  let r = false; try { r = localStorage.getItem('moteur-hgss-colonne') === '0'; } catch { /* rien */ }
+  poser(r);
+  b.onclick = () => poser(!cote.classList.contains('replie'));
+  // F3 et G sans clavier (iPad) ; le focus rendu à la page pour que les touches n'activent pas le bouton
+  $('b-infos').onclick = (e) => { appuis.add('debug'); e.currentTarget.blur(); };
+  $('b-ds').onclick = (e) => { appuis.add('qualite'); e.currentTarget.blur(); };
+  b.addEventListener('click', () => b.blur());
+}
 $('chargement').remove();
 if (Q.has('debug')) { window.__moteur = { T, R, pont, G, HG, charger }; $('debug').style.display = 'block'; }
 pont.musique(T.musique);
