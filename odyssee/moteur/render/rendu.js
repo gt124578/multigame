@@ -17,26 +17,42 @@ const DECOR_OBJET = { objet: 'objet', arbre_coupe: 'arbre_coupe', rocher: 'roche
 /** hauteur des murs de chaque sorte de bâtiment, en cases */
 const HAUT_BAT = { labo: 2.2, grotte: 1.6, maison: 1.8, centre: 2.0, boutique: 1.8, arene: 2.2, ecole: 2.0, tour: 2.4, poste: 1.6 };
 /**
- * Un personnage prend tout entier la profondeur d'un point juste devant ses pieds (comme un sprite de DS) : il ne
- * s'enfonce plus dans le mur, le toit ou le meuble à côté de lui (le rival collé à la fenêtre du labo n'est plus coupé),
- * et un bâtiment posé devant lui le cache toujours.
+ * Sprites dessinés à plat sur l'écran, comme dans Odyssée (`screenSprite` de world3d.js) et comme sur DS : le dessin est
+ * posé sur la projection de ses pieds, à la taille d'une case du sol à cet endroit, quelle que soit sa place à l'écran.
+ * Un plan debout vu en perspective rapetissait en bas de l'écran (vu plus d'en haut) et grandissait en haut : les
+ * personnages paraissaient écrasés, « plats ». La géométrie reste celle d'un plan debout (étiré de `etirement`) : elle
+ * ne sert plus qu'à la profondeur.
+ *
+ * `pieds` : un personnage prend tout entier la profondeur d'un point juste devant ses pieds (comme un sprite de DS) :
+ * il ne s'enfonce plus dans le mur, le toit ou le meuble à côté de lui, et un bâtiment posé devant lui le cache toujours.
+ * Avancée du bas du dessin vers la caméra : PIED cases (grande dehors, petite dedans : un comptoir devant l'infirmière
+ * cache encore ses jambes), `tete` cases en haut.
  */
-/** avancée du bas du dessin : grande dehors (bâtiments à côté), petite dedans (comptoirs et meubles devant) */
 const PIED = { value: 3 };
-function profondeurPieds(mat, tete = 6) {
+/** largeur / hauteur de l'image (une case fait autant de pixels de haut que de large) */
+const ASPECT = { value: 4 / 3 };
+function spriteEcran(mat, pieds = false, tete = 6) {
   mat.onBeforeCompile = (sh) => {
-    // la profondeur des pieds, avancée vers la caméra de PIED cases en bas du dessin et de `tete` en haut : un toit
-    // qui déborde ou un mur à côté ne mord plus le personnage, et un bâtiment entier devant lui le cache toujours ;
-    // dedans, un comptoir devant l'infirmière cache encore ses jambes
-    sh.uniforms.uPied = PIED;
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uPied;')
+    sh.uniforms.uPied = PIED; sh.uniforms.uAspect = ASPECT;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uPied;\nuniform float uAspect;')
       .replace('#include <project_vertex>', `#include <project_vertex>
-      vec4 vPieds = viewMatrix * ( modelMatrix * vec4( 0.0, 0.25, 0.0, 1.0 ) );
+      mat4 eM = modelMatrix;
+      #ifdef USE_INSTANCING
+        eM = modelMatrix * instanceMatrix;
+      #endif
+      vec4 eO = eM * vec4( 0.0, 0.0, 0.0, 1.0 );
+      vec4 eA = projectionMatrix * viewMatrix * eO;
+      vec4 eB = projectionMatrix * viewMatrix * ( eO + vec4( 1.0, 0.0, 0.0, 0.0 ) );
+      float eL = eB.x / eB.w - eA.x / eA.w;
+      vec2 eP = eA.xy / eA.w + vec2( transformed.x * eL, transformed.y * eL * uAspect );
+      float eZ = gl_Position.z / gl_Position.w;
+      ${pieds ? `vec4 vPieds = viewMatrix * ( eM * vec4( 0.0, 0.25, 0.0, 1.0 ) );
       vPieds.z += mix( uPied, ${tete.toFixed(2)}, clamp( transformed.y / 2.0, 0.0, 1.0 ) );
       vec4 pPieds = projectionMatrix * vPieds;
-      gl_Position.z = pPieds.z / pPieds.w * gl_Position.w;`);
+      eZ = pPieds.z / pPieds.w;` : ''}
+      gl_Position = vec4( eP * eA.w, eZ * eA.w, eA.w );`);
   };
-  mat.customProgramCacheKey = () => 'pieds' + tete;
+  mat.customProgramCacheKey = () => 'spriteEcran' + (pieds ? tete : '');
   return mat;
 }
 /** pieds des personnages : un peu au sud du centre de la case */
@@ -74,8 +90,8 @@ export class Rendu {
     this.A = await chargerTout(this.T.d.sols, [...persos], this.pack);
     this.matSol = new THREE.MeshBasicMaterial({ map: this.A.atlas.tex, vertexColors: true });
     this.matEau = new THREE.MeshBasicMaterial({ map: this.A.eau });
-    this.ombre = new THREE.Mesh(new THREE.CircleGeometry(0.32, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false }));
-    this.ombre.rotation.x = -Math.PI / 2; this.ombre.scale.set(1, 0.55, 1);
+    this.ombre = new THREE.Mesh(new THREE.CircleGeometry(0.4, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
+    this.ombre.rotation.x = -Math.PI / 2; this.ombre.scale.set(1, 0.5, 1);
     const im = new Image(); im.src = new URL('../../img/sol16/hautes_herbes_front.png', import.meta.url).href;
     await new Promise((ok) => { im.onload = ok; im.onerror = ok; });
     this.texHerbe = texture(im);
@@ -89,6 +105,7 @@ export class Rendu {
     this.renderer.setPixelRatio(this.qualite === 'ds' ? 384 / h : Math.min(2, devicePixelRatio));
     this.renderer.setSize(l, h, false);
     this.camera.aspect = l / h; this.camera.updateProjectionMatrix();
+    ASPECT.value = l / h;
   }
 
   // ——— blocs ———
@@ -269,7 +286,7 @@ export class Rendu {
       const D = this.A.decor[type];
       if (!D) continue;
       const pg = new THREE.PlaneGeometry(D.l, D.h); pg.translate(0, D.h / 2, 0);
-      const mat = new THREE.MeshBasicMaterial({ map: D.tex, transparent: true, alphaTest: 0.5 });
+      const mat = spriteEcran(new THREE.MeshBasicMaterial({ map: D.tex, transparent: true, alphaTest: 0.5 }));
       const im = new THREE.InstancedMesh(pg, mat, liste.length);
       const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Vector3(1, k, 1);
       liste.forEach((d, i) => {
@@ -304,7 +321,7 @@ export class Rendu {
     const D = d.repli && this.A.decor[d.repli];
     if (!D) return null;
     const pg = new THREE.PlaneGeometry(D.l, D.h); pg.translate(0, D.h / 2, 0);
-    const o = new THREE.Mesh(pg, new THREE.MeshBasicMaterial({ map: D.tex, transparent: true, alphaTest: 0.5 }));
+    const o = new THREE.Mesh(pg, spriteEcran(new THREE.MeshBasicMaterial({ map: D.tex, transparent: true, alphaTest: 0.5 })));
     o.position.set(cx, h, y + p - 1 + PIEDS); o.scale.y = this.etirement();
     o.userData.propre = 'mat';
     return o;
@@ -458,12 +475,12 @@ export class Rendu {
     let matVelo = null, nVelo = 0;
     const imV = o === this.T.joueur && this.A.persos[(o.sprite || 'player_m') + '_velo'];
     if (imV) { const t = texture(imV); nVelo = imV.width / 32; t.repeat.set(1 / nVelo, 1); matVelo = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.5 }); }
-    profondeurPieds(mat); if (matVelo) profondeurPieds(matVelo);
+    spriteEcran(mat, true); if (matVelo) spriteEcran(matVelo, true);
     const pg = new THREE.PlaneGeometry(l, h); pg.translate(0, h / 2, 0);
     const corps = new THREE.Mesh(pg, mat);
     const ombre = this.ombre.clone();
-    const herbe = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.56).translate(0, 0.28, 0), new THREE.MeshBasicMaterial({ map: this.texHerbe, transparent: true, alphaTest: 0.5 }));
-    const bulle = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.8).translate(0, 0.4, 0), new THREE.MeshBasicMaterial({ map: this.texBulle, transparent: true, alphaTest: 0.5, depthTest: false }));
+    const herbe = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.56).translate(0, 0.28, 0), spriteEcran(new THREE.MeshBasicMaterial({ map: this.texHerbe, transparent: true, alphaTest: 0.5 }), true));
+    const bulle = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.8).translate(0, 0.4, 0), spriteEcran(new THREE.MeshBasicMaterial({ map: this.texBulle, transparent: true, alphaTest: 0.5, depthTest: false })));
     bulle.renderOrder = 10;
     const vague = new THREE.Mesh(new THREE.CircleGeometry(0.55, 20), new THREE.MeshBasicMaterial({ color: 0xd8f0ff, transparent: true, opacity: 0.7 }));
     vague.rotation.x = -Math.PI / 2; vague.scale.set(1, 0.6, 1);
@@ -497,7 +514,7 @@ export class Rendu {
     const k = this.etirement();
     s.corps.scale.y = k; s.herbe.scale.y = k; s.bulle.scale.y = k;
     s.corps.position.y = o.saut + (surf ? 0.15 : 0);
-    s.ombre.position.set(0, 0.02, -0.25);
+    s.ombre.position.set(0, 0.02, -0.06);
     s.ombre.visible = !surf;
     s.vague.visible = surf; s.vague.position.set(0, 0.03, -0.25);
     if (s.n > 1) {
@@ -513,7 +530,7 @@ export class Rendu {
     }
     // hautes herbes : le bas du personnage passe derrière les brins
     const enHerbe = !o.m && M.mb(o.x, o.y) === MB.HERBE && o.def?.type !== 'objet';
-    s.herbe.visible = enHerbe; s.herbe.position.set(0, 0.01, 0.02);
+    s.herbe.visible = enHerbe; s.herbe.position.set(0, 0.01, 0.06);
     s.bulle.visible = !!o.bulle; s.bulle.position.set(0, (1.75 + o.saut) * k, 0.05);
   }
 

@@ -108,8 +108,11 @@ lui-même. La page les lit **à la volée** dans ce dépôt public (gardées ens
   (`MultiBattle`) se jouent l'un après l'autre. Apparences rangées dans des variables (`SPRITE_VAR_n` : Célesta,
   `sprite_ami`), personnages placés par des variables (`placer_var`), joueur toujours visible en arrivant sur une carte,
   porte large (sortie vers une case libre).
-- Rendu : les personnages prennent la profondeur de leurs pieds avancée vers la caméra (`profondeurPieds` de
-  `render/rendu.js` : plus de rival coupé par le toit du labo ; dedans, un comptoir cache encore les jambes) ; caméra au
+- Rendu : les personnages (et le décor dessiné) sont posés à plat sur l'écran comme dans Odyssée (`spriteEcran` de
+  `render/rendu.js`, d'après `screenSprite` de world3d.js) : le dessin part de la projection des pieds, à la taille d'une
+  case du sol à cet endroit (un plan debout vu en perspective s'écrasait en bas de l'écran) ; ombre sous les pieds ; ils
+  prennent la profondeur de leurs pieds avancée vers la caméra (plus de rival coupé par le toit du labo ; dedans, un
+  comptoir cache encore les jambes ; les hautes herbes passent devant les jambes) ; caméra au
   choix du joueur (`R.cam` : zoom à la molette ou + / −, 1,25 par défaut ; inclinaison et champ dans le labo) ; tous les
   styles d'Odyssée chargés par `moteur.html` (le menu des attaques n'est plus coupé).
 - Pour l'instant à côté : les écrans propres au jeu (Pokégear, boîte de choix du starter dessinée, surnom ; le nom du
