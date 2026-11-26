@@ -120,7 +120,10 @@ pont = new PontOdyssee($('ui'), T);
 // dialogues en français : traduits à la volée (et en avance, carte par carte)
 let TR = null;
 if (G && LANGUE === 'fr') {
-  TR = new Traducteur(pont.especesFr);
+  // tablette, téléphone, petite mémoire : pas de modèle de traduction (des centaines de Mo : la page ne répondait plus)
+  const leger = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform))
+    || (navigator.deviceMemory && navigator.deviceMemory < 4);
+  TR = new Traducteur(pont.especesFr, { modele: Q.has('traduire') || !leger });
   T.traduire = (texte) => TR.connue(texte) ?? (TR.etat === 'indisponible' ? null : TR.traduire(texte));
   T.traduireCourt = (o) => TR.connue(o);
   TR.demarrer();
@@ -131,8 +134,9 @@ if (TR) {
   const etat = document.createElement('div'); etat.style.cssText = 'opacity:.8;margin-top:2px';
   $('aide').append(etat);
   setInterval(() => {
-    etat.textContent = TR.etat === 'prêt' ? 'Dialogues : traduits en français' : TR.etat === 'indisponible'
-      ? 'Dialogues : traduction indisponible dans ce navigateur (texte anglais)' : `Dialogues : traduction — ${TR.etat}`;
+    etat.textContent = TR.etat === 'prêt' ? 'Dialogues : traduits en français'
+      : TR.raison === 'appareil' ? 'Dialogues en anglais sur tablette et téléphone (traduction trop lourde ; ?traduire pour essayer)'
+        : TR.etat === 'indisponible' ? 'Dialogues : traduction indisponible dans ce navigateur (texte anglais)' : `Dialogues : traduction — ${TR.etat}`;
   }, 1000);
 }
 const prevoirTextes = (z) => { if (TR && z?.scripts) TR.prevoir(messagesDe(z.scripts, T.etat.joueur.nom, T.etat.joueur.rival || 'SILVER')); };

@@ -12,8 +12,13 @@ const MODELE = 'Xenova/opus-mt-en-fr';
 const TRANSFORMERS = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3';
 
 export class Traducteur {
-  /** especes : [[NOM_EN, NOM_FR]] (en majuscules, comme dans les dialogues) */
-  constructor(especes = []) {
+  /**
+   * especes : [[NOM_EN, NOM_FR]] (en majuscules, comme dans les dialogues) ; `modele` : false = pas de modèle de
+   * traduction téléchargé (tablette, téléphone : trop lourd, la page cessait de répondre), seulement le traducteur du
+   * navigateur et les phrases déjà traduites
+   */
+  constructor(especes = [], { modele = true } = {}) {
+    this.modele = modele; this.raison = null;
     this.cache = new Map();
     try { for (const [a, b] of Object.entries(JSON.parse(localStorage.getItem(CLE) || '{}'))) this.cache.set(a, b); } catch { /* rien */ }
     this.enCours = new Map();
@@ -45,26 +50,17 @@ export class Traducteur {
           }
         }
       } catch (e) { console.warn('traducteur du navigateur :', e.message || e); }
-      // 2. un modèle de traduction dans un fil à part (dans la page, chaque phrase figeait le jeu)
+      // 2. un modèle de traduction dans un fil à part ; jamais dans la page : chaque phrase y figeait le jeu, et sur un
+      //    appareil où le fil ne tient pas (mémoire), la page entière cessait de répondre
+      if (!this.modele) { this.raison = 'appareil'; this.etat = 'indisponible'; return false; }
       try {
         this.etat = 'téléchargement du modèle';
         this.moteur = await this.dansUnFil();
         this.etat = 'prêt';
         return true;
       } catch (e) { console.warn('traduction dans un fil à part :', e.message || e); }
-      // 3. sinon dans la page (navigateur sans fils de type module)
-      try {
-        this.etat = 'téléchargement du modèle';
-        const { pipeline } = await import(TRANSFORMERS);
-        const p = await pipeline('translation', MODELE, { progress_callback: (e) => { if (e.progress) this.etat = `téléchargement ${Math.round(e.progress)} %`; } });
-        this.moteur = async (s) => (await p(s))[0].translation_text;
-        this.etat = 'prêt';
-        return true;
-      } catch (e) {
-        console.warn('modèle de traduction indisponible :', e.message || e);
-        this.etat = 'indisponible';
-        return false;
-      }
+      this.etat = 'indisponible';
+      return false;
     })();
     return this.pret;
   }

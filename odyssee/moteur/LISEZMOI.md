@@ -68,7 +68,8 @@ lui-même. La page les lit **à la volée** dans ce dépôt public (gardées ens
   de dresseurs et personnages de la version française (`donnees/fr.js` : Bourg Geon, Mauville, Prof. Orme, Célesta,
   « Gamin Joey », LUTH), espèces, attaques et objets d'Odyssée. Les dialogues ne sont publiés qu'en anglais : la page
   les traduit sur place (`render/traduction.js`) avec le traducteur intégré du navigateur (API Translator de Chrome),
-  sinon un petit modèle (opus-mt-en-fr par Transformers.js, chargé à la demande) ; les noms propres sont remis à la
+  sinon un petit modèle (opus-mt-en-fr par Transformers.js, dans un Worker, jamais dans la page ; pas sur tablette,
+  téléphone ou petite mémoire, où il faisait cesser la page de répondre : `?traduire` pour forcer) ; les noms propres sont remis à la
   française avant, les répliques d'une carte sont traduites dès qu'elle arrive, et gardées par le navigateur. Rien de
   traduit n'est écrit dans le dépôt. Sans traducteur disponible, les dialogues restent en anglais (dit dans l'aide).
 - Couverture : `PRET=<clone> node tools/moteur-hgss-couverture.mjs [--tout]` dit les commandes des scripts du jeu pas
