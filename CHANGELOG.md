@@ -1,5 +1,8 @@
 # Journal des versions — Arcadia
 
+## 5.177 — 28 novembre 2026
+- Odyssée 3.9 : correctifs Acte 4 Lot P0 (Route 20 15 badges, Surf sud, niveaux troncons, Darkrai/Cresselia, Mélodelfe, exploits Casino, estrades Sud & icônes) (Amiel)
+
 ## 5.176 — 28 novembre 2026
 - **Pokémon Odyssée 3.9** — Finitions Acte 3 & relief complet des arènes :
   - Icône dédiée pour la **CS03 Éclate-Roc** (`cs-eclate.png`) et bustes HD de dialogue pour le **Professeur Cèdre**, **Maître Mamadou**, les **Gardes** et les **Vieils hommes**
