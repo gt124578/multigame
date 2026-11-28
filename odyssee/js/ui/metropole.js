@@ -30,7 +30,7 @@ export async function casinoScreen(game, quoi = null) {
   // jetons restés sur une table de poker (partie interrompue) : on les rend
   if (st.jetonsTable) { st.jetons += st.jetonsTable; st.jetonsTable = 0; }
   const jeux = { machine: machineASous, blackjack: blackjackTable, poker: pokerTable, roulette: rouletteTable, belote: beloteTable };
-  if (quoi && jeux[quoi]) { if (st.jetons <= 0) { await ui.say('Il te faut des jetons : le comptoir est à l\'entrée.'); return; } await jeux[quoi](game); return; }
+  if (quoi && jeux[quoi]) { if (st.jetons <= 0 && quoi !== 'poker') { await ui.say('Il te faut des jetons : le comptoir est à l\'entrée.'); return; } await jeux[quoi](game); return; }
   for (;;) {
     const items = [
       { label: `Acheter des jetons (${PRIX_JETON} ₽ pièce)`, right: `${fr(st.jetons)} jetons` },

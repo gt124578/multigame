@@ -178,7 +178,7 @@ export function grandeVille(W, maps, def, V, { buildTown, poserBatiment }) {
   const dans = (x, y) => dansRect(x, y) && M[at(x, y)] === 1;
   // la zone de la ville : la ville elle-même et ses avenues (posées plus bas) ; le reste du territoire redevient de la
   // forêt où lieux.js pourra mettre un lieu à découvrir ou un paysage
-  const zoneVille = { name: def.name, music: def.music || 'town', town: def.id, theme: def.theme };
+  const zoneVille = { name: def.name, music: def.music || 'town', town: def.id, theme: def.theme || V.theme };
   W.zone(X, Y, X1, Y1, zoneVille);
   // la forêt entre la ville et le bord du territoire : des pins s'y mêlent aux feuillus (rien n'y est praticable)
   for (let y = TY; y <= TY1; y++) for (let x = TX; x <= TX1; x++) if (!dansRect(x, y) && W.get(x, y) === T.TREE && bruit(x, y, 9, graine + 3) > 0.62) W.set(x, y, T.PINE);

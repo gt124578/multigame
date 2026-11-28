@@ -42,7 +42,7 @@ function fondPoker(seatSprites = null, multi = false) {
 }
 
 /** Boucle partagée d'une table de Texas Hold'em (Solo ou Multijoueur à places tournantes) */
-async function runPokerTableLoop(game, T, { mySeat = 0, joueurs, bouton = 0, rngFn, net = null, courtoisie = 0, seatSprites = null }) {
+async function runPokerTableLoop(game, T, { mySeat = 0, joueurs, bouton = 0, rngFn, net = null, courtoisie = 0, amical = false, seatSprites = null }) {
   const st = T.st, g = T.g, fond = fondPoker(seatSprites, !!net);
   const vis = (canon) => rotateVisSeat(canon, mySeat);
   const t = H.creerTable({ joueurs, petite: PETITE, grosse: GROSSE, bouton });
@@ -66,7 +66,7 @@ async function runPokerTableLoop(game, T, { mySeat = 0, joueurs, bouton = 0, rng
     plaques[i].classList.toggle('actif', t.courant === i && !t.fini);
     plaques[i].classList.toggle('couche', p.couche && p.assis && !t.fini);
   });
-  const enJetonsTable = () => { st.jetonsTable = Math.max(0, t.joueurs[mySeat].jetons - courtoisie); };
+  const enJetonsTable = () => { st.jetonsTable = amical ? 0 : Math.max(0, t.joueurs[mySeat].jetons - courtoisie); };
 
   T.boucle((now) => {
     g.drawImage(fond, 0, 0);
@@ -289,7 +289,7 @@ async function runPokerTableLoop(game, T, { mySeat = 0, joueurs, bouton = 0, rng
     }
   } finally {
     net?.closeTable?.();
-    st.jetons += Math.max(0, t.joueurs[mySeat].jetons - courtoisie);
+    if (!amical) st.jetons += Math.max(0, t.joueurs[mySeat].jetons - courtoisie);
     st.jetonsTable = 0;
     T.fermer();
   }
@@ -458,9 +458,10 @@ export async function pokerTableMulti(game, freePeersArg = null) {
     if (!(m.t === 'poker-rep' && m.ok)) link.send(peer.id, { t: 'poker-cancel', rid });
   }
 
-  const buyin = Math.min(500, Math.max(0, st.jetons | 0));
-  const courtoisie = buyin < 20 ? 50 - buyin : 0;
-  const myStack = buyin + courtoisie;
+  const amical = (st.jetons | 0) < 20;
+  const buyin = amical ? 0 : Math.min(500, st.jetons | 0);
+  const courtoisie = amical ? 50 : 0;
+  const myStack = amical ? 50 : buyin;
   st.jetons -= buyin;
   st.jetonsTable = buyin;
 
@@ -496,6 +497,7 @@ export async function pokerTableMulti(game, freePeersArg = null) {
       bouton,
       rngFn: initRng,
       courtoisie,
+      amical,
       seatSprites: buildPokerSeatSprites(seats, 0),
       net: createPokerNet(game, { rid, isHost: true, hostId: link.myId, peerIds: activePeerIds, peerSeats, mySeat: 0, seedBase }),
     });
@@ -528,9 +530,10 @@ export async function onPokerInvite(game, from, m) {
     link.abort(from);
     if (!yes) { link.send(from, { t: 'poker-rep', rid: m.rid, ok: false }); return; }
 
-    const buyin = Math.min(500, Math.max(0, st.jetons | 0));
-    const courtoisie = buyin < 20 ? 50 - buyin : 0;
-    const myStack = buyin + courtoisie;
+    const amical = (st.jetons | 0) < 20;
+    const buyin = amical ? 0 : Math.min(500, st.jetons | 0);
+    const courtoisie = amical ? 50 : 0;
+    const myStack = amical ? 50 : buyin;
     st.jetons -= buyin;
     st.jetonsTable = buyin;
     link.send(from, { t: 'poker-rep', rid: m.rid, ok: true, name: st.name, gender: st.gender, stack: myStack });
@@ -550,6 +553,7 @@ export async function onPokerInvite(game, from, m) {
       bouton: startMsg.bouton,
       rngFn: seededRng(startMsg.seedBase >>> 0),
       courtoisie,
+      amical,
       seatSprites: buildPokerSeatSprites(startMsg.seats, startMsg.mySeat),
       net: createPokerNet(game, { rid: m.rid, isHost: false, hostId: from, peerIds: [], peerSeats: [], mySeat: startMsg.mySeat, seedBase: startMsg.seedBase }),
     });

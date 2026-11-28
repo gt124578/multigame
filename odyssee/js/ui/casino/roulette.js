@@ -90,7 +90,7 @@ export async function rouletteTable(game) {
     const k = cle(c), p = paris.get(k) || { type: c.type, v: c.v, mise: 0 }; p.mise += v; paris.set(k, p);
     st.jetons -= v; T.majJetons(); T.sfx('blip'); gagnant = null; majBoutons();
   };
-  const retirer = (c) => { const p = paris.get(cle(c)); if (!p) return; st.jetons += p.mise; paris.delete(cle(c)); T.majJetons(); T.sfx('cancel'); majBoutons(); };
+  const retirer = (c) => { if (tourne) return; const p = paris.get(cle(c)); if (!p) return; st.jetons += p.mise; paris.delete(cle(c)); T.majJetons(); T.sfx('cancel'); majBoutons(); };
   let majBoutons = () => {};
 
   T.boucle((now, dt) => {
@@ -156,8 +156,8 @@ export async function rouletteTable(game) {
     T.msg(`Le <b>${n}</b> ${n === 0 ? '(zéro)' : C.ROUGES.has(n) ? 'rouge' : 'noir'} ! ${g2 ? `Tu gagnes <b>${fr(g2)}</b> jetons.` : 'Rien pour cette fois…'}`);
     T.sfx(g2 ? 'item' : 'bump');
     await T.pause(600);
-    tourne = false;   // la bille reste dans sa case jusqu'au prochain lancer
     paris.clear();
+    tourne = false;   // la bille reste dans sa case jusqu'au prochain lancer
   };
 
   T.msg('Choisis un jeton, puis pose-le sur le tapis (flèches + A, ou clic).');

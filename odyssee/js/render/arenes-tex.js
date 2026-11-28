@@ -184,6 +184,35 @@ export function texturesArenes(putImg) {
     }
     T.cadre(0, 0, 32, 32, '#8a6a2a'); T.cadre(1, 1, 30, 30, '#e8c860'); T.rect(0, 30, 32, 2, '#5a4418');
   }));
+  // estrades des Champions du Sud (Normal, Vol, Poison, Sol, Acier, Fée, Ténèbres)
+  putImg('dec_estrade_normal', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#d8d2c6'); T.cadre(0, 0, 32, 32, '#c8a440'); T.cadre(2, 2, 28, 28, '#efe8da');
+    T.rect(0, 30, 32, 2, '#7a6638'); for (let i = 4; i < 32; i += 8) { T.p(i, 4, '#b8943a'); T.p(i, 27, '#b8943a'); }
+  }));
+  putImg('dec_estrade_flying', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#64a2e0'); T.cadre(0, 0, 32, 32, '#e4f4ff'); T.cadre(2, 2, 28, 28, '#9ed0fc');
+    T.rect(0, 30, 32, 2, '#2d5c8c'); T.disque(16, 15, 7, 4, '#ffffffa0');
+  }));
+  putImg('dec_estrade_poison', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#2e223e'); T.cadre(0, 0, 32, 32, '#b064e0'); T.cadre(2, 2, 28, 28, '#54386c');
+    T.rect(0, 30, 32, 2, '#1a1026'); for (const [x, y] of [[9, 10], [21, 12], [14, 22]]) { T.disque(x, y, 2, 2, '#9a4ac0'); T.p(x - 1, y - 1, '#e8b8ff'); }
+  }));
+  putImg('dec_estrade_ground', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#b88446'); T.cadre(0, 0, 32, 32, '#f0c878'); T.cadre(2, 2, 28, 28, '#8c5e28');
+    T.rect(0, 30, 32, 2, '#5c3c18'); for (let j = 6; j < 28; j += 7) T.rect(5, j, 22, 1, '#d4a25e');
+  }));
+  putImg('dec_estrade_steel', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#6e7684'); T.cadre(0, 0, 32, 32, '#d8e0ec'); T.cadre(2, 2, 28, 28, '#444a56');
+    T.rect(0, 30, 32, 2, '#2c303a'); for (const [x, y] of [[4, 4], [26, 4], [4, 26], [26, 26]]) T.rect(x, y, 2, 2, '#eef4ff');
+  }));
+  putImg('dec_estrade_fairy', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#f4d2e4'); T.cadre(0, 0, 32, 32, '#e89ec0'); T.cadre(2, 2, 28, 28, '#ffffff');
+    T.rect(0, 30, 32, 2, '#985070'); for (const [x, y] of [[16, 8], [8, 16], [24, 16], [16, 24]]) T.p(x, y, '#ffd860');
+  }));
+  putImg('dec_estrade_dark', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#181424'); T.cadre(0, 0, 32, 32, '#8a5ad0'); T.cadre(2, 2, 28, 28, '#32264a');
+    T.rect(0, 30, 32, 2, '#0a0812'); T.disque(16, 16, 5, 5, '#5a3a90'); T.p(16, 16, '#e0b8ff');
+  }));
 
   // ------- parois des arènes en relief (render/arenes-relief.js) : une tuile = une case d'écran de haut, calée en haut
   // au ras de la lave : la tranche de basalte des dalles, rougie par en dessous (les 8 premières lignes servent)

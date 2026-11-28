@@ -1393,7 +1393,7 @@ export function buildWorld({ decors = true, traces = decors } = {}) {
   // ceintures de tourbillons : l'archipel des trois frères et les îles de l'Est ne s'atteignent qu'en bateau
   tourbillons(W, [
     [[938, 0], [938, 812]], [[938, 812], [1199, 812]],                                  // îles de l'Est
-    [[476, 562], [735, 562]], [[476, 562], [476, 805]], [[476, 805], [938, 805]],         // archipel : nord, ouest, sud
+    [[476, 562], [735, 562]], [[476, 562], [476, 805]], [[0, 805], [476, 805]], [[476, 805], [938, 805]],         // archipel : nord, ouest, sud + barrage détroit sud
     [[735, 552], [735, 640]], [[735, 640], [815, 640]], [[815, 566], [815, 640]], [[815, 566], [938, 566]],   // autour de l'Îlot des Marées
   ], 1.0, 2026);
 

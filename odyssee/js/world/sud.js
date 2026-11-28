@@ -34,7 +34,7 @@ export const LEADERS_SUD = [
   { name: 'Morgane', type: 'poison', ow: 'morgane', fem: true, team: [[452, 62], [454, 62], [110, 63], [435, 63], [691, 65]], intro: 'Le marais ne pardonne pas. Mes Pokémon non plus.', lose: 'Tu as résisté au venin… Prends le Badge Venin.' },
   { name: 'Gaspard', type: 'ground', ow: 'gaspard', team: [[530, 64], [464, 65], [472, 65], [450, 66], [445, 68]], intro: 'Les dunes bougent sans cesse, mais le sol, lui, ne cède jamais !', lose: 'Le sable s\'est dérobé sous mes pieds. Voici le Badge Dune.' },
   { name: 'Ferdinand', type: 'steel', ow: 'ferdinand', team: [[598, 67], [462, 67], [208, 68], [681, 69], [306, 69], [376, 71]], intro: 'Dans ma forge, on éprouve l\'acier au feu. Et toi, de quel métal es-tu fait ?', lose: 'Un alliage parfait. Le Badge Rouage te revient.' },
-  { name: 'Lilas', type: 'fairy', ow: 'lilas', fem: true, team: [[683, 71], [685, 72], [468, 72], [282, 73], [700, 74], [36, 75]], intro: 'Rosebrume est un rêve. Mais même les rêves savent mordre !', lose: 'Quel joli combat… Le Badge Féérie est à toi.' },
+  { name: 'Lilas', type: 'fairy', ow: 'lilas', fem: true, team: [[683, 71], [685, 72], [468, 72], [282, 73], [700, 74], [36, 75, null, [585, 53, 347, 236]]], intro: 'Rosebrume est un rêve. Mais même les rêves savent mordre !', lose: 'Quel joli combat… Le Badge Féérie est à toi.' },
   { name: 'Corbin', type: 'dark', ow: 'corbin', team: [[197, 73], [430, 73], [359, 74], [461, 74], [248, 76], [635, 76]], intro: 'À Ombreval, la lumière ne passe jamais. Voyons si tu brilles assez.', lose: 'Tu as percé les ténèbres. Prends le Badge Ombre : la Ligue t\'attend.' },
 ];
 export const GYM_TRAINERS_SUD = [
@@ -161,7 +161,7 @@ export function buildSud(ctx) {
       { id: 'joueur', x: 27, y: 44, sprite: 'vieil_homme', move: 'turn', text: ['Le Casino ? On y entre riche, on en ressort… avec des jetons.', 'Les lots du comptoir valent parfois le détour : Super Bonbon, Pierres…'] },
       { id: 'enfant', x: 33, y: 49, sprite: 'enfant', move: 'wander', text: ['Mon père dit que la Bourse, c\'est comme les combats : il faut lire l\'adversaire.'] },
       { id: 'garde-est', x: 93, y: 32, sprite: 'garde', dir: 'left', gate: { badges: 9, tiles: [[94, 30], [94, 31]] }, text: ['La route 14 mène à Port-Lisière, sur les falaises.', 'Reviens avec le Badge Pavé de Margot.'] },
-      { id: 'garde-sud', x: 46, y: 59, sprite: 'garde', dir: 'left', gate: { badges: 14, tiles: [[44, 60], [45, 60]] }, text: ['La route 20 file vers Ombreval, dans les ténèbres du sud.', 'Elle est fermée tant que tu n\'as pas quatorze badges… Fais le tour par l\'est !'] },
+      { id: 'garde-sud', x: 46, y: 59, sprite: 'garde', dir: 'left', gate: { badges: 15, tiles: [[44, 60], [45, 60]] }, text: ['La route 20 file vers Ombreval, dans les ténèbres du sud.', 'Elle est fermée tant que tu n\'as pas quinze badges (dont le Badge Ombre de Corbin)… Fais le tour par l\'est !'] },
     ],
   };
   // les gratte-ciel de Métropole (sans porte : des bureaux, la nuit leurs fenêtres s'allument), posés avec le centre pour
@@ -317,11 +317,14 @@ export function buildSud(ctx) {
       { kind: 'center', ...GRAND.center, x: 5, y: 4 }, { kind: 'mart', ...GRAND.mart, x: 24, y: 5 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 17, roof: 'purple' },
       { kind: 'house', x: 9, y: 17, roof: 'gray', npcs: [{ x: 4, y: 4, sprite: 'medium', text: ['L\'arène de Corbin est plongée dans le noir.', 'Même Flash n\'y fait rien : on avance à l\'aveugle dans le labyrinthe.'] }] },
     ],
-    npcs: [{ id: 'veuve', x: 12, y: 20, sprite: 'dame', move: 'turn', text: ['Après Corbin, il ne te restera que la Ligue Céleste.', 'Prends la route 20, au nord : elle remonte droit vers Métropole.'] }],
+    npcs: [
+      { id: 'veuve', x: 12, y: 20, sprite: 'dame', move: 'turn', text: ['Après Corbin, il ne te restera que la Ligue Céleste.', 'Prends la route 20, au nord : elle remonte droit vers Métropole.'] },
+      { id: 'garde-nord', x: 18, y: 2, sprite: 'garde', dir: 'left', gate: { badges: 15, tiles: [[16, 1], [17, 1]] }, text: ['La route 20 remonte directement vers Métropole.', 'Bats d\'abord Corbin pour prouver que tu maîtrises Ombreval (15 badges).'] },
+    ],
   };
   ville(O, 'SO');
 
-  // route 20 : d'Ombreval à Métropole (raccourci du retour, fermé côté Métropole tant qu'on n'a pas treize badges)
+  // route 20 : d'Ombreval à Métropole (raccourci du retour, fermé tant qu'on n'a pas quinze badges)
   const r20 = G2({ id: 'r20', nom: 'Route 20', de: porte('SO', 'r20'), vers: arrivee('SM', 'r20'), long: 13, graine: 2001, w: 12, grass: 0.9, trees: 0.06, rocks: 0.03, paysages: ['prairie', 'rochers', 'plateau', 'etang', 'fleurs'], branches: 0.4, anciens: 3 }, 'r20');
   routeTrainer(W, r20, 0.25, 1, 4, 'Topdresseur', 'Valentin', [[229, 71], [576, 71], [442, 71]]);
   routeTrainer(W, r20, 0.55, -1, 4, 'Topdresseuse', 'Garance', [[560, 72], [354, 71], [477, 72]]);

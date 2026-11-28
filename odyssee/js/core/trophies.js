@@ -590,7 +590,7 @@ export const TROPHIES_CATALOG = [
     category: 'boss',
     reward: { item: 'revive', count: 3, label: 'Rappel ×3' },
     check: (st) => {
-      const n = Object.keys(st.boss || {}).length || (st.flags?.lugia || (st.flags?.['Q:magma'] || 0) >= 3 ? 1 : 0);
+      const n = Object.keys(st.boss || {}).length || (st.flags?.lugia || st.flags?.['Q:magma'] === 'fin' || (st.flags?.['Q:magma'] || 0) >= 3 ? 1 : 0);
       return { current: Math.min(n, 1), max: 1, done: n >= 1 };
     }
   },
@@ -614,7 +614,7 @@ export const TROPHIES_CATALOG = [
     category: 'boss',
     reward: { item: 'scope-lens', count: 1, label: 'Lentilscope ×1' },
     check: (st) => {
-      const n = (st.flags?.['Q:magma'] || 0) >= 3 ? 3 : ['Sylas', 'Ariane', 'Nox'].filter((k) => st.boss?.[k]).length;
+      const n = st.flags?.['Q:magma'] === 'fin' || (st.flags?.['Q:magma'] || 0) >= 3 ? 3 : ['Sylas', 'Ariane', 'Nox'].filter((k) => st.boss?.[k]).length;
       return { current: Math.min(n, 3), max: 3, done: n >= 3 };
     }
   },

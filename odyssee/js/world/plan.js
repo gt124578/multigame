@@ -59,7 +59,7 @@ export const VILLES = {
   SR: { bx: 15, by: 50, bw: 6, bh: 5, cx: 48, cy: 40, theme: 'rose', devise: 'La ville qui sent bon le rêve.', arbres: ['cerisier', 'cerisier', 'erable'], quartiers: { maisons: 3, parc: 1, place: 1, marche: 1, jardins: 1 },
     sorties: [{ dir: 'e', k: 50, vers: 'r18' }, { dir: 'w', k: 60, vers: 'r19', garde: 'garde' }] },
   SO: { bx: 2, by: 50, bw: 6, bh: 5, cx: 48, cy: 40, theme: 'ombre', devise: 'Ici, même la lune baisse les yeux.', arbres: ['lanterne', 'erable'], quartiers: { maisons: 4, parc: 1, place: 1, marche: 1, jardins: 0 },
-    sorties: [{ dir: 'e', k: 55, vers: 'r19' }, { dir: 'n', k: 64, vers: 'r20' }] },
+    sorties: [{ dir: 'e', k: 55, vers: 'r19' }, { dir: 'n', k: 64, vers: 'r20', garde: 'garde-nord' }] },
 };
 // les villes qu'on visite après Sylvebourg sont plus petites que leur territoire (echelle : part de chaque côté) : la
 // ville au milieu, la forêt tout autour, des avenues d'accès depuis les portes (quartiers.js, noyau)

@@ -845,7 +845,7 @@ export class Game {
     if (await this.checkTrainers()) return;
     // rencontres sauvages : hautes herbes, grottes, et la mer de l'archipel quand on surfe
     const enc = this.noEnc ? null : encAt(m, p.x, p.y);   // le tronçon de la zone où l'on marche ; noEnc : version test, rencontres coupées
-    if (p.surf && t === T.WATER && !this.noEnc) { const sea = m.zoneAt(p.x, p.y), enc = sea?.surfEnc || sea?.enc || m.surfEnc; if (enc && Math.random() < 0.05) await this.wildBattle(enc); return; }
+    if (p.surf && t === T.WATER && !this.noEnc) { const sea = m.zoneAt(p.x, p.y), enc = sea?.surfEnc || m.surfEnc; if (enc && Math.random() < 0.05) await this.wildBattle(enc); return; }
     // un Pokémon visible dans l'herbe : on lui marche dessus, c'est lui qu'on affronte
     const vu = m.outdoor && !this.noEnc ? this.vie?.at(p.x, p.y) : null;
     if (vu) { this.vie.remove(vu); await this.wildBattle([vu.e], { fixed: true }); return; }

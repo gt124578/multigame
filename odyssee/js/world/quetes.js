@@ -473,7 +473,7 @@ export function buildQuests(ctx) {
     } });
   }
   // Cresselia sur l'îlot du lac
-  legend({ id: 'cresselia', sp: 488, lvl: 50, map: 'lac', x: 25, y: 17, cond: (f, g) => st(f, 'songes') >= 2 && (!g?.badgeCount || g.badgeCount() >= 8), intro: ['Un Pokémon aux ailes de lune danse au-dessus des fleurs...', 'C\'est Cresselia !'],
+  legend({ id: 'cresselia', sp: 488, lvl: 50, map: 'lac', x: 25, y: 17, cond: (f, g) => (st(f, 'songes') >= 2 || done(f, 'songes')) && (!g?.badgeCount || g.badgeCount() >= 8), intro: ['Un Pokémon aux ailes de lune danse au-dessus des fleurs...', 'C\'est Cresselia !'],
     after: async (A, res) => {
       if (res === 'lose' || A.has('plume-lune') || A.step('songes') !== 2) return;
       await A.say('Une plume scintillante est restée sur l\'îlot...'); await A.give('plume-lune'); await A.set('songes', 3);
@@ -597,8 +597,8 @@ export function buildQuests(ctx) {
     // l'autel et, derrière, la porte du sanctuaire (case qui fait changer de carte)
     m.prop('sanctuaire', 6, 2); m.set(6, 3, T.FLOOR);
     m.warp(6, 3, { map: sanctuaire.id, x: 5, y: 7, dir: 'up', step: true });
-    m.npc({ id: id + ':portier', x: 6, y: 4, sprite: 'pretre', dir: 'down', gate: { open: (f) => st(f, 'songes') >= 5, tiles: [[6, 3]] }, text: ['Derrière moi se trouve le sanctuaire du temple.', 'Seuls ceux que les rêves appellent peuvent y entrer.'] });
-    m.gates.push({ npc: id + ':portier', open: (f) => st(f, 'songes') >= 5, tiles: [[6, 3]] });
+    m.npc({ id: id + ':portier', x: 6, y: 4, sprite: 'pretre', dir: 'down', gate: { open: (f) => st(f, 'songes') >= 5 || done(f, 'songes'), tiles: [[6, 3]] }, text: ['Derrière moi se trouve le sanctuaire du temple.', 'Seuls ceux que les rêves appellent peuvent y entrer.'] });
+    m.gates.push({ npc: id + ':portier', open: (f) => st(f, 'songes') >= 5 || done(f, 'songes'), tiles: [[6, 3]] });
     m.npc({ id: id + ':pretre', x: 3, y: 4, sprite: 'pretre', dir: 'right', talk: async (A) => pretre(A) });
     sanctuaire.warp(sanctuaire.exitX, sanctuaire.exitY, { map: id, x: 6, y: 5, dir: 'down' });
     sanctuaire.outside = { map: id, x: 6, y: 5 };

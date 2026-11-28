@@ -1588,7 +1588,7 @@ export class WorldView {
       const sn = R.sorte(x + dx, y + dy);
       // matière de la paroi : le chant de l'estrade, la roche de la fosse, les bassins, le basalte au ras de la lave,
       // les îles célestes, l'abîme ou le gouffre ; les ponts et passerelles ne sont que des dalles minces
-      const est = s === 'estrade' && en >= -1e-6 && A['dec_estrade_' + (ESTRADES[this.map.arene] || this.map.arene)];
+      const est = s === 'estrade' && en >= -1e-6 && (A['dec_estrade_' + (ESTRADES[this.map.arene] || this.map.arene)] || A.dec_estrade);
       const tex = est || (
         sn === 'lave' ? A.arf_lave :
         sn === 'eau' ? A.arf_eau :

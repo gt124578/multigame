@@ -98,6 +98,13 @@ export function defaultMoves(sp, lvl) {
 export function movesChoisies(sp, lvl) {
   sp = R(sp); const S = SPECIES[sp];
   const ids = [...new Set(S.ls.filter(([l]) => l <= lvl).map(([, id]) => id))];
+  if (ids.length < 4) {
+    for (const P of Object.values(SPECIES)) {
+      if (P?.ev?.some((e) => e.to === sp)) {
+        for (const [l, id] of P.ls || []) if (l <= lvl && !ids.includes(id)) ids.push(id);
+      }
+    }
+  }
   const phys = S.b[1] >= S.b[3];
   const val = (id) => {
     const M = MOVES[id], x = M.m || {};
