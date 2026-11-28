@@ -41,14 +41,14 @@ export async function casinoScreen(game, quoi = null) {
     if (k === 0) {
       const max = Math.min(999, Math.floor(st.money / PRIX_JETON));
       if (!max) { await ui.say('Tu n\'as pas assez de Pokédollars.'); continue; }
-      const choix = [10, 50, 100, 500].filter((n) => n <= max);
+      const choix = [1, 5, 10, 50, 100, 500].filter((n) => n <= max);
       const c = await ui.list({ title: 'Combien de jetons ?', items: choix.map((n) => ({ label: `${n} jetons`, right: `${fr(n * PRIX_JETON)} ₽` })).concat([{ label: 'Annuler' }]), cls: 'shop', cancel: choix.length });
       if (c < 0 || c >= choix.length) continue;
-      st.money -= choix[c] * PRIX_JETON; st.jetons += choix[c]; ui.sound.sfx('buy');
+      st.money -= choix[c] * PRIX_JETON; st.jetons += choix[c]; ui.sound.sfx('buy'); game.save(true);
     } else if (k === 1) {
       const c = await ui.list({ title: `Lots — ${fr(st.jetons)} jetons`, items: LOTS.map((l) => ({ label: itemName(l.k), right: `${l.jetons} jetons`, disabled: st.jetons < l.jetons })).concat([{ label: 'Annuler' }]), cls: 'shop', cancel: LOTS.length });
       if (c < 0 || c >= LOTS.length) continue;
-      st.jetons -= LOTS[c].jetons; game.give(LOTS[c].k, 1); ui.sound.sfx('item');
+      st.jetons -= LOTS[c].jetons; game.give(LOTS[c].k, 1); ui.sound.sfx('item'); game.save(true);
       await ui.say(formatObtainItem(st.name, LOTS[c].k, 1));
     } else return;
   }
@@ -84,8 +84,8 @@ export async function bourseScreen(game) {
       <div class="ptf">Portefeuille : <b>${fr(v.valeur)} ₽</b> · plus-value latente <b class="${v.plusValue >= 0 ? 'up' : 'dn'}">${v.plusValue >= 0 ? '+' : ''}${fr(v.plusValue)} ₽</b><br>Liquidités : ${fr(st.money)} ₽${m.embauche ? '' : '<br><i>Pierre ne t\'a pas encore ouvert de compte : tu peux seulement regarder.</i>'}</div></div>`;
   };
   T.msg('Haut / bas : choisir un titre · A : passer un ordre · B : quitter. Les cours bougent à chaque séance (30 secondes de jeu).');
-  let i = 0; draw(ids[0]);
-  const tick = setInterval(() => { B.seance(m); m.vu = (m.vu || 0) + B.SEANCE_MS; draw(ids[i]); }, 4000);
+  let i = 0, paused = false; draw(ids[0]);
+  const tick = setInterval(() => { if (paused) return; B.seance(m); m.vu = (st.time || 0) * 1000; draw(ids[i]); }, 4000);
   for (;;) {
     const k = await new Promise((resolve) => {
       const pop = ui.input.push((key) => {
@@ -95,26 +95,29 @@ export async function bourseScreen(game) {
       });
     });
     if (k === 'b') break;
-    const id = ids[i], a = B.ACTIF[id];
-    const info = id === B.INDICE.id ? 'Un panier des dix actions de la cote, pondéré par leur taille (1/10e de point d\'indice).' : `${a.desc || a.unite ? (a.desc || 'Cours pour ' + a.unite) : ''}${a.secteur ? ' Secteur : ' + B.SECTEURS[a.secteur] + '.' : ''}`;
-    const pos = m.positions[id]?.qte || 0, px = B.prixDe(m, id);
-    const c = await ui.list({ title: `${nom(id)} — ${fr(px, 2)} ₽${pos ? ` (tu en as ${pos})` : ''}`, items: [{ label: 'Acheter', disabled: !m.embauche }, { label: 'Vendre', disabled: !pos || !m.embauche }, { label: 'Pricer : dérivés sur ce titre' }, { label: 'Fiche' }, { label: 'Retour' }], cls: 'shop', cancel: 4, parent: T.s });
-    if (c === 3) { await ui.say([`${nom(id)} : ${info}`, ...(m.embauche ? [] : ['Pour acheter et vendre, il faut un compte : va voir Pierre, au fond de la Bourse.'])]); continue; }
-    if (c === 2) { await ui.list({ title: `Pricer — ${nom(id)}`, items: pricer(m, id).map(([label, right]) => ({ label, right })), cls: 'shop quiz', cancel: 0, parent: T.s }); continue; }
-    if (c === 0) {
-      const max = Math.min(99, Math.floor(st.money / (px * 1.002)));
-      if (!max) { await ui.say('Pas assez de Pokédollars.'); continue; }
-      const q = await ui.quantity(max, { price: Math.ceil(px * 1.002) }); if (!q) continue;
-      const o = B.ordre(m, id, q, st.money); if (!o.ok) { await ui.say(o.err); continue; }
-      st.money -= o.total; ui.sound.sfx('buy');
-    } else if (c === 1) {
-      const q = await ui.quantity(pos, { price: Math.floor(px * 0.998) }); if (!q) continue;
-      const o = B.ordre(m, id, -q, Infinity); if (!o.ok) { await ui.say(o.err); continue; }
-      st.money -= o.total; ui.sound.sfx('buy');
-    }
-    draw(ids[i]);
+    paused = true;
+    try {
+      const id = ids[i], a = B.ACTIF[id];
+      const info = id === B.INDICE.id ? 'Un panier des dix actions de la cote, pondéré par leur taille (1/10e de point d\'indice).' : `${a.desc || a.unite ? (a.desc || 'Cours pour ' + a.unite) : ''}${a.secteur ? ' Secteur : ' + B.SECTEURS[a.secteur] + '.' : ''}`;
+      const pos = m.positions[id]?.qte || 0, px = B.prixDe(m, id);
+      const c = await ui.list({ title: `${nom(id)} — ${fr(px, id === 'PDE' ? 4 : 2)} ₽${pos ? ` (tu en as ${pos})` : ''}`, items: [{ label: 'Acheter', disabled: !m.embauche }, { label: 'Vendre', disabled: !pos || !m.embauche }, { label: 'Pricer : dérivés sur ce titre' }, { label: 'Fiche' }, { label: 'Retour' }], cls: 'shop', cancel: 4, parent: T.s });
+      if (c === 3) { await ui.say([`${nom(id)} : ${info}`, ...(m.embauche ? [] : ['Pour acheter et vendre, il faut un compte : va voir Pierre, au fond de la Bourse.'])]); continue; }
+      if (c === 2) { await ui.list({ title: `Pricer — ${nom(id)}`, items: pricer(m, id).map(([label, right]) => ({ label, right })), cls: 'shop quiz', cancel: 0, parent: T.s }); continue; }
+      if (c === 0) {
+        const max = Math.min(99, Math.floor(st.money / (px * 1.002)));
+        if (!max) { await ui.say('Pas assez de Pokédollars.'); continue; }
+        const q = await ui.quantity(max, { price: px * 1.002 }); if (!q) continue;
+        const o = B.ordre(m, id, q, st.money); if (!o.ok) { await ui.say(o.err); continue; }
+        st.money -= o.total; ui.sound.sfx('buy'); game.save(true);
+      } else if (c === 1) {
+        const q = await ui.quantity(pos, { price: px * 0.998 }); if (!q) continue;
+        const o = B.ordre(m, id, -q, Infinity); if (!o.ok) { await ui.say(o.err); continue; }
+        st.money -= o.total; ui.sound.sfx('buy'); game.save(true);
+      }
+      draw(ids[i]);
+    } finally { paused = false; }
   }
-  clearInterval(tick); T.close();
+  clearInterval(tick); game.save(true); T.close();
 }
 
 /** prix théoriques des produits dérivés sur un titre (6 mois, à la monnaie) : de quoi s'entraîner avant l'entretien */

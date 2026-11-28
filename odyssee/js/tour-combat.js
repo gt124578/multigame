@@ -30,12 +30,12 @@ export const REMATCH_TEAMS = {
   Pyros: { megaSp: 6, team: [[1042, 78, 'assault-vest'], [38, 79, 'leftovers'], [59, 80, 'life-orb'], [609, 81, 'choice-specs'], [467, 82, 'expert-belt'], [6, 84, null]] },
   Drakos: { megaSp: 149, team: [[1044, 79, 'life-orb'], [330, 80, 'choice-scarf'], [612, 81, 'choice-band'], [635, 82, 'choice-specs'], [1051, 83, 'leftovers'], [149, 84, null]] },
   Margot: { megaSp: 143, team: [[424, 78, 'life-orb'], [241, 79, 'leftovers'], [217, 80, 'muscle-band'], [128, 81, 'choice-band'], [474, 82, 'choice-specs'], [143, 84, null]] },
-  Aurèle: { megaSp: 373, team: [[279, 78, 'leftovers'], [227, 79, 'rocky-helmet'], [398, 80, 'choice-band'], [468, 81, 'leftovers'], [715, 82, 'choice-specs'], [373, 84, null]] },
+  Aurèle: { megaSp: 373, team: [[279, 78, 'leftovers'], [227, 79, 'rocky-helmet'], [398, 80, 'choice-band'], [468, 81, 'leftovers'], [715, 82, 'choice-specs'], [373, 84, null, [38, 337, 157, 349]]] },
   Morgane: { megaSp: 691, team: [[110, 78, 'black-sludge'], [435, 79, 'sitrus-berry'], [452, 80, 'scope-lens'], [454, 81, 'life-orb'], [169, 82, 'choice-band'], [691, 84, null]] },
-  Gaspard: { megaSp: 445, team: [[450, 79, 'leftovers'], [464, 80, 'assault-vest'], [472, 81, 'leftovers'], [530, 82, 'life-orb'], [1060, 82, 'rocky-helmet'], [445, 84, null]] },
-  Ferdinand: { megaSp: 376, team: [[598, 79, 'rocky-helmet'], [462, 80, 'choice-specs'], [681, 81, 'leftovers'], [306, 82, 'assault-vest'], [448, 82, 'life-orb'], [376, 84, null]] },
-  Lilas: { megaSp: 282, team: [[683, 79, 'leftovers'], [685, 80, 'sitrus-berry'], [184, 81, 'choice-band'], [468, 82, 'choice-scarf'], [700, 82, 'choice-specs'], [282, 84, null]] },
-  Corbin: { megaSp: 248, team: [[197, 79, 'leftovers'], [430, 80, 'life-orb'], [461, 81, 'focus-sash'], [571, 82, 'choice-specs'], [635, 83, 'choice-scarf'], [248, 84, null]] },
+  Gaspard: { megaSp: 445, megaForm: 10058, team: [[450, 79, 'leftovers'], [464, 80, 'assault-vest'], [472, 81, 'leftovers', [89, 512, 14, 157]], [530, 82, 'life-orb'], [1060, 82, 'rocky-helmet'], [445, 84, null, [89, 337, 157, 14]]] },
+  Ferdinand: { megaSp: 376, team: [[598, 79, 'rocky-helmet'], [462, 80, 'choice-specs', [85, 430, 521, 324]], [681, 81, 'leftovers', [442, 425, 533, 182]], [306, 82, 'assault-vest', [442, 444, 89, 8]], [448, 82, 'life-orb'], [376, 84, null]] },
+  Lilas: { megaSp: 282, team: [[683, 79, 'leftovers', [585, 94, 577, 347]], [685, 80, 'sitrus-berry'], [184, 81, 'choice-band'], [468, 82, 'choice-scarf', [585, 403, 396, 53]], [700, 82, 'choice-specs'], [282, 84, null, [585, 94, 304, 347]]] },
+  Corbin: { megaSp: 248, team: [[197, 79, 'leftovers', [492, 399, 236, 92]], [430, 80, 'life-orb', [400, 413, 276, 17]], [461, 81, 'focus-sash', [400, 556, 420, 280]], [571, 82, 'choice-specs', [399, 53, 411, 555]], [635, 83, 'choice-scarf'], [248, 84, null]] },
 };
 
 export async function revancheBoss(game, n) {
@@ -45,12 +45,12 @@ export async function revancheBoss(game, n) {
   // à pleine puissance : équipes dédiées pour les 15 Champions, niveaux 70 à 86 pour le reste, IA forte (trainerBattle : d.boss)
   const custom = REMATCH_TEAMS[tr.name];
   const team = custom
-    ? custom.team.map(([sp, lvl, item, ab]) => [sp, lvl, item, null, ab])
+    ? custom.team.map(([sp, lvl, item, moves, ab]) => [sp, lvl, item, moves || null, ab])
     : tr.team.map((e) => { const [sp, lvl, item, moves, ab] = Array.isArray(e) ? e : [e.sp, e.lvl, e.item, e.moves, e.ability];
       return [sp, Math.min(100, Math.max(lvl + 5, 70 + Math.round(lvl / 8))), item, null, ab]; });
   const id = n.id + ':revanche';
   const fake = { ...n, id, def: { ...d, id, leader: undefined, champion: undefined, boss: true, onWin: undefined, winScript: undefined, beatenPos: undefined, vanish: undefined,
-    trainer: { ...tr, team, ai: 'smart', prize: (tr.prize || 100) * 2, megaSp: custom?.megaSp || tr.megaSp || 'auto', intro: ['Cette fois, je ne retiens rien !'] } } };
+    trainer: { ...tr, team, ai: 'smart', prize: (tr.prize || 100) * 2, megaSp: custom?.megaSp || tr.megaSp || 'auto', megaForm: custom?.megaForm || tr.megaForm, intro: ['Cette fois, je ne retiens rien !'] } } };
   tour(st).revanches[n.id] = Date.now();
   const res = await game.trainerBattle(fake, false);
   delete st.flags['T:' + id];

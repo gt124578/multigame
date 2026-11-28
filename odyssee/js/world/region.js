@@ -1138,12 +1138,10 @@ export function buildWorld({ decors = true, traces = decors } = {}) {
     return { R, pier, pierV, flagGate, thing, offRoute };
   };
   const { pierV, thing, offRoute, pier } = outils(W);
-  // Méga-Gemmes et légendaires à Méga (Arcadia), une fois le Méga-Anneau reçu à Port-Granit
+  // Méga-Gemmes à Méga (Arcadia), une fois le Méga-Anneau reçu à Port-Granit
   gemmes(W, r7, 0, [[0.5, 1, 'tyranitarite']]); gemmes(W, r9, 1, [[0.6, 1, 'lucarionite']]);
   gemmes(W, r10, 2, [[0.3, -1, 'gyaradosite'], [0.8, 1, 'aerodactylite']]); gemmes(W, r11, 3, [[0.5, 1, 'absolite']]);
   gemmes(W, r12, 4, [[0.4, -1, 'scizorite'], [0.85, 1, 'heracronite']]);
-  legend({ id: 'latias', sp: 380, lvl: 50, ...xy(offRoute(r10, 0.55, -1, 3)), cond: (f, g) => g.badgeCount() >= 8 && (!!f.drakos || !!g.state?.badges?.[7]), intro: ['Un souffle chaud frôle la route...', 'Un Pokémon rouge et blanc plane en silence : Latias !'] });
-  legend({ id: 'diancie', sp: 719, lvl: 55, ...xy(offRoute(r12, 0.6, -1, 3)), cond: (f, g) => g.badgeCount() >= 8 && (!!f.drakos || !!g.state?.badges?.[7]), intro: ['Des cristaux roses scintillent entre les arbres...', 'Une petite princesse de diamant apparaît : Diancie !'] });
   // le passeur du Cap Mirage et le ponton de Port-Granit : le seul bateau qui franchit les tourbillons de l'archipel
   // (5 badges : on y vient d'abord à pied, par Mirage ; le bateau de l'Embarcadère n'y mène pas plus tôt)
   pierV('cap', 'Cap Mirage', CAP.x + 12, CAP.y + 7, 1, 2, 5, { town: 'Cap Mirage' });
@@ -1389,7 +1387,9 @@ export function buildWorld({ decors = true, traces = decors } = {}) {
   smashOnPath(victoire, { x: 50, y: 34 }, 3, 991);
 
   /* ======================== TERRES DU SUD ======================== */
-  buildSud({ W, maps, towns, routes, G2, routeTrainer, routeItem, buildTown, poserBatiment, ENC, ledges, PONT });
+  buildSud({ W, maps, towns, routes, G2, routeTrainer, routeItem, buildTown, poserBatiment, ENC, ledges, PONT, gymGuard });
+  legend({ id: 'latias', sp: 380, lvl: 60, ...xy(offRoute(routes.find((q) => q.id === 'r14').pts, 0.45, -1, 5)), cond: (f, g) => g.badgeCount() >= 9, intro: ['Un souffle écarlate fend le vent des falaises…', 'Latias plane au-dessus des embruns de Port-Lisière !'] });
+  legend({ id: 'diancie', sp: 719, lvl: 68, ...xy(offRoute(routes.find((q) => q.id === 'r18').pts, 0.45, 1, 5)), cond: (f, g) => g.badgeCount() >= 13, intro: ['Des cristaux roses scintillent parmi les fleurs…', 'Une princesse de diamant veille sur la route de Rosebrume : Diancie !'] });
   // ceintures de tourbillons : l'archipel des trois frères et les îles de l'Est ne s'atteignent qu'en bateau
   tourbillons(W, [
     [[938, 0], [938, 812]], [[938, 812], [1199, 812]],                                  // îles de l'Est
@@ -1417,6 +1417,9 @@ export function buildWorld({ decors = true, traces = decors } = {}) {
   const GYM_EXTRA = [
     ['Insectomane', 'Basile', [[1018, 10, null, [33, 81, 106]], [1020, 11]]], ['Pêcheur', 'Gilles', [[1029, 18]]], ['Scientifique', 'Volt', [[1034, 24]]], ['Fillette', 'Pivoine', [[1021, 29]]],
     ['Médium', 'Isaure', [[1039, 34]]], ['Montagnard', 'Roch', [[1026, 39]]], ['Karatéka', 'Kazuo', [[1041, 44]]], ['Topdresseur', 'Siegfried', [[1049, 48]]],
+    ['Homme d\'affaires', 'Valéry', [[217, 55], [474, 55]]], ['Topdresseuse', 'Gwendoline', [[227, 58], [398, 58]]], ['Scientifique', 'Édouard', [[110, 61], [452, 61]]],
+    ['Ouvrier', 'Sébastien', [[530, 64], [464, 64]]], ['Ouvrier', 'Castor', [[208, 67], [598, 67]]], ['Dame Kimono', 'Olympe', [[468, 70], [700, 70]]],
+    ['Topdresseuse', 'Valériane', [[430, 73], [461, 73]]],
   ];
   // cinquième dresseur des arènes dessinées qui ont cinq places
   const GYM_CINQUIEME = {
@@ -1498,7 +1501,8 @@ export function buildWorld({ decors = true, traces = decors } = {}) {
     const plus = GYM_CINQUIEME[L2.type] || [];
     for (let k = 0; !ar.dresseurs && ar.map.planArene && spots.length > list.length && list.length && k < plus.length; k++) {
       if (t.gym === 0 && k === 0) { list.push([plus[k][0], plus[k][1], [[10, 10], [165, 11]]]); continue; }
-      const t4 = list[list.length - 1][2]; list.push([plus[k][0], plus[k][1], t4.map(([sp, lv]) => [sp, lv + 1]).slice(0, 1)]);
+      const maxCap = Math.max(2, (L2.team[L2.team.length - 1]?.[1] || 50) - 1);
+      const t4 = list[list.length - 1][2]; list.push([plus[k][0], plus[k][1], t4.map(([sp, lv]) => [sp, Math.min(maxCap, lv + 1)]).slice(0, 1)]);
     }
     const fem = L2.fem || ['Marine', 'Volta', 'Flora', 'Sibylle'].includes(L2.name);
     const titre = fem ? 'notre Championne' : 'notre Champion';
@@ -1521,7 +1525,7 @@ export function buildWorld({ decors = true, traces = decors } = {}) {
     });
     // objets posés dans les recoins des arènes dessinées
     (ar.objets || []).forEach(([x, y], i) => g.item(x, y, OBJETS_ARENE[t.gym]?.[i] || 'super-potion', 1, `${g.id}:objet${i}`));
-    g.npc({ id: g.id + ':leader', x: ar.leader[0], y: ar.leader[1], dir: 'down', sprite: L2.ow, leader: t.gym, trainer: { cls: fem ? 'Championne' : 'Champion', name: L2.name, team: L2.team, prize: 100, bs: L2.ow, ai: t.gym === 0 ? 'normal' : 'smart', items: { 'potion': t.gym === 0 ? 2 : 0, 'super-potion': t.gym === 1 ? 1 : (t.gym === 2 ? 2 : 0), 'hyper-potion': (t.gym >= 3 ? 2 : 0), 'full-restore': (t.gym >= 6 ? 2 : (t.gym >= 4 ? 1 : 0)) }, intro: L2.intro, lose: L2.lose, sight: 0 } });
+    g.npc({ id: g.id + ':leader', x: ar.leader[0], y: ar.leader[1], dir: 'down', sprite: L2.ow, leader: t.gym, trainer: { cls: fem ? 'Championne' : 'Champion', name: L2.name, team: L2.team, prize: 100, bs: L2.ow, ai: t.gym === 0 ? 'normal' : 'smart', megaForm: L2.megaForm, items: { 'potion': t.gym === 0 ? 2 : 0, 'super-potion': t.gym === 1 ? 1 : (t.gym === 2 ? 2 : 0), 'hyper-potion': (t.gym >= 3 ? 2 : 0), 'full-restore': (t.gym >= 6 ? 2 : (t.gym >= 4 ? 1 : 0)) }, intro: L2.intro, lose: L2.lose, sight: 0 } });
   }
   // Ligue : la Maître
   const league = maps['plateau:ligue'];

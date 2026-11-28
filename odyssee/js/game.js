@@ -2101,8 +2101,8 @@ export class Game {
     if (z?.theme === 'snow' || m.id?.includes('snow') || m.id?.includes('glace')) return 'hail';
     // zones volcaniques : pluie de cendres (sans effet en combat) qui alterne avec la tempête de sable
     if (z?.theme === 'volcanic' || m.id?.includes('cendre')) return this.weatherSlot('volcan') % 2 ? 'ash' : 'sandstorm';
-    if (m.id?.includes('desert')) return 'sandstorm';
-    if (z?.town === 'azur' || z?.name?.includes('Pluie') || m.id?.includes('marais')) return 'rain';
+    if (z?.theme === 'desert' || z?.theme === 'canyon' || z?.town === 'dunes' || m.id?.includes('desert')) return 'sandstorm';
+    if (z?.town === 'azur' || z?.town === 'marais' || z?.route === 'r15' || z?.name?.includes('Pluie') || m.id?.includes('marais')) return 'rain';
     // la Nuit Violette (l'Éclipse) : des cendres violettes tombent sur toute la région
     if (m.outdoor && this.eclipseOn()) return 'cendresViolettes';
     if (m.outdoor) {
@@ -2167,7 +2167,7 @@ export class Game {
       // personne dans l'équipe n'a de Méga : son dernier Pokémon laisse la place à un Pokémon qui en a une (toujours le même pour ce dresseur)
       // personne dans l'équipe n'a de Méga : le dresseur s'en passe (on ne remplace plus son dernier Pokémon)
       const forms = target && MEGAS_OF[target.sp];
-      const pid = forms && forms[(o.trainer.megaSeed || 0) % forms.length];
+      const pid = (o.trainer.megaForm && forms?.includes(o.trainer.megaForm)) ? o.trainer.megaForm : forms && forms[(o.trainer.megaSeed || 0) % forms.length];
       if (pid) { target.item = MEGA_FORMS[pid].stone; o.trainer = { ...o.trainer, mega: true }; }
     }
     const format = o.format || o.trainer?.format, slots = o.slots || o.trainer?.slots;
@@ -2410,11 +2410,13 @@ export class Game {
             sub: t.name === 'Nox' ? 'Chef de la Brume · Orbe Rouge' : isBrumeBoss ? t.cls : (t.name === RIVAL_NAME ? 'Dernier Duel · Bourg-Aube' : undefined),
           });
         }
-        const party = isRival ? buildRivalParty(g, t.team) : t.team.map(([sp, lvl]) => createMon(sp, lvl, { iv: Array(6).fill(Math.min(31, 10 + lvl / 2 | 0)), moves: (leaderMatch || t.boss) ? movesChoisies(sp, lvl) : undefined, shiny: false }));
+        const party = isRival ? buildRivalParty(g, t.team) : t.team.map(([sp, lvl, item, moves, ab]) => createMon(sp, lvl, { item, ability: ab, iv: Array(6).fill(Math.min(31, 10 + lvl / 2 | 0)), moves: moves || movesChoisies(sp, lvl), shiny: false }));
         g.musicLock = true;
-        const items = isRival ? getRivalItems(g) : { ...(t.items || {}) };
+        const defaultItems = isBrumeBoss ? { 'hyper-potion': t.name === 'Nox' ? 2 : 1, ...(t.name === 'Nox' ? { 'full-restore': 1 } : {}) } : {};
+        const items = isRival ? getRivalItems(g) : { ...defaultItems, ...(t.items || {}) };
+        const megaSp = t.megaSp ?? ((isBrumeBoss || (t.cls === 'Rival' && t.name === RIVAL_NAME)) ? 'ace' : undefined);
         const fightMusic = t.music || (t.name === 'Nox' ? 'legendElemental' : isBrumeBoss ? 'eclipse' : leaderMatch ? 'leader' : isRival ? 'rival' : t.boss ? 'champion' : 'trainer');
-        const res = await g.runBattle({ trainer: { ...t, items }, party, music: fightMusic, rival: isRival, noWhiteout: t.noWhiteout, format: t.format, slots: t.slots });
+        const res = await g.runBattle({ trainer: { ...t, items, megaSp }, party, music: fightMusic, rival: isRival, noWhiteout: t.noWhiteout, format: t.format, slots: t.slots });
         g.musicLock = false; g.updateZone();
         if (res === 'win' && (isBrumeBoss || t.boss)) g.noterBoss(t.name);
         if (res === 'win' && t.after) await ui().say(typeof t.after === 'function' ? t.after(st()) : t.after, { speaker: nomDresseur(t), face: t.bs || t.ow });

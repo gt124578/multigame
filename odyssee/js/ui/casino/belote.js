@@ -31,7 +31,11 @@ export async function beloteTable(game) {
   NOMS[0] = 'Toi';
   T.msg('Toi et Mamie Rose contre le Marquis et Fernand. Première équipe à 501 points.');
   const choix = [10, 25, 50, 100].filter((n) => n <= st.jetons);
-  if (!choix.length) { T.fermer(); return; }
+  if (!choix.length) {
+    T.msg('Il faut au moins 10 jetons pour entrer à la table de belote.');
+    await T.choisir([{ id: 'ok', label: 'Quitter la table' }], { cancel: 'ok' });
+    T.fermer(); return;
+  }
   const mise = await T.choisir([...choix.map((n) => ({ id: n, html: `Miser <b>${n}</b>` })), { id: 0, label: 'Partir' }], { cancel: 0, start: choix[0] });
   if (!mise) { T.fermer(); return; }
   st.jetons -= mise; T.majJetons();
@@ -81,17 +85,18 @@ export async function beloteTable(game) {
     curseur = Math.max(0, main.findIndex((c) => jouables.some((x) => x.r === c.r && x.s === c.s)));
     attendJoueur = true; T.msg('À toi de jouer : ← → puis A, ou clique sur une carte.');
     for (;;) {
-      const id = await T.choisir([{ id: 'carte', html: '<b>Jouer cette carte</b>', cls: 'vert' }], {
+      const id = await T.choisir([{ id: 'carte', html: '<b>Jouer cette carte</b>', cls: 'vert' }, { id: 'quitter', label: 'Quitter' }], {
+        cancel: 'quitter',
         onKey: (k) => { if (k === 'left' || k === 'right') { curseur = (curseur + (k === 'left' ? -1 : 1) + main.length) % main.length; T.sfx('blip'); return true; } return false; },
       });
-      if (id === undefined) return null;
+      if (id === undefined || id === 'quitter') return null;
       const c = main[curseur];
       if (jouables.some((x) => x.r === c.r && x.s === c.s)) { attendJoueur = false; jouables = null; T.msg(''); return c; }
       T.sfx('bump'); T.msg(d.pli.length ? 'Tu dois fournir à la couleur demandée (ou couper à l\'atout).' : 'Cette carte ne peut pas être jouée.');
     }
   };
 
-  while (score[0] < 501 && score[1] < 501) {
+  while ((score[0] < 501 && score[1] < 501) || score[0] === score[1]) {
     donneur = (donneur + 1) % 4; d = C.donneBelote(r, donneur); actif = -1;
     cartes.vide(); spMain = []; spPli = [];
     placerMain(); T.sfx('blip'); await cartes.attend();
@@ -103,8 +108,8 @@ export async function beloteTable(game) {
       if (j === 0) {
         T.msg(tourE === 1 ? `Prends-tu à ${C.NOM_COULEUR[d.retournee.s]} ?` : 'Second tour : choisis une autre couleur, ou passe.');
         const opts = tourE === 1 ? [{ id: d.retournee.s, html: `<b>Je prends</b> ${AT_SYM[d.retournee.s]}`, cls: 'vert' }] : C.COULEURS.filter((c) => c !== d.retournee.s).map((c) => ({ id: c, html: `À ${AT_SYM[c]}`, cls: 'vert' }));
-        const id = await T.choisir([...opts, { id: 'passe', label: 'Je passe' }, ...(tourE === 1 && score[0] + score[1] === 0 ? [] : [])], { start: 'passe' });
-        if (id === undefined) { T.fermer(); return; }
+        const id = await T.choisir([...opts, { id: 'passe', label: 'Je passe' }, { id: 'quitter', label: 'Quitter' }], { start: 'passe', cancel: 'quitter' });
+        if (id === undefined || id === 'quitter') { T.fermer(); return; }
         if (id !== 'passe') { preneur = 0; atout = id; dire(0, `Je prends à ${C.NOM_COULEUR[id]} !`); } else dire(0, 'Je passe.');
       } else {
         await T.pause(500);

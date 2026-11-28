@@ -343,8 +343,8 @@ const GYM_PRESET_MAP = {
   fire: ['fire', 'Badge Braise · Arène de Cendrelune'],
   dragon: ['dragon', 'Badge Écaille · Arène de Fort-Écaille'],
   normal: ['gym', 'Badge Pavé · Arène de Métropole'],
-  flying: ['water', 'Badge Rafale · Arène de Port-Lisière'],
-  poison: ['eclipse', 'Badge Venin · Arène de Marais-Noir'],
+  flying: ['celestial', 'Badge Rafale · Arène de Port-Lisière'],
+  poison: ['nature', 'Badge Venin · Arène de Marais-Noir'],
   ground: ['titan', 'Badge Dune · Arène des Dunes d\'Ocre'],
   steel: ['titan', 'Badge Rouage · Arène de Forge-Acier'],
   fairy: ['fairy', 'Badge Féérie · Arène de Rosebrume'],
@@ -402,7 +402,7 @@ export function resolveBossCinematicConfig(opts = {}) {
     } else if (cls.includes('Éclipse') || cls.includes('Brume') || opts.eclipse) {
       presetKey = name === 'Nox' ? 'fire' : 'eclipse';
       sub = sub || (cls || 'Conspiration Obscure');
-      badge = badge || (cls.includes('Brume') ? 'TEAM BRUME · CHEF' : 'TEAM ÉCLIPSE');
+      badge = badge || (cls.includes('Brume') ? (cls.includes('Chef') ? 'LA BRUME · CHEF' : 'LA BRUME · ADMIN') : 'TEAM ÉCLIPSE');
     } else if (cls === 'Rival' || opts.rival) {
       presetKey = 'rival';
       sub = sub || 'Rivalité Éternelle';

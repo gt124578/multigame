@@ -229,6 +229,7 @@ export function grotteDansFalaise({ W, maps, ENC, trainerNpc }, o) {
   const m = caveMap(id, 48, 32, o.graine, [{ x: 24, y: 27 }], { name: o.nom, via: [{ x: 8, y: 20 }, { x: 10, y: 6 }, { x: 24, y: 12 }, { x: 40, y: 6 }, { x: 38, y: 22 }] });
   m.encounter = enc; m.biome = 'terre';
   m.set(24, 28, T.CAVEDOOR); m.set(24, 27, T.CAVE); m.set(24, 29, T.CAVEWALL);
+  for (let x = 22; x <= 26; x++) for (let y = 28; y < m.h; y++) if (x !== 24 || y !== 28) m.set(x, y, T.CAVEWALL);
   m.warp(24, 28, { map: 'monde', x: B.doorX, y: B.doorY + 1, dir: 'down' });
   W.warp(B.doorX, B.doorY, { map: id, x: 24, y: 27, dir: 'up' });
   m.deco.push({ k: 'exitlight', x: 24, y: 28 });

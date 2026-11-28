@@ -200,7 +200,7 @@ export class VieMonde {
     const z = m.outdoor ? m.zoneAt(p.x, p.y) : null;
     // lieux mystiques (aucune zone n'a ce thème : on les reconnaît à leur carte, leur musique ou leur ville) : le Sanctuaire
     // des Marées, l'Îlot des Marées et Mirage
-    const mystique = m.id === 'sanctuaire' || z?.music === 'sanctuary' || z?.music === 'mystic' || z?.town === 'mirage' || z?.name === 'Îlot des Marées';
+    const mystique = m.id === 'sanctuaire' || z?.music === 'sanctuary' || z?.town === 'mirage' || z?.name === 'Îlot des Marées' || (z?.music === 'mystic' && !['marais', 'ombre', 'volcanic'].includes(z?.theme || '') && !['marais', 'ombre', 'ecaille'].includes(z?.town || '') && z?.name !== 'Cratère Ardent');
     return { eau, fleurs, herbe, theme: mystique ? (m.id === 'sanctuaire' ? 'sanctuary' : 'mystic') : z?.theme || '', ville: !!z?.town };
   }
 

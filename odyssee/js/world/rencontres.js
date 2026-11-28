@@ -165,6 +165,7 @@ export function poolDeType(type, lvl) {
   for (const [id, S] of Object.entries(SPECIES)) {
     const n = +id; if (LEG.has(n) || (n > 721 && n < 1001) || n > 1051 || !S.t.includes(type)) continue;
     const f = formeAuNiveau(n, lvl);
+    if (lvl >= 50 && SPECIES[f]?.ev?.length && SPECIES[f].b.reduce((a, b) => a + b, 0) < 430) continue;
     if (SPECIES[f]?.t.includes(type)) s.add(f);
   }
   return (POOLS[key] = [...s].sort((a, b) => a - b));

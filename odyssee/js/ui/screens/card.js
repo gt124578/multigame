@@ -20,14 +20,14 @@ export const BADGE_SPECS = [
   { id: 5, name: 'Badge Mirage', type: 'psychic', leader: 'Sibylle', town: 'Mirage', reward: 'Dissipe les Brumes & Illusions', cap: GYM_CAPS[4] },
   { id: 6, name: 'Badge Granit', type: 'rock', leader: 'Basalte', town: 'Port-Granit', reward: 'Autorise Éclate-Roc hors combat', cap: GYM_CAPS[5] },
   { id: 7, name: 'Badge Braise', type: 'fire', leader: 'Pyros', town: 'Cendrelune', reward: 'Autorise Force hors combat', cap: GYM_CAPS[6] },
-  { id: 8, name: 'Badge Écaille', type: 'dragon', leader: 'Drakos', town: 'Fort-Écaille', reward: 'Autorise Vol & Accès Ligue du Nord', cap: GYM_CAPS[7] },
-  { id: 9, name: 'Badge Pavé', type: 'normal', leader: 'Margot', town: 'Métropole', reward: 'Accès VIP au Casino & Bourse', cap: GYM_CAPS[8] },
-  { id: 10, name: 'Badge Rafale', type: 'flying', leader: 'Aurèle', town: 'Port-Lisière', reward: 'Courants aériens des Terres du Sud', cap: GYM_CAPS[9] },
-  { id: 11, name: 'Badge Venin', type: 'poison', leader: 'Morgane', town: 'Marais-Noir', reward: 'Immunité aux bourbiers toxiques', cap: GYM_CAPS[10] },
-  { id: 12, name: 'Badge Dune', type: 'ground', leader: 'Gaspard', town: 'Dunes d\'Ocre', reward: 'Traversée des tempêtes de sable', cap: GYM_CAPS[11] },
-  { id: 13, name: 'Badge Rouage', type: 'steel', leader: 'Ferdinand', town: 'Forge-Acier', reward: 'Maîtrise métallurgique & blindages', cap: GYM_CAPS[12] },
-  { id: 14, name: 'Badge Féérie', type: 'fairy', leader: 'Lilas', town: 'Rosebrume', reward: 'Passage du Sanctuaire Féerique', cap: GYM_CAPS[13] },
-  { id: 15, name: 'Badge Ombre', type: 'dark', leader: 'Corbin', town: 'Ombreval', reward: 'Accès ultime à la Ligue du Sud', cap: GYM_CAPS[14] },
+  { id: 8, name: 'Badge Écaille', type: 'dragon', leader: 'Drakos', town: 'Fort-Écaille', reward: 'Accès Pont de l\'Austral & Cap des Étoiles', cap: GYM_CAPS[7] },
+  { id: 9, name: 'Badge Pavé', type: 'normal', leader: 'Margot', town: 'Métropole', reward: 'Route 14 vers Port-Lisière', cap: GYM_CAPS[8] },
+  { id: 10, name: 'Badge Rafale', type: 'flying', leader: 'Aurèle', town: 'Port-Lisière', reward: 'Route 15 vers Marais-Noir', cap: GYM_CAPS[9] },
+  { id: 11, name: 'Badge Venin', type: 'poison', leader: 'Morgane', town: 'Marais-Noir', reward: 'Route 16 vers les Dunes d\'Ocre', cap: GYM_CAPS[10] },
+  { id: 12, name: 'Badge Dune', type: 'ground', leader: 'Gaspard', town: 'Dunes d\'Ocre', reward: 'Canyon d\'Ocre vers Forge-Acier', cap: GYM_CAPS[11] },
+  { id: 13, name: 'Badge Rouage', type: 'steel', leader: 'Ferdinand', town: 'Forge-Acier', reward: 'Route 18 vers Rosebrume', cap: GYM_CAPS[12] },
+  { id: 14, name: 'Badge Féérie', type: 'fairy', leader: 'Lilas', town: 'Rosebrume', reward: 'Route 19 vers Ombreval', cap: GYM_CAPS[13] },
+  { id: 15, name: 'Badge Ombre', type: 'dark', leader: 'Corbin', town: 'Ombreval', reward: 'Route 20 & Ligue Céleste', cap: GYM_CAPS[14] },
 ];
 
 export function getCardRank(c) {

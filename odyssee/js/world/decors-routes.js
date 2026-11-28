@@ -323,15 +323,16 @@ class Chantier {
   batiment(modele, w, d, h, dit = null, dmax = 11) {
     for (let i = 0; i < 400; i++) {
       const p = this.ech[Math.floor((0.12 + 0.76 * this.r()) * (this.ech.length - 1))], s = this.r() < 0.5 ? 1 : -1, q = 4 + this.r() * (dmax - 4), x0 = Math.round(p.x + p.nx * s * q - w / 2), y0 = Math.round(p.y + p.ny * s * q - d / 2), h0 = this.W.height(x0, y0);
-      let ok = true, n = 0; const C = [];
+      let ok = true, n = 0, frontOpen = false; const C = [];
       for (let j = -1; j <= d && ok; j++) for (let k = -1; k <= w; k++) {
         const x = x0 + k, y = y0 + j, bord = j < 0 || k < 0 || j === d || k === w, f = this.foret(x, y);
         if (!(f || this.libre(x, y, 2.2)) || this.W.height(x, y) !== h0) { ok = false; break; }
+        if (j === d && k >= 0 && k < w && !f) frontOpen = true;
         if (!bord) { if (!f) C.push([x, y]); n++; }
       }
       // rien d'important caché derrière (au nord, sur la hauteur du bâtiment)
       for (let j = 1; j <= h && ok; j++) for (let k = 0; k < w; k++) if (this.sentier(x0 + k, y0 - j) || this.reserve.has(this.k(x0 + k, y0 - j))) { ok = false; break; }
-      if (!ok || !n || (C.length && !this.sansCouper(C))) continue;
+      if (!ok || !n || !frontOpen || (C.length && !this.sansCouper(C))) continue;
       this.W.building('tower', x0, y0, { w, d, h, door: -1, modele, name: modele, roof: 'gray' });
       for (let j = -1; j <= d; j++) for (let k = -1; k <= w; k++) this.pris.add(this.k(x0 + k, y0 + j));
       if (dit) for (let k = 0; k < w; k++) this.W.object(x0 + k, y0 + d - 1, { use: async (A) => A.say([].concat(dit)) });

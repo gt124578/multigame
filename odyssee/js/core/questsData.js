@@ -95,6 +95,8 @@ const QUESTS = [
       [(f) => f.rival2, 'Théo m\'a rattrapé sur la route 2. Lui aussi a son premier badge.'],
       [(f) => f.rival3, 'Théo m\'attendait à Floralia, sa « ville porte-bonheur ».'],
       [(f) => f.rival4, (f, g) => `Au Cap Mirage, Théo a voulu vérifier que j'étais prêt${g?.state?.gender === 'f' ? 'e' : ''} pour les îles.`],
+      [(f) => f.rivalS1, (f, g) => `Sur la route 14, Théo m'a défié${g?.state?.gender === 'f' ? 'e' : ''} face aux falaises de Port-Lisière.`],
+      [(f) => f.rivalS2, 'Sur la route 18, Théo a donné toute la puissance de sa Méga-Gemme sur le chemin de Rosebrume.'],
       [(f) => f.rival5, 'Sur la route 9, Théo m\'a donné tout ce qu\'il avait avant la Ligue.'],
       [(f) => f.mTheo, 'J\'ai battu Théo une dernière fois, à Bourg-Aube. Il part découvrir une autre région.'],
     ] },

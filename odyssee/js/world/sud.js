@@ -30,12 +30,12 @@ export const BADGES_SUD = [
 ];
 export const LEADERS_SUD = [
   { name: 'Margot', type: 'normal', ow: 'margot', fem: true, team: [[217, 56], [128, 57], [474, 58], [241, 58], [143, 60]], intro: 'Bienvenue à Métropole, la ville qui ne dort jamais. Ici, on ne gagne qu\'avec des chiffres solides !', lose: 'Joli rendement. Le Badge Pavé est à toi : tu l\'as mérité, sans spéculer.' },
-  { name: 'Aurèle', type: 'flying', ow: 'aurele', team: [[279, 59], [227, 60], [630, 60], [142, 61], [373, 63]], intro: 'Au-dessus de Port-Lisière, le vent décide de tout. Voyons s\'il est de ton côté.', lose: 'Tu as volé plus haut que moi. Le Badge Rafale est à toi !' },
+  { name: 'Aurèle', type: 'flying', ow: 'aurele', team: [[279, 59], [227, 60], [630, 60], [142, 61], [373, 63, null, [38, 337, 157, 349]]], intro: 'Au-dessus de Port-Lisière, le vent décide de tout. Voyons s\'il est de ton côté.', lose: 'Tu as volé plus haut que moi. Le Badge Rafale est à toi !' },
   { name: 'Morgane', type: 'poison', ow: 'morgane', fem: true, team: [[452, 62], [454, 62], [110, 63], [435, 63], [691, 65]], intro: 'Le marais ne pardonne pas. Mes Pokémon non plus.', lose: 'Tu as résisté au venin… Prends le Badge Venin.' },
-  { name: 'Gaspard', type: 'ground', ow: 'gaspard', team: [[530, 64], [464, 65], [472, 65], [450, 66], [445, 68]], intro: 'Les dunes bougent sans cesse, mais le sol, lui, ne cède jamais !', lose: 'Le sable s\'est dérobé sous mes pieds. Voici le Badge Dune.' },
-  { name: 'Ferdinand', type: 'steel', ow: 'ferdinand', team: [[598, 67], [462, 67], [208, 68], [681, 69], [306, 69], [376, 71]], intro: 'Dans ma forge, on éprouve l\'acier au feu. Et toi, de quel métal es-tu fait ?', lose: 'Un alliage parfait. Le Badge Rouage te revient.' },
-  { name: 'Lilas', type: 'fairy', ow: 'lilas', fem: true, team: [[683, 71], [685, 72], [468, 72], [282, 73], [700, 74], [36, 75, null, [585, 53, 347, 236]]], intro: 'Rosebrume est un rêve. Mais même les rêves savent mordre !', lose: 'Quel joli combat… Le Badge Féérie est à toi.' },
-  { name: 'Corbin', type: 'dark', ow: 'corbin', team: [[197, 73], [430, 73], [359, 74], [461, 74], [248, 76], [635, 76]], intro: 'À Ombreval, la lumière ne passe jamais. Voyons si tu brilles assez.', lose: 'Tu as percé les ténèbres. Prends le Badge Ombre : la Ligue t\'attend.' },
+  { name: 'Gaspard', type: 'ground', ow: 'gaspard', megaForm: 10058, team: [[530, 64], [464, 65], [472, 65, null, [89, 512, 14, 157]], [450, 66], [445, 68, null, [89, 337, 157, 14]]], intro: 'Les dunes bougent sans cesse, mais le sol, lui, ne cède jamais !', lose: 'Le sable s\'est dérobé sous mes pieds. Voici le Badge Dune.' },
+  { name: 'Ferdinand', type: 'steel', ow: 'ferdinand', team: [[598, 67], [462, 67, null, [85, 430, 521, 86]], [208, 68, null, [89, 442, 157, 422]], [681, 69, null, [442, 425, 533, 182]], [306, 69, null, [442, 444, 89, 38]], [376, 71]], intro: 'Dans ma forge, on éprouve l\'acier au feu. Et toi, de quel métal es-tu fait ?', lose: 'Un alliage parfait. Le Badge Rouage te revient.' },
+  { name: 'Lilas', type: 'fairy', ow: 'lilas', fem: true, team: [[683, 71, null, [585, 94, 577, 347]], [685, 72], [468, 72, null, [585, 403, 396, 53]], [282, 73, null, [585, 94, 304, 347]], [700, 74], [36, 75, null, [585, 53, 347, 236]]], intro: 'Rosebrume est un rêve. Mais même les rêves savent mordre !', lose: 'Quel joli combat… Le Badge Féérie est à toi.' },
+  { name: 'Corbin', type: 'dark', ow: 'corbin', team: [[197, 73, null, [492, 399, 236, 92]], [430, 73, null, [400, 413, 276, 17]], [359, 74], [461, 74, null, [400, 556, 420, 280]], [248, 76], [635, 76]], intro: 'À Ombreval, la lumière ne passe jamais. Voyons si tu brilles assez.', lose: 'Tu as percé les ténèbres. Prends le Badge Ombre : la Ligue t\'attend.' },
 ];
 export const GYM_TRAINERS_SUD = [
   [['Homme d\'affaires', 'Gérald', [[20, 54], [128, 55]]], ['Femme d\'affaires', 'Clarisse', [[241, 55], [53, 55]]], ['Topdresseur', 'Max', [[217, 56], [474, 55]]]],
@@ -46,7 +46,6 @@ export const GYM_TRAINERS_SUD = [
   [['Fillette', 'Pétale', [[36, 69], [184, 70]]], ['Dame Kimono', 'Rosée', [[700, 70], [210, 70]]], ['Topdresseuse', 'Brume', [[282, 71], [683, 70]]]],
   [['Médium', 'Nocturna', [[197, 72], [302, 72]]], ['Voleur', 'Ombre', [[461, 73], [262, 72]]], ['Topdresseur', 'Corvus', [[430, 73], [229, 74]]]],
 ];
-export const GYM_CAPS_SUD = [59, 62, 65, 68, 71, 74, 76];
 
 /** intérieurs de Métropole : le Casino (et sa salle d'arcade, à droite), la Bourse (terminal et bureau de Pierre), la boutique de mode */
 function casinoInterior(id) {
@@ -153,11 +152,11 @@ export function buildSud(ctx) {
       { kind: 'tower', ...GRAND.bourse, x: 58, y: 5, id: 'bourse', name: 'Bourse de Métropole', roof: 'gray', interior: bourseInterior },
       { kind: 'tower', x: 73, y: 39, w: 6, d: 4, h: 3, door: 3, id: 'mode', name: 'Boutique de mode', kit: 'gc3', flat: true, roof: 'gray', interior: modeInterior },
       { kind: 'bighouse', x: 4, y: 49, roof: 'gray', name: 'Résidence', npcs: [{ x: 4, y: 5, sprite: 'habitante', text: ['Je travaille au 42ᵉ étage. Je n\'ai jamais vu le ciel en semaine.'] }] },
-      { kind: 'house2', x: 82, y: 49, roof: 'blue', npcs: [{ x: 2, y: 4, sprite: 'topdresseur', text: ['Pierre, à la Bourse ? Il m\'a recalé trois fois.', 'Révise les forwards et les options, ses questions changent à chaque fois !'] }] },
+      { kind: 'house2', x: 82, y: 49, roof: 'blue', npcs: [{ x: 2, y: 4, sprite: 'topdresseur', text: (st) => st.flags?.pierre ? ['Tu as décroché ton compte chez Pierre ? Chapeau !', 'N\'oublie jamais : diversifie ton portefeuille et lis les nouvelles.'] : ['Pierre, à la Bourse ? Il m\'a recalé trois fois.', 'Révise les forwards et les options, ses questions changent à chaque fois !'] }] },
     ],
     npcs: [
       { id: 'businessman', x: 40, y: 20, sprite: 'topdresseur', move: 'wander', text: ['Pardon, je suis pressé. J\'ai une réunion au 87ᵉ étage.'] },
-      { id: 'touriste', x: 60, y: 31, sprite: 'randonneuse', move: 'wander', text: ['Métropole, c\'est immense ! Je me suis perdue trois fois depuis ce matin.', 'Il paraît que la Championne travaille aussi à la Bourse.'] },
+      { id: 'touriste', x: 60, y: 31, sprite: 'randonneuse', move: 'wander', text: (st) => st.badges?.[8] ? ['Tu as battu Margot ! Même à la Bourse, tout le monde parle de ton match.', 'Le parc fleuri tout au sud vaut vraiment la promenade.'] : ['Métropole, c\'est immense ! Je me suis perdue trois fois depuis ce matin.', 'Il paraît que la Championne dirige aussi la Salle des Marchés de l\'arène.'] },
       { id: 'joueur', x: 27, y: 44, sprite: 'vieil_homme', move: 'turn', text: ['Le Casino ? On y entre riche, on en ressort… avec des jetons.', 'Les lots du comptoir valent parfois le détour : Super Bonbon, Pierres…'] },
       { id: 'enfant', x: 33, y: 49, sprite: 'enfant', move: 'wander', text: ['Mon père dit que la Bourse, c\'est comme les combats : il faut lire l\'adversaire.'] },
       { id: 'garde-est', x: 93, y: 32, sprite: 'garde', dir: 'left', gate: { badges: 9, tiles: [[94, 30], [94, 31]] }, text: ['La route 14 mène à Port-Lisière, sur les falaises.', 'Reviens avec le Badge Pavé de Margot.'] },
@@ -170,6 +169,7 @@ export function buildSud(ctx) {
     [49, 18, 9, 6, 6], [60, 18, 8, 6, 5], [74, 18, 8, 5, 10], [84, 17, 7, 5, 8], [4, 33, 7, 5, 6], [11, 33, 7, 5, 9], [82, 33, 9, 5, 10], [74, 50, 6, 5, 6]];
   M.avantQuartiers = () => tours.forEach(([x, y, w, d, h], i) => W.building('tower', M.x + x, M.y + y, { w, d, h, door: -1, kit: 'gc' + (i % 4), flat: true, name: 'Tour', roof: 'gray' }));
   ville(M, 'SM');
+  ctx.gymGuard?.(W, M, 8, ['Halte ! L\'arène de Métropole est réservée aux porteurs des huit premiers badges.', 'Prouve d\'abord ta valeur au nord et sur l\'archipel.']);
   // chaussées : les avenues sont asphaltées (trottoirs pavés de part et d'autre), passages piétons aux carrefours
   {
     const H2 = [14, 30, 46], V2 = [20, 44, 70], asph = new Set();
@@ -193,6 +193,7 @@ export function buildSud(ctx) {
   routeTrainer(W, r14, 0.6, 1, 4, 'Fillette', 'Nora', [[521, 54], [22, 55]]);
   routeTrainer(W, r14, 0.8, -1, 3, 'Pilote', 'Alban', [[227, 55], [630, 55]]);
   routeItem(W, r14, 0.3, -1, 5, 'max-potion'); routeItem(W, r14, 0.7, 1, 5, 'ultra-ball', 3); routeItem(W, r14, 0.5, -1, 5, 'focus-sash', 1, 'item:r14:focus-sash');
+  { const p = along(r14, 0.88), [tx, ty] = nearestWalkable(W, p.x, p.y); W.zone(tx - 5, ty - 5, tx + 5, ty + 5, { name: 'Route 14', music: 'route', enc: ENC.r14, route: 'r14', trigger: 'rivalS1' }); }
 
   const P = towns.SP = {
     id: 'lisiere', name: 'Port-Lisière', x: 201, y: 322, w: 50, h: 42, exits: [['w', 14], ['e', 14]], gym: 9, stock: 7, music: 'port', fermer: true, lotir: { n: 6, seed: 101 },
@@ -201,12 +202,13 @@ export function buildSud(ctx) {
       ['waterRect', 38, 35, 47, 39], ['flowers', 4, 18, 7, 19], ['lamp', 16, 13], ['lamp', 19, 13], ['sand', 36, 34, 47, 34]],
     buildings: [
       { kind: 'center', ...GRAND.center, x: 4, y: 6 }, { kind: 'mart', ...GRAND.mart, x: 23, y: 7 }, { kind: 'gym', ...GRAND.gym, x: 24, y: 16, roof: 'blue' },
-      { kind: 'house', x: 4, y: 20, roof: 'blue', npcs: [{ x: 4, y: 4, sprite: 'marin', text: ['Les ventilateurs de l\'arène poussent dans tous les sens.', 'Regarde où mène chaque souffle avant de t\'y engager !'] }] },
+      { kind: 'house', x: 4, y: 20, roof: 'blue', npcs: [{ x: 4, y: 4, sprite: 'marin', text: (st) => st.badges?.[9] ? ['Tu as maîtrisé les courants de l\'arène ! Même Aurèle n\'en revient pas.'] : ['Dans l\'arène d\'Aurèle, les canons à vent te propulsent d\'une île à l\'autre.', 'Chaque canon pivote d\'un quart de tour après avoir tiré — mais deux manivelles permettent d\'en régler l\'angle !'] }] },
     ],
-    npcs: [{ id: 'pilote', x: 11, y: 12, sprite: 'topdresseur', move: 'wander', text: ['Aurèle a fait trois fois le tour de la région en deltaplane.', 'Ses Pokémon Vol ne craignent que la Glace, l\'Électrik et la Roche.'] },
+    npcs: [{ id: 'pilote', x: 11, y: 12, sprite: 'topdresseur', move: 'wander', text: (st) => st.badges?.[9] ? ['Tes Pokémon ont surclassé le Drattak d\'Aurèle en plein ciel !', 'En route pour Marais-Noir ?'] : ['Aurèle a fait trois fois le tour de la région en deltaplane.', 'Ses Pokémon Vol ne craignent que la Glace, l\'Électrik et la Roche.'] },
       { id: 'garde', x: 47, y: 16, sprite: 'garde', dir: 'up', gate: { badges: 10, tiles: [[48, 14], [48, 15]] }, text: ['Le marais, à l\'est, est dangereux. Il faut le Badge Rafale.'] }],
   };
   ville(P, 'SP');
+  ctx.gymGuard?.(W, P, 9, ['Halte ! L\'arène de Port-Lisière exige le Badge Pavé de Margot.']);
 
   /* ---------- route 15 → Marais-Noir (marécage, passerelles) ---------- */
   const r15 = G2({ id: 'r15', nom: 'Route 15', de: porte('SP', 'r15'), vers: arrivee('SN', 'r15'), long: 10, graine: 1501, w: 12, grass: 1.1, tall: T.DARKTALL, trees: 0.06, theme: 'forest', ombre: 0.9, paysages: ['etang', 'riviere', 'etang', 'bosquet', 'prairie'], branches: 0.45, raccourci: 'surf', anciens: 5, voix: 'marais', panneaux: ['ROUTE 15\n→ Marais-Noir', null] }, 'r15', 'forest');
@@ -220,15 +222,16 @@ export function buildSud(ctx) {
   const N = towns.SN = {
     id: 'marais', name: 'Marais-Noir', x: 301, y: 305, w: 46, h: 38, exits: [['w', 13], ['s', 17]], gym: 10, stock: 7, music: 'mystic', fermer: true, lotir: { n: 5, seed: 113 },
     roads: [[2, 13, 43, 14, T.PATH], [17, 13, 18, 37, T.PATH], [2, 31, 43, 31, T.PATH]],
-    deco: [['sign', 16, 11, 'MARAIS-NOIR\nOn y entre en bottes, on en sort en rampant.'], ['sign', 23, 30, 'ARÈNE DE MARAIS-NOIR\nChampionne : Morgane\nLa dame des brumes.'],
+    deco: [['sign', 16, 11, 'MARAIS-NOIR\nOn y entre en bottes, on en sort en rampant.'], ['sign', 23, 30, 'ARÈNE DE MARAIS-NOIR\nChampionne : Morgane\nLa reine des brumes.'],
       ['water', 8, 22, 2.6, 1.6], ['water', 28, 6, 3, 2.5], ['tall', 40, 16, 43, 24]],
     buildings: [
       { kind: 'center', ...GRAND.center, x: 3, y: 5 }, { kind: 'mart', ...GRAND.mart, x: 11, dx: 1, y: 6 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 15, roof: 'purple' },
-      { kind: 'house', x: 4, y: 15, roof: 'brown', npcs: [{ x: 4, y: 4, sprite: 'vieil_homme', text: ['Dans l\'arène, les murs sont invisibles.', 'Avance à tâtons : chaque mur heurté est un mur de moins à chercher.'] }] },
+      { kind: 'house', x: 4, y: 15, roof: 'brown', npcs: [{ x: 4, y: 4, sprite: 'vieil_homme', text: (st) => st.badges?.[10] ? ['Les cinq lanternes brillent encore grâce à ton passage dans le marais !'] : ['Dans l\'arène, les murs sont invisibles… jusqu\'à ce que tu allumes les cinq lanternes cachées.', 'Méfie-toi des flaques de vase toxique : un faux pas et te voilà ramené à l\'entrée.'] }] },
     ],
     npcs: [{ id: 'garde', x: 19, y: 35, sprite: 'garde', dir: 'up', gate: { badges: 11, tiles: [[17, 36], [18, 36]] }, text: ['Au sud, les Dunes d\'Ocre. Le Badge Venin d\'abord !'] }],
   };
   ville(N, 'SN');
+  ctx.gymGuard?.(W, N, 10, ['Halte ! L\'arène de Marais-Noir n\'accueille que ceux qui ont vaincu Aurèle.', 'Reviens avec le Badge Rafale.']);
 
   /* ---------- route 16 → Dunes d'Ocre (désert) ---------- */
   // un vrai désert : sable à perte de vue entre des mesas de roche ocre, cactus, crêtes de dunes dont on se laisse glisser
@@ -250,11 +253,12 @@ export function buildSud(ctx) {
       { kind: 'house', x: 3, dx: -2, y: 27, roof: 'orange', npcs: [{ x: 4, y: 4, sprite: 'randonneuse', text: ['Ici, on balaie le sable devant sa porte trois fois par jour.'] }] },
       { kind: 'house2', x: 8, dx: -1, y: 27, roof: 'brown', npcs: [{ x: 2, y: 4, sprite: 'habitant', text: ['Les caravanes du désert s\'arrêtent toujours ici avant le canyon.'] }] },
       { kind: 'house', x: 13, dx: 1, y: 27, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'enfant', text: ['J\'ai trouvé un os énorme dans les dunes ! Maman dit que c\'est un fossile.'] }] },
-      { kind: 'house', x: 33, y: 4, roof: 'brown', npcs: [{ x: 4, y: 4, sprite: 'montagnard', text: ['Dans l\'arène, le sable glisse.', 'Tu ne t\'arrêtes que contre un rocher : regarde bien où chacun t\'arrêtera.'] }] },
+      { kind: 'house', x: 33, y: 4, roof: 'brown', npcs: [{ x: 4, y: 4, sprite: 'montagnard', text: (st) => st.badges?.[11] ? ['Tu as traversé les dalles d\'argile sans flancher ? Gaspard a dû apprécier !'] : ['Dans l\'arène, le sable glisse jusqu\'aux rochers, puis une salle d\'argile fragile s\'ouvre devant Gaspard.', 'Fends chaque dalle une seule fois sans jamais repasser dessus !'] }] },
     ],
     npcs: [{ id: 'garde', x: 20, y: 35, sprite: 'garde', dir: 'up', gate: { badges: 12, tiles: [[18, 36], [19, 36]] }, text: ['La route 17 descend vers Forge-Acier. Il te faut le Badge Dune.'] }],
   };
   ville(D, 'SD');
+  ctx.gymGuard?.(W, D, 11, ['Halte ! L\'arène des Dunes d\'Ocre exige le Badge Venin de Morgane.']);
 
   /* ---------- route 17 → Forge-Acier : le Canyon d'Ocre ---------- */
   // la route descend au fond d'une gorge entre des parois de roche ocre, grimpe sur des corniches, puis rejoint Forge-Acier
@@ -273,11 +277,12 @@ export function buildSud(ctx) {
       ['lamp', 15, 12], ['lamp', 18, 12], ['rock', 3, 20], ['rock', 29, 5]],
     buildings: [
       { kind: 'center', ...GRAND.center, x: 4, y: 5 }, { kind: 'mart', ...GRAND.mart, x: 22, y: 6 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 16, roof: 'gray' },
-      { kind: 'tower', x: 4, y: 16, w: 7, d: 5, h: 5, door: 3, name: 'Fonderie', kit: 'gc0', flat: true, npcs: [{ x: 3, y: 5, sprite: 'montagnard', text: ['Ici, on coule l\'acier des rails et des ponts.', 'L\'arène ? Des tapis roulants et des barrières. Coupe le bon courant !'] }] },
+      { kind: 'tower', x: 4, y: 16, w: 7, d: 5, h: 5, door: 3, name: 'Fonderie', kit: 'gc0', flat: true, npcs: [{ x: 3, y: 5, sprite: 'montagnard', text: (st) => st.badges?.[12] ? ['Ferdinand n\'a pas trouvé de meilleur alliage que ton équipe !'] : ['Ici, on coule l\'acier des rails et des ponts.', 'L\'arène ? Des tapis roulants rouges et bleus avec des leviers qui inversent leur sens. Un levier bleu attend dès le hall !'] }] },
     ],
     npcs: [{ id: 'garde', x: 2, y: 15, sprite: 'garde', dir: 'up', gate: { badges: 13, tiles: [[1, 13], [1, 14]] }, text: ['Rosebrume, à l\'ouest, ne reçoit que les porteurs du Badge Rouage.'] }],
   };
   ville(F, 'SF');
+  ctx.gymGuard?.(W, F, 12, ['Halte ! Ferdinand ne reçoit que les détenteurs du Badge Dune.']);
 
   /* ---------- route 18 → Rosebrume (prairie fleurie) ---------- */
   const r18 = G2({ id: 'r18', nom: 'Route 18', de: porte('SF', 'r18'), vers: arrivee('SR', 'r18'), long: 12, graine: 1801, w: 12, grass: 0.8, trees: 0.04, flowers: 0.1, paysages: ['fleurs', 'prairie', 'fleurs', 'etang', 'plateau', 'riviere'], branches: 0.45, raccourci: 'coupe', anciens: 4, arbres: ['cerisier', 'erable'], panneaux: ['ROUTE 18\n← Rosebrume', 'ROUTE 18\n→ Forge-Acier'] }, 'r18');
@@ -286,6 +291,7 @@ export function buildSud(ctx) {
   routeTrainer(W, r18, 0.62, 1, 4, 'Topdresseur', 'Florent', [[683, 66], [303, 66], [670, 66]]);
   routeTrainer(W, r18, 0.85, -1, 3, 'Fillette', 'Églantine', [[685, 67], [40, 67]]);
   routeItem(W, r18, 0.3, -1, 6, 'max-potion', 2); routeItem(W, r18, 0.7, 1, 6, 'moon-stone'); routeItem(W, r18, 0.52, -1, 5, 'choice-specs', 1, 'item:r18:choice-specs');
+  { const p = along(r18, 0.15), [tx, ty] = nearestWalkable(W, p.x, p.y); W.zone(tx - 5, ty - 5, tx + 5, ty + 5, { name: 'Route 18', music: 'route', enc: ENC.r18, route: 'r18', trigger: 'rivalS2' }); }
 
   const Ro = towns.SR = {
     id: 'rose', name: 'Rosebrume', x: 170, y: 428, w: 48, h: 38, exits: [['e', 12], ['w', 12]], gym: 13, stock: 7, music: 'town', fermer: true, lotir: { n: 6, seed: 131 },
@@ -294,11 +300,12 @@ export function buildSud(ctx) {
       ['flowers', 3, 3, 12, 5], ['flowers', 23, 3, 32, 5], ['flowers', 3, 20, 10, 23], ['fontaine', 9, 27]],
     buildings: [
       { kind: 'center', ...GRAND.center, x: 4, y: 6 }, { kind: 'mart', ...GRAND.mart, x: 24, y: 6 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 16, roof: 'red' },
-      { kind: 'house', x: 11, y: 16, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'fillette', text: ['L\'arène de Lilas est pleine de miroirs magiques.', 'Chaque dalle t\'envoie ailleurs… mais pas n\'importe où !'] }] },
+      { kind: 'house', x: 11, y: 16, roof: 'red', npcs: [{ x: 4, y: 4, sprite: 'fillette', text: (st) => st.badges?.[13] ? ['Tu as guidé le rayon jusqu\'au cristal ? Les miroirs brillent encore !'] : ['L\'arène de Lilas est traversée par un rayon de lumière et des miroirs orientables.', 'Fais tourner les miroirs pour conduire le rayon jusqu\'au cristal de la grille… sans te couper le chemin !'] }] },
     ],
     npcs: [{ id: 'garde', x: 2, y: 14, sprite: 'garde', dir: 'up', gate: { badges: 14, tiles: [[1, 12], [1, 13]] }, text: ['Ombreval, plus à l\'ouest, est plongée dans la nuit.', 'Il faut le Badge Féérie pour y aller.'] }],
   };
   ville(Ro, 'SR');
+  ctx.gymGuard?.(W, Ro, 13, ['Halte ! L\'arène de Rosebrume exige le Badge Rouage de Ferdinand.']);
 
   /* ---------- route 19 → Ombreval (forêt sombre) ---------- */
   const r19 = G2({ id: 'r19', nom: 'Route 19', de: porte('SR', 'r19'), vers: arrivee('SO', 'r19'), long: 12, graine: 1901, w: 13, grass: 1.2, tall: T.DARKTALL, trees: 0.12, theme: 'forest', ombre: 0.72, paysages: ['bosquet', 'prairie', 'etang', 'bosquet'], branches: 0.5, anciens: 4, voix: 'bois', panneaux: ['ROUTE 19\n← Ombreval', null] }, 'r19', 'forest');
@@ -315,14 +322,15 @@ export function buildSud(ctx) {
       ['lamp', 15, 14], ['lamp', 18, 14], ['trees', 2, 2, 6, 6, T.PINE], ['trees', 40, 3, 44, 7, T.PINE]],
     buildings: [
       { kind: 'center', ...GRAND.center, x: 5, y: 4 }, { kind: 'mart', ...GRAND.mart, x: 24, y: 5 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 17, roof: 'purple' },
-      { kind: 'house', x: 9, y: 17, roof: 'gray', npcs: [{ x: 4, y: 4, sprite: 'medium', text: ['L\'arène de Corbin est plongée dans le noir.', 'Même Flash n\'y fait rien : on avance à l\'aveugle dans le labyrinthe.'] }] },
+      { kind: 'house', x: 9, y: 17, roof: 'gray', npcs: [{ x: 4, y: 4, sprite: 'medium', text: (st) => st.badges?.[14] ? ['Tu as embrasé les cinq torches au-dessus de l\'abîme ? Quel sang-froid !'] : ['L\'arène de Corbin est tendue de passerelles invisibles au-dessus du vide.', 'Même Flash n\'y fait rien : allume les cinq torches des îlots pour révéler le vrai chemin.'] }] },
     ],
     npcs: [
-      { id: 'veuve', x: 12, y: 20, sprite: 'dame', move: 'turn', text: ['Après Corbin, il ne te restera que la Ligue Céleste.', 'Prends la route 20, au nord : elle remonte droit vers Métropole.'] },
+      { id: 'veuve', x: 12, y: 20, sprite: 'dame', move: 'turn', text: (st) => st.flags?.champion ? ['Notre village murmure déjà ton nom, Maître de la Ligue Céleste !'] : ['Après Corbin, il ne te restera que la Ligue Céleste.', 'Prends la route 20, au nord : elle remonte droit vers Métropole.'] },
       { id: 'garde-nord', x: 18, y: 2, sprite: 'garde', dir: 'left', gate: { badges: 15, tiles: [[16, 1], [17, 1]] }, text: ['La route 20 remonte directement vers Métropole.', 'Bats d\'abord Corbin pour prouver que tu maîtrises Ombreval (15 badges).'] },
     ],
   };
   ville(O, 'SO');
+  ctx.gymGuard?.(W, O, 14, ['Halte ! L\'arène d\'Ombreval n\'ouvre ses portes qu\'aux porteurs du Badge Féérie.']);
 
   // route 20 : d'Ombreval à Métropole (raccourci du retour, fermé tant qu'on n'a pas quinze badges)
   const r20 = G2({ id: 'r20', nom: 'Route 20', de: porte('SO', 'r20'), vers: arrivee('SM', 'r20'), long: 13, graine: 2001, w: 12, grass: 0.9, trees: 0.06, rocks: 0.03, paysages: ['prairie', 'rochers', 'plateau', 'etang', 'fleurs'], branches: 0.4, anciens: 3 }, 'r20');

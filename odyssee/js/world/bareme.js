@@ -59,6 +59,10 @@ const LOTS_RANG = [
   ['super-potion', 'great-ball', 'ether', 'full-heal', 'super-repel', 'super-potion', 'great-ball', 'sitrus-berry', 'escape-rope', 'repel'],
   ['super-potion', 'great-ball', 'ether', 'revive', 'full-heal', 'hyper-potion', 'super-repel', 'elixir', 'max-repel', 'great-ball'],
   ['super-potion', 'great-ball', 'ether', 'revive', 'full-heal', 'hyper-potion', 'ultra-ball', 'rare-candy', 'max-repel', 'elixir'],
+  ['hyper-potion', 'ultra-ball', 'ether', 'revive', 'full-heal', 'hyper-potion', 'ultra-ball', 'rare-candy', 'max-repel', 'elixir'],
+  ['max-potion', 'ultra-ball', 'elixir', 'revive', 'full-heal', 'max-potion', 'ultra-ball', 'rare-candy', 'max-repel', 'max-elixir'],
+  ['max-potion', 'ultra-ball', 'max-elixir', 'max-revive', 'full-heal', 'full-restore', 'ultra-ball', 'rare-candy', 'max-repel', 'elixir'],
+  ['full-restore', 'ultra-ball', 'max-elixir', 'max-revive', 'full-heal', 'full-restore', 'ultra-ball', 'rare-candy', 'max-repel', 'max-elixir'],
 ];
 export function lotsPour(rang = 4) { return LOTS_RANG[Math.max(0, Math.min(LOTS_RANG.length - 1, rang | 0))].slice(); }
 /** rang d'une route d'après son identifiant (4 si elle est inconnue : tirages ordinaires) */

@@ -228,7 +228,7 @@ export function buildQuests(ctx) {
       deco: [['flowers', 3, 13, 8, 15], ['flowers', 19, 13, 24, 15], ['lamp', 12, 8], ['lamp', 15, 8], ['sign', 11, 11, 'RIVE-CLAIRE\nLe hameau du Lac Miroir.'], ['banc', 17, 7]],
       buildings: [
         { kind: 'center', x: 3, y: 2 },
-        { kind: 'house', x: 18, y: 2, roof: 'teal', name: 'Maison de la Rive', npcs: [{ x: 4, y: 4, sprite: 'habitante', text: ['Avant, l\'eau du lac était si claire qu\'on s\'y voyait comme dans un miroir.', 'Depuis que ces machines sont arrivées, elle devient trouble...'] }] },
+        { kind: 'house', x: 18, y: 2, roof: 'teal', name: 'Maison de la Rive', npcs: [{ x: 4, y: 4, sprite: 'habitante', text: (st) => done(st.flags, 'lac') ? ['L\'eau du lac est redevenue limpide comme un miroir.', 'On y voit même les étoiles se refléter la nuit !'] : ['Avant, l\'eau du lac était si claire qu\'on s\'y voyait comme dans un miroir.', 'Depuis que ces machines sont arrivées, elle devient trouble...'] }] },
         { kind: 'house', x: 3, y: 13, roof: 'brown', name: 'Cabane du Passeur', npcs: [{ x: 2, y: 4, sprite: 'vieil_homme', text: ['L\'îlot à l\'ouest du lac... Les soirs de pleine lune, un Pokémon mystérieux y danse.', 'On ne peut y aller qu\'en surfant.'] }] },
       ],
       npcs: [{ id: 'gamin', x: 20, y: 16, sprite: 'gamin', move: 'wander', text: ['Mon grand frère dit qu\'il y a une grotte dans le lac.', 'Il faut surfer pour y aller !'] }],
@@ -659,8 +659,11 @@ export function buildQuests(ctx) {
       await A.set('kagura', 3); return;
     }
     if (s === 3) { await A.say('La cloche est dans la cour, à l\'est du temple.', who); return; }
-    if (s === 'fin') { await A.say(['Les esprits sont apaisés. Mais l\'Orbe Rouge...', A.f.champion ? 'Tu es Maître de la Ligue, maintenant. Le capitaine de l\'Embarcadère pourra te mener à l\'Île du Magma.' : 'Quand tu seras Maître de la Ligue, va voir le capitaine de l\'Embarcadère. Il connaît la route de l\'île de feu.'], who); return; }
     if (A.step('songes') === 5) { await A.say(['Une femme en noir est entrée dans le sanctuaire avec une machine...', 'Le sanctuaire t\'est ouvert. Va, et chasse l\'ombre.'], who); return; }
+    if (s === 'fin') {
+      if (done(A.f, 'magma')) { await A.say(['L\'Orbe Rouge repose en paix et les esprits du temple veillent sur la forêt.', 'Merci, Maître. Ton passage restera gravé dans nos annales.'], who); return; }
+      await A.say(['Les esprits sont apaisés. Mais l\'Orbe Rouge...', A.f.champion ? 'Tu es Maître de la Ligue, maintenant. Le capitaine de l\'Embarcadère pourra te mener à l\'Île du Magma.' : 'Quand tu seras Maître de la Ligue, va voir le capitaine de l\'Embarcadère. Il connaît la route de l\'île de feu.'], who); return;
+    }
     await A.say(['Bienvenue au Temple Kagura.', 'Ici, on prie pour que les rêves des enfants restent doux.'], who);
   }
   async function cloche(A) {
@@ -688,7 +691,7 @@ export function buildQuests(ctx) {
       buildings: [
         { kind: 'center', x: 3, y: 2 }, { kind: 'mart', x: 9, y: 2 },
         { kind: 'house', x: 21, y: 2, roof: 'orange', id: 'ancien', name: 'Maison de l\'Ancien', npcs: [{ id: 'ancien', x: 4, y: 4, sprite: 'vieil_homme', talk: async (A) => ancien(A) }] },
-        { kind: 'house', x: 21, y: 11, roof: 'gray', id: 'volcanologue', npcs: [{ x: 2, y: 4, sprite: 'montagnard', text: ['Le volcan gronde depuis l\'arrivée des gens en gris.', 'Ils ont construit une base au nord, juste sous le cratère.'] }] },
+        { kind: 'house', x: 21, y: 11, roof: 'gray', id: 'volcanologue', npcs: [{ x: 2, y: 4, sprite: 'montagnard', text: (st) => done(st.flags, 'magma') ? ['Les secousses s\'espacent déjà ! La Brume a plié bagage.', 'Même le cratère retrouve son souffle normal.'] : ['Le volcan gronde depuis l\'arrivée des gens en gris.', 'Ils ont construit une base au nord, juste sous le cratère.'] }] },
       ],
       npcs: [{ id: 'enfant', x: 6, y: 12, sprite: 'enfant', move: 'wander', text: ['La terre est chaude, ici ! On peut faire cuire des œufs dans le sable !'] }],
     });
@@ -771,7 +774,7 @@ export function buildQuests(ctx) {
   }
   async function ancien(A) {
     const s = A.step('magma'), who = 'Ancien de Fumerolle';
-    if (s === 'fin') { await A.say(['L\'île respire à nouveau. Tu as fait plus que tous les Maîtres avant toi.', 'On dit que dans le Cratère Ardent, à l\'est, vit un gardien de métal et de feu...'], who); return; }
+    if (s === 'fin') { await A.say(A.f['L:heatran'] === 'caught' ? ['L\'île respire à nouveau, et même Heatran t\'a choisi !', 'Ton nom restera dans la mémoire de Fumerolle pour toujours.'] : ['L\'île respire à nouveau. Tu as fait plus que tous les Maîtres avant toi.', 'On dit que dans le Cratère Ardent, à l\'est, vit un gardien de métal et de feu...'], who); return; }
     if (!s) {
       await A.say(['Le Maître de la Ligue, chez nous ? Les esprits ont entendu nos prières.', 'Des gens en gris ont pris le volcan. La Brume, qu\'ils s\'appellent.', 'Leur base est au nord, au bout du Sentier des Cendres. Ils veulent réveiller ce qui dort sous la montagne.', 'Je t\'en prie, arrête-les.'], who);
       await A.set('magma', 1); return;

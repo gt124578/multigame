@@ -26,6 +26,8 @@ Object.assign(ITEMS, {
   'collier-miaouss': { pocket: 'cles', price: 0, key: true, icon: 'soothe-bell', name: 'Collier à clochette', desc: 'Un petit collier rouge avec une clochette. Celui d\'un Miaouss ?' },
   'colis-postal': { pocket: 'cles', price: 0, key: true, icon: 'colis-postal', name: 'Colis', desc: 'Un colis bien ficelé, adressé à Mme Léonie, Port-Granit. Il est tout mou.' },
   clochette: { pocket: 'cles', price: 0, key: true, icon: 'clear-bell', name: 'Clochette de vent', desc: 'Une clochette du Jardin de la Grue, emportée par la tempête. Il y en a trois.' },
+  'boussole-ocre': { pocket: 'cles', price: 0, key: true, icon: 'explorer-kit', name: 'Boussole d\'Ocre', desc: 'Une boussole en laiton doré appartenant à la guide Yasmina des Dunes d\'Ocre.' },
+  'lettre-sud': { pocket: 'cles', price: 0, key: true, icon: 'letter', name: 'Lettre du Sud', desc: 'Une lettre parfumée aux roses sauvages, adressée à Hortense à Rosebrume.' },
 });
 
 // la Master Ball (donnée par le Dr Lumen, le chercheur de Mirage, l'Ancien de Fumerolle et Drakos) : connue dès le départ
@@ -322,6 +324,38 @@ export const MISSIONS = [
         [(f) => f.mMemoire, 'Éléonore a écouté les quatre souvenirs gravés par mon compagnon et salué notre complicité.'],
       ],
     } },
+
+  // quêtes des Terres du Sud
+  { id: 'mBourse', town: 'SM', at: [62, 16], sprite: 'topdresseur', who: 'Courtier Rémy', kind: 'show', test: (m) => has('normal')(m) && m.lvl >= 55, reward: [['silk-scarf', 1], ['rare-candy', 1]],
+    ask: ['À Métropole, le secteur Normal reste la valeur la plus solide de toute la cote !', 'Montre-moi un Pokémon de type Normal au moins au niveau 55 et je t\'offre un Mouchoir Soie de collection.'],
+    again: ['Un Pokémon Normal niveau 55 ou plus… C\'est mon critère d\'audit !'],
+    thanks: ['Superbe actif ! Solide, fiable, sans mauvaise surprise.', 'Tiens, voici ce Mouchoir Soie et un Super Bonbon pour ton équipe.'],
+    done: ['La Bourse monte quand les fondamentaux sont bons !'],
+    journal: { name: 'Valeur sûre à la Bourse', start: 'Le courtier Rémy, à Métropole, souhaite inspecter un Pokémon Normal de niveau 55 ou plus.', end: 'Rémy a validé mon Pokémon Normal et m\'a offert un Mouchoir Soie.' } },
+
+  { id: 'mSable', town: 'SD', at: [24, 20], sprite: 'randonneuse', who: 'Guide Yasmina', kind: 'bring', item: 'boussole-ocre', place: { route: 'r16', t: 0.48, side: 1, off: 5 }, reward: [['soft-sand', 1], ['max-potion', 2]],
+    ask: ['La tempête de la route 16 m\'a fait lâcher ma vieille boussole au milieu des cactus !', 'Sans elle, impossible d\'emmener les caravanes à travers les dunes. Tu me la rapporterais ?'],
+    again: ['Ma boussole est quelque part dans les sables de la route 16…'],
+    thanks: ['Ma boussole ! Elle indique toujours le nord, malgré le sable !', 'Prends ce Sable Doux et ces Potions Max : le canyon devant toi est rude.'],
+    done: ['Les caravanes des Dunes d\'Ocre te doivent une fière chandelle !'],
+    journal: { name: 'La boussole des dunes', start: 'Yasmina, guide aux Dunes d\'Ocre, a perdu sa boussole pendant une tempête sur la route 16.', end: 'J\'ai retrouvé la boussole de Yasmina dans les sables.' } },
+
+  { id: 'mAcier', town: 'SF', at: [19, 17], sprite: 'montagnard', who: 'Forgeron Ambroise', kind: 'show', test: (m) => has('steel')(m) && m.lvl >= 65, reward: [['metal-coat', 1], ['ultra-ball', 5]],
+    ask: ['Dans ma forge, seuls comptent le feu et l\'acier véritable !', 'Montre-moi un Pokémon Acier au moins au niveau 65, que j\'admire la trempe de sa carapace !'],
+    again: ['Un Pokémon Acier niveau 65 minimum… Ne me montre pas de la tôle froissée !'],
+    thanks: ['Quelle trempe ! Ferdinand lui-même saluerait un tel alliage.', 'Prends cette Peau Métal fraîchement polie et ces Hyper Balls !'],
+    done: ['Mon marteau chante plus clair depuis que j\'ai vu ton compagnon d\'acier.'],
+    journal: { name: 'Acier trempé à Forge-Acier', start: 'Le forgeron Ambroise, à Forge-Acier, veut examiner un Pokémon Acier d\'au moins niveau 65.', end: 'Ambroise a admiré mon Pokémon Acier et m\'a remis une Peau Métal.' } },
+
+  { id: 'mCourrierSud', town: 'SP', at: [14, 16], sprite: 'facteur', who: 'Facteur Colin', kind: 'relay', item: 'lettre-sud',
+    to: { town: 'SR', at: [14, 15], sprite: 'dame', who: 'Fleuriste Hortense', reward: [['shiny-stone', 1], ['full-restore', 2]],
+      idle: ['Le vent marin apporte rarement le courrier depuis Port-Lisière… j\'attends toujours des nouvelles de mon frère !'],
+      thanks: ['La lettre de mon frère ! Et elle sent encore les embruns de Port-Lisière…', 'Merci infiniment ! Garde cette Pierre Éclat que j\'ai trouvée sous un rosier, et de quoi soigner ton équipe.'],
+      done: ['J\'ai posé sa lettre sur ma cheminée. Rosebrume et Port-Lisière sont moins loin qu\'il n\'y paraît !'] },
+    ask: ['Avec les coups de vent sur les falaises de Port-Lisière, mon vélo ne passe jamais jusqu\'à Rosebrume !', 'Tu veux bien porter cette lettre de famille à la fleuriste Hortense, à Rosebrume ?'],
+    wait: ['La fleuriste Hortense t\'attend à Rosebrume avec impatience.'],
+    done: ['Hortense a bien reçu la lettre ? Formidable ! Je vais pouvoir reprendre ma tournée.'],
+    journal: { name: 'Courrier par-delà les vents', start: 'Le facteur Colin, à Port-Lisière, m\'a confié une lettre pour Hortense à Rosebrume.', end: 'Hortense a reçu la lettre de son frère à Rosebrume.' } },
 ];
 
 /** missions par identifiant (pour le journal) */

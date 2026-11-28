@@ -56,7 +56,7 @@ export function finirBJ(p) {
   const tc = totalBJ(p.croupier).t;
   let res, rendu;
   if (tj > 21) { res = 'Tu dépasses 21.'; rendu = 0; }
-  else if (blackjack(p.joueur) && !blackjack(p.croupier)) { res = 'Blackjack !'; rendu = Math.floor(p.mise * 2.5); }
+  else if (blackjack(p.joueur) && !blackjack(p.croupier)) { res = 'Blackjack !'; rendu = Math.ceil(p.mise * 2.5); }
   else if (blackjack(p.croupier) && !blackjack(p.joueur)) { res = 'Blackjack du croupier.'; rendu = 0; }
   else if (tc > 21) { res = 'Le croupier dépasse 21 !'; rendu = p.mise * 2; }
   else if (tj > tc) { res = 'Gagné !'; rendu = p.mise * 2; }

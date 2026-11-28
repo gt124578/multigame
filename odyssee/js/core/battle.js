@@ -351,7 +351,8 @@ export class Battle {
     if (!m) return 1;
     let s = ignore ? 0 : v.st[k];
     if (crit) s = atkSide ? Math.max(0, s) : Math.min(0, s);
-    let x = Math.floor(m.stats[k] * stageMul(s));
+    const bs = (v.blade && m.sp === 681) ? [m.stats[0], m.stats[2], m.stats[1], m.stats[4], m.stats[3], m.stats[5]] : m.stats;
+    let x = Math.floor(bs[k] * stageMul(s));
     const id = this.ab(r), w = this.weather;
     if (k === 1) {
       if (m.item === 'choice-band') x = Math.floor(x * 1.5);
@@ -964,12 +965,20 @@ export class Battle {
     if (x.rampage && !v.rampage) v.rampage = { id: mv.id, turns: 2 + this.r(2) };
 
     if (x.u === 'protect' || x.u === 'detect') {
+      if (this.ab(attRef) === 'stance-change' && m.sp === 681 && v.blade) {
+        v.blade = false;
+        this.say(`${this.Nm(attRef)} passe en Forme Parade !`);
+      }
       const ok = this.r(Math.pow(2, Math.min(4, v.protChain))) === 0;
       if (ok) { v.protect = true; v.protChain++; this.ev.push({ t: 'anim', side: attRef.side, slot: attRef.slot, k: 'protect' }); this.say(`${this.Nm(attRef)} se protège !`); }
       else { v.protChain = 0; this.say('Mais cela échoue !'); }
       return;
     }
     v.protChain = 0;
+    if (this.ab(attRef) === 'stance-change' && m.sp === 681 && mv.c !== 'status' && !v.blade) {
+      v.blade = true;
+      this.say(`${this.Nm(attRef)} passe en Forme Assaut !`);
+    }
 
     const { targets, isSpread, selfTarget } = this.resolveTargets(attRef, a, mv);
     if (!selfTarget && !targets.length) { this.say('Mais il n\'y a pas de cible...'); return; }
@@ -1270,7 +1279,7 @@ export class Battle {
     const x = mv.m || {}, m = this.act(aR), T = this.act(dR);
     let did = false;
     if (x.cat === 3 || x.heal) {
-      const target = mv.tg === 3 ? dR : aR, tm = this.act(target);
+      const target = (mv.tg === 3 || mv.tg === 10) ? dR : aR, tm = this.act(target);
       if (tm.hp >= tm.stats[0]) { this.say('Mais ses PV sont déjà au maximum !'); return; }
       this.hp(target, Math.max(1, Math.floor(tm.stats[0] * (x.heal || 50) / 100))); this.say(`${this.Nm(target)} récupère des PV !`); return;
     }

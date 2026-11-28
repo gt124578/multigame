@@ -1,5 +1,5 @@
 # Arènes du sud (8 à 14), peintes case par case ou calculées (labyrinthe du Marais à graine fixe) ; lu par dessiner.py.
-# ---------------------------------------------------------------- 8. Margot (Normal) : la Galerie — trois salles d'exposition, l'ordre des vitrines (Norman, Cheren)
+# ---------------------------------------------------------------- 8. Margot (Normal) : la Salle des Marchés — trois salles de cotation, l'ordre des bornes (Norman, Cheren)
 P = Plan(32)
 for y, r in enumerate([
     '#########################',
@@ -34,36 +34,36 @@ def vitrine(r, rang, n, txt, prop='vitrine'):
 arene(8, P, r"""
     type: 'normal', sol: 'gymGalerie', regs: [0, 0, 0], minActions: 16,
     regles: [
-      'ARÈNE DE MÉTROPOLE — LA GALERIE\nChampionne : Margot, la conservatrice.',
-      'Chaque salle de la Galerie a sa règle, écrite sur son panneau. Examine les vitrines DANS LE BON ORDRE pour ouvrir la porte suivante.',
-      'Une erreur, et il faut reprendre la salle depuis la première vitrine. Rien ne presse : lis bien les cartels !',
-      'Conseil de Margot : « Le Combat, c\'est ma bête noire. Le reste… je l\'expose ! »',
+      'ARÈNE DE MÉTROPOLE — LA SALLE DES MARCHÉS\nChampionne : Margot, reine de la Bourse.',
+      'Chaque étage de la Salle des Marchés a sa règle, écrite sur son panneau. Consulte les bornes DANS LE BON ORDRE pour ouvrir la porte suivante.',
+      'Une erreur, et tout le carnet d\'ordres se réinitialise. Rien ne presse : lis bien chaque cotation !',
+      'Conseil de Margot : « Le Combat liquide mes actifs. Le reste… je l\'arbitre ! »',
     ],
     legende: {
-      M: { panneau: ['SALLE 1 — LES POIDS PLUMES', 'Examine les vitrines des Pokémon de type NORMAL, du plus LÉGER au plus LOURD.', 'Les autres ne sont pas de la maison : y toucher, c\'est tout recommencer !'] },
-      k: """ + vitrine(0, 3, 5, 'Vitrine : un Évoli en peluche géante. Cartel : « Type Normal — 6,5 kg ».') + r""",
-      l: """ + vitrine(0, 1, 5, 'Vitrine : une statuette de Miaouss. Cartel : « Type Normal — 4,2 kg ».') + r""",
-      m: """ + vitrine(0, 5, 5, 'Vitrine : un Ronflex grandeur nature ! Cartel : « Type Normal — 460 kg ».') + r""",
-      n: """ + vitrine(0, 2, 5, 'Vitrine : un Rondoudou qui chante. Cartel : « Types Normal et Fée — 5,5 kg ».') + r""",
-      u: """ + vitrine(0, 0, 5, 'Vitrine : un Pikachu qui fait des étincelles. Cartel : « Type Électrik — 6 kg ».') + r""",
-      v: """ + vitrine(0, 4, 5, 'Vitrine : un Tauros qui gratte le sol. Cartel : « Type Normal — 88,4 kg ».') + r""",
+      M: { panneau: ['PARQUET 1 — LES VALEURS SÛRES', 'Examine les bornes des Pokémon de type NORMAL, du plus LÉGER au plus LOURD.', 'Les autres titres n\'appartiennent pas au secteur : y toucher, c\'est tout recommencer !'] },
+      k: """ + vitrine(0, 3, 5, 'Borne de cote : Évoli (actif de croissance). Fiche : « Type Normal — 6,5 kg ».') + r""",
+      l: """ + vitrine(0, 1, 5, 'Borne de cote : Miaouss (valeur refuge). Fiche : « Type Normal — 4,2 kg ».') + r""",
+      m: """ + vitrine(0, 5, 5, 'Borne de cote : Ronflex (poids lourd du CAC !). Fiche : « Type Normal — 460 kg ».') + r""",
+      n: """ + vitrine(0, 2, 5, 'Borne de cote : Rondoudou (titre mixte). Fiche : « Types Normal et Fée — 5,5 kg ».') + r""",
+      u: """ + vitrine(0, 0, 5, 'Borne de cote : Pikachu (secteur énergie). Fiche : « Type Électrik — 6 kg ».') + r""",
+      v: """ + vitrine(0, 4, 5, 'Borne de cote : Tauros (taureau de Wall Street). Fiche : « Type Normal — 88,4 kg ».') + r""",
       N: { porte: { r: 0, eq: 5 }, ferme: 'bloc', o: 'porte_ouverte', f: 'porte_galerie' },
-      P: { panneau: ['SALLE 2 — UNE JOURNÉE EN CINQ TABLEAUX', 'Raconte la journée dans l\'ordre, de l\'aube à la nuit.', 'Un des tableaux n\'a rien à faire là.'] },
-      e: """ + vitrine(1, 5, 5, 'Tableau : un Noctali sous la pleine lune. « La nuit ».', 'tableau') + r""",
-      f: """ + vitrine(1, 3, 5, 'Tableau : un Tauros qui somnole à l\'ombre, soleil au zénith. « Midi ».', 'tableau') + r""",
-      h: """ + vitrine(1, 1, 5, 'Tableau : un Roucool qui chante sur une branche, ciel rose. « L\'aube ».', 'tableau') + r""",
-      j: """ + vitrine(1, 0, 5, 'Tableau : des taches de couleur, ni soleil ni lune. « Sans titre ».', 'tableau') + r""",
-      s: """ + vitrine(1, 4, 5, 'Tableau : un Miaouss qui rentre au logis, ciel orangé. « Le crépuscule ».', 'tableau') + r""",
-      t: """ + vitrine(1, 2, 5, 'Tableau : un Ponyta qui trotte dans la rosée, soleil encore bas. « Le matin ».', 'tableau') + r""",
+      P: { panneau: ['PARQUET 2 — SÉANCE BOURSIÈRE EN CINQ TEMPS', 'Reconstitue la séance dans l\'ordre, de l\'ouverture à l\'aube jusqu\'à la clôture de nuit.', 'Un des écrans n\'a rien à faire là.'] },
+      e: """ + vitrine(1, 5, 5, 'Écran : un Noctali sous la pleine lune. « Cotation nocturne — La nuit ».', 'tableau') + r""",
+      f: """ + vitrine(1, 3, 5, 'Écran : un Tauros qui somnole au zénith. « Pause méridienne — Midi ».', 'tableau') + r""",
+      h: """ + vitrine(1, 1, 5, 'Écran : un Roucool qui sonne la cloche d\'ouverture. « Pré-ouverture — L\'aube ».', 'tableau') + r""",
+      j: """ + vitrine(1, 0, 5, 'Écran : courbes illisibles, aucun horodatage. « Ordre annulé ».', 'tableau') + r""",
+      s: """ + vitrine(1, 4, 5, 'Écran : un Miaouss qui boucle les comptes au couchant. « Clôture — Le crépuscule ».', 'tableau') + r""",
+      t: """ + vitrine(1, 2, 5, 'Écran : un Ponyta qui file sur les premiers cours. « Séance — Le matin ».', 'tableau') + r""",
       D: { porte: { r: 1, eq: 5 }, ferme: 'bloc', o: 'porte_ouverte', f: 'porte_galerie' },
-      Q: { panneau: ['SALLE 3 — LE CABINET DES CHIFFRES', 'Les socles portent des chiffres romains. Du plus PETIT au plus GRAND !', 'La porte de Margot s\'ouvre au sixième socle.'] },
+      Q: { panneau: ['PARQUET 3 — LES INDICES DE MARGOT', 'Les coffres portent des chiffres romains. Ouvre-les du plus PETIT au plus GRAND !', 'La porte de Margot s\'ouvre au sixième indice.'] },
       X: { porte: { r: 2, eq: 6 }, ferme: 'bloc', o: 'porte_ouverte', f: 'porte_galerie' },
-      a: """ + vitrine(2, 3, 6, 'Socle IX : un trophée en bronze.', 'socle_musee') + r""",
-      b: """ + vitrine(2, 5, 6, 'Socle XIV : une Poké Ball ancienne.', 'socle_musee') + r""",
-      c: """ + vitrine(2, 1, 6, 'Socle IV : la couronne de la Ligue.', 'socle_musee') + r""",
-      d: """ + vitrine(2, 6, 6, 'Socle XIX : un vieux Badge en argent.', 'socle_musee') + r""",
-      y: """ + vitrine(2, 2, 6, 'Socle VI : une plume dorée.', 'socle_musee') + r""",
-      z: """ + vitrine(2, 4, 6, 'Socle XI : un fossile poli.', 'socle_musee') + r""",
+      a: """ + vitrine(2, 3, 6, 'Indice IX : lingot d\'or garanti.', 'socle_musee') + r""",
+      b: """ + vitrine(2, 5, 6, 'Indice XIV : Poké Ball millésimée.', 'socle_musee') + r""",
+      c: """ + vitrine(2, 1, 6, 'Indice IV : sceau de la Bourse.', 'socle_musee') + r""",
+      d: """ + vitrine(2, 6, 6, 'Indice XIX : registre en argent.', 'socle_musee') + r""",
+      y: """ + vitrine(2, 2, 6, 'Indice VI : plume d\'écrivain dorée.', 'socle_musee') + r""",
+      z: """ + vitrine(2, 4, 6, 'Indice XI : obligation ancienne.', 'socle_musee') + r""",
     },
     dresseurs: [{ dir: 'right', vue: 4 }, { dir: 'left', vue: 4 }, { dir: 'down', vue: 3 }],
 """)
@@ -176,7 +176,7 @@ for x, y in [(2, 14), (2, 17), (4, 13), (4, 18), (4, 19), (5, 18), (6, 19), (10,
 P.rect(1, 21, 23, 21, '#'); P.put(12, 21, 'U')
 P.put(23, 9, 'h')   # le toboggan : redescend à l'entrée
 P.put(2, 4, 'o'); P.put(1, 11, 'p'); P.put(23, 11, 'p'); P.put(8, 4, 'p'); P.put(17, 4, 'p')
-P.put(4, 7, '1'); P.put(21, 6, '2'); P.put(13, 10, '3'); P.put(6, 10, '4')
+P.put(4, 7, '1'); P.put(20, 8, '2'); P.put(13, 10, '3'); P.put(6, 10, '4')
 P.hall(22)
 arene(11, P, r"""
     type: 'ground', sol: 'gymDunes', minActions: 1, glace: 'sable_glissant',
@@ -196,7 +196,7 @@ arene(11, P, r"""
       X: { porte: { r: 1, eq: 1 }, ferme: 'bloc', o: 'porte_sable_ouverte', f: 'porte_sable' },
     },
     fragiles: { argile: { entree: [15, 8], fins: [[12, 4]], r: 1, retour: [17, 8] } },
-    dresseurs: [{ dir: 'right', vue: 3 }, { dir: 'left', vue: 3 }, { dir: 'down', vue: 1 }, { dir: 'right', vue: 3 }],
+    dresseurs: [{ dir: 'right', vue: 3 }, { dir: 'left', vue: 2 }, { dir: 'right', vue: 3 }, { dir: 'right', vue: 3 }],
 """)
 
 # ---------------------------------------------------------------- 14. Corbin (Ténèbres) : l'Abîme — passerelles invisibles au-dessus du vide (Mortimer, Rosalia), cinq torches dans le noir
@@ -235,7 +235,7 @@ arene(14, P, r"""
 """ + ''.join(f"      {c}: {{ sol: 'abime', deco: {{ k: 'pont_ombre', r: {i} }} }},\n" for i, c in enumerate('abcde')) + ''.join(f"      {c}: {{ prop: 'torche_ombre', reg: {{ set: [{i}, 1] }}, use: true, msg: 'La torche s\\'embrase ! Une lueur violette dessine une passerelle au-dessus du vide.', son: 'select' }},\n" for i, c in enumerate('LMNOQ')) + r"""      X: { porte: { tous: [0, 1, 2, 3, 4] }, ferme: 'bloc', o: 'grille_ouverte', f: 'grille_ombre' },
       U: { t: 'sol' },
     },
-    dresseurs: [{ dir: 'right', vue: 3 }, { dir: 'down', vue: 2 }, { dir: 'down', vue: 2 }, { dir: 'down', vue: 2 }, { dir: 'right', vue: 2 }],
+    dresseurs: [{ dir: 'right', vue: 3 }, { dir: 'down', vue: 2 }, { dir: 'down', vue: 2 }, { dir: 'left', vue: 2 }, { dir: 'left', vue: 3 }],
 """)
 
 # ---------------------------------------------------------------- 9. Aurèle (Vol) : les Hauteurs — îles volantes et canons à vent qui pivotent après chaque tir (Mistrale, Atalanopolis)
@@ -281,7 +281,7 @@ arene(9, P, r"""
       Z: { prop: 'manivelle', reg: { inc: [6, 4] }, use: true, msg: 'Tu tournes la manivelle : au loin, le canon de l\'île du sud-ouest pivote d\'un quart de tour.', son: 'select' },
 """ + ''.join(f"      {c}: {{ deco: 'arrivee_vent' }},\n" for c in NOMS) + ',\n'.join('      ' + l for l in LEGC) + r""",
     },
-    dresseurs: [{ dir: 'right', vue: 2 }, { dir: 'left', vue: 2 }, { dir: 'right', vue: 3 }, { dir: 'left', vue: 1 }, { dir: 'right', vue: 2 }],
+    dresseurs: [{ dir: 'right', vue: 2 }, { dir: 'left', vue: 2 }, { dir: 'right', vue: 3 }, { dir: 'up', vue: 1 }, { dir: 'right', vue: 2 }],
 """)
 
 # ---------------------------------------------------------------- 13. Lilas (Fée) : le Jardin de Cristal — rayon de lumière et miroirs ; le rayon barre le passage (Méandropolis, Romant-sous-Bois)
@@ -329,7 +329,7 @@ arene(13, P, r"""
 """ + ''.join(f"      {ch}: {{ miroir: '{'/' if b == '/' else chr(92) * 2}', r: {i} }},\n" for i, (ch, (_, b, _)) in enumerate(MIR.items())) + r"""      X: { porte: { rayon: 0 }, ferme: 'bloc', o: 'grille_ouverte', f: 'grille_cristal' },
     },
     lasers: [{ c: 'Y', dir: 'right', cible: 'Z' }],
-    dresseurs: [{ dir: 'right', vue: 3 }, { dir: 'left', vue: 3 }, { dir: 'right', vue: 3 }, { dir: 'left', vue: 3 }],
+    dresseurs: [{ dir: 'right', vue: 3 }, { dir: 'down', vue: 3 }, { dir: 'right', vue: 3 }, { dir: 'left', vue: 3 }],
 """)
 
 # ---------------------------------------------------------------- 12. Ferdinand (Acier) : la Fonderie — tapis roulants à sens unique, deux inverseurs (Charbourg, Joliberge)
@@ -355,6 +355,7 @@ for p_, g in LEV12.items():
     else: P.put(*ile(p_[0], p_[1], 1, -1), ch)
 for i, (c, r, dx, dy) in enumerate([(2, 3, 2, 1), (0, 2, -2, 1), (2, 1, 2, 1), (1, 2, -2, -1)]): P.put(*ile(c, r, dx, dy), str(i + 1))
 P.hall(22)
+for x in (10, 11, 13, 14): P.put(x, 1, '_')
 P.put(14, 24, 'Q')   # un levier bleu dans le hall de l'entrée
 arene(12, P, r"""
     type: 'steel', sol: 'gymAcier', regs: [0, 0], minActions: 6,
@@ -368,6 +369,6 @@ arene(12, P, r"""
 """ + ''.join(f"      {c}: {{ fleche: '{d}', r: {g}, mul: 2, decoFleche: 'tapis_{'rouge' if g == 0 else 'bleu'}' }},\n" for (d, g), c in TAPIS.items()) + r"""      K: { prop: 'levier_rouge', reg: { inc: [0, 2] }, use: true, msg: 'Clac ! Tu abaisses le levier rouge : tous les tapis rouges changent de sens.', son: 'select' },
       Q: { prop: 'levier_bleu', reg: { inc: [1, 2] }, use: true, msg: 'Clac ! Tu abaisses le levier bleu : tous les tapis bleus changent de sens.', son: 'select' },
     },
-    dresseurs: [{ dir: 'down', vue: 2 }, { dir: 'right', vue: 2 }, { dir: 'down', vue: 2 }, { dir: 'right', vue: 2 }],
+    dresseurs: [{ dir: 'left', vue: 2 }, { dir: 'right', vue: 2 }, { dir: 'left', vue: 2 }, { dir: 'right', vue: 2 }],
 """)
 

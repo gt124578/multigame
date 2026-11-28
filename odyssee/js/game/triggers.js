@@ -45,12 +45,14 @@ async function rivalFight(g, flag, team, lvlText, lines, after, who = null) {
     g.sound.sfx('heal');
     await ui.say('Avant de commencer, laisse-moi soigner ton équipe : je veux t\'affronter à pleine puissance !', { speaker: W.name, face });
   }
-  if (flag === 'rivalB3' || flag === 'rivalB4' || flag === 'rival4' || flag === 'rival5') {
+  if (flag === 'rivalB3' || flag === 'rivalB4' || flag === 'rival4' || flag === 'rival5' || flag === 'rivalS1' || flag === 'rivalS2') {
     const subMap = {
       rivalB3: 'Dernier Rempart · Fort-Écaille',
       rivalB4: 'Duel au Sommet · Cap des Étoiles',
       rival4: 'Aux Portes de l\'Archipel',
       rival5: 'Combat Ultime avant la Ligue',
+      rivalS1: 'Sous le Vent · Route 14',
+      rivalS2: 'Parcours des Fées · Route 18',
     };
     await playBossCinematic(g, {
       preset: flag === 'rivalB3' ? 'eclipse' : 'rival',
@@ -105,6 +107,8 @@ export async function trigger(g, name) {
   if (name === 'rivalB4' && bd(7)) return rivalFight(g, 'rivalB4', () => [[1044, 54], [1016, 54], [1040, 54], [149, 55], [1046, 54], [L3[2], 57]], 'Merci. J\'avais besoin de ce combat.',
     [`${st.name} ! Je savais que tu viendrais ici.`, 'Drakos m\'a parlé, hier soir. Il dit qu\'Odyssor passe au Cap quand quelqu\'un a eu le courage de changer les choses.', 'J\'aimerais le voir avec toi. Mais d\'abord... un vrai combat. Sans uniforme, sans camp. Juste nous deux !'],
     ['Mon grand-père a raison : on apprend plus en perdant qu\'en gagnant.', 'Avance jusqu\'au bord de la falaise. Si Odyssor vient, c\'est pour toi.'], { ...asB, cls: 'Rival' });
+  if (name === 'rivalS1' && bd(8)) return rivalFight(g, 'rivalS1', (R) => [[1012, 57], [1035, 57], [1022, 58], [1040, 58], [R[2], 60]], 'Tu prends encore de l\'avance !', [`${st.name} ! Déjà le Badge Pavé de Margot en poche ?`, 'Ces falaises venteuses mènent à Port-Lisière. Voyons si ton équipe résiste aux Terres du Sud !'], ['Pas mal… Aurèle ne te laissera pas planer tranquille à Port-Lisière.', 'On se retrouve plus loin sur la route du Sud !']);
+  if (name === 'rivalS2' && bd(12)) return rivalFight(g, 'rivalS2', (R) => [[1012, 69], [1035, 69], [1022, 70], [1040, 70], [1051, 71], [R[2], 72]], 'Ferdinand avait raison… ton équipe est forgée dans l\'acier.', [`${st.name} ! Tu viens de battre Ferdinand à Forge-Acier ?`, 'Avant d\'entrer sur les terres de Lilas à Rosebrume, je veux un vrai combat. Cette fois, j\'utilise ma Méga-Gemme !'], ['Vaincu même avec la Méga-Évolution…', 'Direction la Ligue après le Sud. Ne perds surtout pas en route !']);
   if (name === 'rival5') return rivalFight(g, 'rival5', (R) => [[1012, 72], [1035, 71], [1022, 72], [1040, 72], [1051, 73], [R[2], 76]], 'Incroyable... Tu mérites d\'aller jusqu\'au bout.', [`${st.name}... Je savais que tu viendrais.`, 'Quinze badges, dont celui de Drakos et les sept du Sud. Tout le monde ne parle que de toi.', 'Mais avant la Ligue, il y a moi. Donne tout ce que tu as !'], ['Va. La Maître de la Ligue t\'attend.', 'Et bats-la, sinon c\'est moi qui m\'en chargerai !']);
   return false;
 }
