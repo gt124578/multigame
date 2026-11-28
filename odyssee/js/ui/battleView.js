@@ -66,8 +66,10 @@ const freshSpr = () => ({ visible: false, img: null, scale: 1, alpha: 1, dx: 0, 
 /**
  * Fond de combat reteint (sans nouvelle image) : arènes de Voltacité (éclairs jaunes), Floralia (lumière verte de serre,
  * feuillages), Mirage (lueur violette, étoiles), Port-Granit (ocre de carrière, strates et poussière), Cendrelune (rougeoiement
- * de la lave par en dessous, braises) et Fort-Écaille (pénombre indigo, écailles d'or), et la Nuit Violette dehors
- * (assombri, ciel pourpre). Une toile par image et par teinte, gardée en cache.
+ * de la lave par en dessous, braises) et Fort-Écaille (pénombre indigo, écailles d'or), les sept arènes des Terres du Sud
+ * (cotations de la Salle des Marchés, nuages des Hauteurs, lianes et brume du Marais, crêtes de sable des Dunes, poutrelles
+ * et fours de la Fonderie, rai de lumière du Jardin de Cristal, torches de l'Abîme), et la Nuit Violette dehors (assombri,
+ * ciel pourpre). Une toile par image et par teinte, gardée en cache.
  */
 const FONDS_TEINTES = new Map();
 function fondTeinte(im, teinte) {
@@ -87,8 +89,12 @@ function fondTeinte(im, teinte) {
     x.fillStyle = '#c8a0ff'; x.beginPath(); x.arc(W * 0.78, H * 0.16, H * 0.075, 0, Math.PI * 2); x.fill();
     x.fillStyle = '#120a1e'; x.beginPath(); x.arc(W * 0.78, H * 0.16, H * 0.066, 0, Math.PI * 2); x.fill();
   } else {
-    const col = { electric: '#f0c838', grass: '#4aa850', psychic: '#9a6ae0', rock: '#c89a5a', fire: '#ff6a20', dragon: '#5a44c8' }[teinte] || '#ffffff';
+    const col = { electric: '#f0c838', grass: '#4aa850', psychic: '#9a6ae0', rock: '#c89a5a', fire: '#ff6a20', dragon: '#5a44c8',
+      normal: '#d8c088', flying: '#7ac0f4', poison: '#8a5ab8', ground: '#d8a858', steel: '#8aa0b8', fairy: '#f49ac8', dark: '#5a3a8a' }[teinte] || '#ffffff';
     if (teinte === 'dragon') voile('multiply', '#8a84b8', 0.5);   // la Tour de Drakos est sombre
+    if (teinte === 'dark') voile('multiply', '#5a4c78', 0.62);     // l'Abîme de Corbin : presque le noir
+    if (teinte === 'poison') voile('multiply', '#8a9a84', 0.4);    // le Marais de Morgane : une pénombre glauque
+    if (teinte === 'steel') voile('multiply', '#a0a4ac', 0.3);     // la Fonderie : la fumée
     voile('soft-light', col, teinte === 'fire' ? 0.4 : 0.55);
     voile('source-over', col, 0.1);
     x.globalCompositeOperation = 'source-over'; x.globalAlpha = 0.5;
@@ -123,12 +129,62 @@ function fondTeinte(im, teinte) {
       // petites étoiles qui flottent
       x.fillStyle = '#fff0ff';
       for (let k = 0; k < 18; k++) { const px = ((k * 0.618) % 1) * W, py = ((k * 0.377) % 1) * H * 0.45, r = Math.max(1, W / 320); x.fillRect(px - r, py, 3 * r, r); x.fillRect(px, py - r, r, 3 * r); }
+    } else if (teinte === 'normal') {
+      // la Salle des Marchés : le bandeau des cotations en haut du décor, bougies vertes et rouges, un filet d'or
+      const u = Math.max(1, Math.round(W / 320));
+      x.globalAlpha = 0.7; x.fillStyle = '#10201c'; x.fillRect(0, 0, W, H * 0.07);
+      x.globalAlpha = 0.9;
+      for (let k = 0; k < 34; k++) { const px = (k + 0.5) * W / 34, h = H * (0.012 + ((k * 0.377) % 1) * 0.035), v = (k * 7) % 5 !== 0; x.fillStyle = v ? '#3ad07a' : '#e0504a'; x.fillRect(px - u, H * 0.058 - h, 2 * u, h); }
+      x.fillStyle = '#d8b45a'; x.fillRect(0, H * 0.07, W, u);
+    } else if (teinte === 'flying') {
+      // les Hauteurs : des nuages qui passent, le ciel qui éclaire d'en haut
+      x.globalCompositeOperation = 'screen'; x.globalAlpha = 0.5;
+      const g = x.createLinearGradient(0, 0, 0, H * 0.5); g.addColorStop(0, '#d8f0ff'); g.addColorStop(1, 'rgba(216,240,255,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H * 0.5);
+      x.globalCompositeOperation = 'source-over'; x.globalAlpha = 0.75; x.fillStyle = '#ffffff';
+      for (const [px, py, s] of [[0.14, 0.09, 1], [0.46, 0.05, 0.7], [0.78, 0.12, 1.2], [0.94, 0.04, 0.6]]) for (const [dx, dy, r] of [[0, 0, 1], [-0.9, 0.2, 0.7], [0.9, 0.25, 0.75], [0.3, -0.4, 0.7]]) { x.beginPath(); x.ellipse(W * px + dx * W * 0.03 * s, H * py + dy * H * 0.03 * s, W * 0.034 * s * r, H * 0.026 * s * r, 0, 0, Math.PI * 2); x.fill(); }
+    } else if (teinte === 'poison') {
+      // le Marais : des lianes qui pendent, une brume verte au ras du sol, des bulles
+      x.strokeStyle = '#3a5a34'; x.lineWidth = Math.max(1, W / 220);
+      for (let k = 0; k < 11; k++) { const px = W * (0.04 + k * 0.094), L = H * (0.06 + ((k * 0.618) % 1) * 0.14); x.beginPath(); x.moveTo(px, 0); x.quadraticCurveTo(px + W * 0.012, L * 0.5, px - W * 0.006, L); x.stroke(); }
+      x.globalCompositeOperation = 'screen'; x.globalAlpha = 0.4;
+      const g = x.createLinearGradient(0, H, 0, H * 0.55); g.addColorStop(0, '#7ad08a'); g.addColorStop(1, 'rgba(122,208,138,0)'); x.fillStyle = g; x.fillRect(0, H * 0.55, W, H * 0.45);
+      x.globalCompositeOperation = 'source-over'; x.globalAlpha = 0.55; x.strokeStyle = '#c8a0f0';
+      for (let k = 0; k < 9; k++) { x.beginPath(); x.arc(((k * 0.618) % 1) * W, H * (0.5 + ((k * 0.377) % 1) * 0.4), Math.max(1.5, W / 200) * (1 + (k % 3) * 0.5), 0, Math.PI * 2); x.stroke(); }
+    } else if (teinte === 'ground') {
+      // les Dunes : des crêtes de sable au fond, la poussière dorée
+      x.fillStyle = '#b88a48'; x.globalAlpha = 0.35;
+      for (const [py, a] of [[0.2, 0.03], [0.27, -0.025]]) { x.beginPath(); x.moveTo(0, H * py); for (let k = 1; k <= 12; k++) x.lineTo(W * k / 12, H * (py + Math.sin(k * 1.3 + py * 20) * a)); x.lineTo(W, H * (py + 0.06)); x.lineTo(0, H * (py + 0.06)); x.fill(); }
+      x.globalAlpha = 0.6; x.fillStyle = '#f6e0b0';
+      for (let k = 0; k < 26; k++) { const r = Math.max(1, W / 360); x.fillRect(((k * 0.618) % 1) * W, ((k * 0.271) % 1) * H * 0.7, r * (1 + k % 2), r); }
+    } else if (teinte === 'steel') {
+      // la Fonderie : des poutrelles rivetées en haut du décor, la lueur des fours sur les côtés
+      const u = Math.max(1, Math.round(W / 320));
+      x.globalAlpha = 0.75; x.fillStyle = '#2c3038'; x.fillRect(0, 0, W, H * 0.045); x.fillRect(0, H * 0.085, W, u * 2);
+      for (let k = 0; k < 16; k++) { x.fillRect(W * k / 16, H * 0.045, u * 2, H * 0.04); x.beginPath(); x.moveTo(W * k / 16, H * 0.045); x.lineTo(W * (k + 1) / 16, H * 0.085); x.lineWidth = u; x.strokeStyle = '#2c3038'; x.stroke(); }
+      x.fillStyle = '#a8b4c4'; for (let k = 0; k < 32; k++) x.fillRect(W * (k + 0.5) / 32, H * 0.02, u, u);
+      x.globalCompositeOperation = 'screen'; x.globalAlpha = 0.5;
+      for (const px of [0, 1]) { const g = x.createRadialGradient(W * px, H * 0.6, 1, W * px, H * 0.6, W * 0.3); g.addColorStop(0, '#ff8a20'); g.addColorStop(1, 'rgba(255,138,32,0)'); x.fillStyle = g; x.fillRect(px ? W * 0.7 : 0, H * 0.2, W * 0.3, H * 0.8); }
+    } else if (teinte === 'fairy') {
+      // le Jardin de Cristal : un rai de lumière en travers du décor, des éclats de cristal
+      x.globalCompositeOperation = 'screen'; x.globalAlpha = 0.35;
+      x.fillStyle = '#fff0fa'; x.beginPath(); x.moveTo(W * 0.08, 0); x.lineTo(W * 0.2, 0); x.lineTo(W * 0.62, H); x.lineTo(W * 0.42, H); x.fill();
+      x.globalCompositeOperation = 'source-over'; x.globalAlpha = 0.85;
+      for (let k = 0; k < 16; k++) { const px = ((k * 0.618) % 1) * W, py = ((k * 0.377) % 1) * H * 0.5, r = Math.max(1, W / 300) * (1 + k % 2); x.fillStyle = k % 3 ? '#ffd0ec' : '#ffffff'; x.beginPath(); x.moveTo(px, py - 2 * r); x.lineTo(px + r, py); x.lineTo(px, py + 2 * r); x.lineTo(px - r, py); x.fill(); }
+    } else if (teinte === 'dark') {
+      // l'Abîme : cinq torches violettes dans le noir, le vide en bas du décor
+      x.globalCompositeOperation = 'screen'; x.globalAlpha = 0.6;
+      for (const px of [0.08, 0.3, 0.5, 0.7, 0.92]) { const g = x.createRadialGradient(W * px, H * 0.2, 1, W * px, H * 0.2, W * 0.09); g.addColorStop(0, '#c890ff'); g.addColorStop(1, 'rgba(200,144,255,0)'); x.fillStyle = g; x.fillRect(W * (px - 0.09), 0, W * 0.18, H * 0.45); }
+      x.globalCompositeOperation = 'multiply'; x.globalAlpha = 0.5;
+      const g = x.createLinearGradient(0, H, 0, H * 0.6); g.addColorStop(0, '#08040e'); g.addColorStop(1, 'rgba(255,255,255,1)'); x.fillStyle = g; x.fillRect(0, H * 0.6, W, H * 0.4);
     }
   }
   x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1;
   FONDS_TEINTES.set(cle, c);
   return c;
 }
+
+/** l'air d'un lieu (météo de décor, game.js : METEO_ARENE) : dessiné même quand une vraie météo règne sur le combat */
+const AIRS = new Set(['sable', 'spores', 'ombre', 'etincelles', 'paillettes', 'vent']);
 
 export class BattleView {
   constructor(game) { this.game = game; this.ui = game.ui; this.sound = game.sound; }
@@ -479,8 +535,13 @@ export class BattleView {
   };
 
   drawWeatherFx(x, W, now) {
-    // la météo du combat passe devant ; sans elle, le décor du lieu (cendres de Cendrelune : sans effet sur le combat)
-    const w0 = this.battle?.weather, w = !w0 || w0 === 'none' ? this.meteoDecor : w0;
+    // la météo du combat passe devant ; sans elle, le décor du lieu (cendres de Cendrelune : sans effet sur le combat).
+    // L'air d'un lieu (spores, sable, cendres violettes…) flotte aussi sous une vraie météo : elle est dessinée par-dessus
+    const w0 = this.battle?.weather, reel = !!w0 && w0 !== 'none';
+    if (reel && AIRS.has(this.meteoDecor)) this.dessinerMeteo(x, W, now, this.meteoDecor);
+    this.dessinerMeteo(x, W, now, reel ? w0 : this.meteoDecor);
+  }
+  dessinerMeteo(x, W, now, w) {
     if (!w || w === 'none') return;
     x.save();
     if (w === 'ash') {
@@ -496,6 +557,40 @@ export class BattleView {
         const py = BH - ((i * 53 + now * 0.04) % (BH * 0.8));
         x.fillStyle = `rgba(255, ${150 + (i % 3) * 30}, 60, ${0.5 + 0.3 * Math.sin(now * 0.006 + i)})`;
         x.fillRect(Math.round(px), Math.round(py), 2, 2);
+      }
+      x.restore(); return;
+    }
+    // l'air des arènes du Sud et d'Ombreval (décor seulement). Sable : grains dorés qui filent ; spores : grains verts et
+    // violets qui montent en flottant ; ombre : cendres violettes qui tombent ; étincelles : gerbes orange qui retombent ;
+    // paillettes : éclats roses qui scintillent ; vent : traits blancs qui traversent
+    if (w === 'sable' || w === 'spores' || w === 'ombre' || w === 'etincelles' || w === 'paillettes' || w === 'vent') {
+      const mod = (a, b) => ((a % b) + b) % b;
+      if (w === 'sable') for (let i = 0; i < 22; i++) {
+        x.fillStyle = i % 3 ? 'rgba(232, 196, 128, 0.4)' : 'rgba(250, 226, 170, 0.5)';
+        x.fillRect(Math.round(mod(i * 71 + now * 0.16, W + 20) - 10), Math.round(mod(i * 29 + Math.sin(now * 0.002 + i) * 6, BH)), i % 4 === 0 ? 3 : 2, 1);
+      }
+      else if (w === 'spores') for (let i = 0; i < 20; i++) {
+        x.fillStyle = i % 3 === 0 ? `rgba(190, 140, 240, ${0.35 + 0.25 * Math.sin(now * 0.003 + i)})` : `rgba(150, 220, 130, ${0.35 + 0.25 * Math.sin(now * 0.004 + i * 2)})`;
+        x.fillRect(Math.round(mod(i * 83 + Math.sin(now * 0.0012 + i * 1.7) * 14, W)), Math.round(BH - mod(i * 47 + now * 0.012, BH + 8)), 2, 2);
+      }
+      else if (w === 'ombre') for (let i = 0; i < 24; i++) {
+        x.fillStyle = i % 4 === 0 ? 'rgba(200, 150, 255, 0.5)' : 'rgba(120, 90, 170, 0.45)';
+        x.fillRect(Math.round(mod(i * 59 + now * 0.012 + Math.sin(now * 0.0013 + i) * 10, W + 20) - 10), Math.round(mod(i * 41 + now * 0.03, BH + 10) - 5), i % 5 === 0 ? 3 : 2, 2);
+      }
+      else if (w === 'etincelles') for (let i = 0; i < 14; i++) {
+        const t = mod(now * 0.0009 + i * 0.37, 1), cote = i % 2 ? W - 6 : 6, vx = (i % 2 ? -1 : 1) * (18 + (i * 13) % 40);
+        x.fillStyle = `rgba(255, ${170 + (i % 3) * 30}, 70, ${0.8 * (1 - t)})`;
+        x.fillRect(Math.round(cote + vx * t), Math.round(BH * (0.45 + (i % 5) * 0.06) - 46 * t + 70 * t * t), 2, 2);
+      }
+      else if (w === 'paillettes') for (let i = 0; i < 16; i++) {
+        const a = 0.5 + 0.5 * Math.sin(now * 0.004 + i * 1.9); if (a < 0.25) continue;
+        const px = Math.round(mod(i * 97 + Math.sin(now * 0.0007 + i) * 6, W)), py = Math.round(mod(i * 53 + now * 0.008, BH));
+        x.fillStyle = i % 3 ? `rgba(255, 190, 228, ${a * 0.8})` : `rgba(255, 255, 255, ${a * 0.9})`;
+        x.fillRect(px - 1, py, 3, 1); x.fillRect(px, py - 1, 1, 3);
+      }
+      else for (let i = 0; i < 9; i++) {
+        const px = mod(i * 131 + now * (0.22 + (i % 3) * 0.05), W + 80) - 40, py = Math.round(mod(i * 37 + Math.sin(now * 0.001 + i) * 5, BH * 0.9));
+        x.fillStyle = 'rgba(255, 255, 255, 0.32)'; x.fillRect(Math.round(px), py, 14 + (i % 3) * 8, 1);
       }
       x.restore(); return;
     }

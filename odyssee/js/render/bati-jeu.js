@@ -15,7 +15,9 @@ const atelierJeu = () => (AT ||= atelier(32));
 const TOITS = { red: '#c05a40', blue: '#3a68c8', green: '#4a9a4a', brown: '#8a5a3a', gray: '#6a6e78', teal: '#3a8a8a', orange: '#d8803a', purple: '#7a4a9a', gold: '#c89a30', yellow: '#c8a838' };
 const hashB = (b) => Math.abs((b.x * 73856093) ^ (b.y * 19349663));
 /** type de l'arène d'une ville (pour la couleur et les ornements) */
-const TYPE_ARENE = { bug: 'insecte', grass: 'plante', water: 'eau', fire: 'feu', electric: 'electrik', psychic: 'psy', dragon: 'dragon', ice: 'glace', rock: 'roche', ground: 'roche', fighting: 'combat', ghost: 'spectre', dark: 'spectre', poison: 'psy', flying: 'eau', normal: 'roche', steel: 'electrik', fairy: 'psy' };
+// (les sept arènes des Terres du Sud ont chacune leur palette, leur emblème et leurs ornements dans batiments3d.js :
+// Normal, Vol, Poison, Sol, Acier, Fée, Ténèbres ne passent plus par ceux d'un autre type)
+const TYPE_ARENE = { bug: 'insecte', grass: 'plante', water: 'eau', fire: 'feu', electric: 'electrik', psychic: 'psy', dragon: 'dragon', ice: 'glace', rock: 'roche', ground: 'sol', fighting: 'combat', ghost: 'spectre', dark: 'tenebres', poison: 'poison', flying: 'vol', normal: 'normal', steel: 'acier', fairy: 'fee' };
 
 /**
  * Le modèle d'un bâtiment de la carte : { nom, o } (paramètres du modèle), ou null pour garder l'ancien rendu (façade
@@ -49,6 +51,8 @@ export function choisirModele(b, ctx = {}) {
     else if (/^Tour Mirage/.test(n)) r = { nom: 'tourMirage', o: { toit: roof } };
     else if (/Casino/.test(n)) r = { nom: 'casino', o: {} };
     else if (/Bourse/.test(n)) r = { nom: 'bourse', o: {} };
+    else if (/^Fonderie/.test(n)) r = { nom: 'fonderie', o: {} };
+    else if (/^Boutique de mode/.test(n)) r = { nom: 'boutiqueMode', o: {} };
     else if (/Phare/.test(n)) r = { nom: 'phare', o: {}, ajuste: true };
     else if (b.door < 0 || /^Tour$/.test(n)) {
       if (b.h >= 14 && b.w >= 9) return { nom: 'tourVerre', o: { etages: Math.round(b.h * 2) }, ajuste: true };

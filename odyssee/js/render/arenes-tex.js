@@ -309,6 +309,63 @@ export function texturesArenes(putImg) {
     for (let j = 4; j < 32; j += 16) { T.ligne(16, j, 20, j + 4, '#8a7ad0'); T.ligne(20, j + 4, 16, j + 8, '#8a7ad0'); T.ligne(16, j + 8, 12, j + 4, '#8a7ad0'); T.ligne(12, j + 4, 16, j, '#8a7ad0'); }
   }));
 
+  // ------- Forge-Acier, la Fonderie : dalles de béton noirci cerclées de fer, rigole où coule le métal en fusion
+  putImg('floor_fonderie', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#4c4e56');
+    for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) { const x = i % 16, y = j % 16; if (x === 0 || y === 0) T.p(i, j, '#2c2e34'); else if (x === 1 || y === 1) T.p(i, j, '#62656e'); }
+    for (const [x, y] of [[3, 3], [13, 3], [3, 13], [13, 13], [19, 19], [29, 19], [19, 29], [29, 29]]) T.p(x, y, '#8a8e98');
+    for (let k = 0; k < 30; k++) T.p(Math.floor(T.rnd() * 32), Math.floor(T.rnd() * 32), T.rnd() < 0.6 ? '#3e4048' : '#585a62');
+    T.disque(22, 8, 4, 2.5, '#3a3a40'); T.disque(8, 24, 3, 2, '#40424a');
+  }));
+  // rigole de coulée : un canal de fonte creusé dans la dalle, des bras vers le nord, le sud, l'ouest ou l'est (clé : les
+  // bras, « ns », « oe », « ne », « no », « o », « e »)
+  for (const bras of ['ns', 'oe', 'ne', 'no', 'o', 'e']) putImg('dec_rigole_' + bras, toile(32, 32, (T) => {
+    const dans = (i, j, m) => { const a = i >= 11 - m && i <= 20 + m, b = j >= 11 - m && j <= 20 + m; return (a && b) || (bras.includes('n') && a && j < 11) || (bras.includes('s') && a && j > 20) || (bras.includes('o') && b && i < 11) || (bras.includes('e') && b && i > 20); };
+    for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) {
+      if (dans(i, j, -2)) T.p(i, j, (i + j) % 7 === 0 ? '#ffe080' : (i * 3 + j * 5) % 11 === 0 ? '#ffb030' : '#e8601a');
+      else if (dans(i, j, 0)) T.p(i, j, '#1c1c20');
+      else if (dans(i, j, 1)) T.p(i, j, '#787b84');
+    }
+  }));
+  // ------- Métropole, le Casino : moquette bordeaux à losanges d'or ; tables de jeu d'acajou au tapis de feutre vert
+  putImg('floor_casino', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#7c1828');
+    for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) { const a = Math.abs((i % 16) - 8) + Math.abs((j % 16) - 8); if (a === 7) T.p(i, j, '#a8303e'); else if (a === 0) T.p(i, j, '#e8c860'); else if (a === 1) T.p(i, j, '#b88a3a'); else if ((i + j) % 16 === 0 && a > 9) T.p(i, j, '#6a1020'); }
+    for (let k = 0; k < 18; k++) T.p(Math.floor(T.rnd() * 32), Math.floor(T.rnd() * 32), '#8a2030');
+  }));
+  putImg('casinofront', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#4a2416'); T.rect(0, 0, 32, 3, '#e8c860'); T.rect(0, 3, 32, 1, '#8a6a2a'); T.rect(0, 27, 32, 5, '#2a120a'); T.rect(0, 27, 32, 1, '#6a3a24');
+    for (const x0 of [0, 16]) { T.cadre(x0 + 2, 7, 12, 17, '#2e140c'); T.rect(x0 + 3, 8, 10, 1, '#7a4a30'); T.rect(x0 + 3, 8, 1, 15, '#7a4a30'); T.disque(x0 + 8, 15, 2, 2, '#e8c860'); T.p(x0 + 8, 15, '#fff0a0'); }
+  }));
+  putImg('countertop_feutre', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#1e7a4a'); T.rect(0, 0, 32, 3, '#5a2e1c'); T.rect(0, 29, 32, 3, '#5a2e1c'); T.rect(0, 3, 32, 1, '#e8c860'); T.rect(0, 28, 32, 1, '#e8c860');
+    for (let k = 0; k < 40; k++) T.p(Math.floor(T.rnd() * 32), 4 + Math.floor(T.rnd() * 24), T.rnd() < 0.5 ? '#268a56' : '#186a3e');
+    T.ligne(4, 16, 28, 16, '#3aa06a');
+  }));
+  // ------- Métropole, la Bourse : marbre clair en damier, cabochons bleu nuit ; pupitres de la corbeille
+  putImg('floor_bourse', toile(32, 32, (T) => {
+    for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) { const d = ((i >> 4) + (j >> 4)) % 2; T.p(i, j, d ? '#e4e8ec' : '#f4f6f8'); if (i % 16 === 0 || j % 16 === 0) T.p(i, j, '#c4cad2'); }
+    for (const cx of [0, 16]) for (const cy of [0, 16]) for (const dx of [-1, 0]) for (const dy of [-1, 0]) T.p((cx + dx + 32) % 32, (cy + dy + 32) % 32, '#1c2c4c');
+    for (let k = 0; k < 10; k++) { const x = Math.floor(T.rnd() * 28), y = Math.floor(T.rnd() * 28); T.ligne(x, y, x + 3, y + 2, '#d2d8de'); }
+  }));
+  putImg('boursefront', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#22304c'); T.rect(0, 0, 32, 3, '#d8b45a'); T.rect(0, 3, 32, 1, '#101a2c'); T.rect(0, 27, 32, 5, '#141e32'); T.rect(0, 27, 32, 1, '#3a4c70');
+    for (const x0 of [0, 16]) { T.cadre(x0 + 2, 7, 12, 17, '#101a2c'); T.rect(x0 + 3, 8, 10, 1, '#3a4c70'); T.rect(x0 + 3, 8, 1, 15, '#3a4c70'); }
+    for (let i = 4; i < 28; i += 3) T.p(i, 20 - ((i * 7) % 9), '#3ad07a');
+  }));
+  // ------- Métropole, la Boutique de mode : parquet clair en point de Hongrie, comptoir blanc et or
+  putImg('floor_mode', toile(32, 32, (T) => {
+    for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) { const b = i >> 3, k = b % 2 ? (j + (i % 8)) % 8 : (j - (i % 8) + 32) % 8; T.p(i, j, i % 8 === 0 ? '#c8a878' : k === 0 ? '#d2b486' : (b + (j >> 3)) % 3 === 0 ? '#ecd6b0' : '#e6cea6'); }
+  }));
+  putImg('modefront', toile(32, 32, (T) => {
+    T.rect(0, 0, 32, 32, '#fbf7f4'); T.rect(0, 0, 32, 3, '#d8b45a'); T.rect(0, 3, 32, 1, '#b8a8a0'); T.rect(0, 27, 32, 5, '#e2a8be'); T.rect(0, 27, 32, 1, '#f4d0dc');
+    for (const x0 of [0, 16]) { T.cadre(x0 + 2, 7, 12, 17, '#e0d4ce'); T.rect(x0 + 6, 13, 4, 4, '#e2a8be'); T.p(x0 + 7, 14, '#ffffff'); }
+  }));
+  putImg('dec_tapis_mode', toile(32, 32, (T) => {
+    T.rect(4, 0, 24, 32, '#d87a9a'); T.rect(4, 0, 2, 32, '#f4d8e2'); T.rect(26, 0, 2, 32, '#f4d8e2'); T.rect(7, 0, 1, 32, '#b85a7c'); T.rect(24, 0, 1, 32, '#b85a7c');
+    for (let j = 6; j < 32; j += 16) { T.disque(16, j, 2.5, 2.5, '#f8c8d8'); T.p(16, j, '#ffffff'); }
+  }));
+
   // ------- lieux de l'histoire : la Centrale de Voltacité, le repaire de la Team Éclipse, le Sanctuaire des Marées
   // câble au sol (de la porte aux générateurs) et bande de sécurité jaune et noire
   putImg('dec_cable_sol', toile(32, 32, (T) => {
@@ -653,21 +710,11 @@ const SPR = {
     for (const [x, y, c] of [[9, 18, '#d8b45a'], [18, 20, '#d8b45a'], [22, 15, '#c03a3a']]) { T.rect(x, y, 2, 3, c); T.p(x, y - 1, '#ffffff'); }
     T.ligne(11, 20, 15, 22, '#3a3a4a'); T.ligne(19, 21, 22, 19, '#3a3a4a');
   }],
-  // Métropole : vitrine, tableau sur chevalet, socle, porte de salle fermée
-  vitrine: [32, 44, (T) => {
-    T.rect(4, 26, 24, 18, '#7a4a2a'); T.rect(4, 26, 24, 2, '#a86a40'); T.rect(6, 30, 20, 12, '#5a3420');
-    T.rect(5, 4, 22, 22, '#c8e8f8a0'); T.cadre(5, 4, 22, 22, '#d0a050'); T.ligne(8, 8, 12, 4, '#ffffff'); T.ligne(8, 12, 16, 4, '#ffffffa0');
-    T.disque(16, 18, 5, 5, '#e0a040'); T.p(15, 17, '#fff0a0');
-  }],
-  tableau: [32, 44, (T) => {
-    T.ligne(8, 30, 4, 44, '#6a4a2a'); T.ligne(24, 30, 28, 44, '#6a4a2a'); T.ligne(16, 30, 16, 44, '#5a3a1c');
-    T.rect(2, 2, 28, 28, '#c89a40'); T.rect(4, 4, 24, 24, '#e8c860'); T.rect(5, 5, 22, 22, '#5a8ac8');
-    T.rect(5, 18, 22, 9, '#5aa850'); T.disque(21, 10, 3, 3, '#f6e080'); T.disque(12, 18, 4, 3, '#e8e0d0');
-  }],
-  socle_musee: [32, 44, (T) => {
-    T.rect(7, 20, 18, 22, '#e8e4dc'); T.rect(7, 20, 4, 22, '#ffffff'); T.rect(21, 20, 4, 22, '#b8b4ac'); T.rect(5, 40, 22, 4, '#a8a49c'); T.rect(5, 18, 22, 3, '#d8d4cc');
-    T.disque(16, 12, 6, 6, null, (i, j, q) => (q > 0.7 ? '#a07a20' : i < 15 ? '#f6d860' : '#d0a830'));
-  }],
+  // Métropole, la Salle des Marchés : borne de cote, écran de séance, coffre à indice (les trois sortes de « titres » à
+  // consulter dans l'ordre ; leur version validée, _on, est plus bas), porte de parquet fermée
+  vitrine: [32, 44, (T) => borneCote(T, false)],
+  tableau: [32, 44, (T) => ecranSeance(T, false)],
+  socle_musee: [32, 44, (T) => coffreIndice(T, false)],
   porte_galerie: [32, 48, (T) => {
     T.rect(0, 0, 32, 48, '#5a3a20'); T.rect(2, 2, 28, 46, '#8a5a30'); T.rect(4, 4, 11, 42, '#a06a3a'); T.rect(17, 4, 11, 42, '#a06a3a');
     T.cadre(6, 8, 7, 14, '#6a4220'); T.cadre(19, 8, 7, 14, '#6a4220'); T.cadre(6, 28, 7, 14, '#6a4220'); T.cadre(19, 28, 7, 14, '#6a4220');
@@ -675,11 +722,7 @@ const SPR = {
   }],
   // Port-Lisière : canon à vent (un par sens), manivelle
   canon_up: [32, 40, (T) => canon(T, 'up')], canon_right: [32, 40, (T) => canon(T, 'right')], canon_down: [32, 40, (T) => canon(T, 'down')], canon_left: [32, 40, (T) => canon(T, 'left')],
-  manivelle: [32, 36, (T) => {
-    T.rect(12, 14, 8, 20, '#6a6a76'); T.rect(12, 14, 2, 20, '#9a9aa6'); T.rect(8, 32, 16, 4, '#3a3a44');
-    T.disque(16, 12, 9, 9, '#3a3a44'); T.disque(16, 12, 7, 7, '#c8c8d0'); T.disque(16, 12, 3, 3, '#3a3a44');
-    T.ligne(16, 12, 25, 6, '#7a4a2a'); T.disque(25, 6, 2.5, 2.5, '#c03a3a');
-  }],
+  manivelle: [32, 36, (T) => manivelle(T, 0)],
   // Marais-Noir : roseaux, lanternes, grille fermée
   roseaux: [32, 40, (T) => {
     for (let k = 0; k < 6; k++) { const x = 6 + k * 4, h = 20 + (k * 7) % 14; T.ligne(x, 40, x + (k % 2 ? 2 : -2), 40 - h, k % 2 ? '#5a7a3a' : '#7a9a4a'); T.disque(x + (k % 2 ? 2 : -2), 40 - h + 3, 1.5, 3.5, '#7a5a3a'); }
@@ -719,6 +762,88 @@ const SPR = {
   // Ombreval : torches
   torche_ombre: [32, 44, (T) => torche(T, false)],
   torche_ombre_on: [32, 44, (T) => torche(T, true)],
+  // états des mécanismes du Sud : titre validé (borne, écran, coffre), levier abaissé, manivelle tournée d'un, deux ou trois quarts
+  vitrine_on: [32, 44, (T) => borneCote(T, true)], tableau_on: [32, 44, (T) => ecranSeance(T, true)], socle_musee_on: [32, 44, (T) => coffreIndice(T, true)],
+  levier_rouge_on: [32, 40, (T) => levier(T, '#c83a3a', '#ff8080', true)], levier_bleu_on: [32, 40, (T) => levier(T, '#2a5ac8', '#8ab0ff', true)],
+  manivelle_1: [32, 36, (T) => manivelle(T, 1)], manivelle_2: [32, 36, (T) => manivelle(T, 2)], manivelle_3: [32, 36, (T) => manivelle(T, 3)],
+  // Forge-Acier, la Fonderie : four de briques à la gueule ardente, creuset sur son trépied, enclume, établi, lingots
+  four_fonderie: [32, 48, (T) => {
+    T.rect(1, 12, 30, 34, '#6e3628'); T.rect(1, 12, 30, 2, '#9a5440'); T.rect(1, 44, 30, 4, '#2a2a30'); T.rect(1, 44, 30, 1, '#5a5c66');
+    for (let j = 14; j < 44; j += 5) { T.rect(1, j, 30, 1, '#4a2018'); for (let i = (j % 10 ? 4 : 9); i < 31; i += 10) T.rect(i, j + 1, 1, 4, '#4a2018'); }
+    T.rect(7, 0, 18, 10, '#32343c'); T.rect(7, 0, 2, 10, '#565a66'); T.rect(4, 9, 24, 4, '#24262c'); T.rect(4, 9, 24, 1, '#6a6e7a'); for (const x of [6, 12, 19, 25]) T.p(x, 11, '#8a8e98');
+    // la gueule : arc de fer, cœur blanc, flammes
+    T.disque(16, 30, 10, 11, '#24262c'); T.rect(6, 30, 20, 12, '#24262c');
+    T.disque(16, 31, 8, 9, null, (i, j, q) => (q > 0.75 ? '#c83a10' : q > 0.4 ? '#ff7a1a' : q > 0.15 ? '#ffc040' : '#fff4c0')); T.rect(8, 31, 16, 10, '#e8601a');
+    for (let i = 8; i < 24; i++) { const h = 3 + ((i * 7) % 5); T.rect(i, 41 - h, 1, h, i % 3 ? '#ffb030' : '#ffe890'); }
+    T.rect(6, 41, 20, 2, '#3a3c44'); for (const x of [9, 13, 17, 21]) T.rect(x, 33, 1, 8, '#24262c');
+  }],
+  creuset: [32, 46, (T) => {
+    T.ligne(6, 44, 12, 22, '#3a3c44'); T.ligne(26, 44, 20, 22, '#3a3c44'); T.ligne(16, 44, 16, 30, '#2a2c32'); T.rect(4, 43, 5, 2, '#24262c'); T.rect(23, 43, 5, 2, '#24262c');
+    for (let j = 12; j < 30; j++) { const w = 9 - Math.floor((j - 12) / 4.5); T.rect(16 - w, j, 2 * w, 1, j < 14 ? '#7a7e8a' : '#454852'); T.p(16 - w, j, '#8a8e98'); T.p(15 + w, j, '#24262c'); }
+    T.disque(16, 12, 8, 2.5, null, (i, j, q) => (q > 0.7 ? '#e8601a' : q > 0.3 ? '#ffb030' : '#fff0a0')); T.rect(5, 17, 22, 2, '#2a2c32'); T.rect(3, 16, 3, 4, '#5a5c66'); T.rect(26, 16, 3, 4, '#5a5c66');
+    T.p(22, 14, '#ffb030'); T.p(23, 15, '#ff7a1a'); for (const [x, y] of [[10, 6], [19, 4], [14, 2], [22, 8]]) T.p(x, y, '#ffd06080');
+  }],
+  enclume: [32, 34, (T) => {
+    T.rect(10, 20, 12, 12, '#6a4a2a'); T.rect(10, 20, 3, 12, '#8a6440'); T.rect(19, 20, 3, 12, '#4a3018'); T.rect(10, 20, 12, 1, '#a07c52'); T.rect(9, 31, 14, 2, '#3a2412');
+    T.rect(6, 8, 20, 5, '#5c6068'); T.rect(6, 8, 20, 1, '#a8aeb8'); T.rect(6, 12, 20, 1, '#33363c'); T.rect(11, 13, 10, 4, '#484b53'); T.rect(8, 17, 16, 3, '#5c6068'); T.rect(8, 17, 16, 1, '#8a8e98');
+    T.ligne(6, 9, 1, 10, '#8a8e98'); T.ligne(6, 10, 2, 11, '#5c6068'); T.ligne(6, 11, 3, 11, '#484b53');
+    // le marteau posé dessus, un fer rougi
+    T.rect(17, 3, 7, 4, '#3a3c44'); T.rect(17, 3, 7, 1, '#7a7e8a'); T.ligne(20, 7, 27, 16, '#8a6440'); T.rect(8, 6, 7, 2, '#ff8a20'); T.rect(8, 6, 3, 1, '#ffe080');
+  }],
+  etabli: [32, 40, (T) => {
+    T.rect(2, 34, 3, 6, '#3a2412'); T.rect(27, 34, 3, 6, '#3a2412'); T.rect(3, 22, 2, 12, '#5a3a20'); T.rect(27, 22, 2, 12, '#5a3a20'); T.rect(3, 30, 26, 2, '#4a3018');
+    T.rect(0, 16, 32, 6, '#7a5230'); T.rect(0, 16, 32, 2, '#a87a4c'); T.rect(0, 21, 32, 1, '#4a3018');
+    // panneau d'outils : tenailles, marteau, limes
+    T.rect(1, 0, 30, 14, '#4a3a30'); T.cadre(1, 0, 30, 14, '#2e221a');
+    T.ligne(5, 3, 8, 11, '#a8aeb8'); T.ligne(9, 3, 6, 11, '#a8aeb8'); T.rect(13, 3, 5, 3, '#5c6068'); T.rect(15, 6, 1, 6, '#8a6440'); for (const x of [21, 24, 27]) { T.rect(x, 3, 1, 7, '#c8ccd4'); T.rect(x, 10, 1, 2, '#8a3a2a'); }
+    // étau, pièce en cours
+    T.rect(4, 11, 6, 5, '#3a4a6a'); T.rect(4, 11, 6, 1, '#6a80a8'); T.rect(18, 13, 9, 3, '#a8aeb8'); T.rect(18, 13, 9, 1, '#e0e6f0');
+    T.rect(8, 24, 8, 6, '#3a3c44'); T.rect(18, 25, 7, 5, '#6a4a2a');
+  }],
+  lingots: [32, 28, (T) => {
+    const L = (x, y, c, h, o) => { T.rect(x, y, 9, 5, c); T.rect(x + 1, y, 7, 1, h); T.rect(x, y + 4, 9, 1, o); T.p(x, y, o); T.p(x + 8, y, o); };
+    for (const x of [2, 12, 22]) L(x, 22, '#8a909c', '#d0d6e0', '#4a4e58');
+    L(7, 16, '#8a909c', '#d0d6e0', '#4a4e58'); L(17, 16, '#e8701a', '#ffd070', '#a83a0a'); L(12, 10, '#8a909c', '#d0d6e0', '#4a4e58');
+  }],
+  bac_trempe: [32, 32, (T) => {
+    T.rect(3, 12, 26, 18, '#4a4e58'); T.rect(3, 12, 26, 2, '#8a909c'); T.rect(3, 12, 2, 18, '#6a707c'); T.rect(27, 12, 2, 18, '#2c2e34'); T.rect(2, 29, 28, 3, '#24262c');
+    for (const x of [8, 16, 24]) T.rect(x, 15, 1, 13, '#383b43'); for (const [x, y] of [[5, 17], [26, 17], [5, 26], [26, 26]]) T.p(x, y, '#a8aeb8');
+    T.disque(16, 12, 12, 3, null, (i, j, q) => (q > 0.75 ? '#2a5a7a' : i < 14 ? '#6ab0d8' : '#4a8ab8')); T.ligne(9, 11, 14, 11, '#c8e8f8');
+    // la vapeur de la trempe, une barre de fer rougi qui dépasse
+    for (const [x, y] of [[11, 7], [12, 5], [10, 3], [18, 6], [19, 4], [17, 2], [15, 8]]) T.p(x, y, '#e8f0f8a0');
+    T.ligne(21, 12, 27, 4, '#8a8e98'); T.ligne(21, 11, 23, 9, '#ff8a20');
+  }],
+  // Métropole, le Casino : ce qui se pose sur les tables (roue, cartes, jetons)
+  pose_roulette: [32, 22, (T) => {
+    T.disque(16, 12, 13, 8, '#5a2e1c'); T.disque(16, 11, 12, 7, null, (i, j, q) => (q > 0.82 ? '#e8c860' : q < 0.12 ? '#e8c860' : (Math.floor((Math.atan2((j - 11) * 1.7, i - 16) + Math.PI) / 0.5236) % 2 ? '#c8283a' : '#1c1c24')));
+    T.disque(16, 11, 2, 1.4, '#fff0a0'); T.p(22, 8, '#ffffff'); T.ligne(16, 11, 16, 5, '#e8c860');
+  }],
+  pose_cartes: [32, 20, (T) => {
+    for (const [x, y, r] of [[5, 6, 0], [10, 4, 1], [15, 5, 0]]) { T.rect(x, y, 8, 11, '#fafaf4'); T.cadre(x, y, 8, 11, '#b8b4aa'); T.rect(x + 3, y + 4, 2, 3, r ? '#c8283a' : '#1c1c24'); T.p(x + 1, y + 1, r ? '#c8283a' : '#1c1c24'); }
+    for (const [x, c] of [[24, '#c8283a'], [27, '#2a5ac8']]) { for (let k = 0; k < 4; k++) { T.rect(x - 2, 14 - k * 2, 5, 2, c); T.rect(x - 2, 14 - k * 2, 5, 1, '#ffffff90'); } }
+  }],
+  pose_jetons: [32, 20, (T) => {
+    for (const [x, n, c] of [[5, 5, '#c8283a'], [11, 3, '#2a5ac8'], [17, 6, '#1e7a4a'], [23, 4, '#e8c860'], [28, 2, '#1c1c24']]) for (let k = 0; k < n; k++) { T.rect(x - 2, 16 - k * 2, 5, 2, c); T.rect(x - 2, 16 - k * 2, 5, 1, '#ffffffa0'); T.p(x, 17 - k * 2, '#ffffff'); }
+  }],
+  // Métropole, la Boutique de mode : portant chargé de robes, mannequin de couture, cabine d'essayage
+  portant: [32, 44, (T) => {
+    T.rect(3, 4, 2, 38, '#c8ccd4'); T.rect(27, 4, 2, 38, '#c8ccd4'); T.rect(3, 4, 26, 2, '#e8ecf2'); T.rect(1, 41, 6, 2, '#8a8e98'); T.rect(25, 41, 6, 2, '#8a8e98');
+    [['#e2587a', '#f4a0b8'], ['#4a8ad0', '#9ac0f0'], ['#f0c040', '#fbe69a'], ['#6ab86a', '#b0e0a8'], ['#8a5ad0', '#c8a8f0']].forEach(([c, h], k) => {
+      const x = 6 + k * 4; T.p(x + 1, 6, '#6a707c'); T.ligne(x - 1, 8, x + 1, 7, '#6a707c'); T.ligne(x + 3, 8, x + 1, 7, '#6a707c');
+      T.rect(x - 1, 9, 5, 20 + (k % 2) * 5, c); T.rect(x - 1, 9, 1, 20 + (k % 2) * 5, h); T.rect(x - 1, 9, 5, 1, h);
+    });
+  }],
+  mannequin_mode: [32, 46, (T) => {
+    T.rect(15, 30, 2, 12, '#b8a8a0'); T.disque(16, 43, 6, 2, '#8a7a72'); T.disque(16, 42, 6, 1.5, '#b8a8a0');
+    T.disque(16, 6, 3, 3.5, '#f0e2d2'); T.rect(15, 9, 2, 2, '#e4d2c0');
+    for (let j = 11; j < 34; j++) { const w = j < 17 ? 5 : j < 20 ? 3 : 3 + Math.floor((j - 19) * 0.55); T.rect(16 - w, j, 2 * w, 1, j < 20 ? '#e2587a' : (j % 4 === 0 ? '#b83a5e' : '#d04a70')); T.p(16 - w, j, '#f4a0b8'); }
+    T.rect(12, 19, 8, 1, '#e8c860'); T.p(16, 13, '#ffffff'); T.rect(11, 11, 2, 1, '#f4a0b8'); T.rect(19, 11, 2, 1, '#b83a5e');
+  }],
+  cabine: [32, 48, (T) => {
+    T.rect(2, 2, 28, 46, '#f4ece8'); T.rect(2, 2, 28, 3, '#d8b45a'); T.rect(2, 2, 2, 46, '#d8ccc8'); T.rect(28, 2, 2, 46, '#d8ccc8'); T.rect(4, 6, 24, 1, '#c8ccd4');
+    for (let i = 5; i < 27; i++) { const pli = (i - 5) % 5; T.rect(i, 8, 1, 36 - (pli === 2 ? 1 : 0), pli === 0 ? '#c05078' : pli === 2 ? '#f090b0' : '#e06890'); }
+    for (let i = 6; i < 27; i += 5) T.p(i, 7, '#e8c860'); T.rect(5, 44, 22, 1, '#b83a5e');
+  }],
 };
 const CIRE = [['#f0b030', '#a86a10', '#ffe08a'], ['#e05040', '#902818', '#ffa090'], ['#58b048', '#2e6a24', '#b0f0a0'], ['#4a8ae0', '#24508a', '#b0d0ff'], ['#a060d0', '#5a2a88', '#e0c0ff']];
 CIRE.forEach(([c, s2, h], k) => {
@@ -762,10 +887,54 @@ function grille(T, c1, c2, c3) {
   for (let i = 2; i < 32; i += 5) { T.rect(i, 2, 3, 44, c1); T.rect(i, 2, 1, 44, c2); T.disque(i + 1, 3, 2, 2, c2); }
   T.rect(0, 22, 32, 3, c1); T.rect(0, 22, 32, 1, c3);
 }
-function levier(T, c1, c2) {
+/** levier d'inverseur : manche relevé à droite, ou abaissé à gauche (bas : les tapis de sa couleur tournent dans l'autre sens) */
+function levier(T, c1, c2, bas = false) {
   T.rect(7, 26, 18, 12, '#3a3e48'); T.rect(7, 26, 18, 2, '#6a707c'); T.rect(5, 37, 22, 3, '#2a2e36');
-  T.rect(12, 22, 8, 5, '#5a5e68'); T.ligne(16, 24, 23, 6, '#9aa0aa'); T.ligne(17, 24, 24, 6, '#6a707a');
-  T.disque(23, 6, 4, 4, c1); T.p(22, 5, c2); T.rect(9, 30, 14, 4, c1); T.rect(9, 30, 14, 1, c2);
+  const mx = bas ? 8 : 23, my = bas ? 12 : 6;
+  T.rect(12, 22, 8, 5, '#5a5e68'); T.ligne(16, 24, mx, my, '#9aa0aa'); T.ligne(bas ? 15 : 17, 24, bas ? mx - 1 : mx + 1, my, '#6a707a');
+  T.disque(mx, my, 4, 4, c1); T.p(mx - 1, my - 1, c2); T.rect(9, 30, 14, 4, bas ? c2 : c1); T.rect(9, 30, 14, 1, bas ? '#ffffff' : c2);
+  // sens indiqué sur le pupitre : chevrons vers la droite, ou vers la gauche une fois le levier abaissé
+  for (const x of [12, 17]) { T.p(x + (bas ? 1 : 0), 31, '#1e2228'); T.p(x + (bas ? 0 : 1), 32, '#1e2228'); T.p(x + (bas ? 1 : 0), 33, '#1e2228'); }
+}
+/** manivelle d'un canon à vent : la poignée a tourné de q quarts de tour */
+function manivelle(T, q) {
+  T.rect(12, 14, 8, 20, '#6a6a76'); T.rect(12, 14, 2, 20, '#9a9aa6'); T.rect(8, 32, 16, 4, '#3a3a44');
+  T.disque(16, 12, 9, 9, '#3a3a44'); T.disque(16, 12, 7, 7, '#c8c8d0'); T.disque(16, 12, 3, 3, '#3a3a44');
+  const [px, py] = [[25, 6], [23, 20], [7, 18], [9, 4]][q % 4];
+  T.ligne(16, 12, px, py, '#7a4a2a'); T.ligne(16, 13, px, py + 1, '#5a3418'); T.disque(px, py, 2.5, 2.5, '#c03a3a'); T.p(px - 1, py - 1, '#ff9090');
+  // repère du quart de tour sur le cadran
+  const [rx, ry] = [[16, 4], [24, 12], [16, 20], [8, 12]][q % 4]; T.rect(rx - 1, ry - 1, 2, 2, '#f0c040');
+}
+/** coche verte d'un titre validé (Salle des Marchés) */
+const coche = (T, x, y) => { T.ligne(x, y + 5, x + 4, y + 9, '#7af0a8'); T.ligne(x + 4, y + 9, x + 12, y, '#7af0a8'); T.ligne(x, y + 6, x + 4, y + 10, '#3ad07a'); T.ligne(x + 4, y + 10, x + 12, y + 1, '#3ad07a'); };
+/** borne de cote : pied d'acajou, plinthe de laiton, écran aux bougies vertes et rouges */
+function borneCote(T, on) {
+  T.rect(10, 26, 12, 16, '#5a3020'); T.rect(10, 26, 3, 16, '#7a4630'); T.rect(19, 26, 3, 16, '#3c1e14'); T.rect(7, 40, 18, 4, '#2a140c'); T.rect(7, 40, 18, 1, '#d8b45a');
+  T.rect(4, 3, 24, 24, '#2a1c16'); T.cadre(4, 3, 24, 24, on ? '#3ad07a' : '#d8b45a'); T.rect(6, 5, 20, 20, on ? '#0c2a1c' : '#0c1a18');
+  if (on) coche(T, 10, 10);
+  else {
+    for (const [x, y, h, v] of [[8, 16, 5, 1], [11, 14, 6, 0], [14, 12, 6, 1], [17, 13, 4, 0], [20, 9, 7, 1]]) { T.rect(x, y, 2, h, v ? '#3ad07a' : '#e0504a'); T.p(x, y - 1, v ? '#3ad07a' : '#e0504a'); }
+    T.rect(7, 22, 18, 1, '#1c3430'); T.rect(8, 7, 6, 1, '#f0d860');
+  }
+  T.ligne(7, 6, 10, 6, '#ffffff60');
+}
+/** écran de séance : un moniteur sur pied, la courbe du jour et son horloge */
+function ecranSeance(T, on) {
+  T.rect(15, 28, 2, 12, '#3a3e48'); T.rect(14, 28, 1, 12, '#6a707c'); T.rect(9, 40, 14, 3, '#23262c'); T.rect(9, 40, 14, 1, '#6a707c');
+  T.rect(2, 3, 28, 25, '#23262c'); T.cadre(2, 3, 28, 25, on ? '#3ad07a' : '#6a707c'); T.rect(4, 5, 24, 21, on ? '#0c2a1c' : '#101c2c');
+  if (on) coche(T, 10, 10);
+  else {
+    for (let i = 5; i < 27; i++) T.p(i, Math.round(19 - Math.sin(i * 0.6) * 3 - (i - 5) * 0.25), '#5ac8f0');
+    T.disque(22, 10, 3, 3, '#f0d860'); T.ligne(22, 10, 22, 8, '#101c2c'); T.ligne(22, 10, 24, 10, '#101c2c'); T.rect(5, 23, 22, 1, '#1c3048'); T.rect(6, 7, 8, 1, '#8aa0c0'); T.rect(6, 9, 5, 1, '#5a708e');
+  }
+}
+/** coffre à indice : un coffre-fort à cadran, sa plaque au chiffre romain */
+function coffreIndice(T, on) {
+  T.rect(5, 16, 22, 24, '#4a5260'); T.rect(5, 16, 22, 2, '#8a94a4'); T.rect(5, 16, 2, 24, '#6a7484'); T.rect(25, 16, 2, 24, '#2e343e'); T.rect(4, 40, 24, 4, '#23262c'); T.rect(4, 40, 24, 1, '#5a6270');
+  T.cadre(8, 19, 16, 19, on ? '#3ad07a' : '#2e343e');
+  T.disque(16, 28, 5, 5, null, (i, j, q) => (on ? (q > 0.7 ? '#1e8a4c' : i < 15 ? '#7af0a8' : '#3ad07a') : (q > 0.7 ? '#a07a20' : i < 15 ? '#f6d860' : '#d0a830')));
+  T.disque(16, 28, 1.5, 1.5, on ? '#0c2a1c' : '#5a4010'); T.ligne(16, 28, on ? 16 : 19, on ? 24 : 25, on ? '#0c2a1c' : '#5a4010'); T.rect(22, 26, 2, 5, '#c8ccd4');
+  T.rect(10, 7, 12, 7, '#d8b45a'); T.rect(10, 7, 12, 1, '#f4dc90'); T.rect(10, 13, 12, 1, '#8a6a2a'); for (const x of [12, 15, 16, 19]) T.rect(x, 9, 1, 3, '#5a4010');
 }
 function miroir(T, sens) {
   T.rect(13, 32, 6, 8, '#a898b0'); T.rect(8, 39, 16, 4, '#7a6a88');

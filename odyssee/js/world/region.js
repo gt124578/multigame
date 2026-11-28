@@ -1433,9 +1433,10 @@ export function buildWorld({ decors = true, traces = decors } = {}) {
   // objets des recoins (case « o » des plans)
   // la Ruche : un Antidote (les Mimigal d'Hector empoisonnent), pas un Anti-Para
   const OBJETS_ARENE = { 0: ['potion', 'antidote'], 1: ['mystic-water'], 11: ['soft-sand'] };
-  // répliques [avant, après le combat] des dresseurs des arènes de Voltacité (2), Floralia (3), Mirage (4) et des trois
-  // frères de l'archipel (Port-Granit 5, Cendrelune 6, Fort-Écaille 7), dans l'ordre de leurs places sur le plan ;
-  // aucune ne dit si le joueur est un garçon ou une fille
+  // répliques [avant, après le combat] des dresseurs des arènes de Voltacité (2), Floralia (3), Mirage (4), des trois
+  // frères de l'archipel (Port-Granit 5, Cendrelune 6, Fort-Écaille 7) et des sept arènes des Terres du Sud (Métropole 8
+  // à Ombreval 14), dans l'ordre de leurs places sur le plan ; aucune ne dit si le joueur est un garçon ou une fille, et
+  // dans les arènes de Margot, Morgane et Lilas chacune parle de « notre Championne »
   const REPLIQUES_ARENE = {
     2: [
       ['Bzzt ! Tu sens ce picotement ? C\'est la dynamo qui te souhaite la bienvenue !', 'Mes circuits ont grillé... Notre Championne va te recharger, elle.'],
@@ -1481,6 +1482,55 @@ export function buildWorld({ decors = true, traces = decors } = {}) {
       ['On dit que j\'ai tenu trois tours face à Drakos. Et toi, combien en tiendras-tu face à moi ?', 'Trois tours... C\'est ce que j\'ai tenu face à toi. Notre Champion va enfin avoir un vrai combat.'],
       ['Un faux pas, et c\'est le gouffre. Une attaque mal choisie, et c\'est pareil !', 'Tu marches droit, même au-dessus du vide. Monte : notre Champion t\'attend au sommet.'],
     ],
+    // la Salle des Marchés de Margot : trois parquets, des bornes de cote à consulter dans le bon ordre
+    8: [
+      ['Parquet 1, les valeurs sûres ! Ici, on pèse chaque titre avant d\'acheter. Voyons ce que pèse ton équipe.', 'Mon portefeuille s\'effondre... Notre Championne, elle, ne vend jamais à perte.'],
+      ['De l\'aube à la clôture, une séance se joue en cinq temps. Notre duo, lui, la boucle en deux !', 'Clôture en forte baisse pour nous deux. Notre Championne t\'attend à la corbeille, tout en haut.'],
+      ['Dernier parquet avant la corbeille : les indices de Margot. Trois titres contre trois, la cote monte !', 'Krach sur toute la ligne... Notre Championne adore les valeurs qui grimpent aussi vite.'],
+    ],
+    // les Hauteurs d'Aurèle : des îles dans le ciel, des canons à vent qui pivotent, deux manivelles
+    9: [
+      ['Bienvenue dans les Hauteurs ! Ici, un canon mal réglé ne tire pas. Mes oiseaux, eux, partent toujours !', 'Abattu en plein vol... Aurèle, lui, ne perd jamais d\'altitude.'],
+      ['Après chaque tir, le canon pivote d\'un quart de tour. Nous, on pivote à deux !', 'Atterrissage forcé pour toute l\'escadrille. Notre Champion t\'attend sur l\'île du nord.'],
+      ['Trois ailes dans le même courant, ça fait une tempête. Tu sens le vent tourner ?', 'Le vent est tombé... Garde ton souffle pour notre Champion.'],
+      ['L\'île du milieu mène partout... ou nulle part, selon son canon. Voyons où mène ce combat !', 'Tu lis le vent mieux que moi. Notre Champion va avoir de la concurrence, là-haut.'],
+      ['Cette manivelle règle un canon tout au sud-ouest. Mais d\'abord, c\'est moi qui te règle ton compte !', 'Rafale contraire... File : notre Champion n\'est plus qu\'à un coup de vent d\'ici.'],
+    ],
+    // le Marais de Morgane : murs invisibles, roseaux, cinq lanternes, vase toxique
+    10: [
+      ['Dans le marais, on ne voit pas les murs. Moi non plus, tu ne m\'avais pas vu !', 'Démasqué... Notre Championne se cache bien mieux que moi dans la brume.'],
+      ['Les roseaux montrent où un mur pourrait se dresser. Nos deux Pokémon, eux, frappent sans prévenir !', 'Le venin n\'a pas pris... Allume les lanternes : notre Championne attend derrière la grille.'],
+      ['J\'étudie la vase toxique : un faux pas, et retour à l\'entrée. Trois échantillons t\'attendent !', 'Expérience ratée. Notre Championne a des poisons bien plus raffinés que les miens.'],
+    ],
+    // les Dunes de Gaspard : sable qui glisse jusqu'aux rochers, salle d'argile aux dalles fragiles
+    11: [
+      ['Tu as traversé la dune sans finir contre un rocher ? Alors viens te frotter aux miens !', 'Enseveli... Gaspard, lui, ne s\'enlise jamais.'],
+      ['Dans la salle d\'argile, chaque dalle ne supporte qu\'un passage. Notre duo, lui, tient bon !', 'Fissurés tous les deux... Notre Champion t\'attend derrière la porte de sable.'],
+      ['Le sable ne pardonne pas l\'hésitation. À trois contre trois, plus personne n\'hésite !', 'La tempête est retombée. Fends toutes les dalles, et la porte de notre Champion s\'ouvrira.'],
+      ['C\'est moi qui recolle les dalles quand elles cèdent. Et je n\'aime pas qu\'on me donne du travail !', 'Bon... Je retourne à mon mortier. Ne repasse jamais deux fois sur la même dalle !'],
+    ],
+    // la Fonderie de Ferdinand : tapis roulants rouges et bleus, leviers qui inversent leur sens
+    12: [
+      ['Bienvenue à la fonderie ! Les tapis ne vont que dans un sens. Mes Pokémon aussi : droit devant !', 'Coulé dans le moule... Ferdinand, lui, ne plie pas.'],
+      ['Levier rouge, tapis rouges. Levier bleu, tapis bleus. Deux Pokémon, deux fois plus de dégâts !', 'Nos rivets ont sauté. Notre Champion t\'attend au bout de la chaîne.'],
+      ['J\'ai calculé l\'alliage parfait : trois métaux, zéro faille. Vérifions ça !', 'Erreur de dosage... Notre Champion voudra connaître ta formule.'],
+      ['Un tapis pris dans le mauvais sens, et te voilà reparti d\'où tu viens. Un combat contre moi, c\'est pareil !', 'Bien joué. Pense à l\'inverseur avant de monter sur le tapis suivant !'],
+    ],
+    // le Jardin de Cristal de Lilas : un rayon de lumière, des miroirs à tourner, des massifs de roses
+    13: [
+      ['Le rayon, il ne faut pas le toucher ! Mais mes Pokémon, tu peux toujours essayer.', 'Notre Championne dit qu\'on apprend en perdant. J\'apprends beaucoup, aujourd\'hui !'],
+      ['Un miroir tourné, et la lumière change de chemin. Nos deux Pokémon, eux, vont droit sur toi !', 'Quelle grâce dans ce combat. Notre Championne aimera danser avec ton équipe.'],
+      ['Trois fées valent bien un rayon : personne ne les traverse. Tu veux vérifier ?', 'Le charme est rompu... Guide la lumière jusqu\'au cristal : notre Championne t\'attend derrière.'],
+      ['La grille ne s\'ouvre qu\'à la lumière. Et moi, je ne m\'écarte que devant le talent.', 'Tu en as. Va : le cristal n\'est plus loin, et notre Championne non plus.'],
+    ],
+    // l'Abîme de Corbin : passerelles invisibles, cinq torches sur leurs îlots, le noir complet
+    14: [
+      ['Je vois des passerelles là où tu ne vois que du vide. Et je vois aussi ta défaite !', 'Mes visions se troublent... Corbin, lui, voit clair dans le noir.'],
+      ['Certaines passerelles ne mènent nulle part. Nos deux Pokémon, eux, savent où ils vont !', 'Plumés tous les deux... Allume la torche de l\'îlot : notre Champion n\'aime pas attendre.'],
+      ['Un îlot, une torche, trois ombres. Tu ne passeras pas !', 'Tu as percé mes ténèbres. Garde un peu de lumière pour notre Champion.'],
+      ['Au cœur de l\'abîme, on n\'entend que ses propres pas. Écoute bien : ce sont les derniers !', 'Je me trompais... Continue. Cinq torches, et la grille de notre Champion s\'ouvrira.'],
+      ['Dernière ombre avant la grille. Personne ne me voit jamais venir.', 'Sauf toi... Passe. Notre Champion t\'attend dans le noir complet.'],
+    ],
   };
   for (const t of Object.values(towns)) {
     if (t.gym == null) continue;
@@ -1513,7 +1563,7 @@ export function buildWorld({ decors = true, traces = decors } = {}) {
       const more = t.gym === 0 ? [] : equipeDeType(L2.type, lvl, needMore, t.gym * 31 + i * 7 + 3).filter(([sp]) => !team.some((m) => m[0] === sp));
       const fullTeam = t.gym === 0 ? team.slice(0, 2) : team.concat(more).slice(0, t.gym === 1 ? 3 : 4);
       const [x, y, dir, vue] = spots[i];
-      // arènes de Voltacité, Floralia, Mirage et de l'archipel : chaque dresseur a ses propres répliques (REPLIQUES_ARENE)
+      // arènes de Voltacité, Floralia, Mirage, de l'archipel et du Sud : chaque dresseur a ses propres répliques (REPLIQUES_ARENE)
       const rep = REPLIQUES_ARENE[t.gym]?.[i];
       const annonce = format === 'triple' ? 'Place au combat Trio ! ' : format === 'double' ? 'Place au combat Duo ! ' : '';
       const intro = rep ? annonce + rep[0]

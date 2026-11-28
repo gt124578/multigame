@@ -272,4 +272,18 @@ console.log('=== Tests de régression Lot 5 ===');
   console.log(`✓ Monde, archipel post-Drakos, genres d'arène, sprites, ${fixedNames.size} dresseurs fixes uniques et ${procChecked} procéduraux accordés OK`);
 }
 
+// 7. Portraits : aucune image inscrite n'est absente, et les bustes de dialogue encore attendus retombent sur un dessin présent
+{
+  const { SPRITES } = await import('../odyssee/js/data/sprites.js');
+  const la = (f) => fs.existsSync(path.join('odyssee/img', f));
+  for (const k of SPRITES.portraits) { assert.ok(la(`portraits/${k}.png`), `portraits/${k}.png inscrit mais absent`); assert.ok(la(`portraits/${k}-l.png`), `portraits/${k}-l.png inscrit mais absent`); }
+  for (const k of SPRITES.bustes || []) assert.ok(la(`portraits/${k}-l.png`), `buste portraits/${k}-l.png inscrit mais absent`);
+  for (const k of SPRITES.dresseurs) assert.ok(la(`dresseurs/${k}.png`), `dresseurs/${k}.png inscrit mais absent`);
+  // les sept Champions du Sud, Pierre et les trois de la Brume : tant que leur buste n'est pas inscrit (portraits ou bustes),
+  // le dialogue montre leur dessin de combat, qui doit donc exister
+  const peints = new Set([...SPRITES.portraits, ...(SPRITES.bustes || [])]), dessins = new Set(SPRITES.dresseurs);
+  for (const k of ['margot', 'aurele', 'morgane', 'gaspard', 'ferdinand', 'lilas', 'corbin', 'pierre', 'sylas', 'ariane', 'nox']) assert.ok(peints.has(k) || dessins.has(k), `${k} : ni buste peint ni dessin de combat pour le dialogue`);
+  console.log('✓ Portraits : images inscrites présentes, repli des bustes attendus OK');
+}
+
 console.log('Tous les tests Lot 5 ont réussi.');

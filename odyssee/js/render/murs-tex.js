@@ -2,8 +2,10 @@
 // Le mur du fond est coupé en deux : le haut (papier peint, corniche) et le bas (lambris, cimaise, plinthe) ; les murs
 // latéraux et le mur du bas sont de vrais volumes coiffés d'un chaperon (le dessus du mur, bordé d'une arête claire
 // côté pièce). Fenêtres posées sur le haut du mur du fond, ombre portée des murs sur le sol.
-// Tuiles (atlas du décor) : murh_<style>, murb_<style>, cap_<style>, fen_<style>, plus ombre_n / ombre_o / ombre_e.
-// Styles : in0…in3 (maisons, papier peint tiré de l'identifiant de la carte), center, mart, lab, gym, league, cendre.
+// Tuiles (atlas du décor) : murh_<style>, murb_<style>, cap_<style>, capv_<style>, capp_<style>, fen_<style>, plus
+// ombre_n / ombre_o / ombre_e.
+// Styles : in0…in3 (maisons, papier peint tiré de l'identifiant de la carte), center, mart, lab, gym, league, cendre,
+// les arènes (gymElec… gymAbime : une par sol d'arène) et les lieux uniques (usine, musee, caserne, fonderie, casino, bourse, mode).
 
 const rgba = (h) => { const n = parseInt(h.slice(1, 7), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255, h.length > 7 ? parseInt(h.slice(7, 9), 16) : 255]; };
 function toile(draw, graine = 7) {
@@ -16,8 +18,11 @@ function toile(draw, graine = 7) {
     const t = a / 255; d[k] = d[k] * (1 - t) + r * t; d[k + 1] = d[k + 1] * (1 - t) + g * t; d[k + 2] = d[k + 2] * (1 - t) + b * t; d[k + 3] = Math.max(d[k + 3], a);
   };
   const rect = (x0, y0, w, h, col) => { for (let j = y0; j < y0 + h; j++) for (let i = x0; i < x0 + w; i++) p(i, j, col); };
+  const cadre = (x0, y0, w, h, col) => { rect(x0, y0, w, 1, col); rect(x0, y0 + h - 1, w, 1, col); rect(x0, y0, 1, h, col); rect(x0 + w - 1, y0, 1, h, col); };
+  const disque = (cx, cy, rx, ry, col) => { for (let j = Math.floor(cy - ry); j <= Math.ceil(cy + ry); j++) for (let i = Math.floor(cx - rx); i <= Math.ceil(cx + rx); i++) if (((i - cx) / rx) ** 2 + ((j - cy) / ry) ** 2 <= 1) p(i, j, col); };
+  const ligne = (x0, y0, x1, y1, col) => { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1); for (let k = 0; k <= n; k++) p(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n, col); };
   let s = graine; const rnd = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
-  draw({ p, rect, rnd });
+  draw({ p, rect, cadre, disque, ligne, rnd });
   x.putImageData(im, 0, 0);
   return c;
 }
@@ -52,8 +57,33 @@ const STYLES = {
   musee: { fond: '#ece6da', motif: '#dad2c2', motifK: 'pierres', lam: '#bdb5a6', lamC: '#dad2c4', lamS: '#928a7c', cim: '#c8a040', pl: '#5a5448', cap: '#6e6656', capC: '#e8c860', fenK: 'legendes' },
   // la Caserne d'Écaille : pierre de taille sombre, bandeau indigo de la garde, bannières au dragon au lieu des fenêtres
   caserne: { fond: '#6a687c', motif: '#565468', motifK: 'pierres', bande: '#3c3470', bandeS: '#d8b45a', lam: '#444254', lamC: '#5e5c70', lamS: '#2c2a38', cim: '#d8b45a', pl: '#16141e', cap: '#2e2c3c', capC: '#9a96b8', fenK: 'banniere' },
+  // les sept arènes des Terres du Sud (clé = le sol de l'arène, world/arenes-plans.js)
+  // Métropole, la Salle des Marchés : marbre ivoire veiné, bandeau vert des cotations, boiseries d'acajou, écrans des cours
+  gymGalerie: { fond: '#ece4d2', motif: '#d0c4aa', motifK: 'marbre', bande: '#1f4d3c', bandeS: '#d8b45a', lam: '#6a3a2a', lamC: '#8e5640', lamS: '#472418', cim: '#d8b45a', pl: '#2a140c', cap: '#3c2a22', capC: '#d8b45a', fenK: 'cours' },
+  // Port-Lisière, les Hauteurs : le ciel et ses nuages, soubassement de pierre blanche, liseré d'or
+  gymCiel: { fond: '#aed6f4', motif: '#f2f9ff', motif2: '#cfe6f8', motifK: 'nuages', lam: '#dfe7ef', lamC: '#f8fbfe', lamS: '#a9b9ca', cim: '#f0c850', pl: '#56708e', cap: '#4a6a94', capC: '#d6ebfb', vitre: ['#7ab8ee', '#bfe0fa'] },
+  // Marais-Noir : planches moussues, lianes qui pendent de la corniche, vitres glauques
+  gymMarais: { fond: '#3f4b35', motif: '#2b3425', motif2: '#74964c', motifK: 'lianes', lam: '#4a3e2c', lamC: '#65563b', lamS: '#2c2519', cim: '#7c9c4c', pl: '#17170f', cap: '#262e1e', capC: '#8ab060', vitre: ['#3f6a52', '#74a070'] },
+  // Dunes d'Ocre : grès aux strates ondulées, frise turquoise, moucharabiehs
+  gymDunes: { fond: '#dcae70', motif: '#bb8a50', motif2: '#f0cf98', motifK: 'gres', bande: '#2a8c8a', bandeS: '#f0d8a0', lam: '#b07a42', lamC: '#cd985a', lamS: '#835528', cim: '#f0d8a0', pl: '#5a3a1a', cap: '#7a5630', capC: '#f0d8a0', vitre: ['#f0c070', '#f8e2a8'], treillage: true },
+  // Forge-Acier : tôles rivetées, bandeau de fonte rougie, verrières où rougeoient les fours
+  gymAcier: { fond: '#6c7682', motif: '#4c5660', motif2: '#a9b4c2', motifK: 'tole', bande: '#b8481c', bandeS: '#ffb040', lam: '#3a4048', lamC: '#586068', lamS: '#23272d', cim: '#a8b0c0', pl: '#131519', cap: '#2a2e34', capC: '#a8b0c0', fenK: 'verriere' },
+  // Rosebrume, le Jardin de Cristal : cristal rose à facettes, vitraux
+  gymCristal: { fond: '#f6dcec', motif: '#e2a8cc', motif2: '#ffffff', motifK: 'facettes', lam: '#c88cb6', lamC: '#eabada', lamS: '#9e6892', cim: '#fff4fa', pl: '#6a3a5e', cap: '#8a5a80', capC: '#fff0f8', fenK: 'vitrail' },
+  // Ombreval, l'Abîme : pierre noire, éclats violets, fenêtres sur la nuit
+  gymAbime: { fond: '#1d1729', motif: '#2e2444', motif2: '#8a62d0', motifK: 'eclats', lam: '#120e1c', lamC: '#2c2242', lamS: '#07050d', cim: '#8a6ac0', pl: '#040308', cap: '#0e0a18', capC: '#6a4aa8', vitre: ['#160f2c', '#2c1f56'], etoiles: true },
+  // Forge-Acier, la Fonderie : briques sombres, soubassement de tôle, verrières d'atelier
+  fonderie: { fond: '#7c4232', motif: '#57291e', motifK: 'pierres', bande: '#3a3e46', bandeS: '#e8a030', lam: '#3e444c', lamC: '#5c646e', lamS: '#272b31', cim: '#9aa2ae', pl: '#15171b', cap: '#2c2422', capC: '#8a6a5a', fenK: 'verriere' },
+  // Métropole, le Casino : tentures de velours rouge, boiseries sombres, cimaise d'or, enseignes au néon
+  casino: { fond: '#8e1c2c', motif: '#6a1220', motif2: '#b83448', motifK: 'tentures', lam: '#3a2018', lamC: '#5a3426', lamS: '#22110c', cim: '#e8c860', pl: '#150a07', cap: '#2a1612', capC: '#e8c860', fenK: 'neon' },
+  // Métropole, la Bourse : marbre clair, bandeau bleu nuit, grand tableau des cours
+  bourse: { fond: '#eef0f2', motif: '#d2d8de', motifK: 'marbre', bande: '#1c2c4c', bandeS: '#d8b45a', lam: '#c4cad2', lamC: '#e4e8ee', lamS: '#929aa6', cim: '#d8b45a', pl: '#2a3448', cap: '#22304c', capC: '#aab8d0', fenK: 'cours' },
+  // Métropole, la Boutique de mode : rayures poudrées, lambris blanc, grands miroirs dorés
+  mode: { fond: '#f8e8ee', motif: '#f0d2de', motifK: 'rayures', lam: '#fbf7f4', lamC: '#ffffff', lamS: '#d8ccc8', cim: '#d8b45a', pl: '#8a6a70', cap: '#9a6a7a', capC: '#f4d8e2', fenK: 'miroir' },
   cendre: { fond: '#5a4a44', motif: '#4a3c36', motifK: 'pierres', lam: '#3e322c', lamC: '#5a4a42', lamS: '#2a201c', cim: '#8a6a50', pl: '#1e1612', cap: '#2e2420', capC: '#6a5444' },
 };
+/** arènes dont le mur du fond porte des fenêtres (world3d.js les pose par paires autour de l'estrade) : celles du Sud */
+export const FENETRES_ARENE = new Set(['gymGalerie', 'gymCiel', 'gymMarais', 'gymDunes', 'gymAcier', 'gymCristal', 'gymAbime']);
 /** style des murs d'une carte d'intérieur (null : on garde l'ancien rendu) */
 /** pack de graphismes : d'autres couleurs pour les murs d'un style (avant de fabriquer les textures) */
 export function paletteMurs(nom, p) { if (STYLES[nom]) Object.assign(STYLES[nom], p); }
@@ -62,7 +92,7 @@ export function styleMur(m) {
   const w = m.wallStyle || 'wall_in';
   if (w === 'wall_in') { let h = 0; for (const ch of String(m.id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return 'in' + (h % 4); }
   if (w === 'wall_mart') return m.floor === 'lab' ? 'lab' : 'mart';
-  // arènes de Voltacité, Floralia, Mirage et de l'archipel : leurs propres murs (les autres gardent la pierre grise)
+  // arènes de Voltacité, Floralia, Mirage, de l'archipel et des Terres du Sud : leurs propres murs (les autres gardent la pierre grise)
   if (w === 'wall_gym' && STYLES[m.floor]) return m.floor;
   const k = w.replace('wall_', '');
   return STYLES[k] ? k : null;
@@ -84,7 +114,27 @@ function motif(T, S, y0, y1) {
     // écailles : demi-cercles en quinconce
     else if (S.motifK === 'ecailles') { const b = j % 8, a = (i + ((j >> 3) % 2 ? 4 : 0)) % 8 - 3.5, r = Math.sqrt(a * a + (b - 1) * (b - 1)); on = b >= 1 && r > 3.2 && r < 4.3; }
     else if (S.motifK === 'fleurs') { const a = i % 16, b = (j + (Math.floor(i / 16) % 2 ? 8 : 0)) % 16; on = (Math.abs(a - 8) + Math.abs(b - 8) <= 1) || ((a === 8) && (b === 6 || b === 10)) || ((b === 8) && (a === 6 || a === 10)); }
-    T.p(i, j, on ? S.motif : S.fond);
+    // marbre : veines obliques, joints de plaques
+    else if (S.motifK === 'marbre') on = (i * 2 + j * 3) % 29 === 0 || ((i * 5 - j * 2 + 96) % 41 === 0 && j % 5 < 4) || i % 16 === 15;
+    // nuages : deux nuages par tuile (2 : leur dessous, dans l'ombre)
+    else if (S.motifK === 'nuages') {
+      const nu = (cx, cy) => { const a = i - cx, b = j - cy; return a * a / 36 + b * b / 6 <= 1 || (a + 3) * (a + 3) + (b + 2) * (b + 2) <= 9 || (a - 3) * (a - 3) + (b + 3) * (b + 3) <= 12; };
+      const c = nu(9, 13) ? 13 : nu(25, 25) ? 25 : nu(-7, 25) ? 25 : nu(41, 13) ? 13 : 0;
+      on = c ? (j >= c + 1 ? 2 : 1) : 0;
+    }
+    // planches du marais : joints sombres, mousse, lianes qui pendent de la corniche (2)
+    else if (S.motifK === 'lianes') { const a = i % 8, L = 7 + ((i >> 3) * 5 + (a === 3 ? 0 : 3)) % 11; on = ((a === 3 || a === 5) && j > 4 && j < L) ? 2 : (a === 4 && j === L) ? 2 : a === 0 ? 1 : (i * 3 + j * 5) % 31 === 0 ? 1 : 0; }
+    // grès : strates ondulées sombres, un lit clair de loin en loin (2)
+    else if (S.motifK === 'gres') { const k = j + Math.round(1.6 * Math.sin(i / 5.1)); on = k % 21 === 10 ? 2 : k % 7 === 0 ? 1 : (i * 7 + j * 11) % 53 === 0 ? 1 : 0; }
+    // tôles : plaques de 16 px, rivets clairs aux angles (2)
+    else if (S.motifK === 'tole') { const a = i % 16, b = j % 16; on = a === 0 || b === 0 ? 1 : (a === 3 || a === 13) && (b === 3 || b === 13) ? 2 : 0; }
+    // cristal : losanges taillés, un reflet par facette (2)
+    else if (S.motifK === 'facettes') { const a = (i % 16) - 8, b = (j % 16) - 8, d = Math.abs(a) + Math.abs(b); on = d === 7 ? 1 : (d < 6 && d > 1 && a + b === -3) || (a === -8 && b === -8) ? 2 : 0; }
+    // pierre de l'abîme : assises sombres, éclats violets (2)
+    else if (S.motifK === 'eclats') on = (i * 13 + j * 7) % 61 === 0 || (i * 13 + j * 7) % 61 === 13 && j % 3 === 0 ? 2 : j % 8 === 0 || (i + (Math.floor(j / 8) % 2 ? 8 : 0)) % 16 === 0 ? 1 : 0;
+    // tentures : plis verticaux (1 : le creux, 2 : la crête qui prend la lumière)
+    else if (S.motifK === 'tentures') { const a = i % 8; on = a === 0 || a === 7 ? 1 : a === 3 ? 2 : 0; }
+    T.p(i, j, on === 2 ? S.motif2 || S.motif : on ? S.motif : S.fond);
   }
 }
 
@@ -113,6 +163,8 @@ export function texturesMurs(putImg) {
     };
     putImg('cap_' + k, toile((T) => chaperon(T, true)));
     putImg('capv_' + k, toile((T) => chaperon(T, false)));
+    // capp_ : le dessus d'un mur épais, sans arête (cloisons des arènes)
+    putImg('capp_' + k, toile((T) => { T.rect(0, 0, 32, 32, S.cap); for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) if ((i * 7 + j * 13) % 23 === 0) T.p(i, j, S.capC + '40'); }));
     // fenêtre (posée sur le haut du mur du fond), avec rideaux pour les maisons
     // le Musée des Dragons a deux fresques, posées en alternance : celles dont parle le scientifique du musée. La première,
     // Odyssor, immense, nage sous la mer étoilée ; la seconde (fen_<style>_b), l'oiseau d'argent, Lugia, plonge dans la mer
@@ -165,9 +217,50 @@ export function texturesMurs(putImg) {
         T.rect(14, 14, 4, 3, '#e8e8f0'); T.p(13, 15, '#e8e8f0'); T.p(18, 15, '#e8e8f0');
         return;
       }
-      T.rect(5, 6, 22, 20, S.cap); T.rect(7, 8, 18, 16, '#a8d8f8'); T.rect(7, 8, 18, 6, '#c8e8ff');
+      // tableau des cours (Salle des Marchés, Bourse) : fond sombre, bougies vertes et rouges, courbe qui grimpe, bandeau défilant
+      if (S.fenK === 'cours') {
+        T.rect(3, 5, 26, 21, S.cap); T.rect(4, 6, 24, 19, '#0c1a18'); T.rect(4, 21, 24, 4, '#142a26');
+        for (let i = 5; i < 28; i += 4) T.rect(i, 7, 1, 13, '#1c3430');
+        for (const [x, y, h, v] of [[6, 15, 4, 1], [9, 13, 5, 1], [12, 14, 3, 0], [15, 11, 5, 1], [18, 12, 3, 0], [21, 9, 5, 1], [24, 7, 5, 1]]) { T.rect(x, y, 2, h, v ? '#3ad07a' : '#e0504a'); T.p(x, y - 1, v ? '#3ad07a' : '#e0504a'); T.p(x, y + h, v ? '#3ad07a' : '#e0504a'); }
+        for (let i = 5; i < 27; i++) T.p(i, Math.round(18 - (i - 5) * 0.42 + Math.sin(i * 1.1) * 1.2), '#f0d860');
+        for (const x of [5, 9, 14, 20, 24]) T.rect(x, 22, x % 3 ? 3 : 2, 1, x % 2 ? '#3ad07a' : '#e0504a');
+        T.rect(3, 25, 26, 1, S.capC); return;
+      }
+      // verrière d'atelier (Fonderie, arène de Ferdinand) : petits carreaux dépolis où rougeoient les fours
+      if (S.fenK === 'verriere') {
+        T.rect(4, 5, 24, 21, S.cap);
+        for (let b = 0; b < 3; b++) for (let a = 0; a < 4; a++) { const x = 5 + a * 6, y = 6 + b * 7, ch = (a + b * 2) % 5; T.rect(x, y, 5, 6, ch === 0 ? '#ffd070' : ch < 3 ? '#f08a30' : '#c85a1e'); T.rect(x, y, 5, 1, ch === 0 ? '#fff0b0' : '#ffb050'); if (ch === 4) T.rect(x + 1, y + 3, 3, 2, '#8a3a14'); }
+        T.rect(4, 26, 24, 1, S.capC); return;
+      }
+      // vitrail du Jardin de Cristal : une rose de verre dans une ogive
+      if (S.fenK === 'vitrail') {
+        for (let j = 5; j < 27; j++) for (let i = 7; i < 25; i++) { const dx = i - 15.5, top = j < 13 ? Math.sqrt(Math.max(0, 81 - dx * dx)) : 99; if (j < 13 && 13 - j > top) continue; const bord = i === 7 || i === 24 || j === 26 || (j < 13 && 13 - j > top - 1.2); T.p(i, j, bord ? S.cap : ((i + j) % 6 < 3) === ((i - j + 32) % 6 < 3) ? '#ffc0e0' : '#d8a0f0'); }
+        for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; T.disque(15.5 + Math.cos(a) * 4, 15 + Math.sin(a) * 4, 2, 2, k % 2 ? '#ff6aa8' : '#ff9ac8'); }
+        T.disque(15.5, 15, 2, 2, '#fff4b0'); T.rect(15, 20, 2, 6, '#5aa868'); T.p(13, 22, '#5aa868'); T.p(14, 23, '#5aa868'); T.p(18, 21, '#5aa868'); T.p(17, 22, '#5aa868');
+        T.rect(6, 27, 20, 1, S.capC); return;
+      }
+      // enseigne au néon (Casino) : un 7 doré et un cœur sur un panneau sombre, tube rose tout autour
+      if (S.fenK === 'neon') {
+        T.rect(3, 6, 26, 19, '#1a0c14'); T.cadre(3, 6, 26, 19, '#ff5aa0'); T.cadre(4, 7, 24, 17, '#7a2048');
+        T.rect(8, 10, 7, 2, '#ffe060'); for (let k = 0; k < 8; k++) T.rect(13 - Math.floor(k / 2), 12 + k, 2, 1, '#ffe060'); T.rect(8, 10, 7, 1, '#fff8c0');
+        T.disque(19.5, 13, 2, 2, '#ff4a6a'); T.disque(23.5, 13, 2, 2, '#ff4a6a'); for (let k = 0; k < 6; k++) T.rect(17 + k, 14 + k, 9 - 2 * k, 1, '#ff4a6a'); T.p(19, 12, '#ffb0c0');
+        return;
+      }
+      // grand miroir de la Boutique de mode : cadre doré, reflets
+      if (S.fenK === 'miroir') {
+        T.rect(8, 4, 16, 23, '#c8a040'); T.rect(8, 4, 16, 1, '#f4dc90'); T.rect(8, 4, 1, 23, '#f4dc90'); T.rect(10, 6, 12, 19, '#cfe4f0'); T.rect(10, 6, 12, 6, '#e6f2f8');
+        T.ligne(11, 13, 16, 7, '#ffffff'); T.ligne(12, 17, 20, 8, '#ffffffa0'); T.ligne(15, 23, 21, 16, '#ffffff80');
+        T.rect(14, 2, 4, 2, '#c8a040'); T.p(15, 1, '#f4dc90'); T.p(16, 1, '#f4dc90');
+        return;
+      }
+      // S.vitre : [bas, haut] de la vitre (ciel d'été, eau glauque du marais, nuit de l'abîme…)
+      const [vb, vh] = S.vitre || ['#a8d8f8', '#c8e8ff'];
+      T.rect(5, 6, 22, 20, S.cap); T.rect(7, 8, 18, 16, vb); T.rect(7, 8, 18, 6, vh);
+      // moucharabieh des Dunes : un treillage devant la vitre ; ciel de l'abîme : des étoiles
+      if (S.treillage) { for (let j = 8; j < 24; j++) for (let i = 7; i < 25; i++) if ((i + j) % 4 === 0 || (i - j + 32) % 4 === 0) T.p(i, j, S.cap); }
+      if (S.etoiles) for (const [x, y] of [[9, 10], [13, 19], [18, 11], [22, 20], [21, 9], [10, 21]]) T.p(x, y, (x + y) % 2 ? '#e8d8ff' : '#b090f0');
       T.rect(15, 8, 2, 16, S.cap); T.rect(7, 15, 18, 2, S.cap);
-      T.rect(9, 9, 3, 1, '#ffffff'); T.rect(19, 18, 3, 1, '#ffffff');
+      if (!S.etoiles && !S.treillage) { T.rect(9, 9, 3, 1, '#ffffff'); T.rect(19, 18, 3, 1, '#ffffff'); }
       T.rect(4, 25, 24, 2, S.capC);
       if (k.startsWith('in')) { T.rect(3, 5, 5, 20, S.motif); T.rect(24, 5, 5, 20, S.motif); T.rect(3, 5, 26, 2, S.lamS); T.rect(3, 5, 5, 20, S.lamC + '90'); T.rect(24, 5, 5, 20, S.lamC + '90'); }
     }));

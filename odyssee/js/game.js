@@ -71,6 +71,9 @@ export const RUN_SPEEDS = [
 export const RUN = RUN_SPEEDS[1].dur;
 const key = (x, y) => x + ',' + y;
 void R;
+// arènes dont le fond de combat prend la teinte (ui/battleView.js, fondTeinte), et l'air qui y flotte pendant le combat
+const ARENES_TEINTEES = ['electric', 'grass', 'psychic', 'rock', 'fire', 'dragon', 'normal', 'flying', 'poison', 'ground', 'steel', 'fairy', 'dark'];
+const METEO_ARENE = { fire: 'ash', flying: 'vent', poison: 'spores', ground: 'sable', steel: 'etincelles', fairy: 'paillettes', dark: 'ombre' };
 // capacité de terrain donnée par chaque Champion après sa victoire
 const GYM_GIFT = { 3: 'coupe', 4: 'surf', 5: 'eclate', 6: 'vol' };
 // portrait affiché à côté de la boîte de dialogue 5G, selon qui parle
@@ -2177,11 +2180,18 @@ export class Game {
     if (o.trainer && !o.trainer.friendly && !o.noWhiteout) { st.combatEnCours = true; this.save(true); }
     const foeMons = wildParty || o.party;
     const h = this.hour();
-    // fond teinté : arènes de Voltacité, Floralia, Mirage et de l'archipel (roche, feu, dragon) à leurs couleurs, et dehors
-    // pendant la Nuit Violette
-    const teinte = o.fond ? null : !m.outdoor && m.battleBg === 'gym' && ['electric', 'grass', 'psychic', 'rock', 'fire', 'dragon'].includes(m.arene) ? m.arene : m.outdoor && this.eclipseOn() ? 'eclipse' : null;
-    // météo de décor : les cendres de Cendrelune tombent aussi pendant le combat (dehors, et dans la Forge de Pyros)
-    const meteoDecor = o.fond ? null : weather === 'ash' || (!m.outdoor && m.battleBg === 'gym' && m.arene === 'fire') ? 'ash' : null;
+    // fond teinté : arènes de Voltacité, Floralia, Mirage, de l'archipel (roche, feu, dragon) et des Terres du Sud (Salle
+    // des Marchés, Hauteurs, Marais, Dunes, Fonderie, Jardin de Cristal, Abîme) à leurs couleurs, et dehors pendant la
+    // Nuit Violette
+    const enArene = !m.outdoor && m.battleBg === 'gym';
+    const teinte = o.fond ? null : enArene && ARENES_TEINTEES.includes(m.arene) ? m.arene : m.outdoor && this.eclipseOn() ? 'eclipse' : null;
+    // météo de décor (sans effet sur le combat) : les cendres de Cendrelune (dehors, et dans la Forge de Pyros), les cendres
+    // violettes de la Nuit Violette et du Sanctuaire, celles d'Ombreval et de sa forêt, et l'air de chaque arène du Sud
+    // (sable des Dunes, spores du Marais, étincelles de la Fonderie…), les spores de Marais-Noir et de la route 15 sous leur
+    // pluie. Dehors, les dunes et le canyon ont déjà leur tempête de sable : une vraie météo se dessine par-dessus l'air du lieu
+    const meteoDecor = o.fond ? null : weather === 'ash' ? 'ash' : weather === 'cendresViolettes' ? 'ombre'
+      : enArene ? METEO_ARENE[m.arene] || null
+        : m.outdoor && (z?.town === 'ombre' || z?.route === 'r19') ? 'ombre' : m.outdoor && (z?.town === 'marais' || z?.route === 'r15') ? 'spores' : null;
     const result = await this.bv.run(battle, { bg: o.fond ? 'faille' : bg, teinte, meteoDecor, fond: o.fond || null, night: !o.fond && m.outdoor && (h >= 20 || h < 5.5), weather: BATTLE_WEATHERS.includes(weather) ? weather : 'none', curtain });
     // argent
     if (result === 'win' && battle.prizeMoney) st.money += battle.prizeMoney;

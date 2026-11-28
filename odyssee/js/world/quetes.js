@@ -263,7 +263,7 @@ export function buildQuests(ctx) {
       if (s === 'fin') { await A.say(['Regarde l\'eau : on y voit les nuages ! Le lac est redevenu un miroir.', 'Prends soin de mon Lokhlass, hein.'], who); return; }
       if (!s) {
         if (A.badges() < 2) {
-          await A.say(['Bah alors, un jeune dresseur ? Des types en gris ont planté des pompes au bord du lac.', 'Leurs Pokémon sont bien trop forts pour quelqu\'un qui n\'a pas encore le Badge Écume de Port-Azur. Reviens me voir après Marine !'], who);
+          await A.say([`Bah alors, ${A.st.gender === 'f' ? 'une jeune dresseuse' : 'un jeune dresseur'} ? Des types en gris ont planté des pompes au bord du lac.`, 'Leurs Pokémon sont bien trop forts pour quelqu\'un qui n\'a pas encore le Badge Écume de Port-Azur. Reviens me voir après Marine !'], who);
           return;
         }
         await A.say(['Bah alors, un dresseur ? Tu tombes bien.', 'Il y a une semaine, des types en gris ont planté trois grosses pompes au bord du lac.', 'Depuis, l\'eau se trouble et les Pokémon du lac sont nerveux.', 'Ils pompent quelque chose au fond... Moi, je suis trop vieux pour les chasser. Tu veux bien t\'en charger ?'], who);

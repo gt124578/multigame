@@ -193,7 +193,7 @@ export const MISSIONS = [
     duel: { cls: 'Rival', name: 'Théo', bs: 'theo', team: (st, g) => { const R = g.rivalLine(); return [[1012, 82], [1035, 82], [1022, 83], [1040, 83], [1051, 84], [R[2], 85]]; }, prize: 200 },
     ask: [`Hé ! Le Maître de la Ligue revient à Bourg-Aube ?`, 'Tu te souviens de notre premier combat, au labo ? Moi, oui. Tous les jours.', 'On rejoue ? Là où tout a commencé. Sans retenue !'],
     lose: 'Encore toi... Toujours toi.',
-    thanks: ['... Bon. Tu es vraiment le Maître.', 'Tu sais quoi ? Je vais partir pour une autre région. Voir des Pokémon que personne ici ne connaît.', 'Mais je reviendrai. Et ce jour-là, c\'est moi qui gagnerai ! Tiens, un souvenir.'], reward: [['rare-candy', 3]],
+    thanks: (st) => [`... Bon. Tu es vraiment ${st.gender === 'f' ? 'la' : 'le'} Maître.`, 'Tu sais quoi ? Je vais partir pour une autre région. Voir des Pokémon que personne ici ne connaît.', 'Mais je reviendrai. Et ce jour-là, c\'est moi qui gagnerai ! Tiens, un souvenir.'], reward: [['rare-candy', 3]],
     again: ['Alors, on se le fait, ce dernier combat ?'], done: ['Je pars demain. Prends soin de Bourg-Aube pour moi !'],
     journal: { name: 'Là où tout a commencé', start: 'Théo m\'attendait à Bourg-Aube pour un dernier combat, là où tout a commencé.', end: 'J\'ai battu Théo une dernière fois. Il part découvrir une autre région.' } },
   // petites quêtes de voisinage : un colis à livrer, un Psykokwak perdu
@@ -203,7 +203,7 @@ export const MISSIONS = [
       thanks: ['Mon colis ! Des pulls tricotés par ma sœur, je reconnais son emballage.', 'Tiens, pour ta peine. Les dresseurs ont toujours besoin de ça.'],
       done: ['Ma sœur tricote les plus beaux pulls de la région. Celui-ci a même une poche pour une Poké Ball !'] },
     ask: ['Ma tournée est bien trop longue aujourd\'hui… Ce colis doit partir à Port-Granit, pour Mme Léonie.', 'Tu voyages, toi ? Tu veux bien le lui porter ? Elle saura te remercier.'],
-    wait: ['Le colis de Mme Léonie, à Port-Granit… Tu ne l\'as pas perdu, j\'espère ?'], done: ['Merci pour le coup de main ! Tu ferais un sacré facteur.'],
+    wait: ['Le colis de Mme Léonie, à Port-Granit… Tu ne l\'as pas perdu, j\'espère ?'], done: (st) => [`Merci pour le coup de main ! Tu ferais ${st.gender === 'f' ? 'une sacrée factrice' : 'un sacré facteur'}.`],
     journal: { name: 'Le colis de Port-Granit', start: 'Le facteur Albin, à Voltacité, m\'a confié un colis pour Mme Léonie, à Port-Granit.', end: 'Mme Léonie a reçu son colis.' } },
 
   { id: 'mPsyko', town: 'F', at: [20, 8], sprite: 'vieil_homme', who: 'Papi Octave', kind: 'check', test: (st) => !!st.flags.psykoRetrouve, reward: [['rare-candy', 1], ['lum-berry', 2]],

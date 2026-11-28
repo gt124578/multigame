@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { IleFaille } from './iles-faille.js';
 import { Portail } from './portails.js';
 import { T, walkable } from '../world/tiles.js';
-import { styleMur } from './murs-tex.js';
+import { styleMur, FENETRES_ARENE } from './murs-tex.js';
 import { pente, ravin, mont } from '../world/relief.js';
 import { sensPont } from '../world/ponts.js';
 import { buildAtlas, buildAnimAtlas, buildSprites, applySpriteImages, facade, sideWall, roofTex, roofColors, kitColor, PAL, SOL16 } from './textures.js';
@@ -127,11 +127,16 @@ function profondeurGrille(mat, b) {
   mat.customProgramCacheKey = () => 'profondeurGrille';
   return mat;
 }
-/** pack Noir & Blanc : une seule image d'arène ; celles de Voltacité, Floralia, Mirage et des trois frères de l'archipel
- *  (Port-Granit, Cendrelune, Fort-Écaille) prennent la teinte de leur type : on garde la lumière de chaque pixel coloré,
+/** pack Noir & Blanc : une seule image d'arène ; celles de Voltacité, Floralia, Mirage, des trois frères de l'archipel
+ *  (Port-Granit, Cendrelune, Fort-Écaille) et des sept villes du Sud prennent la teinte de leur type : on garde la lumière de chaque pixel coloré,
  *  seule sa teinte change (gris et blancs intacts). [teinte en degrés, saturation ×, lumière ×] : la roche est brunie
  *  (moins saturée, plus sombre), le dragon assombri */
-const TEINTES_ARENE = { electric: [48], grass: [115], psychic: [282], rock: [28, 0.5, 0.88], fire: [6, 1.1, 1], dragon: [246, 0.9, 0.82] };
+const TEINTES_ARENE = {
+  electric: [48], grass: [115], psychic: [282], rock: [28, 0.5, 0.88], fire: [6, 1.1, 1], dragon: [246, 0.9, 0.82],
+  // les sept arènes des Terres du Sud : ivoire doré de la Salle des Marchés, bleu ciel des Hauteurs, violet sombre du Marais,
+  // sable vif des Dunes, gris bleuté de la Fonderie, rose du Jardin de Cristal, violet presque noir de l'Abîme
+  normal: [44, 0.38, 1.05], flying: [205, 0.85, 1.08], poison: [294, 0.7, 0.72], ground: [38, 0.92, 1], steel: [212, 0.22, 0.9], fairy: [328, 0.8, 1.1], dark: [262, 0.5, 0.55],
+};
 const _arenesTeintees = new Map();
 function areneTeintee(im, type) {
   const k = type + ':' + im.width; if (_arenesTeintees.has(k)) return _arenesTeintees.get(k);
@@ -152,11 +157,11 @@ function areneTeintee(im, type) {
 }
 /** estrade du Champion propre à chaque arène (render/arenes-tex.js : dec_estrade_<nom>) */
 const ESTRADES = { electric: 'elec', psychic: 'psy' };
-const DECALS = new Set(['fleche', 'vent', 'courant', 'dalle', 'tp', 'socle', 'pollen', 'alveole', 'interrupteur', 'estrade', 'tapis', 'cable_sol', 'bande_danger', 'rune']);
+const DECALS = new Set(['fleche', 'vent', 'courant', 'dalle', 'tp', 'socle', 'pollen', 'alveole', 'interrupteur', 'estrade', 'tapis', 'cable_sol', 'bande_danger', 'rune', 'rigole']);
 const AVANCE_PERSO = 0.38;
 const WIDE_DECO = new Set(['healer', 'sofa', 'bench', 'startertable', 'fireplace', 'rug']);
 /** décor du dehors posé avec une ombre au sol (leur ombre violette, dessinée dans le sprite, a été retirée) */
-const OMBRE_DECO = new Set(['banc', 'parasol', 'tonneau', 'caisse', 'caisses', 'panneau_bois', 'borne', 'lanterne', 'stele', 'palm', 'cactus', 'cactus2', 'cerisier', 'erable', 'arbre_automne', 'deadtree', 'gargouille', 'rocher_grand', 'statue_dragon', 'colonne']);
+const OMBRE_DECO = new Set(['banc', 'parasol', 'tonneau', 'caisse', 'caisses', 'panneau_bois', 'borne', 'lanterne', 'stele', 'palm', 'cactus', 'cactus2', 'cerisier', 'erable', 'arbre_automne', 'deadtree', 'gargouille', 'rocher_grand', 'statue_dragon', 'colonne', 'four_fonderie', 'creuset', 'enclume', 'etabli', 'lingots', 'bac_trempe', 'portant', 'mannequin_mode', 'cabine']);
 /** avance : le sprite est rangé comme s'il se tenait `avance` case plus au sud (personnages : leurs pieds passent devant
  *  le perron, les marches et le socle du bâtiment qui dépassent sur leur case, sans changer l'ordre entre personnages) */
 /** dessin d'un bâtiment du pack en trois bandes verticales (débord gauche, emprise, débord droit), une seule image :
@@ -475,7 +480,7 @@ function fenetresInterieur(m, decoAt) {
 /** teinte du ciel selon la météo (multiplie la teinte de l'heure, en lumière linéaire) */
 const METEO_TEINTE = { rain: [0.48, 0.53, 0.68], hail: [0.74, 0.78, 0.9], sun: [1.1, 1.03, 0.88], sandstorm: [0.95, 0.72, 0.46], ash: [0.72, 0.68, 0.64] };
 /** décor qui éclaire la nuit : [hauteur du halo (part de la hauteur du sprite), taille de la lumière, feu qui vacille] */
-const LUMIERES_DECO = { lamp: [0.82, 1, false], lampe_mine: [0.8, 0.9, false], lanterne: [0.55, 0.7, false], brasero: [0.45, 1.25, true] };
+const LUMIERES_DECO = { lamp: [0.82, 1, false], lampe_mine: [0.8, 0.9, false], lanterne: [0.55, 0.7, false], brasero: [0.45, 1.25, true], four_fonderie: [0.35, 1.5, true], creuset: [0.75, 0.9, true] };
 const VOISINS_AUTOMNE = [[-4, 0], [4, 0], [0, -4], [0, 4], [-2, -2], [2, -2], [-2, 2], [2, 2], [-2, 0], [2, 0], [0, -2], [0, 2]];
 /** accumulateur de géométrie (quads indexés) */
 class Geo {
@@ -714,6 +719,17 @@ export class WorldView {
     this.fenetres = new Set();
     // une carte peut imposer les colonnes de ses fenêtres (les deux fresques du Musée des Dragons, côte à côte)
     if (this.murStyle && Array.isArray(map.fenetresMur)) for (const x of map.fenetresMur) this.fenetres.add(x);
+    else if (this.murStyle && map.planArene) {
+      // arène dessinée : son mur du fond n'a qu'une rangée. Les arènes du Sud y ont leurs fenêtres (écrans des cours, ciel,
+      // verrières…), posées par paires de part et d'autre de l'estrade, là où rien ne s'adosse au mur
+      if (FENETRES_ARENE.has(this.murStyle)) {
+        const libre = (x) => map.get(x, 0) === T.WALL && walkable(map.get(x, 1)) && !map.deco.some((d) => d.x === x && d.y === 1);
+        for (let x = 2; x < (map.w >> 1) - 1 && this.fenetres.size < 4; x++) {
+          const x2 = map.w - 1 - x;
+          if (libre(x) && libre(x2) && [...this.fenetres].every((f) => Math.abs(f - x) >= 4)) { this.fenetres.add(x); this.fenetres.add(x2); }
+        }
+      }
+    }
     else if (this.murStyle && map.w > 6 && !(this.murStyle === 'center' && this.A?.cells?.clounge)) {
       // fenêtres sur le haut du mur du fond, là où rien ne s'adosse au mur
       const libres = []; for (let x = 2; x < map.w - 2; x++) if (map.get(x, 1) === T.WALL && map.get(x, 2) === T.FLOOR && !map.deco.some((d) => d.x === x && d.y === 2)) libres.push(x);
@@ -1431,10 +1447,12 @@ export class WorldView {
           const isCC = m.floor === 'center' && !d.top && (!d.front || d.front === 'counterfront') && A.ccounter && A.ccounterfront;
           // Boutique 5G (Noir & Blanc) : comptoir bleu-turquoise à façade argentée, caisse enregistreuse au bout du comptoir
           const isMC = m.floor === 'mart' && d.front === 'martfront' && A.mcounter && A.mcounterfront;
-          const cFront = isCC ? A.ccounterfront : isMC ? A.mcounterfront : (A[d.front] || A.counterfront), cTop = isCC ? A.ccounter : isMC ? A.mcounter : A.counter;
+          // d.top : un dessus propre (tapis de feutre des tables de jeu) ; d.pose : ce qui est posé dessus (roue, cartes, jetons)
+          const cFront = isCC ? A.ccounterfront : isMC ? A.mcounterfront : (A[d.front] || A.counterfront), cTop = isCC ? A.ccounter : isMC ? A.mcounter : (d.top && A['countertop_' + d.top]) || A.counter;
           box(Wl, x, y + 0.1, x + 1, y + 1, 0.75 * Math.tan(EL), cFront, cTop, cTop, { east: m.get(x + 1, y) !== T.BLOCK, west: m.get(x - 1, y) !== T.BLOCK });
           // capsule posée sur le comptoir (starters du labo)
           if (d.ball && S.itemball) { const r = S.itemball; billboard(P, x + 0.5, y + 0.55, SW(r), SH(r), r, 0.75 * Math.tan(EL) - 0.05); }
+          if (d.pose && S[d.pose]) { const r = S[d.pose]; billboard(P, x + 0.5, y + 0.72, SW(r), SH(r), r, 0.75 * Math.tan(EL) - 0.02); }
           if (isMC && S.mregister && m.get(x + 1, y) !== T.BLOCK) { const r = S.mregister; billboard(P, x + 0.5, y + 0.55, SW(r), SH(r), r, 0.75 * Math.tan(EL) - 0.05); }
         }
         // Boutique 5G : un présentoir blanc garni par rangée de rayons (dessiné une fois, centré sur la rangée)
@@ -1555,7 +1573,10 @@ export class WorldView {
       if (!W(x, y + 1)) face(x, x + 1, y + 1, wallH);
       if (!W(x + 1, y)) cote(x + 1, y + 1, y);
       if (!W(x - 1, y)) cote(x, y, y + 1);
-      dessus(wallH, capv);
+      // dessus : un mur qui court d'ouest en est a son arête claire côté pièce (au sud), l'intérieur d'un mur épais reste
+      // uni, un mur nord-sud garde ses deux arêtes (sans ça, chaque case d'un long mur avait ses deux barres claires)
+      const enLong = W(x - 1, y) || W(x + 1, y);
+      dessus(wallH, !enLong ? capv : W(x, y + 1) ? A['capp_' + st] || capv : cap);
       return true;
     }
     if (m.cloisons && y > 1 && y < m.h - 1 && x > 0 && x < m.w - 1) {
@@ -1563,7 +1584,10 @@ export class WorldView {
       if (!W(x, y + 1)) face(x, x + 1, y + 1, wallH);
       if (!W(x + 1, y)) cote(x + 1, y + 1, y);
       if (!W(x - 1, y)) cote(x, y, y + 1);
-      dessus(wallH, capv);
+      // dessus : un mur qui court d'ouest en est a son arête claire côté pièce (au sud), l'intérieur d'un mur épais reste
+      // uni, un mur nord-sud garde ses deux arêtes (sans ça, chaque case d'un long mur avait ses deux barres claires)
+      const enLong = W(x - 1, y) || W(x + 1, y);
+      dessus(wallH, !enLong ? capv : W(x, y + 1) ? A['capp_' + st] || capv : cap);
       return true;
     }
     if (y === m.h - 1) {
@@ -1663,6 +1687,12 @@ export class WorldView {
       if (k === 'ciel') { aPlat(hash(x * 3 + 1, y * 5 + 2) < 0.1 ? 'dec_nuage' : 'dec_ciel'); continue; }
       if (k === 'fleche' || k === 'vent' || k === 'courant' || k.startsWith('tapis_')) { aPlat(`dec_${k}_${d.dir || 'up'}`); continue; }
       if (k === 'lanterne_marais' || k === 'torche_ombre') { const o = m.objectAt(x, y), r = o?.a?.set?.[0]; debout(r != null && R[r] ? k + '_on' : k); continue; }
+      // Salle des Marchés : un titre consulté à son tour dans la suite passe au vert (coche), une erreur les éteint tous ;
+      // Forge-Acier : un levier abaissé (registre impair) ; Port-Lisière : la manivelle est liée à son canon, son repère
+      // montre où il pointe (haut, droite, bas, gauche)
+      if (k === 'vitrine' || k === 'tableau' || k === 'socle_musee') { const q = m.objectAt(x, y)?.a?.seq; debout(q && (R[q[0]] || 0) >= q[1] ? k + '_on' : k) || debout(k); continue; }
+      if (k === 'levier_rouge' || k === 'levier_bleu') { const r = m.objectAt(x, y)?.a?.inc?.[0]; debout(r != null && (R[r] || 0) % 2 ? k + '_on' : k) || debout(k); continue; }
+      if (k === 'manivelle') { const r = m.objectAt(x, y)?.a?.inc?.[0], n = r != null ? (R[r] || 0) % 4 : 0; debout(n ? 'manivelle_' + n : k) || debout(k); continue; }
       // armoire à fusibles enclenchée : voyant vert ; orbe de Mirage à la couleur de la phase (lune, soleil, étoile)
       if (k === 'armoire_elec') { const r = m.objectAt(x, y)?.a?.set?.[0]; debout(r != null && R[r] ? 'armoire_elec_on' : k); continue; }
       if (k === 'orbe') { debout('orbe_' + ((R[0] || 0) % 3)) || debout(k); continue; }

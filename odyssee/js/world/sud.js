@@ -5,7 +5,7 @@
 // Avec les cinq arènes du nord, cela fait douze Champions sur le continent, plus les trois frères de l'archipel.
 import { enrichir } from './rencontres.js';
 import { T, walkable } from './tiles.js';
-import { room } from './interiors.js';
+import { room, fonderieInterior } from './interiors.js';
 import { bande, massif, plateau, boucher, sinueuse, reliefMontagne } from './relief.js';
 import { rng, along, nearestWalkable, GRAND, sin } from './mapgen.js';
 import { VILLES, TERR, BLOC, porte, arrivee } from './plan.js';
@@ -47,17 +47,21 @@ export const GYM_TRAINERS_SUD = [
   [['Médium', 'Nocturna', [[197, 72], [302, 72]]], ['Voleur', 'Ombre', [[461, 73], [262, 72]]], ['Topdresseur', 'Corvus', [[430, 73], [229, 74]]]],
 ];
 
-/** intérieurs de Métropole : le Casino (et sa salle d'arcade, à droite), la Bourse (terminal et bureau de Pierre), la boutique de mode */
+/** intérieurs de Métropole : le Casino (et sa salle d'arcade, à droite), la Bourse (terminal et bureau de Pierre), la boutique de mode.
+ *  Chacun a son sol, ses murs et son mobilier (render/arenes-tex.js, render/murs-tex.js) ; habitants, objets et sorties ne bougent pas. */
 function casinoInterior(id) {
-  const m = room(id, 26, 13, { floor: 'league', music: 'city', wall: 'wall_league', name: 'Casino de Métropole', wide: true, exitX: 9 });
-  const table = (k, x, y, quoi) => { for (let i = 0; i < 3; i++) { m.set(x + i, y, T.BLOCK); m.deco.push({ k: 'counter', x: x + i, y, front: 'martfront' }); m.object(x + i, y, { use: (api) => api.game.casino(quoi) }); } };
+  // moquette bordeaux à losanges d'or, tentures de velours, enseignes au néon au-dessus des machines
+  const m = room(id, 26, 13, { floor: 'casino', music: 'city', wall: 'wall_casino', name: 'Casino de Métropole', wide: true, exitX: 9 });
+  m.fenetresMur = [3, 9, 15, 21];
+  // tables de jeu : acajou, tapis de feutre vert, et ce qu'on y joue posé au milieu (pose : roue, cartes)
+  const table = (pose, x, y, quoi) => { for (let i = 0; i < 3; i++) { m.set(x + i, y, T.BLOCK); m.deco.push({ k: 'counter', x: x + i, y, front: 'casinofront', top: 'feutre', pose: i === 1 ? pose : null }); m.object(x + i, y, { use: (api) => api.game.casino(quoi) }); } };
   // le comptoir des jetons et des lots, à l'entrée
-  for (let x = 2; x <= 5; x++) { m.set(x, 9, T.BLOCK); m.deco.push({ k: 'counter', x, y: 9, front: 'counterfront' }); }
+  for (let x = 2; x <= 5; x++) { m.set(x, 9, T.BLOCK); m.deco.push({ k: 'counter', x, y: 9, front: 'casinofront', pose: x === 4 ? 'pose_jetons' : null }); }
   m.npc({ id: id + ':comptoir', x: 3, y: 8, sprite: 'vendeur', dir: 'down', script: 'casino' });
   // les machines à sous, en rang au fond
   for (let x = 2; x <= 16; x += 2) { m.prop('machine_sous', x, 2, true); m.object(x, 2, { use: (api) => api.game.casino('machine') }); }
-  table('counterseg', 3, 5, 'blackjack'); table('counterseg', 8, 5, 'roulette'); table('counterseg', 13, 5, 'poker');
-  table('counterseg', 12, 9, 'belote');
+  table('pose_cartes', 3, 5, 'blackjack'); table('pose_roulette', 8, 5, 'roulette'); table('pose_cartes', 13, 5, 'poker');
+  table('pose_cartes', 12, 9, 'belote');
   m.npc({ id: id + ':croupier1', x: 4, y: 4, sprite: 'topdresseur', dir: 'down', text: ['Blackjack : le croupier reste sur 17. Approche-toi de la table.'] });
   m.npc({ id: id + ':croupier2', x: 9, y: 4, sprite: 'topdresseuse', dir: 'down', text: ['Faites vos jeux ! La Roue d\'Odyssée n\'a qu\'un zéro, ici.'] });
   m.npc({ id: id + ':croupier3', x: 14, y: 4, sprite: 'topdresseur', dir: 'down', text: ['Hold\'em de Métropole : deux cartes en main, cinq cartes au milieu. Blindes à 1 et 2 jetons.', 'Gérard, Mimi et le Baron cherchent un quatrième joueur.'] });
@@ -70,13 +74,16 @@ function casinoInterior(id) {
   return m;
 }
 function bourseInterior(id) {
-  const m = room(id, 17, 14, { floor: 'mart', music: 'city', wall: 'wall_mart', name: 'Bourse de Métropole', wide: true, exitX: 8 });
+  // marbre clair en damier, bandeau bleu nuit, trois grands tableaux des cours au mur du fond (derrière le bureau de Pierre)
+  const m = room(id, 17, 14, { floor: 'bourse', music: 'city', wall: 'wall_bourse', name: 'Bourse de Métropole', wide: true, exitX: 8 });
+  m.fenetresMur = [4, 8, 12];
   // le grand tableau des cours et les terminaux
   for (let x = 2; x <= 14; x++) m.deco.push({ k: 'carpet', x, y: 2 });
   for (const x of [3, 6, 10, 13]) { m.prop('pc', x, 6, true); m.object(x, 6, { use: (api) => api.game.bourse() }); }
-  for (let x = 3; x <= 13; x++) if (![3, 6, 10, 13].includes(x)) { m.set(x, 6, T.BLOCK); m.deco.push({ k: 'counter', x, y: 6, front: 'martfront' }); }
-  m.prop('labmachine', 2, 2, true); m.object(2, 2, { use: (api) => api.game.bourse() });
-  m.prop('labmachine', 14, 2, true); m.object(14, 2, { use: (api) => api.game.bourse() });
+  for (let x = 3; x <= 13; x++) if (![3, 6, 10, 13].includes(x)) { m.set(x, 6, T.BLOCK); m.deco.push({ k: 'counter', x, y: 6, front: 'boursefront' }); }
+  // deux bornes de cote, comme celles de la Salle des Marchés de Margot
+  m.prop('vitrine', 2, 2, true); m.object(2, 2, { use: (api) => api.game.bourse() });
+  m.prop('vitrine', 14, 2, true); m.object(14, 2, { use: (api) => api.game.bourse() });
   // le bureau de Pierre, au fond
   m.prop('books', 6, 2, true); m.prop('books', 10, 2, true); m.prop('plant', 1, 2, true); m.prop('plant', 15, 2, true);
   m.npc({ id: 'bourse:pierre', x: 8, y: 3, sprite: 'pierre', dir: 'down', script: 'pierre' });
@@ -86,9 +93,13 @@ function bourseInterior(id) {
   return m;
 }
 function modeInterior(id) {
-  const m = room(id, 13, 10, { floor: 'center', music: 'mart', wall: 'wall_center', name: 'Boutique de mode' });
-  for (const [x, y] of [[2, 2], [4, 2], [8, 2], [10, 2]]) m.prop('shelf', x, y, true);
-  for (let x = 4; x <= 8; x++) { m.set(x, 5, T.BLOCK); m.deco.push({ k: 'counter', x, y: 5 }); }
+  // parquet clair, rayures poudrées, grands miroirs dorés entre les portants ; mannequins et cabine d'essayage
+  const m = room(id, 13, 10, { floor: 'mode', music: 'mart', wall: 'wall_mode', name: 'Boutique de mode' });
+  m.fenetresMur = [3, 6, 9];
+  for (const [x, y] of [[2, 2], [4, 2], [8, 2], [10, 2]]) m.prop('portant', x, y, true);
+  m.prop('mannequin_mode', 1, 2, true); m.prop('mannequin_mode', 11, 4, true); m.prop('cabine', 11, 2, true);
+  for (let x = 4; x <= 8; x++) { m.set(x, 5, T.BLOCK); m.deco.push({ k: 'counter', x, y: 5, front: 'modefront' }); }
+  for (let y = 6; y <= 8; y++) m.deco.push({ k: 'tapis', x: 6, y, g: 'mode' });
   m.npc({ id: 'mode:styliste', x: 6, y: 4, sprite: 'topdresseuse', dir: 'down', script: 'apparence' });
   m.prop('plant', 1, 7, true); m.prop('plant', 11, 7, true);
   return m;
@@ -277,7 +288,7 @@ export function buildSud(ctx) {
       ['lamp', 15, 12], ['lamp', 18, 12], ['rock', 3, 20], ['rock', 29, 5]],
     buildings: [
       { kind: 'center', ...GRAND.center, x: 4, y: 5 }, { kind: 'mart', ...GRAND.mart, x: 22, y: 6 }, { kind: 'gym', ...GRAND.gym, x: 22, y: 16, roof: 'gray' },
-      { kind: 'tower', x: 4, y: 16, w: 7, d: 5, h: 5, door: 3, name: 'Fonderie', kit: 'gc0', flat: true, npcs: [{ x: 3, y: 5, sprite: 'montagnard', text: (st) => st.badges?.[12] ? ['Ferdinand n\'a pas trouvé de meilleur alliage que ton équipe !'] : ['Ici, on coule l\'acier des rails et des ponts.', 'L\'arène ? Des tapis roulants rouges et bleus avec des leviers qui inversent leur sens. Un levier bleu attend dès le hall !'] }] },
+      { kind: 'tower', x: 4, y: 16, w: 7, d: 5, h: 5, door: 3, name: 'Fonderie', kit: 'gc0', flat: true, interior: (id) => fonderieInterior(id), npcs: [{ x: 3, y: 5, sprite: 'montagnard', text: (st) => st.badges?.[12] ? ['Ferdinand n\'a pas trouvé de meilleur alliage que ton équipe !'] : ['Ici, on coule l\'acier des rails et des ponts.', 'L\'arène ? Des tapis roulants rouges et bleus avec des leviers qui inversent leur sens. Un levier bleu attend dès le hall !'] }] },
     ],
     npcs: [{ id: 'garde', x: 2, y: 15, sprite: 'garde', dir: 'up', gate: { badges: 13, tiles: [[1, 13], [1, 14]] }, text: ['Rosebrume, à l\'ouest, ne reçoit que les porteurs du Badge Rouage.'] }],
   };

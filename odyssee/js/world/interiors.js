@@ -1,4 +1,4 @@
-// odyssee/js/world/interiors.js — intérieurs (centre, boutique, maisons, labo, arènes, Ligue) et grottes
+// odyssee/js/world/interiors.js — intérieurs (centre, boutique, maisons, labo, arènes, Ligue, lieux uniques) et grottes
 import { T } from './tiles.js';
 import { GameMap, rng } from './mapgen.js';
 
@@ -121,6 +121,25 @@ export function caserneInterior(id, name = 'Caserne d\'Écaille') {
   furn(m, 'mannequin', 7, 5); furn(m, 'ratelier', 8, 5);
   furn(m, 'caisses', 1, 6); furn(m, 'tonneau', 1, 7); furn(m, 'brasero', 9, 7); furn(m, 'brasero', 1, 4);
   for (let y = 5; y <= 7; y++) m.deco.push({ k: 'tapis', x: 5, y, g: 'caserne' });
+  return m;
+}
+/**
+ * La Fonderie de Forge-Acier (11 × 9) : l'atelier où l'on coule l'acier des rails et des ponts. Dalles de béton cerclées de
+ * fer, murs de briques sombres, verrières d'atelier ; au fond, deux fours de briques à la gueule ardente de part et d'autre
+ * de l'établi ; deux rigoles de coulée mènent leur métal jusqu'au creuset du milieu ; enclume, lingots, bac de trempe,
+ * caisses et tonneaux de l'expédition.
+ * Le fondeur garde sa place : demandé en (3, 5), il s'y tient, devant la rigole de gauche (rien n'est posé sur sa case ni
+ * sur l'allée de la porte, colonne 5).
+ */
+export function fonderieInterior(id, name = 'Fonderie') {
+  const m = room(id, 11, 9, { floor: 'fonderie', music: 'house', wall: 'wall_fonderie', name });
+  furn(m, 'caisses', 1, 2); furn(m, 'four_fonderie', 2, 2); furn(m, 'lingots', 4, 2); furn(m, 'etabli', 5, 2); furn(m, 'lingots', 6, 2); furn(m, 'four_fonderie', 8, 2); furn(m, 'tonneau', 9, 2);
+  m.fenetresMur = [3, 7];
+  // les rigoles : de la gueule de chaque four jusqu'au creuset
+  for (const [x, y, g] of [[2, 3, 'ns'], [2, 4, 'ne'], [3, 4, 'oe'], [4, 4, 'o'], [8, 3, 'ns'], [8, 4, 'no'], [7, 4, 'oe'], [6, 4, 'e']]) m.deco.push({ k: 'rigole', x, y, g });
+  furn(m, 'creuset', 5, 4);
+  furn(m, 'enclume', 7, 6); furn(m, 'bac_trempe', 9, 5); furn(m, 'lingots', 9, 7); furn(m, 'caisses', 1, 7); furn(m, 'tonneau', 1, 5);
+  for (let x = 4; x <= 6; x++) m.deco.push({ k: 'bande_danger', x, y: 5 });
   return m;
 }
 export function labInterior(id) {

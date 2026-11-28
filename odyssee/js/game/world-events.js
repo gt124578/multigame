@@ -226,10 +226,10 @@ export async function runNpcScript(g, name, n) {
   if (name === 'ferry') { await g.ferry(n); return true; }
   if (name === 'gsBall') {
     const sp = 'Vieille dame';
-    if (st.flags.gsGiven) { await ui.say(st.flags['L:celebi'] === 'caught' ? ['Tu as vu Celebi ? Oh... Alors la légende était vraie.', 'Prends bien soin de lui, mon petit.'] : ['L\'autel est dans le Bois Murmure, un peu à l\'écart du sentier.', 'Pose la GS Ball dans le creux... et sois patient.'], { speaker: sp }); return true; }
+    if (st.flags.gsGiven) { await ui.say(st.flags['L:celebi'] === 'caught' ? ['Tu as vu Celebi ? Oh... Alors la légende était vraie.', `Prends bien soin de lui, ${st.gender === 'f' ? 'ma petite' : 'mon petit'}.`] : ['L\'autel est dans le Bois Murmure, un peu à l\'écart du sentier.', 'Pose la GS Ball dans le creux... et sois patient.'], { speaker: sp }); return true; }
     if (g.badgeCount() < 3) { await ui.say(['Quand j\'étais jeune, j\'ai trouvé une étrange Poké Ball dorée dans le Bois Murmure.', 'Reviens me voir quand tu auras trois badges. Le gardien de la forêt ne se montre qu\'aux dresseurs aguerris.'], { speaker: sp }); return true; }
     st.flags.gsGiven = true; g.give('gs-ball'); g.sound.sfx('item');
-    await ui.say(['Trois badges ! Tu es devenu un vrai dresseur, maintenant.', 'Tiens, prends cette Poké Ball dorée. Je l\'ai trouvée près d\'un vieil autel du Bois Murmure.'], { speaker: sp });
+    await ui.say([`Trois badges ! Tu es devenu${st.gender === 'f' ? 'e une vraie dresseuse' : ' un vrai dresseur'}, maintenant.`, 'Tiens, prends cette Poké Ball dorée. Je l\'ai trouvée près d\'un vieil autel du Bois Murmure.'], { speaker: sp });
     await ui.say(formatObtainItem(st.name, 'gs-ball', 1));
     await ui.say('On dit que le gardien de la forêt, un petit être qui voyage dans le temps, attend qu\'on la lui rapporte...', { speaker: sp });
     return true;

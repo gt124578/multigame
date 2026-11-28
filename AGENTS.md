@@ -149,6 +149,16 @@ Ajouter `[skip changelog]` dans le message d'un commit purement technique pour q
   et corniche, lambris et plinthe), fenêtres là où rien ne s'adosse, murs latéraux en vrais volumes coiffés d'un chaperon, muret en bas, ombre des
   murs sur le sol, tapis sous la table des maisons ; quatre papiers peints de maison tirés de l'identifiant de la carte (`styleMur`) ; `?anciensmurs`
   dans l'adresse remet l'ancien rendu pour comparer.
+  Lieux uniques et arènes : un style par lieu dans `STYLES` de `murs-tex.js` (`wall_<clé>` de la carte ; pour `wall_gym`, le sol de l'arène :
+  `gymElec` … `gymAbime`), ses fenêtres par `fenK` (`ecran`, `fresque`, `cours`, `verriere`, `vitrail`, `neon`, `miroir`…) ou `vitre` ; `m.fenetresMur`
+  impose leurs colonnes, `FENETRES_ARENE` dit quelles arènes en portent (celles du Sud, par paires autour de l'estrade). Dessus des cloisons d'arène :
+  `cap_` (mur d'ouest en est), `capp_` (mur épais), `capv_` (mur nord-sud). Comptoirs (`{ k: 'counter' }`) : `front`, `top` (tuile `countertop_<clé>`),
+  `pose` (sprite posé dessus). Sols, comptoirs et meubles des lieux uniques (Fonderie, Casino, Bourse, Boutique de mode, Musée, Caserne) :
+  `render/arenes-tex.js`, intérieurs dans `world/interiors.js` et `world/sud.js` (habitants, objets et sorties gardent leur case).
+  Façades d'arène : `TYPE_ARENE` de `bati-jeu.js` → palette, emblème et ornements du type dans `ARENES`, `emblemeTex` et `sommetType` de
+  `batiments3d.js` ; les sept types du Sud portent aussi la pierre de leur ville (`mur`, `tex`, `colonnes`) et leur ornement sur les socles (`ORNES`).
+  Combat dans une arène : teinte du fond (`ARENES_TEINTEES` de `game.js`, `fondTeinte` de `ui/battleView.js`) et air du lieu (`METEO_ARENE`,
+  `meteoDecor` : du décor, sans effet sur le combat).
   Histoire secondaire (la Brume) et nouveaux lieux (Lac Miroir, Grotte des Marées, Jardin des Songes, Forêt des Torii et Temple Kagura,
   Île du Magma) : `odyssee/js/world/quetes.js`. Une quête = des étapes dans `flags['Q:id']`, des PNJ qui apparaissent selon l'étape
   (`when`), des scripts (`talk`, `use`, `onWin`, `after`) qui reçoivent les outils de `game.api()`. `node tools/test-odyssee-quetes.mjs`

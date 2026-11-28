@@ -1394,7 +1394,20 @@ export function atelier(D) {
     roche: { acc: '#b08a50', pierre: '#c0b29a', toit: '#7a6a52' },
     combat: { acc: '#c83028', pierre: '#d4c8b4', toit: '#8a2a22' },
     spectre: { acc: '#8a50c8', pierre: '#86829a', toit: '#3a2c4a' },
+    // les sept arènes des Terres du Sud : la couleur du type au toit, et pour l'arène à portique (areneVoute) les murs
+    // (mur, tex) et les colonnes (colonnes) de la ville. Métropole : pierre ivoire, ardoise et or de la Salle des Marchés ;
+    // Port-Lisière : chaux blanche basque sous un toit de ciel ; Marais-Noir : pierre moussue ; Dunes d'Ocre : terre crue ;
+    // Forge-Acier : brique sombre et fonte ; Rosebrume : enduit poudré ; Ombreval : pierre noire
+    normal: { acc: '#c8a040', pierre: '#e8dcc0', toit: '#4a5a70', mur: '#e8dcc0' },
+    vol: { acc: '#6aaee8', pierre: '#f6f2ea', toit: '#5a9ad8', mur: '#f6f2ea' },
+    poison: { acc: '#a050c0', pierre: '#a0a48e', toit: '#5a3a6a', mur: '#a0a48e', colonnes: '#787e6a' },
+    sol: { acc: '#d8a850', pierre: '#e0b480', toit: '#b8743a', mur: '#e0b480', colonnes: '#f0dcb8' },
+    acier: { acc: '#a8b4c4', pierre: '#8a8a8e', toit: '#5a646e', mur: '#7a3a2a', tex: 'brique', colonnes: '#4a5058' },
+    fee: { acc: '#f08ac0', pierre: '#f8ecf0', toit: '#e89ac4', mur: '#f8ecf0' },
+    tenebres: { acc: '#8a6ac0', pierre: '#5a5660', toit: '#2e2a38', mur: '#5a5660', colonnes: '#3a3640' },
   };
+  /** types dont l'arène à portique porte un ornement du type sur ses deux socles, à la place des braseros */
+  const ORNES = new Set(['normal', 'vol', 'poison', 'sol', 'acier', 'fee', 'tenebres']);
 
   /** emblème du type dessiné sur un médaillon */
   const emblemeTex = (type, acc) => tex('em' + type, 2 * D, 2 * D, (g, px, w, h) => {
@@ -1418,6 +1431,15 @@ export function atelier(D) {
       case 'glace': for (let k = 0; k < 3; k++) { const a = k * Math.PI / 3; g.beginPath(); g.moveTo(.5 * w - Math.cos(a) * .3 * w, .5 * h - Math.sin(a) * .3 * h); g.lineTo(.5 * w + Math.cos(a) * .3 * w, .5 * h + Math.sin(a) * .3 * h); g.stroke(); } break;
       case 'roche': P([.3, .7, .26, .48, .4, .28, .62, .26, .76, .44, .72, .7]); break;
       case 'combat': g.fillRect(.3 * w, .32 * h, .4 * w, .36 * h); g.fillStyle = acc; for (let k = 1; k < 4; k++) g.fillRect((.3 + k * .1) * w, .32 * h, .02 * w, .18 * h); break;
+      case 'normal': g.arc(.5 * w, .5 * h, .22 * w, 0, 7); g.stroke(); break;   // l'anneau du type Normal
+      case 'vol':   // une aile : trois plumes
+        for (const [x0, y0, cx2, cy2, x1, y1] of [[.24, .6, .4, .25, .78, .3], [.3, .72, .45, .45, .74, .48], [.4, .8, .5, .62, .68, .64]]) { g.beginPath(); g.moveTo(x0 * w, y0 * h); g.quadraticCurveTo(cx2 * w, cy2 * h, x1 * w, y1 * h); g.stroke(); }
+        break;
+      case 'poison': g.arc(.5 * w, .6 * h, .2 * w, 0, 7); g.fill(); P([.5, .2, .34, .52, .66, .52]); g.fillStyle = acc; g.beginPath(); g.arc(.44 * w, .62 * h, .05 * w, 0, 7); g.fill(); g.beginPath(); g.arc(.57 * w, .55 * h, .04 * w, 0, 7); g.fill(); break;
+      case 'sol': P([.18, .7, .38, .4, .54, .58, .68, .34, .84, .7]); g.fillRect(.2 * w, .75 * h, .62 * w, .05 * h); break;   // deux dunes
+      case 'acier': { const pts = []; for (let k = 0; k < 6; k++) pts.push(.5 + Math.cos(k * Math.PI / 3) * .3, .5 + Math.sin(k * Math.PI / 3) * .3); P(pts); g.fillStyle = acc; g.beginPath(); g.arc(.5 * w, .5 * h, .12 * w, 0, 7); g.fill(); break; }   // un écrou
+      case 'fee': P([.5, .14, .58, .42, .86, .5, .58, .58, .5, .86, .42, .58, .14, .5, .42, .42]); break;   // une étoile à quatre branches
+      case 'tenebres': g.arc(.48 * w, .5 * h, .27 * w, 0, 7); g.fill(); g.fillStyle = acc; g.beginPath(); g.arc(.6 * w, .43 * h, .23 * w, 0, 7); g.fill(); break;   // un croissant de lune
       case 'spectre': g.arc(.5 * w, .45 * h, .2 * w, Math.PI, 0); g.lineTo(.7 * w, .75 * h); g.lineTo(.6 * w, .68 * h); g.lineTo(.5 * w, .75 * h); g.lineTo(.4 * w, .68 * h); g.lineTo(.3 * w, .75 * h); g.closePath(); g.fill(); g.fillStyle = acc; g.fillRect(.42 * w, .42 * h, .05 * w, .08 * h); g.fillRect(.53 * w, .42 * h, .05 * w, .08 * h); break;
     }
   }, false);
@@ -1465,6 +1487,49 @@ export function atelier(D) {
         break;
       case 'roche':
         for (const [dx, dy, dz, r] of [[0, 0.35, 0, 0.55], [0.15, 0.95, -0.05, 0.4], [-0.05, 1.4, 0.05, 0.28]]) { const p = new THREE.Mesh(new THREE.DodecahedronGeometry(r), M({ map: TX.pierre('#8a7e6a') })); p.rotation.set(dx * 3, dy, dz * 4); p.castShadow = true; G.add(at(p, x + dx, y + dy, z + dz)); }
+        break;
+      case 'normal':   // le globe d'or de la Bourse, cerclé d'un anneau
+        G.add(at(cyl(0.3, 0.42, 0.4, COL('#4a3a2a'), 10), x, y + 0.2, z));
+        G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.45, 14, 10), OR), x, y + 0.9, z));
+        { const r = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.05, 6, 24), COL('#f4f0e6')); r.rotation.x = 1.2; G.add(at(r, x, y + 0.9, z)); }
+        break;
+      case 'vol':   // une girouette : le mât, la flèche, deux ailes blanches
+        G.add(at(cyl(0.05, 0.08, 1.6, COL('#5a6478'), 6), x, y + 0.8, z));
+        G.add(at(boite(1.1, 0.07, 0.07, A), x, y + 1.3, z));
+        { const c = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.36, 4), A); c.rotation.z = -Math.PI / 2; G.add(at(c, x + 0.68, y + 1.3, z)); }
+        for (const s2 of [-1, 1]) { const a2 = boite(0.5, 0.32, 0.04, COL('#f8fbff')); a2.rotation.z = s2 * 0.5; G.add(at(a2, x + s2 * 0.3, y + 0.85, z)); }
+        G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), OR), x, y + 1.66, z));
+        break;
+      case 'poison':   // un chaudron où bout un liquide violet
+        G.add(at(cyl(0.55, 0.38, 0.6, COL('#2e3028'), 10), x, y + 0.34, z));
+        G.add(at(cyl(0.58, 0.58, 0.07, COL('#4a4e40'), 10), x, y + 0.66, z));
+        G.add(at(cyl(0.5, 0.5, 0.04, LUM('#c070f0', '#6a1e9a'), 10), x, y + 0.7, z));
+        for (const [dx, dy, dz, r] of [[0.15, 0.95, 0.05, 0.13], [-0.2, 1.2, -0.05, 0.09], [0.05, 1.45, 0, 0.06]]) G.add(at(new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), ver('#d8a0ff', 0.8)), x + dx, y + dy, z + dz));
+        break;
+      case 'sol':   // une jarre de terre cuite et son cactus
+        G.add(at(cyl(0.36, 0.5, 0.3, COL('#b8743a'), 10), x, y + 0.15, z));
+        G.add(at(cyl(0.5, 0.36, 0.5, COL('#c8844a'), 10), x, y + 0.55, z));
+        G.add(at(cyl(0.3, 0.44, 0.2, COL('#a8643a'), 10), x, y + 0.9, z));
+        G.add(at(cyl(0.16, 0.18, 0.9, COL('#4a9a52'), 8), x, y + 1.4, z));
+        for (const s2 of [-1, 1]) { G.add(at(boite(0.3, 0.1, 0.1, COL('#3e8a48')), x + s2 * 0.25, y + 1.35 + s2 * 0.1, z)); G.add(at(boite(0.1, 0.34, 0.1, COL('#4a9a52')), x + s2 * 0.36, y + 1.5 + s2 * 0.1, z)); }
+        break;
+      case 'acier':   // un engrenage dressé, son moyeu rougi
+        G.add(at(boite(0.5, 0.3, 0.4, COL('#3a3e46')), x, y + 0.15, z));
+        { const t = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.13, 6, 16), A); G.add(at(t, x, y + 0.95, z)); }
+        for (let k = 0; k < 8; k++) { const a2 = k * Math.PI / 4, d2 = boite(0.2, 0.2, 0.22, A); d2.rotation.z = a2; G.add(at(d2, x + Math.cos(a2) * 0.64, y + 0.95 + Math.sin(a2) * 0.64, z)); }
+        G.add(at(cyl(0.16, 0.16, 0.3, LUM('#ff9a30', '#b84a08'), 10).rotateX(Math.PI / 2), x, y + 0.95, z));
+        break;
+      case 'fee':   // un cristal rose et ses éclats
+        G.add(at(cyl(0.4, 0.5, 0.25, COL('#f4d8e6'), 8), x, y + 0.12, z));
+        { const o = new THREE.Mesh(new THREE.OctahedronGeometry(0.42), ver('#ffb0dc', 0.9)); o.scale.y = 1.7; o.castShadow = true; G.add(at(o, x, y + 1.05, z)); }
+        for (const [dx, dy, dz] of [[0.42, 0.5, 0.1], [-0.4, 0.62, -0.05], [0.1, 0.45, 0.4]]) { const o = new THREE.Mesh(new THREE.OctahedronGeometry(0.16), LUM('#ffe0f2', '#c05a98')); o.scale.y = 1.6; G.add(at(o, x + dx, y + dy, z + dz)); }
+        break;
+      case 'tenebres':   // une lanterne de fer à la flamme violette
+        G.add(at(cyl(0.3, 0.42, 0.4, COL('#1e1a26'), 6), x, y + 0.2, z));
+        G.add(at(boite(0.46, 0.62, 0.46, M({ color: new THREE.Color('#b890ff'), emissive: new THREE.Color('#5a2aa8'), transparent: true, opacity: 0.75 })), x, y + 0.75, z));
+        for (const [dx, dz] of [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25]]) G.add(at(boite(0.06, 0.66, 0.06, COL('#1e1a26')), x + dx, y + 0.75, z + dz));
+        G.add(at(new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.5, 4), COL('#1e1a26')).rotateY(Math.PI / 4), x, y + 1.32, z));
+        flamme(G, x, y + 0.5, z, 0.8, '#a060ff', '#f0e0ff');
         break;
       case 'spectre':
         G.add(at(cyl(0.3, 0.4, 0.5, COL('#2a2438'), 6), x, y + 0.25, z));
@@ -2591,8 +2656,10 @@ export function atelier(D) {
   B.areneVoute = ({ style = 'voute', type = 'feu', pierre = null, statue = null, champion = null } = {}) => {
     const T = ARENES[type] || ARENES.feu, acc = T.acc, A = COL(acc);
     const G = new THREE.Group(), W = 8, ZF = 11, cx = W / 2, ZS = 9.9;   // salle voûtée de z 0 à 9,4 ; avancée à colonnes devant
-    const pc = pierre || '#d6cfbf';
-    const PM = M({ map: TX.pierre(pc) }), PC = M({ map: TX.pierre(mix(pc, 0.25)) }), PS = M({ map: TX.pierre(mix(pc, -0.25)) }), MA = M({ map: TX.marbre() });
+    // murs : la pierre claire commune, ou celle de la ville (T.mur ; T.tex : brique pour Forge-Acier), colonnes de marbre ou de
+    // la couleur de la ville (T.colonnes)
+    const pc = pierre || T.mur || '#d6cfbf';
+    const PM = M({ map: (T.tex === 'brique' ? TX.brique : TX.pierre)(pc) }), PC = M({ map: TX.pierre(T.tex ? T.pierre : mix(pc, 0.25)) }), PS = M({ map: TX.pierre(T.tex ? mix(T.pierre, -0.3) : mix(pc, -0.25)) }), MA = T.colonnes ? M({ map: TX.pierre(T.colonnes) }) : M({ map: TX.marbre() });
     const TT = M({ map: TX.canalPetit(T.toit) }), y0 = 0.45, H = 3.0, a = W / 2 + 0.25, hr = 1.55;
     // socle et salle
     G.add(at(boite(W + 0.4, y0, ZF + 0.2, PS), cx, y0 / 2, ZF / 2 + 0.1));
@@ -2641,7 +2708,12 @@ export function atelier(D) {
     porte2(G, cx, ZS + 0.01, y0, 1.75, 1.8, '#4a2a16', OR, true);
     for (const s of [-1, 1]) torche(G, cx + s * 1.45, ZS + 0.15, y0 + 1.25, 0.25);
     marches(G, cx, ZF - 0.05, 3.2, 3, y0 / 3, 0.22, PS);
-    for (const s of [-1, 1]) { G.add(at(boite(0.6, 0.9, 0.6, PC), cx + s * 3.2, 0.45, ZF + 0.55)); brasero(G, cx + s * 3.2, 0.9, ZF + 0.55, 0.5); }
+    for (const s of [-1, 1]) {
+      G.add(at(boite(0.6, 0.9, 0.6, PC), cx + s * 3.2, 0.45, ZF + 0.55));
+      // arènes du Sud : l'ornement de leur type sur chaque socle (girouette, chaudron, engrenage…), sinon un brasero
+      if (ORNES.has(type)) { const o = new THREE.Group(); o.scale.setScalar(0.5); G.add(o); sommetType(o, type, (cx + s * 3.2) / 0.5, 0.9 / 0.5, (ZF + 0.55) / 0.5, acc); }
+      else brasero(G, cx + s * 3.2, 0.9, ZF + 0.55, 0.5);
+    }
     return G;
   };
 
@@ -3016,6 +3088,92 @@ export function atelier(D) {
     G.add(at(boite(0.3, 0.3, 0.03, COL(acc)), 0.45, 1.25, 3.82));
     return G;
   };
+  /** la Fonderie de Forge-Acier (7 × 5, porte en x = 3,5) : halle de brique sombre à soubassement de pierre, grand portail de
+   *  fonte sous son linteau, verrières d'atelier où rougeoient les fours (allumées la nuit), toit de tôle à lanterneau, deux
+   *  hautes cheminées de brique cerclées de fer qui fument, un haut fourneau de fonte et ses conduites à droite, wagonnet
+   *  de minerai et lingots devant la façade */
+  B.fonderie = ({ brique = '#7a3a2a' } = {}) => {
+    const G = new THREE.Group(), w = 7, cx = 3.5, ZF = 4.2;
+    const BR = M({ map: TX.brique(brique) }), BS = M({ map: TX.brique(mix(brique, -0.25)) }), PS = M({ map: TX.pierre('#5a5250') }), fonte = COL('#3a3e46'), fer = COL('#5c626c'), TO = M({ map: TX.tole('#5a626e') });
+    const feu = () => LUM('#ff9a30', '#b84a08');
+    G.add(at(boite(w, 0.18, 5, M({ map: TX.dalles('#6a6a70') })), cx, 0.09, 2.5));
+    // la halle (z 0,5 → 4,2), soubassement, bandeau de brique sombre, corniche de pierre
+    G.add(at(boite(6.4, 2.9, 3.7, BR), cx, 0.18 + 1.45, 2.35));
+    G.add(at(boite(6.46, 0.55, 3.76, PS), cx, 0.45, 2.35));
+    G.add(at(boite(6.46, 0.22, 3.76, BS), cx, 2.55, 2.35));
+    G.add(at(boite(6.6, 0.14, 3.9, M({ map: TX.pierre('#8a8480') })), cx, 3.14, 2.35));
+    // toit de tôle à deux pans, lanterneau vitré d'où monte la lueur des fours
+    toit2(G, 0.3, 6.7, 0.5, 4.2, 3.2, 1.0, TO, BS, 0.2, '#2e3238');
+    G.add(at(boite(4.2, 0.42, 0.9, fonte), cx, 4.32, 2.35)); G.add(at(boite(4.0, 0.3, 0.94, feu()), cx, 4.34, 2.35)); G.add(at(boite(4.4, 0.08, 1.1, TO), cx, 4.58, 2.35));
+    for (let i = 0; i < 5; i++) G.add(at(boite(0.06, 0.32, 0.98, fonte), cx - 1.8 + i * 0.9, 4.34, 2.35));
+    // deux cheminées de brique au fond, cerclées de fer, qui fument
+    for (const [x, h] of [[1.1, 6.6], [2.2, 5.6]]) {
+      G.add(at(cyl(0.3, 0.42, h, BR, 10), x, h / 2, 0.75));
+      for (const k of [0.45, 0.7, 0.92]) G.add(at(cyl(0.3 + (1 - k) * 0.12 + 0.03, 0.3 + (1 - k) * 0.12 + 0.03, 0.08, fer, 10), x, h * k, 0.75));
+      G.add(at(cyl(0.36, 0.33, 0.2, fonte, 10), x, h + 0.08, 0.75));
+      const f = new THREE.Object3D(); f.position.set(x, h + 0.3, 0.75); f.userData.fumee = true; G.add(f);
+    }
+    // le haut fourneau, à droite : cuve de fonte rivetée, gueulard, conduite coudée vers la halle
+    G.add(at(cyl(0.7, 0.85, 3.4, fonte, 12), 5.7, 1.88, 1.0));
+    for (const y of [0.9, 1.9, 2.9]) G.add(at(cyl(0.8 - y * 0.035, 0.8 - y * 0.035, 0.1, fer, 12), 5.7, y, 1.0));
+    G.add(at(cyl(0.45, 0.7, 0.7, fer, 12), 5.7, 3.92, 1.0)); G.add(at(cyl(0.3, 0.3, 0.12, feu(), 10), 5.7, 4.3, 1.0));
+    { const c = cyl(0.14, 0.14, 1.9, fer, 8); c.rotation.z = Math.PI / 2; G.add(at(c, 4.7, 3.7, 1.0)); G.add(at(cyl(0.14, 0.14, 0.6, fer, 8), 3.8, 3.45, 1.0)); }
+    // façade : verrières à petits carreaux de part et d'autre du portail
+    for (const x of [1.35, 5.65]) {
+      G.add(at(boite(1.5, 1.25, 0.04, feu()), x, 1.75, ZF + 0.01));
+      for (let i = 0; i <= 4; i++) G.add(at(boite(0.05, 1.25, 0.06, fonte), x - 0.75 + i * 0.375, 1.75, ZF + 0.03));
+      for (let j = 0; j <= 3; j++) G.add(at(boite(1.55, 0.05, 0.06, fonte), x, 1.125 + j * 0.417, ZF + 0.03));
+      G.add(at(boite(1.7, 0.1, 0.16, PS), x, 1.08, ZF + 0.06));
+    }
+    // le portail de fonte à deux vantaux, son linteau de pierre, l'enseigne à l'enclume
+    reperePorte(G, cx, 0.18, ZF, 1.5, 1.7);
+    G.add(at(boite(1.5, 1.7, 0.04, fonte), cx, 0.18 + 0.85, ZF + 0.01));
+    G.add(at(boite(0.04, 1.7, 0.06, fer), cx, 1.03, ZF + 0.03));
+    for (const s of [-1, 1]) { for (const y of [0.5, 1.03, 1.56]) G.add(at(boite(0.6, 0.06, 0.06, fer), cx + s * 0.38, y, ZF + 0.03)); G.add(at(boite(0.14, 1.9, 0.16, PS), cx + s * 0.85, 1.13, ZF + 0.06)); }
+    G.add(at(boite(1.9, 0.22, 0.2, PS), cx, 2.05, ZF + 0.08));
+    G.add(at(boite(1.5, 0.62, 0.06, fonte), cx, 2.56, ZF + 0.04));
+    for (const [dx, dy, ww, hh] of [[0, 0.12, 0.7, 0.14], [0, -0.02, 0.26, 0.16], [0, -0.16, 0.5, 0.1], [-0.42, 0.14, 0.2, 0.08]]) G.add(at(boite(ww, hh, 0.04, feu()), cx + dx, 2.56 + dy, ZF + 0.08));
+    for (const s of [-1, 1]) torche(G, cx + s * 1.15, ZF + 0.12, 1.5, 0.22);
+    // devant : un wagonnet de minerai sur ses rails, une pile de lingots
+    for (const z of [4.5, 4.8]) G.add(at(boite(2.2, 0.04, 0.05, fer), 1.4, 0.2, z));
+    G.add(at(boite(0.9, 0.42, 0.5, fonte), 1.2, 0.5, 4.65)); G.add(at(boite(0.8, 0.14, 0.42, COL('#2a2422')), 1.2, 0.74, 4.65));
+    for (const dx of [-0.3, 0.3]) for (const z of [4.45, 4.85]) G.add(at(cyl(0.11, 0.11, 0.05, fer, 8).rotateX(Math.PI / 2), 1.2 + dx, 0.29, z));
+    for (const [x, y] of [[5.4, 0.26], [5.75, 0.26], [6.1, 0.26], [5.58, 0.42], [5.93, 0.42], [5.75, 0.58]]) G.add(at(boite(0.32, 0.15, 0.5, y > 0.5 ? LUM('#e8701a', '#8a3008') : COL('#9aa0ac')), x, y, 4.62));
+    return G;
+  };
+  /** la Boutique de mode de Métropole (6 × 4, porte en x = 3,5) : immeuble de pierre claire à étage, grandes vitrines où
+   *  posent des mannequins, banne rayée rose, porte vitrée, enseigne aux ciseaux d'or, comble d'ardoise à la Mansart */
+  B.boutiqueMode = ({ rose = '#e2587a' } = {}) => {
+    const G = new THREE.Group(), w = 6, cx = 3, ZF = 3.4, px = 3.5;
+    const PI = M({ map: TX.pierre('#ece4d0') }), PS = M({ map: TX.pierre('#cfc4aa') }), BL = COL('#fbf7f4'), RO = COL(rose), noir = COL('#2a2a32');
+    G.add(at(boite(w, 0.16, 4, M({ map: TX.dalles('#d8d0c0') })), cx, 0.08, 2));
+    G.add(at(boite(5.7, 4.3, 3.0, PI), cx, 0.16 + 2.15, 1.9));
+    G.add(at(boite(5.76, 0.4, 3.06, PS), cx, 0.36, 1.9));
+    G.add(at(boite(5.9, 0.16, 3.2, BL), cx, 2.5, 1.9)); G.add(at(boite(5.78, 0.07, 3.08, OR), cx, 2.4, 1.9));
+    G.add(at(boite(6.0, 0.2, 3.3, BL), cx, 4.5, 1.9));
+    // comble à la Mansart : ardoise, deux lucarnes
+    G.add(toit4(G, cx, 1.9, 4.6, 2.95, 1.6, 1.1, M({ map: TX.ardoise('#4a5060') }), 0.72));
+    G.add(at(boite(4.2, 0.1, 2.2, COL('#3a3e4a')), cx, 5.72, 1.9));
+    for (const x of [1.7, 4.3]) { G.add(at(boite(0.7, 0.75, 0.5, BL), x, 5.05, 3.3)); G.add(at(boite(0.46, 0.5, 0.04, M({ map: TX.verre() })), x, 5.05, 3.56)); G.add(at(boite(0.84, 0.1, 0.6, COL('#3a3e4a')), x, 5.46, 3.32)); }
+    // étage : trois fenêtres à balconnet
+    for (const x of [1.0, 3.0, 5.0]) { fenetre(G, x, 3.5, ZF, 0.9, 1.1, BL); G.add(at(boite(1.2, 0.06, 0.2, noir), x, 2.86, ZF + 0.12)); for (let i = 0; i < 6; i++) G.add(at(boite(0.03, 0.3, 0.03, noir), x - 0.5 + i * 0.2, 3.0, ZF + 0.2)); G.add(at(boite(1.2, 0.04, 0.04, noir), x, 3.16, ZF + 0.2)); }
+    // rez-de-chaussée : deux vitrines et leurs mannequins, de part et d'autre de la porte vitrée
+    for (const [x, ww] of [[1.45, 2.3], [5.2, 0.9]]) {
+      G.add(at(boite(ww, 1.5, 0.03, M({ map: TX.verre() })), x, 1.35, ZF + 0.01));
+      for (const [dx, dy, a2, b2] of [[0, 0.78, ww + 0.14, 0.08], [0, -0.78, ww + 0.14, 0.1], [-ww / 2 - 0.03, 0, 0.08, 1.6], [ww / 2 + 0.03, 0, 0.08, 1.6]]) G.add(at(boite(a2, b2, 0.1, noir), x + dx, 1.35 + dy, ZF + 0.05));
+      const n = ww > 2 ? 3 : 1, C = [rose, '#4a8ad0', '#f0c040'];
+      for (let i = 0; i < n; i++) { const mx = x + (n > 1 ? (i - 1) * 0.7 : 0); G.add(at(boite(0.3, 0.75, 0.05, COL(C[i % 3])), mx, 1.15, ZF + 0.03)); G.add(at(boite(0.16, 0.16, 0.05, COL('#f0e2d2')), mx, 1.64, ZF + 0.03)); G.add(at(boite(0.4, 0.08, 0.05, COL(C[i % 3])), mx, 1.48, ZF + 0.03)); }
+    }
+    portesVitrees(G, px, ZF, 0.85, 1.55, noir);
+    // banne rayée, enseigne : un cartouche rose, les ciseaux d'or
+    { const st = boite(5.8, 0.05, 0.85, M({ map: TX.store(rose) })); st.rotation.x = 0.35; G.add(at(st, cx, 2.16, ZF + 0.38)); }
+    for (let i = 0; i < 12; i++) G.add(at(boite(0.48, 0.13, 0.03, i % 2 ? BL : RO), 0.26 + i * 0.48, 1.94, ZF + 0.78));
+    G.add(at(boite(2.2, 0.56, 0.08, RO), cx, 4.05, ZF + 0.05)); G.add(at(boite(2.3, 0.06, 0.1, OR), cx, 4.35, ZF + 0.05)); G.add(at(boite(2.3, 0.06, 0.1, OR), cx, 3.75, ZF + 0.05));
+    for (const s of [-1, 1]) { const l = boite(0.7, 0.06, 0.04, OR); l.rotation.z = s * 0.45; G.add(at(l, cx, 4.05, ZF + 0.1)); G.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.03, 5, 10), OR), cx - 0.36, 4.05 + s * 0.17, ZF + 0.1)); }
+    // deux orangers en pot sur le trottoir
+    for (const x of [0.45, 2.75]) { G.add(at(cyl(0.2, 0.15, 0.32, RO, 10), x, 0.32, ZF + 0.35)); G.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 6), COL('#3c8c3c')), x, 0.72, ZF + 0.35)); }
+    return G;
+  };
   /** la Tour Mirage (4 × 4, porte en x = 1) : tour antique dorée sur trois étages qui se resserrent, colonnade au
    *  pied, frises et oculus pourpres, flèche d'or ; un orbe brille au sommet la nuit */
   B.tourMirage = ({ toit = '#7a4a9a' } = {}) => {
@@ -3157,5 +3315,5 @@ export const EMPRISES = {
   pagode: [11, 11], tourCendree: [11, 11], pavillon: [8, 7], dojo: [6, 5], tour: [8, 5], tourVerre: [10, 7], tourDeco: [8, 8], bourse: [12, 8], casino: [14, 8], ligue: [30, 14], usinePokeball: [32, 10],
   escalierMontant: [1, 2], escalierDescendant: [1, 2],
   pyramide: [12, 12], temple: [11, 8],
-  centrale: [4, 4], tourMirage: [4, 4], museeDragons: [6, 4], tourDrakos: [8, 11],
+  centrale: [4, 4], tourMirage: [4, 4], museeDragons: [6, 4], tourDrakos: [8, 11], fonderie: [7, 5], boutiqueMode: [6, 4],
 };

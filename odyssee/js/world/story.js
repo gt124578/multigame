@@ -113,7 +113,7 @@ export function addStory(ctx) {
   {
     const D = towns.D;
     admin(W, D.x + 20, D.y + 5, 'down', 'ecl:nyx1', 'nyx', GRUNT.nyx1, {
-      intro: 'Oh, un petit curieux ! Je suis Nyx, Admin de la Team Éclipse. On cherche le Sanctuaire des Marées... et ce vieux marin refuse de parler. Tu veux payer à sa place ?',
+      intro: 'Oh, de la visite ! Je suis Nyx, Admin de la Team Éclipse. On cherche le Sanctuaire des Marées... et ce vieux marin refuse de parler. Tu veux payer à sa place ?',
       lose: 'Pfff, quelle plaie ! On trouvera le Sanctuaire sans lui. Ciao !',
     });
     grunt(W, D.x + 12, D.y + 5, 'right', 'ecl:azur1', GRUNT.e, { sight: 3, intro: 'Le ponton est réquisitionné par la Team Éclipse !' });
@@ -192,7 +192,7 @@ export function addStory(ctx) {
     grunt(rep, 14, 6, 'left', 'ecl:rep4', GRUNT.k, { exact: 1, sight: 4, vanish: false, intro: 'Tu crois qu\'on a volé l\'électricité de Voltacité pour rien ? Recule !', lose: 'Grr... Érèbe va me passer un savon.', after: 'La Centrale, c\'était mon idée. Et personne ne m\'a dit merci.' });
     grunt(rep, 8, 6, 'right', 'ecl:rep5', GRUNT.l, { exact: 1, f: 1, sight: 3, vanish: false, intro: 'La nuit éternelle, c\'est pour bientôt. Tu préfères l\'attendre K.O. ?', lose: 'Bon, d\'accord. Tu es coriace.', after: 'Quand le soleil ne se lèvera plus, on verra bien qui rira.' });
     admin(rep, 19, 10, 'left', 'ecl:nyx2', 'nyx', GRUNT.nyx2, { sight: 4,
-      intro: 'Toi, ici ?! Tu es vraiment collant. Le Chef est en train d\'achever le Prisme Noir. Je ne te laisserai pas le déranger !', lose: 'Non, non, NON ! ... Bon, vas-y. De toute façon, il est trop tard.' });
+      intro: 'Toi, ici ?! Tu ne me lâches donc jamais. Le Chef est en train d\'achever le Prisme Noir. Je ne te laisserai pas le déranger !', lose: 'Non, non, NON ! ... Bon, vas-y. De toute façon, il est trop tard.' });
     const boss = trainerNpc(rep, 11, 3, 'down', 'Chef Éclipse', 'Nocturne', GRUNT.boss1, { id: 'ecl:boss1', sight: 2, ow: 'nocturne', bs: 'nocturne', prize: 120, ai: 'smart', items: { 'hyper-potion': 2 },
       intro: 'Je suis Nocturne, chef de la Team Éclipse. Nox et sa bande de la Brume préfèrent courir après l\'Orbe Rouge ? Qu\'ils s\'amusent dans le brouillard. Le jour rend les gens faibles et bruyants. Sous une nuit éternelle, tout serait enfin calme... Le Prisme Noir fermera le cœur de Lugia, et Lugia obéira. Toi, tu n\'es qu\'un grain de sable.',
       lose: 'Impressionnant. Mais il est trop tard : le Prisme Noir est déjà au Sanctuaire des Marées.', after: '...' });
@@ -355,7 +355,7 @@ export function addStory(ctx) {
     Object.assign(voy, { script: 'gift', text: null, gift: {
       item: 'plume-argent', flag: 'giftPlume', set: 'plumeArgent', who: 'Voyante', need: (st) => st.flags.eclipse && st.badges[4],
       pre: (st) => (st.flags.eclipse ? ['Le ciel s\'est éteint... Je vois une grande ombre sous les vagues.', 'Bats d\'abord Sibylle, à l\'Arène. Ensuite, reviens me voir.'] : ['Je vois... trois îles, trois frères.', 'Et une vieille rancune qui gronde comme un volcan.']),
-      give: ['Le Badge Mirage brille dans ta main... Tu es prêt à affronter la marée.', 'Lugia, le gardien des marées, dort dans le Sanctuaire des Marées, sur un îlot au sud du Cap Mirage.', 'La Team Éclipse a fermé son cœur avec le Prisme Noir. S\'il se réveille ainsi, la nuit ne finira jamais.', 'Cette Plume Argentée ouvre le Sanctuaire. Surfe depuis le Cap Mirage, vers le sud. Va, vite !'],
+      give: ['Le Badge Mirage brille dans ta main... Te voilà de taille à affronter la marée.', 'Lugia, le gardien des marées, dort dans le Sanctuaire des Marées, sur un îlot au sud du Cap Mirage.', 'La Team Éclipse a fermé son cœur avec le Prisme Noir. S\'il se réveille ainsi, la nuit ne finira jamais.', 'Cette Plume Argentée ouvre le Sanctuaire. Surfe depuis le Cap Mirage, vers le sud. Va, vite !'],
       got: ['Le Cap Mirage est au bout de la route 7, au sud de la ville.'], done: (st) => (st.flags.lugia ? ['Le jour est revenu... Je savais que tu y arriverais.'] : ['Le Sanctuaire t\'attend, au sud du Cap Mirage...']) } });
     // la Route Victoire reste fermée tant que dure l'Éclipse
     const vg = W.npcs.find((n) => n.id === 'cime:garde');

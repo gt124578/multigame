@@ -72,6 +72,12 @@ export const PACKS = {
         ['maison_forge_p1', ['granit']], ['maison_a_bl', ['granit']], ['cabane_pecheur', ['granit']], ['maison_g', ['granit']],
         ['maison_rouge', ['cendre']], ['maison_brique_r', ['cendre']], ['maison_d', ['cendre']], ['maison_e', ['cendre']],
         ['maison_ville_bl', ['ecaille']], ['maison_bleue', ['ecaille']], ['maison_f_bleue', ['ecaille']], ['maison_a_g_bl', ['ecaille']],
+        // les Terres du Sud, au plus près de l'architecture de chaque ville (render/styles-villes.js). Port-Lisière : maisons
+        // blanches à pans de bois et volets rouges, toits de tuiles ; Marais-Noir : maisons de bois sombre sur leur
+        // escalier, toits verts ; Rosebrume : chaumières et cottages aux toits chauds, manoir rouge
+        ['maison_the', ['lisiere']], ['maison_rouge', ['lisiere']], ['maison_brique_r', ['lisiere']], ['maison_a', ['lisiere']], ['maison_c', ['lisiere']],
+        ['maison_e', ['marais']], ['maison_d', ['marais']], ['maison_verte', ['marais']], ['chalet', ['marais']],
+        ['maison_orange', ['rose']], ['maison_jaune', ['rose']], ['maison_rouge', ['rose']], ['maison_brique_r', ['rose']], ['manoir_r', ['rose']], ['maison_a_g', ['rose']],
         ['maison_ville_rg', ['metro', 'volta']], ['maison_ville_bl', ['metro', 'volta']], ['maison_ville_ve', ['metro', 'volta']], ['maison_a_bl', ['metro', 'volta']], ['maison_f_bleue', ['metro', 'volta']], ['maison_bleue', ['metro', 'volta']], ['maison_c_ve', ['metro', 'volta']], ['maison_g', ['metro', 'volta']], ['maison_g_ocre', ['metro', 'volta']], ['manoir', ['metro', 'volta']],
         ...NB_MAISONS,
       ];

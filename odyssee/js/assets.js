@@ -23,6 +23,10 @@ const ITEMS = new Set(SPRITES.items || []), PORTRAITS = new Set(SPRITES.portrait
 // (on ne demande jamais un fichier absent). Objets : img/items/<nom>.png, inscrit dans SPRITES.items ; bustes de dialogue sans
 // portrait de combat : img/portraits/<nom>-l.png, inscrit dans SPRITES.bustes (savant = le Professeur Cèdre ; mamadou, garde et
 // vieil_homme gardent d'ici là leur dessin de combat)
+// Bustes de dialogue encore attendus (le dialogue montre d'ici là leur dessin de combat, img/dresseurs/<nom>.png, qui
+// existe : aucune image absente n'est demandée) : margot, aurele, morgane, gaspard, ferdinand, lilas, corbin (Champions du
+// Sud), pierre (la Bourse), sylas, ariane, nox (la Brume). À l'arrivée d'un buste : poser img/portraits/<nom>-l.png et
+// ajouter <nom> à SPRITES.bustes (data/sprites.js) ; rien d'autre à changer (ASSETS.portrait le prend aussitôt)
 const REPLI_OBJET = { 'cs-eclate': 'notebook' };
 const BUSTES = new Set(SPRITES.bustes || []);
 // champions dont le portrait de combat n'est pas encore dessiné : un dresseur qui leur ressemble
