@@ -1,5 +1,8 @@
 # Journal des versions — Arcadia
 
+## 5.178 — 28 novembre 2026
+- Odyssée 3.9 : Acte 4 Lot P1 (arènes Sud 8-14 & Margot Bourse, combat/stance-change/movesets, donjons/météo, Bourse/Casino, Rival Sud, 4 quêtes & Latias/Diancie) (Amiel)
+
 ## 5.177 — 28 novembre 2026
 - Odyssée 3.9 : correctifs Acte 4 Lot P0 (Route 20 15 badges, Surf sud, niveaux troncons, Darkrai/Cresselia, Mélodelfe, exploits Casino, estrades Sud & icônes) (Amiel)
 
